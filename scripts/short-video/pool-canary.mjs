@@ -11,9 +11,9 @@
  *   - publishedAt coverage      → catches date-field vocabulary drift, the
  *     jina `publishedTime` catch of 2026-09-20: articles parse fine but every
  *     publishedAt silently becomes undefined downstream. 0/N is that
- *     signature; partial coverage is expected upstream (#416/#1121: Serper
- *     organic and Tavily news mixes leave some entries undated) and only
- *     trips below MIN_DATE_COVERAGE.
+ *     signature; partial coverage is the real upstream shape of general-web
+ *     results (#416/#1121: Serper organic and Tavily news mixes leave some
+ *     entries undated) and is logged as INFO, never filed.
  *
  * Engines: the three newsCapable engines only. Jina is excluded on purpose —
  * one call ≈ 59k tokens ≈ 6% of its monthly free quota (#309 probe), so even
@@ -42,14 +42,6 @@ const DEFAULT_QUERY = "DeepSeek"; // must-hit: validated against every engine 20
 export const CANARY_ENGINES = POOL_ENGINES.filter((engine) => engine.newsCapable === true);
 
 /**
- * Share of dated entries below which partial coverage stops reading as
- * "upstream sometimes leaves a result undated" and starts reading as a parse
- * gap. 0/N is always drift regardless of this threshold — it is the
- * unambiguous signature the jina catch produced.
- */
-const MIN_DATE_COVERAGE = 0.5;
-
-/**
  * Pure verdict for one engine run (an attempt object from searchPool plus the
  * delivered articles when ok). Returns the list of findings; empty = pass.
  * @returns {Array<{type: string, detail: string}>}
@@ -73,23 +65,13 @@ export function evaluateEngineRun(engine, run) {
     return [{ type: "no-results", detail: "must-hit query returned nothing" }];
   }
   // The jina-class check (#309 date contract): a zero-dated delivery is the
-  // vocabulary-drift signature; partial coverage is a real upstream shape
-  // (#416/#1121) and only fails when most entries lack a date.
-  const dated = datedCount(articles);
-  if (dated === 0) {
+  // vocabulary-drift signature. Partial coverage is a real upstream shape
+  // (#416/#1121, Round CLXXVIII ruling) — it is logged, never filed.
+  if (datedCount(articles) === 0) {
     return [
       {
-        type: "date-coverage",
+        type: "date-drift",
         detail: `0/${articles.length} articles carry publishedAt — date-field vocabulary drift`,
-      },
-    ];
-  }
-  const coverage = dated / articles.length;
-  if (coverage < MIN_DATE_COVERAGE) {
-    return [
-      {
-        type: "date-coverage",
-        detail: `${dated}/${articles.length} articles carry publishedAt (${Math.round(coverage * 100)}% < ${MIN_DATE_COVERAGE * 100}%) — most entries arrive undated upstream; inspect the adapter only once coverage hits 0`,
       },
     ];
   }
@@ -146,7 +128,7 @@ export function issueBody(engineName, findings, query) {
     "",
     "This ticket is filed by the scheduled canary (workflow `pool-canary.yml`); it dedupes by title, so keep it open until the fix lands. `0/N` dated means the date-field vocabulary drifted — refresh the wire fixture `__tests__/fixtures/pool-contracts/" +
       engineName +
-      ".json` from a real response and repair the matching adapter in `scripts/short-video/lib/search-pool.mjs` (see issue #305). Partial coverage below the 50% gate means most entries arrive undated upstream — check the raw response before touching the adapter.",
+      ".json` from a real response and repair the matching adapter in `scripts/short-video/lib/search-pool.mjs` (see issue #305). Partial coverage is upstream shape, not drift — it is logged as INFO and never files a ticket.",
   ].join("\n");
 }
 
@@ -252,12 +234,14 @@ async function main(argv) {
   let failed = 0;
   for (const result of results) {
     if (result.findings.length === 0) {
-      // Partial coverage below 100% is a pass — keep it visible so a slow
-      // slide toward drift is readable in the log before it trips the gate.
+      // Partial coverage is INFO, never a finding — keep the figure visible so
+      // a slide toward 0 is readable in the log before it turns into drift.
       const total = result.articles.length;
       const dated = datedCount(result.articles);
       console.log(
-        `[pool-canary] ${result.engine.name}: OK${total ? ` (${dated}/${total} dated)` : ""}`,
+        `[pool-canary] ${result.engine.name}: OK (${dated}/${total} dated${
+          dated < total ? " — INFO: partial upstream coverage, not drift" : ""
+        })`,
       );
       continue;
     }

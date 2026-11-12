@@ -50,13 +50,13 @@ describe("evaluateEngineRun", () => {
     expect(findings.map((f) => f.type)).toEqual(["no-results"]);
   });
 
-  it("flags date-coverage loss — 0/N dated is the vocabulary-drift signature (the jina class)", () => {
+  it("flags date drift — 0/N dated is the vocabulary-drift signature (the jina class)", () => {
     const findings = evaluateEngineRun(
       { name: "tavily" },
       { ok: true, articles: [{ url: "https://b" }, { url: "https://c" }] },
     );
     expect(findings).toHaveLength(1);
-    expect(findings[0].type).toBe("date-coverage");
+    expect(findings[0].type).toBe("date-drift");
     expect(findings[0].detail).toContain("0/2");
     expect(findings[0].detail).toContain("vocabulary drift");
   });
@@ -68,16 +68,13 @@ describe("evaluateEngineRun", () => {
     expect(evaluateEngineRun({ name: "tavily" }, { ok: true, articles })).toEqual([]);
   });
 
-  it("passes at the 50% boundary and fails below it (#416: Serper organic is 5/10–8/10)", () => {
+  it("passes any partial coverage — even 4/10 never files (Round CLXXVIII ruling, #416)", () => {
     const mixed = (dated, total) =>
       Array.from({ length: total }, (_, i) =>
         i < dated ? datedArticle(`https://d${i}`) : { url: `https://u${i}` },
       );
     expect(evaluateEngineRun({ name: "serper" }, { ok: true, articles: mixed(5, 10) })).toEqual([]);
-    const low = evaluateEngineRun({ name: "serper" }, { ok: true, articles: mixed(4, 10) });
-    expect(low.map((f) => f.type)).toEqual(["date-coverage"]);
-    expect(low[0].detail).toContain("4/10");
-    expect(low[0].detail).not.toContain("vocabulary drift");
+    expect(evaluateEngineRun({ name: "serper" }, { ok: true, articles: mixed(1, 3) })).toEqual([]);
   });
 
   it("flags connectivity loss as its own finding type", () => {
@@ -96,13 +93,13 @@ describe("evaluateEngineRun", () => {
 
 describe("issueBody", () => {
   it("opens with the write-once notice every issue body must carry (issue-tracker.md)", () => {
-    const body = issueBody("serper", [{ type: "date-coverage", detail: "0/10" }], "DeepSeek");
+    const body = issueBody("serper", [{ type: "date-drift", detail: "0/10" }], "DeepSeek");
     expect(body.split("\n")[0]).toContain("正文是创建时的规格（write-once，永不改写）");
   });
 
-  it("explains both date-coverage tiers instead of pointing straight at the adapter", () => {
-    const body = issueBody("serper", [{ type: "date-coverage", detail: "0/10" }], "DeepSeek");
+  it("points at the adapter for 0/N and says partial coverage never files", () => {
+    const body = issueBody("serper", [{ type: "date-drift", detail: "0/10" }], "DeepSeek");
     expect(body).toContain("0/N");
-    expect(body).toContain("50% gate");
+    expect(body).toContain("logged as INFO and never files a ticket");
   });
 });
