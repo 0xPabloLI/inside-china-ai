@@ -18,7 +18,7 @@
  *     [--replay <dir>]
  */
 
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
@@ -76,19 +76,33 @@ function loadEnv() {
 }
 
 /**
- * Node's global fetch ignores HTTP(S)_PROXY unless a dispatcher is installed.
- * Some engines (Brave, Jina) and Wikipedia are only reachable through the host
- * proxy on this machine, so a run without `--proxy` silently measures
- * "connect timeout" as "no marginal gain" — the exact false negative the
- * ticket warns about. `NO_PROXY` keeps the local SearXNG direct.
+ * Node's global fetch ignores HTTP(S)_PROXY unless the process starts with
+ * `--use-env-proxy` (the repo convention, Node ≥ 22.15 — see
+ * docs/selector-auto-healing.md). Some engines (Brave, Jina) and Wikipedia are
+ * only reachable through the host proxy on this machine, so a run without it
+ * silently measures "connect timeout" as "no marginal gain" — the exact false
+ * negative the ticket warns about. `NO_PROXY` keeps the local SearXNG direct.
+ *
+ * A startup flag cannot be applied at runtime, so `--proxy` re-executes this
+ * script once with the flag and the proxy env in place.
  */
-async function installProxy(url) {
-  if (!url) return;
-  process.env.HTTP_PROXY ??= url;
-  process.env.HTTPS_PROXY ??= url;
-  process.env.NO_PROXY ??= "localhost,127.0.0.1";
-  const { EnvHttpProxyAgent, setGlobalDispatcher } = await import("undici");
-  setGlobalDispatcher(new EnvHttpProxyAgent());
+function reexecWithProxy(opts) {
+  if (!opts.proxy || process.env.NODE_USE_ENV_PROXY === "1") return;
+  const result = spawnSync(
+    process.execPath,
+    ["--use-env-proxy", fileURLToPath(import.meta.url), ...process.argv.slice(2)],
+    {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        HTTP_PROXY: process.env.HTTP_PROXY ?? opts.proxy,
+        HTTPS_PROXY: process.env.HTTPS_PROXY ?? opts.proxy,
+        NO_PROXY: process.env.NO_PROXY ?? "localhost,127.0.0.1",
+        NODE_USE_ENV_PROXY: "1",
+      },
+    },
+  );
+  process.exit(result.status ?? 1);
 }
 
 function timestampId(now = new Date()) {
@@ -114,7 +128,6 @@ function describeChannel(channel) {
 
 async function runPilot(opts) {
   loadEnv();
-  await installProxy(opts.proxy);
   const queries = opts.queries
     ? PILOT_QUERIES.filter((query) => opts.queries.includes(query.id))
     : PILOT_QUERIES;
@@ -238,6 +251,7 @@ function replay(runDir) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  reexecWithProxy(opts);
   const runDir = opts.replay ? replay(opts.replay) : await runPilot(opts);
   process.stdout.write(`${runDir}\n`);
 }

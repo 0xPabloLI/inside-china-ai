@@ -218,7 +218,7 @@ const STOPWORDS = new Set([
 const CJK_RE = /[\u4e00-\u9fff]/;
 
 /** Query terms for the cheap relevance heuristic: Latin words + CJK bigrams. */
-export function queryTerms(query) {
+function queryTerms(query) {
   const terms = new Set();
   for (const word of String(query)
     .toLowerCase()

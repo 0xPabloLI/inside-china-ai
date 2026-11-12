@@ -110,7 +110,7 @@ URL 级：
 ## 5. 失败模式与观测（都会误导结论，必须先排掉）
 
 1. **代理端口漂移让 SearXNG 整体判死**：容器 `outgoing.proxies` 写死 `192.168.5.2:7890`，宿主当前端口已变；`unresponsive_engines` 全是 `HTTP connection error`。按 `docs/tools-catalog.md` 的运维路径改成当前端口并重启容器后恢复（单引擎 `engines=google` 返回 208 条）。这是环境故障，不是源死亡。
-2. **Node 全局 fetch 不读 `HTTP(S)_PROXY`**：Brave、Jina、Wikipedia 直连均 `UND_ERR_CONNECT_TIMEOUT`；装 `undici` 的 `EnvHttpProxyAgent` 后全部恢复（Brave 1.3s、Jina 20s、Wikipedia 0.7s）。**不加代理跑出来的「Brave/Jina 边际新增为 0」是假阴性**，正是票面警告的那类误判。harness 因此提供 `--proxy`。
+2. **Node 全局 fetch 不读 `HTTP(S)_PROXY`**：Brave、Jina、Wikipedia 直连均 `UND_ERR_CONNECT_TIMEOUT`；按仓内既有约定用 `--use-env-proxy`（Node ≥ 22.15，见 `docs/selector-auto-healing.md`）后全部恢复（Brave 1.3s、Jina 20s、Wikipedia 0.7s）。**不加代理跑出来的「Brave/Jina 边际新增为 0」是假阴性**，正是票面警告的那类误判。harness 的 `--proxy` 会用该 flag 重新执行自身一次（启动参数无法在运行期补上）。
 3. **HN / Stack Overflow / GitHub 的 0 是查询形态**：HN 对 `mixture of experts` 有 1593 命中，对完整自然语言长句只 1 命中（Algolia 全词匹配）。这批查询对社区源不公平，不能据此判死；铺满时应给社区层配短实体查询。
 4. **Wikipedia 的 0**：默认 `en.wikipedia`，中文查询与专有技术名词（TanStack Start）无条目，属预期；`--lang zh` 是铺满时的必要参数。
 5. **池内三族与 SearXNG 的时间尺度差一个量级**：SearXNG 单引擎 p50 18–20s，`cached-search --fanout` 的单族 60s 硬超时对它是勉强够用；这决定了「SearXNG 进扇出」买的是零额度广度而不是低延迟。
