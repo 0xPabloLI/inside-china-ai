@@ -4,9 +4,9 @@ slug: "qwen4-gamefeel"
 excerpt: "Unreleased Qwen 4 checkpoints topped GameFeel Bench v1.4: 49.9 vs Opus 5.5's 47.2, at $0.40/task vs $2.60. One dev's benchmark; identity unconfirmed."
 published: true
 widgetPlan:
-  status: new-dev
-  backlog: "#1189"
-  note: "GameFeel v1.4 score-vs-price chart (4 models, avg + price_per_task_usd). Registered qwen4-benchmarks covers Qwen3.8-Flash-Next official scores (Aug 26) — different entity, metric and source, not compatible."
+  status: reused
+  widgets: ["gamefeel-score-vs-price"]
+  note: "GameFeel v1.4 snapshot (Nov 8, 2026): four rows, avg + price_per_task_usd, pinned to the CSV commit this article cites. Registered qwen4-benchmarks covers Qwen3.8-Flash-Next official scores — different entity, metric and source."
 ---
 
 # Unreleased Qwen 4 Beats Claude Opus 5.5 at Game Development, at 15% of the Cost
@@ -51,6 +51,8 @@ The v1.4 overall table (average of all seven subcategories), verified row by row
 | Claude Opus 5.5 | XHigh | 47.2 | $2.60 |
 | Claude Sonnet 5.5 | Max | 45.0 | $7.80 |
 | Qwen-4-27B-Early | XHigh | 44.6 | $0.16 |
+
+<!-- widget:gamefeel-score-vs-price -->
 
 The maintainer [announced the addition on November 8](https://x.com/follistatindev/status/2119220233751671186): "Qwen-4-Flash-Early (codename hawk) added to GameFeel Bench!" The post drew 413K views in a day. He also corrected an audio-score calculation error for the 27B entry in the same update, and says he paid per token for his own early-access API key ([reply screenshot](https://mp.weixin.qq.com/s/vhh9D534JEUtFdek6sryvA)). *(✅ Verified: announcement post and CSV agree; the CSV also lists the Flash checkpoint at 1M context, 240 tokens/sec, 23 minutes per task.)*
 

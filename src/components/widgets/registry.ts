@@ -121,6 +121,11 @@ export const WIDGETS: Record<string, LazyWidget> = {
       default: m.ZhipuFinancialsView,
     })),
   ),
+  "gamefeel-score-vs-price": lazy(() =>
+    import("./gamefeel-score-vs-price/gamefeel-score-vs-price-view").then((m) => ({
+      default: m.GameFeelScoreVsPriceView,
+    })),
+  ),
 };
 
 /** Get the list of available widget names (for editor dropdown). */
