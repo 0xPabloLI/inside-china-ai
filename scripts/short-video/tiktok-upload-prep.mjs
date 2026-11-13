@@ -233,6 +233,7 @@ import {
   typePlan,
   wheelScroll,
 } from "./lib/human-input.mjs";
+import { FINGERPRINT_PROBE, classifyFingerprint } from "./lib/cdp-fingerprint.mjs";
 import { PUBLISH_PACING, REVIEW_WATCH_MS } from "./lib/publish-pacing.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
 import {
@@ -1748,6 +1749,31 @@ async function main() {
     tab = launch.targetId;
     cdp = launch.session;
     log("input", { stage: "open", window: launch.window, focusEmulated: launch.focusEmulated });
+
+    // Anti-detection verification (#1181 follow-up). Read what the page
+    // actually sees instead of assuming the fixed profile makes it look real.
+    // This probe never patches the page; the 已加/未加 rationale lives in
+    // lib/cdp-fingerprint.mjs. Reproduce by hand with the curl command there.
+    try {
+      const fingerprint = classifyFingerprint(await evalJson(tab, FINGERPRINT_PROBE));
+      log("fingerprint", fingerprint);
+      if (fingerprint.ok) {
+        console.log("      fingerprint: webdriver=false · UA/platform/timezone aligned");
+      } else {
+        console.log(`      ⚠️ fingerprint: ${fingerprint.note}`);
+        if (fingerprint.checks.some((c) => c.id === "webdriver" && !c.ok)) {
+          console.log(
+            "         Chrome reports navigator.webdriver=true — it was launched with --enable-automation.",
+          );
+          console.log(
+            "         Quit Chrome and relaunch via `npm run cdp:ensure`; do not patch the page.",
+          );
+        }
+      }
+    } catch (err) {
+      log("fingerprint", { ok: false, note: `probe failed: ${err.message}` });
+      console.log(`      ⚠️ fingerprint probe failed: ${err.message}`);
+    }
 
     if (hasFlag("no-warmup")) {
       console.log("  0/6 warm-up skipped (--no-warmup)");
