@@ -1657,6 +1657,13 @@ export async function analyzeAssets(assets, opts = {}) {
   for (const asset of assets) {
     if (asset.type !== "image") continue;
     if (asset.width > 0 && asset.height > 0) continue;
+    // Semgrep flags this `join` as path traversal. The input is not
+    // attacker-controlled: `asset.path` is written by our own download layer
+    // (`buildFilename`) and `contentDir` is the CLI's `--content` slug, which
+    // must name a real directory under `content/` for the run to have started.
+    // Phase 2 below resolves the identical expression, so suppressing keeps
+    // the two call sites byte-identical instead of inventing a second scheme.
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
     const absPath =
       contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
     const dims = probeImageDimensions(absPath);
