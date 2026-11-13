@@ -2,6 +2,7 @@
 
 > **用途**：当用户要求找模型时，按以下来源依次搜索，避免遗漏。
 > **创建日期**：2026-08-09
+> **下游票**：#396
 
 ---
 
@@ -410,6 +411,25 @@ Step 8: 本地源码验证（当调研涉及「某库是否有 bug / 某功能�
 > **加速口径补充**：`whisper-cli` 的 brew 构建**未启用 CoreML**（`otool -L` 无 CoreML 框架；`WHISPER_COREML=1` 是编译期开关，brew formula 无此选项）。上游 CoreML 只加速 **encoder**，本机实测 encoder 占总时长 37-56%（turbo）；但同机 per-call 对比里 CoreML 比 Metal **慢约 2×**（ANEForge PR #3905，M5 Pro），故当前不引入（理由与重测条件见 `../video-production-runbook.md` ⑩）。
 
 > **生产口径（2026-10-09, #418 裁决）**：转写唯一运行时 = whisper.cpp（本表首选）。mlx-whisper 仅存在于 bench 实验轴（`bench/keyframe/`：`asr_batch.py`、`asr_timing_matrix.py`、`asr_equivalence.py`），**不接生产**；两者同模型同音频的输出并非逐词等价（即使都关掉跨段上下文，词级差异率仍有 0-52.6%，见 runbook ⑧），四格计时/内存、词级差异率与 Step 0.3 缺失自检见 `docs/video-production-runbook.md` §ASR 调用规范。
+
+### 人脸检测速查（focus_detector）
+
+| 工具              | 许可证                        | 加速                     | 推荐模型                    | 总分    | 状态                    |
+| ----------------- | ----------------------------- | ------------------------ | --------------------------- | ------- | ----------------------- |
+| YuNet             | MIT（权重）/ Apache-2.0（实现） | CPU，ONNX（毫秒级/帧）   | face_detection_yunet_2023mar | **4.5** | ⭐ 在用（#396）         |
+| Haar Cascade      | Apache-2.0                    | CPU                      | haarcascade_frontalface_default | —   | ❌ 已替换（OpenCV 5.x 移除） |
+
+> 评分明细：加速 5（CPU 原生、无额外运行时）/ 许可 5（MIT + Apache-2.0）/ 精度 4（小脸与遮挡仍会漏检）/ 社区 4（opencv_zoo 活跃维护）= **4.5**。
+
+**证据卡（2026-11-13 实测，#396）**：
+
+- 用途：`scripts/short-video/lib/focus_detector.py` 的人脸保护区域（字幕避让）。
+- 官方来源：https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet ，权重 `face_detection_yunet_2023mar.onnx`，232,589 B，SHA256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`（仓内 `scripts/short-video/models/`）。
+- 目标设备 / 运行时：M2 Pro CPU；OpenCV 5.0.0（`~/.venvs/mlx-vlm`，生产）与 4.10.0（`~/.video-tts-env`，对照）。
+- 安装与 smoke：`cv2.FaceDetectorYN.create` 在两个解释器均加载成功，同一图像输出框完全一致；#391 的 34 帧评估一致 33/34，Haar 疑似误报 1、YuNet 0 误报。
+- 性能：1080×1920 帧上检测内核 4.6–5.4 ms/帧（Haar 同口径 14.5 ms/帧），冷启动 init 2.7 s（5.0）。
+- 已知限制：输入长边缩到 320 后小脸召回有限；不输出 landmark；不处理视频（走 temporal-focus 抽帧）。
+- 验证日期：2026-11-13。
 
 ### 许可证核查案例：Z-Image-Turbo 量化版误标 tongyi-qianwen-license（2026-09-14，#274）
 

@@ -3,6 +3,7 @@
 > 2026-10-05 整理：顶部为「一页纸当前结论」（评审只需读本节 + §20）；2026-09-27 的
 > deep research 原件移至文末附录（多项判断已被 §13–§20 实测更新）。
 > Session `20260928-keyframe-bench-1d663d` · PR #445 · handoff：主库 `.scratch/keyframe-bench/HANDOFF.md`
+> **下游票**：#396
 
 ## 一页纸：当前结论（截至 2026-10-10）
 
@@ -2954,6 +2955,8 @@ mlx_vlm `resolve_video_inputs` 或 ffmpeg scene-detect，均不经装载层）�
 ### Executive Summary
 
 对 MiniCPM-o 4.5（mlx_vlm 0.7.2，本机 M2 Pro）长视频语义分析中的帧采样问题做了三线验证：一手 issue 考古、官方文档/论文、本机源码与真素材冒烟。结论一：**mlx_vlm Issue #294 的 ffmpeg scene detection 配方不是"社区验证的方案"**——它是提问者 tmoroney 自己的既有做法（2025-04-11 发布，2025-04-23 后无活动，closed 无人采纳），maintainer 只回了模型推荐，配方没有任何对比基准。HANDOFF 中"社区验证有效"应降级为"社区分享、无数据"。结论二：但**轻量信号选帧的方向本身是对的**——CVPR 2025 起的学术工作（AKS 等）一致把 naive uniform sampling 当作要打败的基线，且都强调 temporal coverage；对本项目"无 query 的素材语义描述"场景，场景切换信号 + 时间覆盖兜底是性价比最高的一档，神经选帧（AKS/M-LLM 选帧）属于过度设计。结论三：**本地实测配方可行**——30s 真素材 0.36s 选出 11 帧（6 次场景切换 + 首帧 + 每 8s 兜底，行为与设计吻合），零新依赖。结论四：`focus_detector.py` 的 Haar Cascade（2001 年 Viola-Jones 系）有零依赖升级路径——OpenCV 官方实证 YuNet（FaceDetectorYN）全面优于 Cascade，本机 `~/.video-tts-env` cv2 4.14.0 已内置，仅需下载 opencv_zoo 的 YuNet onnx 模型（~345KB，MIT，repo 活跃）。另注意：`~/.venvs/mlx-vlm` 的 cv2 已是 5.0.0 且 **saliency 模块消失**——focus_detector.py 必须钉在 video-tts-env。
+
+> **2026-11-13 更正（#396 实施结果）**：结论四的后半段已被实施推翻。生产解释器确认为 `~/.venvs/mlx-vlm`（cv2 5.0.0），focus_detector.py 已切 YuNet，saliency 改为 numpy Spectral Residual 复刻（OpenCV 5.x 连 `cv2.saliency` 命名空间都不存在，没有可直接调用的等效实现）。解释器不再"钉在 video-tts-env"：单一真源是 `visual-analyzer.mjs` 的 `FOCUS_PYTHON_BIN` / `probeFocusRuntime()`，见 ADR-0015。
 
 ### Key Findings
 
