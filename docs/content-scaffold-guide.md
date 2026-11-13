@@ -83,7 +83,7 @@ export const scenes = [
 - Hook (Scene 1) must execute a hook family: declare `hookFamily` (`result-first` / `contrarian-claim` / `curiosity-gap` / `pattern-interrupt` / `authority-breakdown` / `list-promise`) and write that shape. Undeclared hooks pass when they hit any family marker or a strong word; a bare product nameplate (`V4.1`) does not count as a number (#1289)
 - ≥2 scenes mention sources
 - "China", "AI", and main subject each appear in ≥2 scenes
-- **Media density**: at least `min(2, 可承载画面的场次)` scenes must carry `media`; `data` / `stat-reveal` / `cta` cannot draw media and `hook` is manually curated, so neither counts as capable. A pack of nothing but those is exempt; anything else fails `checkMediaDensity` (#1296)
+- **Media density**: at least `min(2, 可承载画面的场次)` scenes must carry `media`; `data` / `stat-reveal` / `cta` cannot draw media and `hook` is manually curated, so neither counts as capable. A pack of nothing but those is exempt. Preflight only warns (`Media density (pre-generation)`) because the media is produced inside the run; the block is at Step 1.6, after sourcing and generation (#1296)
 
 ## Scene Visuals (Remotion)
 

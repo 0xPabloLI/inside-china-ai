@@ -2223,6 +2223,30 @@ export function checkMediaDensity(scenes, opts = {}) {
   ];
 }
 
+/**
+ * Preflight view of the density gate: the same predicate, downgraded to a
+ * warning.
+ *
+ * Preflight cannot fail on this. It runs before Step 1.5, and the media it is
+ * asking about is produced *inside* the run (sourcing → generation), so a hard
+ * row here is a deadlock: no media → refuse to start → the only pass that could
+ * create media never happens. The gate's teeth live at Step 1.6
+ * (`checkFinalMedia`'s neighbour in main.mjs / render-only.mjs), after
+ * generation has had its turn.
+ */
+export function checkMediaDensityPreflight(scenes, opts = {}) {
+  return checkMediaDensity(scenes, opts).map((row) =>
+    row.level === "fail"
+      ? {
+          ...row,
+          level: "warn",
+          check: "Media density (pre-generation)",
+          detail: `${row.detail} 生成兜底会先补（Step 1.5d），补不上才在 Step 1.6 拦截。`,
+        }
+      : row,
+  );
+}
+
 // ─── protagonist light (#738) ───
 
 /**
@@ -3166,7 +3190,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkSemanticConsistency(scenes),
     ...checkHookMediaContract(scenes),
     ...checkNarrativeMediaWarning(scenes, claimPhrases),
-    ...checkMediaDensity(scenes, { meta }),
+    ...checkMediaDensityPreflight(scenes, { meta }),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
     ...checkTemplateContract(scenes),

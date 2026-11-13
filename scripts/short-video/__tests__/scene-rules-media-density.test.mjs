@@ -10,7 +10,7 @@
  * are not "capable" and an all-text pack made of them is legitimate.
  */
 import { describe, it, expect } from "vitest";
-import { checkMediaDensity } from "../lib/scene-rules.mjs";
+import { checkMediaDensity, checkMediaDensityPreflight } from "../lib/scene-rules.mjs";
 
 const scene = (id, visualType, extra = {}) => ({
   id,
@@ -95,5 +95,35 @@ describe("checkMediaDensity", () => {
     expect(result.fix).toContain("extract-media.mjs");
     expect(result.fix).toContain("默认开启");
     expect(result.fix).toContain("--no-auto-generate");
+  });
+});
+
+describe("checkMediaDensityPreflight", () => {
+  // Preflight runs before Step 1.5, and the media it asks about is produced
+  // inside the run — a hard row there is a deadlock, so it reports and does not
+  // block. The teeth live at Step 1.6 (main.mjs / render-only.mjs).
+  const empty = [scene(1, "hook", { media: null }), scene(2, "context"), scene(3, "context")];
+
+  it("downgrades the fail to a warning", () => {
+    const [result] = checkMediaDensityPreflight(empty);
+    expect(result.level).toBe("warn");
+    expect(result.check).toBe("Media density (pre-generation)");
+  });
+
+  it("names the step that will actually block", () => {
+    const [result] = checkMediaDensityPreflight(empty);
+    expect(result.detail).toContain("Step 1.6");
+    expect(result.detail).toContain("Step 1.5d");
+  });
+
+  it("leaves a satisfied pack as a pass", () => {
+    const scenes = [scene(1, "hook", { media: null }), withMedia(2), withMedia(3)];
+    expect(checkMediaDensityPreflight(scenes)[0].level).toBe("pass");
+  });
+
+  it("keeps the exemption path working", () => {
+    expect(
+      checkMediaDensityPreflight(empty, { meta: { mediaDensityExempt: "diagram-only" } })[0].level,
+    ).toBe("pass");
   });
 });
