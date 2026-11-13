@@ -1021,7 +1021,7 @@ def render_report(metrics, using_design):
     for arm, pooled in metrics["pooled"].items():
         row = pooled["production"]
         lines.append(
-            f"| {arm} | {row['tp']:.2f} | {row['fp']:.2f} | {row['fn']:.2f} | {row['tn']:.2f} "
+            f"| {arm} | {row['tp']:g} | {row['fp']:g} | {row['fn']:g} | {row['tn']:g} "
             f"| {row['fpr']:.3f} | {row['fnr']:.3f} | {row['accuracy']:.3f} |"
         )
     lines += ["", "逐重复明细：", "", "| 臂 | 重复 | FPR | FNR | accuracy |", "| --- | --- | --- | --- | --- |"]
@@ -1031,6 +1031,23 @@ def render_report(metrics, using_design):
             lines.append(
                 f"| {arm} | #{entry['repeat']} | {row['fpr']} | {row['fnr']} | {row['accuracy']} |"
             )
+    # Repeats are identical by construction (temperature 0), so they do not add
+    # observations: the interval comes from the 13 cases, not from 91 runs.
+    first_arm = next(iter(metrics["arms"].values()), [])
+    if first_arm:
+        row = first_arm[0]["production"]
+        lines += [
+            "",
+            "点估计与区间（重复间完全一致，n 按 case 计，不按 run 计）：",
+            "",
+            f"- **FPR** = {row['fp']:g}/{row['unusable']} = {row['fpr']:.3f}"
+            f"（Wilson 95%：{row['fprCi'][0]:.3f}–{row['fprCi'][1]:.3f}）",
+            f"- **FNR** = {row['fn']:g}/{row['usable']} = {row['fnr']:.3f}"
+            f"（Wilson 95%：{row['fnrCi'][0]:.3f}–{row['fnrCi'][1]:.3f}）",
+            f"- accuracy = {row['tp'] + row['tn']:g}/{row['usable'] + row['unusable']}"
+            f" = {row['accuracy']:.3f}",
+            "",
+        ]
     lines += ["", "## 稳定性（同输入多次打分）", ""]
     for arm, summary in metrics["stability"].items():
         lines.append(
@@ -1051,18 +1068,45 @@ def render_report(metrics, using_design):
                 f"| {item['arm']} | {item['caseId']} | {item['n']} | {item['distinct']} "
                 f"| {item['range']} | {item['thresholdFlips']} |"
             )
+    n_usable = metrics["gtCounts"]["usable"]
+    n_unusable = metrics["gtCounts"]["unusable"]
     lines += [
         "",
-        "## 容忍度敏感性（当前 n 下每个目标值意味着什么）",
+        "## 容忍度敏感性",
         "",
-        "| 目标 | 不可用侧允许错误 | 该值下实测上限 | 95% CI | 可用侧允许错误 | 零错误所需 n | 区分 2×目标所需 n |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        f"样本：GT 可用 {n_usable} 例、不可用 {n_unusable} 例（`unsure` 与缺失已排除）。"
+        "两件事必须分开读：A 是**这批样本能得出什么结论**，B 是**要验证某个目标还得加多少样本**。",
+        "",
+        "### A. 当前 n 下的结论边界",
+        "",
+        "| 目标 | 不可用侧允许错误数 | 允许错误数下的实测上限（95% CI） | 可用侧允许错误数 | 允许错误数下的实测上限（95% CI） |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for row in metrics["tolerance"]:
         lines.append(
-            f"| {row['tolerance']:.0%} | {row['unusableErrorsAllowed']} | {row['unusableObservedCeiling']} "
-            f"| {row['unusableCiAtCeiling']} | {row['usableErrorsAllowed']} "
-            f"| {row['nForZeroEventBound']} | {row['nToSeparateFromDouble']} |"
+            f"| {row['tolerance']:.0%} | {row['unusableErrorsAllowed']} "
+            f"| {row['unusableObservedCeiling']}（{row['unusableCiAtCeiling'][0]}–{row['unusableCiAtCeiling'][1]}） "
+            f"| {row['usableErrorsAllowed']} "
+            f"| {row['usableObservedCeiling']}（{row['usableCiAtCeiling'][0]}–{row['usableCiAtCeiling'][1]}） |"
+        )
+    ten = next((r for r in metrics["tolerance"] if r["tolerance"] == 0.10), None)
+    upper = f"{ten['unusableCiAtCeiling'][1]:.0%}" if ten else "n/a"
+    lines += [
+        "",
+        f"读法：在 {n_unusable} 个不可用样本上，允许 0 个错误是唯一能落在 10% 以内的选择，"
+        f"而「0 个错误」本身只把 FPR 上界压到 {upper}（Wilson 95%；粗略的 rule of three 给 "
+        f"{rule_of_three(n_unusable):.0%}）。所以本集能断言的是**有没有系统性误放/误拒**，"
+        "不能断言「已满足 10% 容忍度」。达到某目标的样本量见 B；在样本量补齐前，"
+        "任何「模型可用/不可用」的结论都超出证据。",
+        "",
+        "### B. 各目标所需样本量",
+        "",
+        "| 目标 | 零错误时所需 n（上界 ≤ 目标） | 与 2×目标区分所需 n（α=0.05, power=0.8） |",
+        "| --- | --- | --- |",
+    ]
+    for row in metrics["tolerance"]:
+        lines.append(
+            f"| {row['tolerance']:.0%} | {row['nForZeroEventBound']} | {row['nToSeparateFromDouble']} |"
         )
     lines += [
         "",

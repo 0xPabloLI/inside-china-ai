@@ -150,6 +150,23 @@ def test_tolerance_table_reports_what_each_target_allows():
     assert rows[0.05]["nToSeparateFromDouble"] > rows[0.20]["nToSeparateFromDouble"]
 
 
+def test_report_separates_current_n_boundary_from_required_n():
+    """A reader must not confuse "what n=6 can say" with "what a target needs"."""
+    metrics = {
+        "meta": {"engine": "e", "temperature": 0.0, "threshold": 60, "repeats": 1, "restarts": 0},
+        "generatedAt": "2026-11-13T00:00:00Z",
+        "gtCounts": {"usable": 5, "unusable": 6, "unsure": 2, "missing": 0},
+        "arms": {},
+        "pooled": {},
+        "stability": {},
+        "tolerance": bench.tolerance_table(5, 6),
+    }
+    report = bench.render_report(metrics, using_design=False)
+    assert "### A. 当前 n 下的结论边界" in report
+    assert "### B. 各目标所需样本量" in report
+    assert "不能断言「已满足 10% 容忍度」" in report
+
+
 # ─── labels: the GT boundary ───
 
 
