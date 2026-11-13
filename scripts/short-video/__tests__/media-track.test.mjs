@@ -376,7 +376,9 @@ describe("media-track", () => {
     await runMediaTrack(ctx);
     expect(stageCalls).toBe(1);
     expect(log).toHaveBeenCalledWith(expect.stringContaining("await approval"));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("--approve-auto"));
+    // #1296: generation is on by default, so the way back to "ask me first" is
+    // the opt-out flag — the hint must name that one, not --approve-auto.
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("--no-auto-generate"));
   });
 
   it("#355 an all-budget-skipped plan still reaches the stage (plan written, no silent skip)", async () => {

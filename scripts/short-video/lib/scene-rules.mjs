@@ -2140,6 +2140,113 @@ export function checkEmptyField(scenes, opts = {}) {
   ];
 }
 
+// ─── media density (#1296) ───
+
+/** Media scenes a pack must carry before it can render, capped by what it can
+ *  physically draw: `data` / `stat-reveal` / `cta` never render media and the
+ *  hook is manually curated, so a pack made only of those is legitimate. */
+const MEDIA_DENSITY_FLOOR = 2;
+
+/**
+ * A pack whose every media-capable scene renders text-only is the failure mode
+ * behind the 2026-11-13 batch: 17 of 37 packs carried zero media and nothing
+ * in the pipeline said a word (only `checkEmptyField` warned about whitespace,
+ * filed as known design debt #739/#1215).
+ *
+ * The floor is intentionally low — two scenes out of a shot — because the gate
+ * is meant to catch "nobody asked", not to prescribe a visual style. Sourcing
+ * that fails legitimately (China-AI claims have no stock equivalent, judged
+ * honestly at relevance 0) is supposed to land on generation, which is on by
+ * default since the same change.
+ *
+ * @param {Array<object>} scenes
+ * @param {{ meta?: object }} [opts] - `meta.mediaDensityExempt` (string reason)
+ *   is the recorded way out; it lives in the content pack and goes through
+ *   code review like `stockRelevanceExemption`.
+ */
+export function checkMediaDensity(scenes, opts = {}) {
+  const CATEGORY = "Media";
+  const CHECK = "Media density";
+  const rows = Array.isArray(scenes) ? scenes : [];
+  const capable = rows.filter(
+    (scene) => scene && !NO_MEDIA_TYPES.has(scene.visualType) && scene.visualType !== "hook",
+  );
+  if (capable.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: CATEGORY,
+        check: CHECK,
+        detail: "无可承载画面的场次（全部为 data / stat-reveal / cta / hook）",
+      },
+    ];
+  }
+
+  const exempt =
+    typeof opts.meta?.mediaDensityExempt === "string" ? opts.meta.mediaDensityExempt.trim() : "";
+  if (exempt) {
+    return [{ level: "pass", category: CATEGORY, check: CHECK, detail: `已豁免：${exempt}` }];
+  }
+
+  const withMedia = capable.filter(
+    (scene) =>
+      (typeof scene.media?.path === "string" && scene.media.path.trim() !== "") ||
+      (typeof scene.media?.url === "string" && scene.media.url.trim() !== ""),
+  );
+  const required = Math.min(MEDIA_DENSITY_FLOOR, capable.length);
+  const capableIds = capable.map((scene) => scene.id).join(",");
+  if (withMedia.length >= required) {
+    return [
+      {
+        level: "pass",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${withMedia.length}/${capable.length} 场有画面（下限 ${required}）`,
+      },
+    ];
+  }
+
+  return [
+    {
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail:
+        `整包只有 ${withMedia.length} 场有画面，可承载画面的场次为 ${capableIds}（下限 ${required}）。` +
+        ` 纯文字包能一路绿灯跑到发布，这就是 2026-11-13 三条视频全空的原因。`,
+      fix:
+        "两步：① 若源页有图，先在 Stage 0 对每个详情页跑 `node scripts/short-video/extract-media.mjs --tab <tabId> --content <slug>`" +
+        "（产出 research/media-cache.json，采购 Phase 0b 会优先用它）；② 给这些场写 `assetNeed` / `aiImage.prompt` 后重跑，" +
+        "生成兜底已默认开启（预算 4 静图 / 1 视频，#1296），`--no-auto-generate` 可退出。" +
+        " 三条都有正当理由时才写 `meta.mediaDensityExempt`。",
+    },
+  ];
+}
+
+/**
+ * Preflight view of the density gate: the same predicate, downgraded to a
+ * warning.
+ *
+ * Preflight cannot fail on this. It runs before Step 1.5, and the media it is
+ * asking about is produced *inside* the run (sourcing → generation), so a hard
+ * row here is a deadlock: no media → refuse to start → the only pass that could
+ * create media never happens. The gate's teeth live at Step 1.6
+ * (`checkFinalMedia`'s neighbour in main.mjs / render-only.mjs), after
+ * generation has had its turn.
+ */
+export function checkMediaDensityPreflight(scenes, opts = {}) {
+  return checkMediaDensity(scenes, opts).map((row) =>
+    row.level === "fail"
+      ? {
+          ...row,
+          level: "warn",
+          check: "Media density (pre-generation)",
+          detail: `${row.detail} 生成兜底会先补（Step 1.5d），补不上才在 Step 1.6 拦截。`,
+        }
+      : row,
+  );
+}
+
 // ─── protagonist light (#738) ───
 
 /**
@@ -3083,6 +3190,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkSemanticConsistency(scenes),
     ...checkHookMediaContract(scenes),
     ...checkNarrativeMediaWarning(scenes, claimPhrases),
+    ...checkMediaDensityPreflight(scenes, { meta }),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
     ...checkTemplateContract(scenes),

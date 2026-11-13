@@ -68,7 +68,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // pack's stat-reveal scene (240px bigNumber is hero tier); no warn joins.
     // #738: pass 38 → 39 — the protagonist-light gate reports one pass for the
     // pack's four lit scenes; no warn joins.
-    expect(before.pass).toHaveLength(39);
+    // #1296: pass 39 → 40 — the media-density gate reports one pass (this pack
+    // carries media on 2 of its 7 capable scenes, exactly at the floor).
+    expect(before.pass).toHaveLength(40);
     expect(before.warn).toHaveLength(0);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

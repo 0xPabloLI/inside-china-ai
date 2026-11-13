@@ -139,6 +139,17 @@ async function main() {
       process.exit(1);
     }
     console.log("✅ Step 2: Final media check passed (all scenes have the media they need)\n");
+
+    // #1296: same density floor as main.mjs Step 1.6. render-only never
+    // sources, so a pack with no imagery can only be re-rendered text-only —
+    // which is the failure this gate exists to stop.
+    const { checkMediaDensity } = await import("./lib/scene-rules.mjs");
+    const [density] = checkMediaDensity(scenes, { meta });
+    if (density.level === "fail") {
+      console.error(`❌ Step 2: ${density.check} FAILED — ${density.detail}\n`);
+      console.error(`   ${density.fix}\n`);
+      process.exit(1);
+    }
   }
 
   // ── Step 2.5: BGM (optional) ──

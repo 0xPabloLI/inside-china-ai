@@ -45,6 +45,7 @@ import {
   DEFAULT_AUTO_SCENE_BUDGET,
   DEFAULT_AUTO_VIDEO_BUDGET,
   parseBudgetArg,
+  resolveApproveAuto,
 } from "./lib/media-strategies.mjs";
 import { closeAsrAnalyzer } from "./lib/asr-analyzer.mjs";
 import {
@@ -357,11 +358,13 @@ async function main() {
           baseDir: __dirname,
           broll,
           prof,
-          // #355: the chain's implicit generation rung is HITL-gated. Explicit
-          // b-roll / ai-image overrides are unaffected; only scenes relying on
-          // the default chain wait for --approve-auto.
+          // #355: the chain's implicit generation rung is bounded by the
+          // per-content budgets. #1296: it is ON by default — a run that
+          // forgot a flag used to ship text-only video. `--no-auto-generate`
+          // is the explicit opt-out; the plan is still printed before any GPU
+          // starts (lib/media-track.mjs Stage 1.5d).
           mediaChain: {
-            approveAuto: args.includes("--approve-auto"),
+            approveAuto: resolveApproveAuto(args),
             autoBudget: getBudgetArg("auto-budget", DEFAULT_AUTO_SCENE_BUDGET),
             videoBudget: getBudgetArg("video-budget", DEFAULT_AUTO_VIDEO_BUDGET),
           },
@@ -409,6 +412,18 @@ async function main() {
     }
     prof.end("step-1.6-media-gate");
     console.log("✅ Step 1.6: Final media check passed (all scenes have the media they need)\n");
+
+    // #1296: the density floor gets its teeth here, not at preflight. Sourcing
+    // (1.5), patching (1.5c) and generation (1.5d) have all had their turn, so
+    // a pack that still carries no imagery is a decision — and a text-only
+    // video is exactly what shipped on 2026-11-13 (17 of 37 packs are empty).
+    const { checkMediaDensity } = await import("./lib/scene-rules.mjs");
+    const [density] = checkMediaDensity(scenes, { meta });
+    if (density.level === "fail") {
+      console.error(`❌ Step 1.6: ${density.check} FAILED — ${density.detail}\n`);
+      console.error(`   ${density.fix}\n`);
+      process.exit(1);
+    }
   }
 
   // ── Step 2: Validate every scene received a TTS result ──
