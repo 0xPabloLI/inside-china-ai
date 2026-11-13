@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.69.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.3...tanstack_start_ts-v1.69.4) (2026-11-13)
+
+
+### Bug Fixes
+
+* **media:** probe image dimensions, and grade the scrim for the subtitle lane ([#1312](https://github.com/0xPabloLI/inside-china-ai/issues/1312)) ([bf59cf3](https://github.com/0xPabloLI/inside-china-ai/commit/bf59cf3d9bbfb822e5c42be0ace9ff0b4a80108e))
+
 ## [1.69.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.2...tanstack_start_ts-v1.69.3) (2026-11-13)
 
 
