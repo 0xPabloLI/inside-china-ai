@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.69.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.1...tanstack_start_ts-v1.69.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **media:** drop page furniture, and let the picture carry the shot ([#1306](https://github.com/0xPabloLI/inside-china-ai/issues/1306)) ([8e91d0e](https://github.com/0xPabloLI/inside-china-ai/commit/8e91d0e705a6e1a3681c1b5b443558897e3c318d))
+
 ## [1.69.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.0...tanstack_start_ts-v1.69.1) (2026-11-13)
 
 
