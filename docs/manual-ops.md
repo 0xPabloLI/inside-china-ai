@@ -20,39 +20,39 @@
 - Hook 吸引力、叙事逻辑、数据准确性、场景数量和总时长、CTA 有效性
 - 实际观看视频、TTS 语音自然度、字幕准确性、视觉动画流畅度、有无渲染问题
 
-> HITL 确认后，Agent 依次执行：将已审阅的 article draft 公开发布 → 源素材附件上传 → TikTok 发布（manual-guide 档：用户按 checklist 在 App 内发布，Agent 提供 publish-tiktok.mjs 指南；发布后用 `set-tiktok-url.mjs` 回写 URL 到文章）。制作期间可使用 `publish-article.mjs --draft` 保存非公开文章；最终公开由本次唯一 HITL 控制。详见 `docs/content-pipeline.md` Stage 5。
+> HITL 确认后，Agent 依次执行：将已审阅的 article draft 公开发布 → 源素材附件上传 → TikTok 准备草稿（manual-guide 档：用户按 checklist 在 App 内发布，Agent 提供 publish-tiktok.mjs 指南；发布后用 `set-tiktok-url.mjs` 回写 URL 到文章）。制作期间可使用 `publish-article.mjs --draft` 保存非公开文章；最终公开由本次唯一 HITL 控制。**TikTok 的公开点击自 2026-11-13 起由用户完成**（#1181：CDP 自动路径只存草稿）。详见 `docs/content-pipeline.md` Stage 5。
 
 ---
 
 ## 每次发布视频时
 
-> **前置条件**：HITL 已通过（用户确认「视频 OK，发布」）。Agent 发布流程详见 `docs/content-pipeline.md` Stage 5。
-> 第 1–2 项由 Agent 在 `tiktok-upload-prep.mjs` 里自动完成（该脚本驱动 Studio 网页版，AIGC 标记失败即中止；发布前还会用浏览器出口国家做硬门禁，默认 `SG`）。第 3 项可选——历史成功的手动发布也没有填（用户 2026-11-01 确认），网页路径没有该控件；第 4–6 项仍需人工。
+> **前置条件**：HITL 已通过（用户确认「视频 OK」）。Agent 发布流程详见 `docs/content-pipeline.md` Stage 5。
+> 第 1–2 项由 Agent 在 `tiktok-upload-prep.mjs` 里自动完成（该脚本驱动 Studio 网页版，AIGC 标记失败即中止；上传前用浏览器出口国家做探测，默认 `SG`，降级后为警告）。**公开点击（第 9 步）由用户完成**（#1181）。第 3 项可选——历史成功的手动发布也没有填（用户 2026-11-01 确认），网页路径没有该控件；第 4–6 项仍需人工。
 
 | #   | 操作               | 说明                                                                                                                                                 | 为什么                                                    |
 | --- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 1   | **AIGC 标签**      | Agent 自动开启（读 `profile.aiDisclosure.required`）；`--no-aigc` 仅用于无配音视频，且与 `--publish` 同用时会被拒，须 `--confirm-unlabeled` 显式承担 | TikTok 要求标注 AI 内容，不标注会被降权；标签发布后无法补 |
-| 2   | **背景音乐**       | 由 Agent 在上传脚本里一次挂好，默认 `--volume-db -15`                                                                                                | 播报必须压过音乐；音量按实测标定，不按感觉                |
+| 1   | **AIGC 标签**      | Agent 自动开启（读 `profile.aiDisclosure.required`）；`--no-aigc` 仅用于无配音视频，且在非 dry-run 运行中会被拒，须 `--confirm-unlabeled` 显式承担 | TikTok 要求标注 AI 内容，不标注会被降权；标签发布后无法补 |
+| 2   | **背景音乐**       | 由 Agent 在上传脚本里一次挂好，默认 `--volume-db -15`；**存草稿会丢掉已挂 music**，公开前需重挂                                                                                                | 播报必须压过音乐；音量按实测标定，不按感觉                |
 | 3   | **地理标签（可选）** | 默认不做——历史成功的手动发布也没有填（用户 2026-11-01 确认），CDP 网页路径没有该控件；要加时导出成片传到手机（AirDrop/云盘），在 App 内重新上传并补 Location 再 Post。网页 Studio 草稿不会同步到 App（App 草稿是本机存储），且这条路会丢掉网页端已填的文案/音乐/AIGC 标记 | 本地内容算法优先推同区域用户；对本账号的增量未实测 |
 | 4   | **Pinned comment** | 发布后置顶含文章 URL 的评论                                                                                                                          | 引导流量到网站                                            |
 | 5   | **回复评论**       | 发布后 1 小时内回复所有评论                                                                                                                          | 首小时互动信号影响算法推荐                                |
 | 6   | **非高峰时段**     | 查看粉丝活跃时间，选低峰发布                                                                                                                         | 竞争少，算法更容易推                                      |
 
-> **AIGC 标记不可补**：TikTok 发布后无法再添加该标记。所以 `tiktok-upload-prep.mjs` 把它放在发布前的必经步骤里，开关没打开就中止，不会静默发布。2026-10-25 的首条 Unitree 视频就是因为这一步缺失而裸发。
+> **AIGC 标记不可补**：TikTok 发布后无法再添加该标记。所以 `tiktok-upload-prep.mjs` 把它放在终止动作（存草稿/交给操作者）之前的必经步骤里，开关没打开就中止，不会静默留下未标注的帖子。2026-10-25 的首条 Unitree 视频就是因为这一步缺失而裸发。
 
-> **`--save-draft` 的行为（#1102）**：脚本先点裁剪面板自己的 `保存` 应用编辑（否则面板全屏覆盖底部操作栏，`保存草稿` 点不到），再点 `保存草稿`。草稿没确认落盘（页面没离开 `/upload`）时以非零退出并保留 tab，不会打印「已保存」。草稿不进公开流，发布决定仍在操作者。**草稿只存在于网页 Studio**：TikTok 不同步桌面网页与手机 App 的草稿（App 草稿是本机存储），所以 `--save-draft` 不是「网页准备 → 手机终发」的桥梁。
+> **`--save-draft` 的行为（#1102 / #1181）**：脚本先点裁剪面板自己的 `保存` 应用编辑（否则面板全屏覆盖底部操作栏，`保存草稿` 点不到），再点 `保存草稿`。草稿没确认落盘（页面没离开 `/upload`）时以非零退出并保留 tab，不会打印「已保存」。**`--save-draft` 是自动路径的终点**：公开点击由操作者在 Studio 里完成，`--publish` 会被拒绝。**草稿只存在于网页 Studio**：TikTok 不同步桌面网页与手机 App 的草稿（App 草稿是本机存储），所以 `--save-draft` 不是「网页准备 → 手机终发」的桥梁；要保留已挂 music 并当场发布，用不带 `--save-draft` 的准备模式。
 
 ### 背景音乐
 
-**Agent 一条龙完成，不再问用户选哪首**（用户决定 2026-10-25）。HITL 确认「视频 OK」之后，Agent 在 `tiktok-upload-prep.mjs` 里同一次运行挂上 Breaking News (Voxie)、设好音量、打 AIGC 标记、点发布。
+**Agent 一条龙准备，不再问用户选哪首**（用户决定 2026-10-25；2026-11-13 #1181 起公开点击归用户）。HITL 确认「视频 OK」之后，Agent 在 `tiktok-upload-prep.mjs` 里同一次运行挂上 Breaking News (Voxie)、设好音量、打 AIGC 标记，然后存成草稿。
 
 ```bash
 node scripts/short-video/tiktok-upload-prep.mjs \
   --video output/{id}/{id}-v…-short.mp4 --content {id} \
-  --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish
+  --sound "Breaking News" --sound-owner Voxie --volume-db -15 --save-draft
 ```
 
-**出口地理硬门禁（#964）**：`--publish` 前脚本在自动化浏览器里读取 Cloudflare trace 的出口国家，与 `--expect-region`（默认 `SG`）比对；不一致、探测超时或 `loc=XX` 直接阻断（2026-10-25 那条 0 播的 CDP 发布出口在东京 Zouter/AS205548）。发布点击前会再探测一次。改 VPN 节点后重跑；只有确实要从别的地区发布时才改 `--expect-region`。结束时脚本按 profile 的 `manualGuide.steps` 打印覆盖差：Location 记为「两条路都没做」，in-app editing 是 App 专有，置顶评论与首小时互动是发布后手机补做。
+**出口地理探测（#964，降级后为警告）**：上传前脚本在自动化浏览器里读取 Cloudflare trace 的出口国家，与 `--expect-region`（默认 `SG`）比对；不一致、探测超时或 `loc=XX` 会警告但不阻断（因为不再自动公开；2026-10-25 那条 0 播的 CDP 发布出口在东京 Zouter/AS205548）。改 VPN 节点后重跑；只有确实要从别的地区公开时才改 `--expect-region`。结束时脚本按 profile 的 `manualGuide.steps` 打印覆盖差：`publish` 固定为「未覆盖——公开由人工完成」，草稿丢 music 记为 `draft-lost`，Location 记为「两条路都没做」，in-app editing 是 App 专有，置顶评论与首小时互动是发布后手机补做。
 
 **音量红线**：滑杆读数与「相对播报的 dB」不是同一个量（实测滑杆 −20 dB = 音乐比播报低 22.2 dB，听感偏轻），所以用默认的 −15 dB，脚本会回读滑杆值并在偏差超过 1 dB 时中止。推导与测量方法见 `docs/research/music-under-voice-calibration-2026-10.md`。
 
@@ -69,10 +69,15 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 | 鼠标轨迹   | 每次点击沿带侧向弯曲的 Bézier 移动，末段减速，冲过目标 0.4–2px 再回正                                    | —                 |
 | 逐字输入   | 可信 `insertText`，一次一个字符（含 emoji），间隔 30–120ms，句读处偶发 300–900ms 停顿；换行按真 Enter 键 | `--paste-caption` |
 | 等待抖动   | 全部走 `PUBLISH_PACING` / 具名常量带（`[base, spread]`，spread ≥ base 的 20%），无裸毫秒                 | —                 |
-| 发布前审阅 | `--publish` 时先播预览 5–15s、暂停、确认时钟走过再停，判定写进日志                                       | `--skip-review`   |
+| 发布前审阅 | 存草稿/交给操作者之前先播预览 5–15s、暂停、确认时钟走过再停，判定写进日志                              | `--skip-review`   |
 | 会话预热   | 先在 For You 滚动 2–4 次、每次停留 2.3–4.7s（合计约 5–19s），再打开上传页                                | `--no-warmup`     |
 
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
+
+**反检测姿态（#1181 追加，2026-11-13）**：原则是让**真实 Chrome** 保持真实，而不是往页面里打补丁。
+- **已加**：固定自动化 profile（`~/chrome-tiktok-profile`、端口 9229）+ 真实 Chrome（UA/语言/platform/时区天然一致）；human-like 输入（Bézier 移动、可信按下、逐字输入、抖动等待）；发布 session 不发 `Runtime.enable`/`Page.enable`；每步 1.5–4.5s 抖动；运行开始后用 `FINGERPRINT_PROBE` 读取 `navigator.webdriver`、UA/platform/语言/时区并写入 `publish-log.jsonl` 的 `fingerprint` 行。
+- **未加（原因）**：`navigator.webdriver` 的脚本抹除（无 `--enable-automation` 时本就是 `false`；注入 getter 本身是可检测补丁）；UA/时区覆盖（`Emulation.*` 是更明显的 CDP 痕迹，还会与 WebGL/platform 矛盾）；WebGL/canvas 伪造（重度且更容易露馅）；跨运行硬节流（会阻碍失败重跑）。
+- **复验**：`grep '"step":"fingerprint"' output/*/publish/tiktok/publish-log.jsonl`，或按 `scripts/short-video/lib/cdp-fingerprint.mjs` 顶部的 curl 命令在页面内直接读。
 
 > 逐字输入之后要强制 Draft.js 从自己的 ContentState 重渲染一次（打一个空格再退格），否则 DOM 里看着有字、保存下来是空的（2026-10-24 那次丢了 708/1223 字符）。这一步原来是不管空格有没有落地都发退格，于是页面吞掉空格时退格删掉的是**最后一个真字符**，读回来像「打字丢了一个字」，白白回退成一次 paste。现在退格以「实测到文本变了」为前置条件，空格被吞就重发（最多 2 次），两次都没落地就**不发退格**。
 >

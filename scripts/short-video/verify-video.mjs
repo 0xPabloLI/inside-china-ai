@@ -684,7 +684,7 @@ if (!preMode) {
   manual(
     "Publish",
     "In-app editing (app-only)",
-    `The CDP --publish path publishes a pre-rendered video and cannot add a\n` +
+    `The CDP path prepares a pre-rendered video and cannot add a\n` +
       `  native sticker/effect. The "algorithm bonus" is unmeasured; if you want\n` +
       `  it, upload the exported mp4 in the phone app — a Studio draft does not\n` +
       `  sync there, and the web caption/sound/AIGC choices are redone. The\n` +

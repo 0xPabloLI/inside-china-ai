@@ -24,7 +24,6 @@ export const PUBLISH_PACING = Object.freeze({
   soundAttached: [3000, 800],
   clipSelect: [2500, 700],
   volumeClick: [1500, 400],
-  publishScroll: [1500, 400],
   warmupPageLoad: [4500, 1500],
   warmupDwell: [3500, 1200],
   uploadPageSettle: [8000, 2000],

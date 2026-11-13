@@ -50,11 +50,12 @@
  *      `lib/human-input.mjs`; no fixed literal remains. A test pins each pacing
  *      entry to a spread of at least 20% of its base and rejects naked
  *      durations (including inside page scripts).
- *   4. Pre-publish review. With `--publish`, the script presses play on the
- *      preview, watches it for a random 5-15s, pauses it, and confirms the
- *      clock moved and then stopped — then records the verdict in the publish
- *      log. The preview is a canvas with no <video> element, so the evidence
- *      is the player's own clock. `--skip-review` opts out.
+ *   4. Pre-terminal review. Before saving the draft (or leaving the prepared
+ *      editor), the script presses play on the preview, watches it for a random
+ *      5-15s, pauses it, and confirms the clock moved and then stopped — then
+ *      records the verdict in the publish log. The preview is a canvas with no
+ *      <video> element, so the evidence is the player's own clock.
+ *      `--skip-review` opts out.
  *   5. Session warm-up. Unless `--no-warmup`, the session opens on the For You
  *      feed, scrolls 2-4 times with a 2.3-4.7s dwell after each, and only then
  *      navigates to the upload page.
@@ -93,8 +94,9 @@
  *      and cannot be set after publishing — see the AIGC section below.
  *   5. A no-voice run needs `--no-aigc`; the label is otherwise always applied.
  *      The label decision now comes from the platform profile instead of this
- *      flag alone (`profile.aiDisclosure.required`, #951): with `--publish`,
- *      `--no-aigc` is refused unless `--confirm-unlabeled` acknowledges it.
+ *      flag alone (`profile.aiDisclosure.required`, #951): in any non-dry run
+ *      `--no-aigc` is refused unless `--confirm-unlabeled` acknowledges it,
+ *      because the saved draft is one human click from live.
  *
  * Profile gate (#951)
  * -------------------
@@ -111,14 +113,12 @@
  * ------------------
  * The browser's exit country is what TikTok sees. Before the upload page the
  * driver reads Cloudflare's `/cdn-cgi/trace` through the automation browser and
- * compares it with `--expect-region` (default SG). With `--publish` a mismatch
- * or an undeterminable country is a hard block: the 2026-10-25 post that sat at
- * 0 plays exited from Tokyo while the account's target route was Singapore. A
- * prepare-only run warns instead, because nothing is published — but the
- * operator can still click 发布 in the open tab, so the warning says so. The
- * same probe runs once more immediately before the publish click: the first
- * one predates the warm-up and upload, and a route that flips mid-run must not
- * reach the irreversible action.
+ * compares it with `--expect-region` (default SG). A mismatch or an
+ * undeterminable country warns: since #1181 (ruled 2026-11-13) the automated
+ * path saves a draft only and never publishes, so the probe is advisory rather
+ * than a block. The 2026-10-25 post that sat at 0 plays exited from Tokyo while
+ * the account's target route was Singapore — the warning still names that risk
+ * because the operator is one click from publishing the draft.
  *
  * Coverage diff (#964)
  * --------------------
@@ -134,19 +134,21 @@
  * -------------
  * By default this script stops with the editor fully prepared — video
  * uploaded, caption filled, AIGC disclosed, native sound attached — and leaves
- * the tab open for the operator to review and publish. The content-pipeline
- * HITL gate is preserved: a human makes the publish call.
+ * the tab open for the operator to review and publish. With `--save-draft` it
+ * additionally applies the staged clip edit and clicks 保存草稿, so the run
+ * ends with a web Studio draft instead of an open editor.
+ *
+ * #1181 (ruled 2026-11-13): the automated path is draft-only. It never clicks
+ * 发布; the public click is the operator's. `--publish` is refused by
+ * `resolveUploadPrepAction()` before the browser opens, because the web path's
+ * distribution weight is unresolved (two CDP posts at 0 plays, then an in-app
+ * post at 438) and a public click is irreversible. The content-pipeline HITL
+ * gate therefore still ends with a human decision.
  *
  * Standing default (user, 2026-10-25): once the video is approved at HITL,
- * publish it end to end — attach the music bed, set its level, disclose AIGC,
- * click 发布 — without coming back with a BGM question. Use --sound only to
- * pick a different track than the account's usual one.
- *
- * `--publish` clicks 发布. The user authorized that capability on 2026-10-24
- * ("发布时跑自动化：脚本一次性做完挂 sound + 设音量 + 点发布"). Passing the
- * flag on a given run IS the publish decision for that run — it is not a
- * standing licence to publish, and the pipeline's HITL approval still has to
- * have happened before the flag is used.
+ * prepare it end to end — attach the music bed, set its level, disclose AIGC —
+ * without coming back with a BGM question. Use --sound only to pick a different
+ * track than the account's usual one.
  *
  * Usage
  *   node scripts/short-video/tiktok-upload-prep.mjs \
@@ -160,8 +162,6 @@
  *   --video <path>        Video file to upload (required)
  *   --content <dir>       Pipeline id — caption defaults to
  *                         output/{dir}/publish/tiktok/tiktok-caption.txt
- *   --slug <slug>         Article slug, recorded in pending-analysis.json after
- *                         a real publish (the analytics workflow links back to it).
  *   --caption <text>      Caption override (else the --content default)
  *   --caption-file <path> Caption file override
  *   --sound <query>       Sound to search for (default: the account's usual)
@@ -179,51 +179,48 @@
  *   --confirm-unlabeled   Acknowledge publishing without the AIGC label. Only
  *                         meaningful together with --no-aigc; the run records
  *                         the override in the publish log.
- *   --publish             Click 发布 after preparing. Without it the script
- *                         never publishes.
+ *   --publish             REFUSED (#1181, ruled 2026-11-13). The automated path
+ *                         saves a draft only; the public click is the
+ *                         operator's. The run exits non-zero before the browser
+ *                         opens and points at --save-draft.
  *   --no-warmup           Skip the For You warm-up before the upload page.
  *   --paste-caption       Paste the caption in one event instead of typing it.
  *                         The run does this automatically when typed text does
  *                         not verify; this flag just skips the attempt.
- *   --skip-review         Skip the pre-publish playback review (the publish
+ *   --skip-review         Skip the pre-terminal playback review (the publish
  *                         log then says `reviewed: false`).
  *   --close-tab           Close the tab when done (dry runs / testing). The
  *                         tab is kept by default, so the operator can review
  *                         and publish by hand.
  *   --save-draft          After preparing, apply the staged clip edit (保存)
  *                         and click 保存草稿 (Save draft) so the post lands in
- *                         the account's TikTok Studio drafts. Still never
- *                         publishes. Web-only: TikTok does not sync drafts
- *                         between the desktop site and the mobile app (app
- *                         drafts are local to the phone), so this is not a
- *                         hand-off to the app — see the draft branch note.
+ *                         the account's TikTok Studio drafts. This is the
+ *                         terminal automated action: public publishing is a
+ *                         manual click in Studio (or a phone upload). Web-only:
+ *                         TikTok does not sync drafts between the desktop site
+ *                         and the mobile app (app drafts are local to the
+ *                         phone), so this is not a hand-off to the app — see
+ *                         the draft branch note.
  *                         The attached sound does NOT survive a draft
  *                         save/reopen; the caption does.
  *   --expect-region <CC>  Expected browser exit country (ISO 3166-1 alpha-2,
  *                         default SG; XX is Cloudflare's unknown sentinel and
  *                         is not accepted). Before the upload page the driver
  *                         reads Chrome's egress through Cloudflare's trace
- *                         endpoint; with --publish a mismatch, a timeout, or
- *                         loc=XX blocks. Set this when the account is meant to
- *                         publish from another region.
+ *                         endpoint; a mismatch, a timeout, or loc=XX warns
+ *                         rather than blocks (draft-only since #1181). Set this
+ *                         when the account is meant to publish from another
+ *                         region.
  *   --dry-run             Egress probe + page reachability; never uploads or publishes
  */
 
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from "fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from "fs";
 import { join, dirname, resolve, basename } from "path";
 import { fileURLToPath } from "url";
 import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab, waitForPageLoad } from "./lib/cdp-client.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
-  activateTarget,
   clickAtPoint,
   emulateFocus,
   openVisibleSession,
@@ -236,9 +233,14 @@ import {
   typePlan,
   wheelScroll,
 } from "./lib/human-input.mjs";
+import { FINGERPRINT_PROBE, classifyFingerprint } from "./lib/cdp-fingerprint.mjs";
 import { PUBLISH_PACING, REVIEW_WATCH_MS } from "./lib/publish-pacing.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
-import { CDP_PUBLISH_METHOD, resolveAigcPolicy } from "./lib/platforms/upload-prep-policy.mjs";
+import {
+  CDP_PUBLISH_METHOD,
+  resolveAigcPolicy,
+  resolveUploadPrepAction,
+} from "./lib/platforms/upload-prep-policy.mjs";
 import { buildCoverageDiff, formatCoverageDiff } from "./lib/platforms/publish-coverage.mjs";
 import {
   DEFAULT_EXPECTED_REGION,
@@ -246,11 +248,7 @@ import {
   isExpectedRegion,
   probeEgressRegion,
 } from "./lib/publish-egress.mjs";
-import {
-  buildAnalyticsGuidance,
-  buildManualPendingAnalysis,
-  resolvePublishMethod,
-} from "./lib/publish-utils.mjs";
+import { resolvePublishMethod } from "./lib/publish-utils.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -492,23 +490,6 @@ const CAPTION_READ = `
 })()`;
 
 /**
- * Read the page state after a publish click, to catch a TikTok-side rejection
- * instead of reporting success on a form that never submitted.
- *
- * The banner is `pageError`, never `error`: `pollFor` owns that key for its own
- * eval failures, and the two used to be indistinguishable after the 45 s
- * timeout — the driver's unreadable page was printed as TikTok's refusal, which
- * invites re-running a post that may already be live (#1106).
- */
-const PUBLISH_STATE = `
-(() => {
-  const text = document.body.innerText || "";
-  const pageError = /出错了|请重试|发布失败|发布错误/.test(text) ? text.slice(0, 200) : null;
-  return JSON.stringify({ pageError, url: location.href });
-})()`;
-export { PUBLISH_STATE };
-
-/**
  * Read the page state after the draft click.
  *
  * The observed shape (2026-11-02, live) is navigation away from
@@ -546,29 +527,6 @@ const OVERLAY_CLOSED = `
 /** True once the upload page's file input is mounted. */
 const FILE_INPUT_READY = `
 (() => JSON.stringify({ ready: !!document.querySelector('input[type="file"]') }))()`;
-
-/**
- * Scroll the publish button into view and report whether a click could land.
- *
- * It sits ~566px below the fold inside a scrollable panel (the body itself
- * does not scroll), so a real mouse click at its centre misses unless it is
- * scrolled first. `unobstructed` re-checks with elementFromPoint because the
- * clip editor overlay covers the whole viewport while it is open.
- */
-const SCROLL_TO_PUBLISH = `
-(() => {
-  const b = document.querySelector('[data-e2e="post_video_button"]');
-  if (!b) return JSON.stringify({ ok: false, reason: "no publish button" });
-  b.scrollIntoView({ block: "center" });
-  const r = b.getBoundingClientRect();
-  const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
-  const hit = document.elementFromPoint(cx, cy);
-  return JSON.stringify({
-    ok: true,
-    inView: r.y >= 0 && r.y + r.height <= window.innerHeight,
-    unobstructed: !!(hit && (hit === b || b.contains(hit) || (hit.closest && hit.closest('[data-e2e="post_video_button"]')))),
-  });
-})()`;
 
 /**
  *
@@ -1071,92 +1029,6 @@ async function waitFor(tabId, script, opts = {}) {
 const readyOnOk = (s) => !!s?.ok;
 
 /**
- * True once the page reads as a published post: it answered, carries no banner,
- * and is no longer the upload page.
- *
- * Exported alongside `pollFor` because this predicate is the boundary between
- * "publish confirmed" and "publish unconfirmed" — the analytics record and the
- * success line both hang off it, so it is tested against envelopes instead of
- * being re-read out of the source (#1106).
- */
-export const publishSettled = (s) =>
-  !!s && !s.error && !s.pageError && !/\/upload/.test(s.url || "");
-
-/**
- * Turn what `pollFor` saw into the only two outcomes the publish exit needs.
- *
- * `confirmed` is recomputed from the last observation rather than trusted from
- * `pollFor.ready`: an envelope that nobody could read must not become a
- * confirmed publish just because the caller passed the wrong flag. `message`
- * is null exactly when `confirmed` is true.
- */
-export function classifyPublishSettle({ tab, last, lastGood = null } = {}) {
-  if (publishSettled(last)) return { confirmed: true, message: null };
-  return { confirmed: false, message: publishTimeoutMessage({ tab, last, lastGood }) };
-}
-
-const NOT_RECORDED =
-  "   pending-analysis.json was not written: the publish is unconfirmed — " +
-  "record it by hand only after you confirm the post";
-
-/**
- * Explain why the publish click never settled.
- *
- * Three different facts used to print as one sentence: the page's own error
- * banner, a driver-side read that never came back, and a click that simply did
- * not navigate. Only the first is TikTok's. Saying "TikTok reported an error"
- * for the second is how an operator ends up re-running a post that is already
- * live, so the unreadable-page branch names the tab and the last URL the page
- * did answer with, and every branch says out loud that the analytics record was
- * skipped (a banner is a refusal, but only the operator can confirm the post is
- * not live anyway).
- *
- * Pure on purpose: the wording is the deliverable of #1106, so it is tested
- * without a browser.
- */
-export function publishTimeoutMessage({ tab, last, lastGood = null } = {}) {
-  const tabRef = `tab ${tab ?? "unknown"}`;
-
-  if (!last) {
-    // No observation at all: nothing can be claimed about the page.
-    return [
-      `could not read the page after the publish click (${tabRef}) — the post may be live; check before re-running`,
-      "   no readable page was observed after the click",
-      NOT_RECORDED,
-    ].join("\n");
-  }
-
-  if (last.pageError) {
-    // TikTok refused the form itself; the analytics record is correctly
-    // skipped, but a stale banner must not be read as proof the post is dead.
-    return [
-      `TikTok reported an error after publish: ${last.pageError}`,
-      `   check ${tabRef} before re-running — a banner can outlive the attempt it described`,
-      NOT_RECORDED,
-    ].join("\n");
-  }
-
-  if (last.error) {
-    // Every read failed, so any URL here predates the click's navigation — it
-    // still shows where the page was, which is what the operator needs.
-    const where = lastGood?.url ?? last.url ?? null;
-    return [
-      `could not read the page after the publish click (${tabRef}) — the post may be live; check before re-running`,
-      where ? `   last readable URL: ${where}` : "   no readable page was observed after the click",
-      `   read error: ${last.error}`,
-      NOT_RECORDED,
-    ].join("\n");
-  }
-
-  const where = last?.url ?? lastGood?.url ?? null;
-  return [
-    `still on the upload page after the publish click — check ${tabRef}`,
-    where ? `   last readable URL: ${where}` : "   no readable page was observed after the click",
-    NOT_RECORDED,
-  ].join("\n");
-}
-
-/**
  * Human-click an element and verify the state it is supposed to cause.
  *
  * The JS `.click()` fallback exists for controls that ignore synthetic
@@ -1624,13 +1496,25 @@ async function main() {
   // argv-dependent behaviour (the pacing tests import it).
   const tiktokProfile = getPlatformProfile("tiktok");
   const publishMethod = resolvePublishMethod(tiktokProfile, { method: CDP_PUBLISH_METHOD });
-  const aigcPolicy = resolveAigcPolicy(tiktokProfile, {
-    noAigc: hasFlag("no-aigc"),
+  const dryRun = hasFlag("dry-run");
+
+  // Terminal-action contract (#1181, ruled 2026-11-13). This is the only place
+  // that decides whether the run saves a draft or leaves the editor prepared;
+  // `--publish` throws here, before the browser opens, so the public click
+  // cannot reappear as a scattered flag check downstream.
+  const terminalAction = resolveUploadPrepAction({
     publish: hasFlag("publish"),
-    confirmUnlabeled: hasFlag("confirm-unlabeled"),
+    saveDraft: hasFlag("save-draft"),
   });
 
-  const dryRun = hasFlag("dry-run");
+  // Every non-dry run now hands a post to a human who is one click from
+  // publishing it, so an unlabeled run needs the same acknowledgement that the
+  // old --publish path required.
+  const aigcPolicy = resolveAigcPolicy(tiktokProfile, {
+    noAigc: hasFlag("no-aigc"),
+    publish: !dryRun,
+    confirmUnlabeled: hasFlag("confirm-unlabeled"),
+  });
   const videoArg = getArg("video");
   // --dry-run only proves the upload page is reachable, so a video is not
   // required for it — that is the whole point of the mode.
@@ -1677,20 +1561,19 @@ async function main() {
     caption = readFileSync(captionFile, "utf8").trim();
   }
 
-  // Publishing is irreversible and the caption field arrives pre-filled with
-  // the video's FILENAME (see the header). Without a caption the run would
-  // publish a post whose entire description is "…-short.mp4". A typo'd
-  // --content or a run before generate-caption.mjs lands here, so refuse
-  // rather than ship it; preparing without publishing stays allowed.
-  if (hasFlag("publish") && !caption) {
-    console.error("❌ refusing to --publish with no caption resolved.");
+  // The terminal state is now a prepared post or a saved draft that a human is
+  // one click from publishing, and the caption field arrives pre-filled with
+  // the video's FILENAME (see the header). Without a caption the human would be
+  // invited to publish a post whose entire description is "…-short.mp4". A
+  // typo'd --content or a run before generate-caption.mjs lands here, so refuse
+  // for every non-dry run rather than ship it.
+  if (!dryRun && !caption) {
+    console.error("❌ refusing to prepare a post with no caption resolved.");
     console.error(`   Looked for: ${captionFile ?? "(no --content, so no default path)"}`);
     console.error(
-      "   The description field is pre-filled with the video's filename, so this would publish that filename as the caption.",
+      "   The description field is pre-filled with the video's filename, so the operator would publish that filename as the caption.",
     );
-    console.error(
-      "   Fix: run generate-caption.mjs, or pass --caption / --caption-file. Drop --publish to prepare the post and review it first.",
-    );
+    console.error("   Fix: run generate-caption.mjs, or pass --caption / --caption-file.");
     process.exit(1);
   }
 
@@ -1728,12 +1611,12 @@ async function main() {
     aigcNote: tiktokProfile.aiDisclosure.note,
   });
 
-  // Egress-region gate (#964). The probe runs in Chrome, not the shell: the
+  // Egress-region probe (#964). The probe runs in Chrome, not the shell: the
   // browser's exit is what TikTok sees. It opens one trace tab and closes it.
-  // The same helper runs once more immediately before the publish click: the
-  // first probe predates the warm-up and upload, so a route that flips mid-run
-  // must not reach the irreversible action.
-  const runEgressCheck = async ({ label = "egress", publish = hasFlag("publish") } = {}) => {
+  // Draft-only since #1181, so a mismatch warns instead of blocking: the run
+  // cannot publish, but the operator is one click from doing so and the
+  // 2026-10-25 Tokyo exit is still the standing explanation for 0 plays.
+  const runEgressCheck = async ({ label = "egress" } = {}) => {
     const probe = await probeEgressRegion({
       newTab: cdpNewTab,
       readText: async (tabId) => {
@@ -1746,30 +1629,16 @@ async function main() {
     const verdict = evaluateEgress({
       expectedRegion,
       trace: probe.trace,
-      publish,
+      publish: false,
       reachable: probe.reachable,
       reason: probe.reason,
     });
     log(label, verdict);
-    printEgress(verdict, label === "egressRecheck" ? "Egress recheck" : "Egress");
+    printEgress(verdict, "Egress");
     return verdict;
   };
 
-  const egress = await runEgressCheck();
-  if (egress.level === "block") {
-    console.error("");
-    console.error("❌ Refusing to publish from an unverified / mismatched egress region.");
-    console.error(
-      "   Fix the VPN/egress route so the browser exits from the expected region. If the probe",
-    );
-    console.error(
-      "   itself failed (timeout / CDP proxy), fix that first — this gate fails closed.",
-    );
-    console.error(
-      "   Pass --expect-region <CC> only if that really is the region this account should publish from.",
-    );
-    process.exit(1);
-  }
+  await runEgressCheck();
 
   console.log("");
   console.log("=".repeat(60));
@@ -1804,23 +1673,22 @@ async function main() {
 
   // Coverage diff (#964), derived from the profile's OWN manualGuide.steps, so
   // a step added to the guide cannot silently vanish. Computed before the
-  // browser work and shown once: on the normal path just before the publish
-  // decision, and in the catch on any hand-over exit (AIGC readback failure,
+  // browser work and shown once: on the normal path just before the terminal
+  // action, and in the catch on any hand-over exit (AIGC readback failure,
   // volume mismatch) — the operator takes over in the open tab, so the gaps
   // must be on screen there too.
+  const draftSaved = terminalAction.action === "save-draft";
   const coverage = buildCoverageDiff(tiktokProfile, {
-    publish: hasFlag("publish"),
     aigcEnabled: aigcPolicy.enabled,
-    draftSaved: hasFlag("save-draft") && !hasFlag("publish"),
+    draftSaved,
   });
   let coveragePrinted = false;
   const showCoverage = ({ aborted = false } = {}) => {
     if (coveragePrinted && !aborted) return;
     const diff = aborted
       ? buildCoverageDiff(tiktokProfile, {
-          publish: hasFlag("publish"),
           aigcEnabled: aigcPolicy.enabled,
-          draftSaved: hasFlag("save-draft") && !hasFlag("publish"),
+          draftSaved,
           aborted: true,
         })
       : coverage;
@@ -1841,7 +1709,7 @@ async function main() {
     soundOwner,
     volumeDb,
     captionChars: caption ? caption.length : 0,
-    publish: hasFlag("publish"),
+    terminalAction: terminalAction.action,
     warmup: !hasFlag("no-warmup"),
     captionMode: hasFlag("paste-caption") ? "paste" : "typed",
   });
@@ -1851,10 +1719,6 @@ async function main() {
   pointer.x = Math.round(randomBetween(200, 900));
   pointer.y = Math.round(randomBetween(160, 620));
   let keepTab = !hasFlag("close-tab");
-  // Set only after the publish click has settled on a non-upload URL: the
-  // post-publish writes below can still fail, and the catch must not tell the
-  // operator "the run did not publish" when the post is already live.
-  let publishSucceeded = false;
   try {
     // Foreground is a precondition, not a courtesy: a hidden tab throttles
     // input dispatch to ~5s per event (measured) and TikTok's uploader never
@@ -1885,6 +1749,31 @@ async function main() {
     tab = launch.targetId;
     cdp = launch.session;
     log("input", { stage: "open", window: launch.window, focusEmulated: launch.focusEmulated });
+
+    // Anti-detection verification (#1181 follow-up). Read what the page
+    // actually sees instead of assuming the fixed profile makes it look real.
+    // This probe never patches the page; the 已加/未加 rationale lives in
+    // lib/cdp-fingerprint.mjs. Reproduce by hand with the curl command there.
+    try {
+      const fingerprint = classifyFingerprint(await evalJson(tab, FINGERPRINT_PROBE));
+      log("fingerprint", fingerprint);
+      if (fingerprint.ok) {
+        console.log("      fingerprint: webdriver=false · UA/platform/timezone aligned");
+      } else {
+        console.log(`      ⚠️ fingerprint: ${fingerprint.note}`);
+        if (fingerprint.checks.some((c) => c.id === "webdriver" && !c.ok)) {
+          console.log(
+            "         Chrome reports navigator.webdriver=true — it was launched with --enable-automation.",
+          );
+          console.log(
+            "         Quit Chrome and relaunch via `npm run cdp:ensure`; do not patch the page.",
+          );
+        }
+      }
+    } catch (err) {
+      log("fingerprint", { ok: false, note: `probe failed: ${err.message}` });
+      console.log(`      ⚠️ fingerprint probe failed: ${err.message}`);
+    }
 
     if (hasFlag("no-warmup")) {
       console.log("  0/6 warm-up skipped (--no-warmup)");
@@ -2113,211 +2002,132 @@ async function main() {
 
     showCoverage();
 
-    if (hasFlag("publish")) {
-      // The publish click. The user authorized this capability on 2026-10-24
-      // ("发布时跑自动化：脚本一次性做完挂 sound + 设音量 + 点发布"), which is
-      // why the flag exists — but the content-pipeline HITL still applies to
-      // RUNNING it: the operator passes --publish on the run where publishing
-      // is the intended, already-approved action.
+    const runReview = async () => {
+      if (hasFlag("skip-review")) {
+        console.log("👀 Pre-terminal review skipped (--skip-review)");
+        log("review", { reviewed: false, reason: "skipped by --skip-review" });
+        return;
+      }
+      console.log("👀 Watching the prepared video before the terminal action…");
+      // A review is a behaviour signal, never a gate: a preview that will not
+      // play is recorded as NOT reviewed and the run continues.
+      let review;
+      try {
+        review = await reviewBeforePublish(tab, cdp);
+      } catch (err) {
+        review = { reviewed: false, reason: `review failed: ${err.message}` };
+      }
+      const verdict = review.reviewed
+        ? `已审阅 · ${review.advancedSeconds}s played, paused=${review.pausedAfter}`
+        : `未审阅（${review.reason}）`;
+      console.log(`      ${verdict}`);
+      // The issue asks for the review verdict itself to be recorded, so the
+      // log carries both the machine fact (`reviewed`) and the same words the
+      // operator sees (`verdict`) — a reader of the log should not have to
+      // re-derive what "reviewed: false" meant.
+      log("review", { reviewed: review.reviewed, verdict, ...review });
+    };
+
+    // Draft-only (#1181, ruled 2026-11-13): the automated run never clicks 发布.
+    // `--publish` was refused before the browser opened; here the only choices
+    // are "save a draft" and "leave the prepared editor open for the operator".
+    if (terminalAction.action === "save-draft") {
+      // 保存草稿 writes the post into the account's TikTok Studio drafts
+      // (web only). It is NOT 发布 — the public click stays with the operator.
       //
-      // The sound is attached in THIS session, immediately before publishing.
-      // It is not carried over from a draft: TikTok Studio drops the attached
-      // sound when a draft is saved and reopened (verified 2026-10-24 — the
-      // timeline went from two tracks back to one, and the caption survives),
-      // so attaching and publishing have to happen in one pass.
+      // Do NOT route "finish this on the phone" through this flag: TikTok
+      // does not sync drafts between the desktop site and the mobile app,
+      // and app drafts live in the phone's local storage, not in the cloud
+      // (platform docs; measured 2026-11-08 — Studio listed 草稿 3 and the
+      // phone app's draft box showed none of them). A post that needs a
+      // Location or an in-app edit has to be finished by exporting the mp4,
+      // moving it to the phone (AirDrop / a cloud drive) and uploading it in
+      // the app — that route drops the caption, attached sound and AIGC
+      // toggle prepared here, so they are redone there.
       //
-      // The clip edit has to be APPLIED (保存) before publishing. Attaching
-      // alone only stages the music in the editor: the post's own sound label
-      // stays "原声 - Chinaainews" and the music appears nowhere in the page
-      // until the editor is saved (verified 2026-10-25). Saving is also what
-      // makes the published post credit the attached sound (header). Skipping
-      // this step publishes the video without the music.
+      // The clip edit has to be applied FIRST: while the clip editor overlay
+      // is open it covers the entire action bar, and `humanClickElement`
+      // correctly refuses to click through it (#1102, measured live
+      // 2026-11-02 — the centre of 保存草稿 hit VideoClip__root, and one click
+      // on the panel's own 保存 cleared both bottom buttons).
+      //
+      // Caveat worth knowing before relying on it: the attached sound does
+      // NOT survive the round trip. Reopening the draft showed one timeline
+      // track (the video's own audio) instead of two. The caption does
+      // survive. So a draft is good for reviewing caption and framing, and
+      // the sound has to be re-attached in the session that publishes.
       await applyClipEdit(tab, cdp, {
         log,
-        notFound: "保存 (save) button not found — publishing now would drop the music",
+        required: false,
+        notFound: "保存 (save) button not found — the clip editor is still covering 保存草稿",
       });
 
-      if (hasFlag("skip-review")) {
-        console.log("👀 Pre-publish review skipped (--skip-review)");
-        log("review", { reviewed: false, reason: "skipped by --skip-review" });
-      } else {
-        console.log("👀 Watching the prepared video before publishing…");
-        // A review is a behaviour signal, never a publish gate: a preview that
-        // will not play is recorded as NOT reviewed and the run continues.
-        let review;
-        try {
-          review = await reviewBeforePublish(tab, cdp);
-        } catch (err) {
-          review = { reviewed: false, reason: `review failed: ${err.message}` };
-        }
-        const verdict = review.reviewed
-          ? `已审阅 · ${review.advancedSeconds}s played, paused=${review.pausedAfter}`
-          : `未审阅（${review.reason}）`;
-        console.log(`      ${verdict}`);
-        // The issue asks for the review verdict itself to be recorded, so the
-        // log carries both the machine fact (`reviewed`) and the same words the
-        // operator sees (`verdict`) — a reader of the log should not have to
-        // re-derive what "reviewed: false" meant.
-        log("review", { reviewed: review.reviewed, verdict, ...review });
-      }
+      await runReview();
 
-      // Re-check the exit immediately before the irreversible click. The first
-      // probe predates the warm-up and upload, so a VPN route that flipped
-      // mid-run must not reach the publish button.
-      const egressRecheck = await runEgressCheck({ label: "egressRecheck", publish: true });
-      // The trace probe opens a background tab; bring the upload tab back so
-      // the operator sees where it stopped and trusted input is not throttled
-      // (measured ~5s/event on a hidden tab). Also done on the block path,
-      // because the catch leaves this tab open for the hand-over.
-      await activateTarget(tab);
-      if (egressRecheck.level === "block") {
-        throw new Error(`egress changed before publishing: ${egressRecheck.reason}`);
+      const tagged = await evalJson(tab, TAG_BY_TEXT("保存草稿"));
+      if (!tagged.ok) {
+        const zero = tagged.zeroSize?.length
+          ? ` (zero-size look-alike(s): ${tagged.zeroSize.join(", ")})`
+          : "";
+        throw new Error(
+          `保存草稿 button not found after the clip edit${zero} — click it by hand in the open tab: ${tab}`,
+        );
       }
-
-      console.log("🚀 Publishing (--publish)…");
-      const scrolled = await evalJson(tab, SCROLL_TO_PUBLISH);
-      if (!scrolled.ok || !scrolled.unobstructed) {
-        throw new Error(`publish button not clickable: ${JSON.stringify(scrolled)}`);
-      }
-      await sleepJitter(...PUBLISH_PACING.publishScroll);
-      const published = await humanClickElement(tab, cdp, '[data-e2e="post_video_button"]');
-      const settled = await pollFor(tab, PUBLISH_STATE, {
+      const saved = await humanClickElement(tab, cdp, "#__byText");
+      // Do not claim a draft that did not land. Leaving /upload is the one
+      // signal the live run gave; a click that lands everywhere else is
+      // reported as unconfirmed rather than retried, because a second press
+      // could save a duplicate.
+      //
+      // `pageError` is the page's own banner; `error` is `pollFor`'s record of
+      // an eval that failed mid-navigation (deliberately "not ready yet", not
+      // a TikTok refusal). Only the first may be reported as TikTok's.
+      const settled = await pollFor(tab, DRAFT_STATE, {
         timeoutMs: 45_000,
-        label: "publish to finish",
-        isReady: publishSettled,
+        label: "the draft to be saved",
+        isReady: (s) => !!s && !s.error && (!!s.pageError || s.saved),
       });
-      // The sole gate between the click and the analytics record: `confirmed`
-      // is recomputed from the last page read, so no unread envelope can fall
-      // through to the success line below (#1106).
-      const outcome = classifyPublishSettle({ tab, ...settled });
-      if (!outcome.confirmed) throw new Error(outcome.message);
-      publishSucceeded = true;
-      log("publish", { published: true, url: settled.last.url, clickMode: published.mode });
-
-      // pending-analysis.json (#260's contract, extended to this tier by #951's
-      // review): the analytics workflow reads this one file and the session-start
-      // ">48h, export the CSV" reminder fires off its publishedAt. Only the
-      // manual-guide path used to write it, so a CDP publish left the reminder
-      // silent even though the post is live.
-      const outputDir = join(__dirname, "output");
-      const pending = buildManualPendingAnalysis({
-        slug: getArg("slug") ?? null,
-        videoPath,
-        publishedAt: new Date().toISOString(),
-        publishMethod,
-      });
-      if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
-      writeFileSync(
-        join(outputDir, "pending-analysis.json"),
-        JSON.stringify(pending, null, 2) + "\n",
-      );
-      log("pendingAnalysis", pending);
-      console.log(buildAnalyticsGuidance(outputDir));
+      if (!settled.ready || settled.last?.pageError) {
+        throw new Error(
+          settled.last?.pageError
+            ? `TikTok reported an error after saving the draft: ${settled.last.pageError}`
+            : `could not confirm the draft was saved (still on ${settled.last?.url ?? tab}) — ` +
+                "check the Studio Drafts tab (web) before re-running, so a second press cannot duplicate it",
+        );
+      }
       console.log("=".repeat(60));
-      console.log("✅ Published.");
-      console.log(`   ${settled.last.url}`);
+      console.log("✅ Draft saved — NOTHING HAS BEEN PUBLISHED.");
+      console.log("   Public publishing is yours to click (#1181): this run stops at the draft.");
+      console.log("   Open TikTok Studio → Content → Drafts (web) to review and publish.");
+      console.log("   The phone app will not show this draft — TikTok does not sync");
+      console.log("      drafts between the desktop site and the app (app drafts are");
+      console.log("      stored locally on the phone).");
+      console.log("   Note: the attached sound does NOT persist in the draft;");
+      console.log("      re-attach it in the Studio session where you publish (run");
+      console.log("      this script without --save-draft to prepare that session).");
+      // No pending-analysis.json here: a draft has no publishedAt, and writing
+      // the draft time would start the >48h analytics reminder for a post that
+      // may never go live. The manual-guide path keeps that record (#1181).
+      log("draft", { saved: true, clickMode: saved.mode, url: settled.last.url, published: false });
       keepTab = !hasFlag("close-tab");
     } else {
-      if (hasFlag("save-draft")) {
-        // 保存草稿 writes the post into the account's TikTok Studio drafts
-        // (web only). It is NOT 发布 — the publish decision stays with the
-        // operator, so the HITL gate is intact.
-        //
-        // Do NOT route "finish this on the phone" through this flag: TikTok
-        // does not sync drafts between the desktop site and the mobile app,
-        // and app drafts live in the phone's local storage, not in the cloud
-        // (platform docs; measured 2026-11-08 — Studio listed 草稿 3 and the
-        // phone app's draft box showed none of them). A post that needs a
-        // Location or an in-app edit has to be finished by exporting the mp4,
-        // moving it to the phone (AirDrop / a cloud drive) and uploading it in
-        // the app — that route drops the caption, attached sound and AIGC
-        // toggle prepared here, so they are redone there.
-        //
-        // The clip edit has to be applied FIRST, exactly like the publish exit:
-        // while the clip editor overlay is open it covers the entire action bar,
-        // and `humanClickElement` correctly refuses to click through it
-        // (#1102, measured live 2026-11-02 — the centre of 保存草稿 hit
-        // VideoClip__root, and one click on the panel's own 保存 cleared both
-        // bottom buttons).
-        //
-        // Caveat worth knowing before relying on it: the attached sound does
-        // NOT survive the round trip. Reopening the draft showed one timeline
-        // track (the video's own audio) instead of two. The caption does
-        // survive. So a draft is good for reviewing caption and framing, and
-        // the sound has to be re-attached in the publishing session.
-        await applyClipEdit(tab, cdp, {
-          log,
-          required: false,
-          notFound: "保存 (save) button not found — the clip editor is still covering 保存草稿",
-        });
-
-        const tagged = await evalJson(tab, TAG_BY_TEXT("保存草稿"));
-        if (!tagged.ok) {
-          const zero = tagged.zeroSize?.length
-            ? ` (zero-size look-alike(s): ${tagged.zeroSize.join(", ")})`
-            : "";
-          throw new Error(
-            `保存草稿 button not found after the clip edit${zero} — click it by hand in the open tab: ${tab}`,
-          );
-        }
-        const saved = await humanClickElement(tab, cdp, "#__byText");
-        // Do not claim a draft that did not land. Leaving /upload is the one
-        // signal the live run gave; a click that lands everywhere else is
-        // reported as unconfirmed rather than retried, because a second press
-        // could save a duplicate.
-        //
-        // `pageError` is the page's own banner; `error` is `pollFor`'s record of
-        // an eval that failed mid-navigation (deliberately "not ready yet", not
-        // a TikTok refusal). Only the first may be reported as TikTok's.
-        const settled = await pollFor(tab, DRAFT_STATE, {
-          timeoutMs: 45_000,
-          label: "the draft to be saved",
-          isReady: (s) => !!s && !s.error && (!!s.pageError || s.saved),
-        });
-        if (!settled.ready || settled.last?.pageError) {
-          throw new Error(
-            settled.last?.pageError
-              ? `TikTok reported an error after saving the draft: ${settled.last.pageError}`
-              : `could not confirm the draft was saved (still on ${settled.last?.url ?? tab}) — ` +
-                  "check the Studio Drafts tab (web) before re-running, so a second press cannot duplicate it",
-          );
-        }
-        console.log("=".repeat(60));
-        console.log("✅ Draft saved — NOTHING HAS BEEN PUBLISHED.");
-        console.log("   Open TikTok Studio → Content → Drafts (web) to review.");
-        console.log("   The post is a draft, not a published video.");
-        console.log("   The phone app will not show this draft — TikTok does not sync");
-        console.log("      drafts between the desktop site and the app (app drafts are");
-        console.log("      stored locally on the phone).");
-        console.log("   Note: the attached sound does NOT persist in the draft;");
-        console.log("      re-attach it by running this script again without --save-draft.");
-        log("draft", { saved: true, clickMode: saved.mode, url: settled.last.url });
-        keepTab = !hasFlag("close-tab");
-      } else {
-        console.log("✅ Editor is prepared. NOTHING HAS BEEN PUBLISHED.");
-        console.log("=".repeat(60));
-        console.log("   Review the draft in the open tab, then click 发布 (Publish)");
-        console.log("   yourself — or re-run with --publish to do it in one pass.");
-        console.log(`   Tab: ${tab}`);
-        keepTab = true;
-      }
-      log("prepared", { published: false });
+      await runReview();
+      console.log("✅ Editor is prepared. NOTHING HAS BEEN PUBLISHED.");
+      console.log("=".repeat(60));
+      console.log("   Public publishing is manual (#1181): review the prepared post");
+      console.log("   in the open tab, then click 发布 (Publish) yourself.");
+      console.log("   To end with a saved Studio draft instead, re-run with --save-draft.");
+      console.log(`   Tab: ${tab}`);
+      keepTab = true;
     }
+    log("prepared", { action: terminalAction.action, published: false });
   } catch (err) {
     console.error(`\n❌ ${err.message}`);
     // The tab stays open for a hand-over; put the coverage gaps where the
     // operator is about to publish, not only on a successful preparation. The
-    // aborted form downgrades every unfinished claim (AIGC/audio/publish) so
-    // the screen cannot read "✅ done" at the moment the operator must do it.
-    // If the click already settled, the post may be live: the normal diff was
-    // printed before the click, so warn instead of downgrading a live post.
-    if (publishSucceeded) {
-      console.error(
-        "⚠️  The publish click succeeded before this error — the post may be live. Check it before re-running.",
-      );
-    } else {
-      showCoverage({ aborted: true });
-    }
+    // aborted form downgrades every unfinished claim (AIGC/audio/draft) so the
+    // screen cannot read "✅ done" at the moment the operator must do it.
+    showCoverage({ aborted: true });
     log("error", { message: err.message });
     keepTab = true; // leave the tab so the operator can see where it stopped
     process.exitCode = 1;

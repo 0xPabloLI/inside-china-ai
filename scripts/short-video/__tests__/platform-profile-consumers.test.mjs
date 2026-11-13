@@ -139,17 +139,19 @@ describe("the CDP driver consults the profile", () => {
   });
 });
 
-// ─── The documented CDP tier keeps the analytics contract ───
+// ─── The draft tier deliberately leaves the analytics record alone ───
 
-describe("the cdp publish tier leaves the analytics record", () => {
+describe("the cdp draft tier does not invent a publishedAt", () => {
   const driver = read("tiktok-upload-prep.mjs");
 
-  it("writes pending-analysis.json after a real publish", () => {
-    // docs/content-pipeline.md §5b documents this driver as a full publish path,
-    // and the session-start reminder reads this one file. Without the write, a
-    // CDP publish left the >48h analytics export reminder silent.
-    expect(driver).toContain("buildManualPendingAnalysis(");
-    expect(driver).toContain('join(outputDir, "pending-analysis.json")');
+  it("does not write pending-analysis.json from a draft run", () => {
+    // #1181 (ruled 2026-11-13): the automated path stops at a saved draft, so it
+    // has no publishedAt. Writing the draft time would start the >48h analytics
+    // reminder for a post that may never go live; the manual-guide path keeps
+    // that record.
+    expect(driver).not.toContain("buildManualPendingAnalysis(");
+    expect(driver).not.toContain('join(outputDir, "pending-analysis.json")');
+    expect(driver).toContain("No pending-analysis.json here");
   });
 });
 

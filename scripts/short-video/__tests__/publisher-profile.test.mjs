@@ -57,9 +57,11 @@ CAPTION_TEXT
   [ ] 4. Paste caption above into description field
   [ ] 5. Tap "Edit" → Add a text sticker or effect (optional; the algorithm bonus is unmeasured)
          Optional. The in-app editing signal is unmeasured; skip it if the pre-rendered video is ready.
-  [ ] 6. Audio: attach the music bed at the calibrated level, then publish
+  [ ] 6. Audio: attach the music bed at the calibrated level, then stop for the operator
          Automation (one pass, after HITL approval):
-         node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish
+         node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15
+         The run never clicks 发布 (#1181): it leaves the prepared tab open; review it and click the public button yourself.
+         Adding --save-draft ends in a web Studio draft instead, but a saved draft drops the attached sound and does not reach the phone app.
          Set the level by measurement: a -20 dB slider reading measured 22.2 dB below the narration on the live post.
          -15 dB lands near -17 dB, mid-range in the 15-25 dB guidance for music under speech.
          The script reads the slider back and aborts if it misses by more than 1 dB.

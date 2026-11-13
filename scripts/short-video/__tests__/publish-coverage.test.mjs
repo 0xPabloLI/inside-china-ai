@@ -36,7 +36,7 @@ describe("coverage rules cover the profile", () => {
   });
 
   it("only uses known statuses", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: true });
+    const diff = buildCoverageDiff(tiktokProfile, {});
     for (const row of diff.rows) {
       expect(COVERAGE_KINDS, `unknown status ${row.kind} for ${row.id}`).toContain(row.kind);
     }
@@ -62,13 +62,7 @@ describe("coverage rules cover the profile", () => {
   });
 
   it("counts every step exactly once", () => {
-    for (const opts of [
-      { publish: true },
-      { publish: false },
-      { publish: false, draftSaved: true },
-      { publish: true, aigcEnabled: false },
-      { publish: true, aborted: true },
-    ]) {
+    for (const opts of [{}, { draftSaved: true }, { aigcEnabled: false }, { aborted: true }]) {
       const { rows, totals } = buildCoverageDiff(tiktokProfile, opts);
       expect(totals.total).toBe(stepIds.length);
       expect(rows).toHaveLength(stepIds.length);
@@ -80,7 +74,7 @@ describe("coverage rules cover the profile", () => {
   });
 
   it("downgrades unfinished claims when the run aborted", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: true, aborted: true });
+    const diff = buildCoverageDiff(tiktokProfile, { aborted: true });
     expect(diff.totals.automated).toBe(0);
     expect(rowById(diff, "aigc-label").kind).toBe("unverified");
     expect(rowById(diff, "aigc-label").note).toMatch(/aborted/);
@@ -91,7 +85,6 @@ describe("coverage rules cover the profile", () => {
 
   it("does not claim a saved draft when a draft run aborted", () => {
     const diff = buildCoverageDiff(tiktokProfile, {
-      publish: false,
       draftSaved: true,
       aborted: true,
     });
@@ -102,40 +95,42 @@ describe("coverage rules cover the profile", () => {
 });
 
 describe("the diff reflects what this run actually does", () => {
-  it("a --publish run automates the sound, caption, AIGC and publish steps", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: true });
-    for (const id of ["select-video", "paste-caption", "add-sound", "aigc-label", "publish"]) {
+  it("a draft run automates the caption and AIGC steps, and never claims publish", () => {
+    const diff = buildCoverageDiff(tiktokProfile, { draftSaved: true });
+    for (const id of ["select-video", "paste-caption", "aigc-label"]) {
       expect(rowById(diff, id).kind, id).toBe("auto");
     }
     expect(rowById(diff, "open-app").kind).toBe("replaced");
+    expect(rowById(diff, "publish").kind).toBe("not-covered");
+    expect(rowById(diff, "publish").note).toMatch(/manual/);
+  });
+
+  it("leaves the staged sound pending when the editor is handed over unsaved", () => {
+    const diff = buildCoverageDiff(tiktokProfile, {});
+    expect(rowById(diff, "publish").kind).toBe("not-covered");
+    expect(rowById(diff, "add-sound").kind).toBe("pending");
+    expect(rowById(diff, "add-sound").note).toMatch(/保存/);
     // Comment 1 requires the weighting difference to stay visible as an open
     // question, not be flattened into "music is covered".
     expect(rowById(diff, "add-sound").note).toMatch(/unmeasured/);
   });
 
-  it("leaves publish and the staged sound pending when nothing is published", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: false });
-    expect(rowById(diff, "publish").kind).toBe("pending");
-    expect(rowById(diff, "add-sound").kind).toBe("pending");
-    expect(rowById(diff, "add-sound").note).toMatch(/保存/);
-  });
-
   it("marks the sound as lost when a draft is saved", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: false, draftSaved: true });
+    const diff = buildCoverageDiff(tiktokProfile, { draftSaved: true });
     expect(rowById(diff, "add-sound").kind).toBe("draft-lost");
     expect(rowById(diff, "add-sound").note).toMatch(/draft/i);
-    expect(rowById(diff, "publish").kind).toBe("pending");
-    expect(rowById(diff, "publish").note).toMatch(/phone/i);
+    expect(rowById(diff, "publish").kind).toBe("not-covered");
+    expect(rowById(diff, "publish").note).toMatch(/Studio|app/);
   });
 
   it("marks the AIGC label off when --no-aigc overrides it", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: true, aigcEnabled: false });
+    const diff = buildCoverageDiff(tiktokProfile, { aigcEnabled: false });
     expect(rowById(diff, "aigc-label").kind).toBe("off");
     expect(rowById(diff, "aigc-label").note).toMatch(/cannot be added after publishing/);
   });
 
   it("records Location as 'neither path', not as a CDP-only regression", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: true });
+    const diff = buildCoverageDiff(tiktokProfile, {});
     const location = rowById(diff, "location");
     expect(location.kind).toBe("not-covered");
     expect(location.note).toMatch(/neither path/);
@@ -143,13 +138,13 @@ describe("the diff reflects what this run actually does", () => {
   });
 
   it("records in-app editing as app-only", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: true });
+    const diff = buildCoverageDiff(tiktokProfile, {});
     expect(rowById(diff, "edit-sticker").kind).toBe("not-covered");
     expect(rowById(diff, "edit-sticker").note).toMatch(/app-only/);
   });
 
   it("keeps the post-publish steps as explicit follow-ups", () => {
-    const diff = buildCoverageDiff(tiktokProfile, { publish: true });
+    const diff = buildCoverageDiff(tiktokProfile, {});
     expect(rowById(diff, "pin-comment").kind).toBe("post-publish");
     expect(rowById(diff, "first-hour-engagement").kind).toBe("post-publish");
   });
@@ -157,7 +152,7 @@ describe("the diff reflects what this run actually does", () => {
 
 describe("formatCoverageDiff", () => {
   it("prints the automated and gap groups with the corrected Location note", () => {
-    const text = formatCoverageDiff(buildCoverageDiff(tiktokProfile, { publish: true }));
+    const text = formatCoverageDiff(buildCoverageDiff(tiktokProfile, {}));
     expect(text).toContain("Publish-path coverage");
     expect(text).toContain("Automated by this run");
     expect(text).toContain("Not covered");
@@ -167,10 +162,10 @@ describe("formatCoverageDiff", () => {
     expect(text).toContain("Pin a comment");
   });
 
-  it("prints a pending group for a prepared-only run", () => {
-    const text = formatCoverageDiff(buildCoverageDiff(tiktokProfile, { publish: false }));
+  it("prints the pending group for a prepared-only run", () => {
+    const text = formatCoverageDiff(buildCoverageDiff(tiktokProfile, {}));
     expect(text).toContain("Pending in this session");
-    expect(text).toContain("Publish");
+    expect(text).toContain("Audio");
   });
 });
 
@@ -184,9 +179,9 @@ describe("the upload driver prints and logs the diff", () => {
     expect(source).toContain("formatCoverageDiff(");
   });
 
-  it("does not downgrade a post that was already published", () => {
-    expect(source).toContain("publishSucceeded = true");
-    expect(source).toContain("if (publishSucceeded)");
+  it("never claims an automated publish", () => {
+    expect(source).toContain('terminalAction.action === "save-draft"');
+    expect(source).not.toContain("publishSucceeded");
     expect(source).toContain("showCoverage({ aborted: true })");
   });
 });
