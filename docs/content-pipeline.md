@@ -643,7 +643,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > 备选音源（仅当用户点名要别的音乐）：CC-BY BGM 池 `lib/bgm.mjs` → `selectBGM`，混流用 `mix-bgm.mjs`；TikTok 曲库别的曲子改 `--sound` / `--sound-owner` 参数。
 
-   **发布前的输入形态（#1013，2026-10-30 起；#1288 加固 2026-11-13）**：脚本的每一步输入都按人类形态走——鼠标沿 Bézier 轨迹移动后才按下、Caption 逐字（30–120ms 间隔，句读处偶尔停顿）用可信 insertText 打字、等待在带内按对数正态采样、终止动作（存草稿/交给操作者）前先播 5–15s 再暂停、打开上传页前先在 For You 浏览 3–8 条 feed item（每条 5–20s，滚动/悬停带轨迹与分布采样）。同一 profile 每日 ≤3 次、间隔 ≥90min（±45min 抖动），失败重跑不计数。`--no-warmup` / `--no-throttle` / `--paste-caption` / `--skip-review` 是显式退出口；每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`，预热逐条写 `warmup.feed`、导航写 `upload.navigate`、采样写 `behavior.sample`、节流写 `throttle` / `throttle.blocked` / `throttle.commit`。三项判据可离线复演：`node scripts/short-video/publish-antidetection-evidence.mjs`。见 `docs/manual-ops.md`「发布前的输入形态」。
+   **发布前的输入形态（#1013，2026-10-30 起；#1288 加固 2026-11-13）**：脚本的每一步输入都按人类形态走——Bézier 轨迹、逐字可信输入、带内分布采样、进入路径预热（3–8 条 feed item）与 profile 级节奏节流（每日 ≤3 次、间隔 ≥90min，失败重跑不计数）。`--no-warmup` / `--no-throttle` / `--paste-caption` / `--skip-review` 是显式退出口；每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`。细节、日志读法与三项判据的离线复演见 `docs/manual-ops.md`「发布前的输入形态」与「行为分布与节奏节流」。
 
 9. **等待用户公开** — 草稿存好后，Agent 报告草稿位置并把「公开」这一步交给用户（#1181：自动路径只到草稿，公开点击由人做）。不要替用户点发布，也不要在 HITL 里二次确认配乐。
 
