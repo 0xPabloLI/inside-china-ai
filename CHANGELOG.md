@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.70.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.4...tanstack_start_ts-v1.70.0) (2026-11-13)
+
+
+### Features
+
+* **widgets:** ship the GameFeel score-vs-price widget ([#1189](https://github.com/0xPabloLI/inside-china-ai/issues/1189)) ([#1317](https://github.com/0xPabloLI/inside-china-ai/issues/1317)) ([8b0ff6c](https://github.com/0xPabloLI/inside-china-ai/commit/8b0ff6cf330264112a07d729aceabde4c05799a3))
+
+
+### Bug Fixes
+
+* **media:** give full-frame media a rail vignette ([#1315](https://github.com/0xPabloLI/inside-china-ai/issues/1315)) ([ba85c1d](https://github.com/0xPabloLI/inside-china-ai/commit/ba85c1d4ec3705db793595d76ec69ea3a430634b))
+* **remotion:** keep stat ellipses inside their own box ([#1314](https://github.com/0xPabloLI/inside-china-ai/issues/1314)) ([d04616f](https://github.com/0xPabloLI/inside-china-ai/commit/d04616fc759627497cae69dc62aae271c0e2ce6b))
+
 ## [1.69.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.3...tanstack_start_ts-v1.69.4) (2026-11-13)
 
 
