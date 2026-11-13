@@ -176,7 +176,7 @@ describe("the draft click only becomes reachable after the clip edit is applied"
 });
 
 describe("the draft exit applies the staged clip edit first", () => {
-  const draftBranchStart = () => source.indexOf('if (hasFlag("save-draft")) {');
+  const draftBranchStart = () => source.indexOf('if (terminalAction.action === "save-draft") {');
 
   it("runs the shared apply step before it tags 保存草稿", () => {
     const draftStart = draftBranchStart();
@@ -198,20 +198,17 @@ describe("the draft exit applies the staged clip edit first", () => {
     expect(block).toContain("required: false");
   });
 
-  it("keeps the publish exit's apply mandatory", () => {
-    // Publishing without applying drops the attached sound silently, which is
-    // the reason the step exists on that path.
-    const publishStart = source.indexOf('if (hasFlag("publish")) {');
-    const publishApply = source.indexOf("applyClipEdit(", publishStart);
-    const draftStart = draftBranchStart();
-    const block = source.slice(publishApply, draftStart);
-    expect(publishApply).toBeGreaterThan(publishStart);
-    expect(block).not.toContain("required: false");
+  it("has no automated publish exit left", () => {
+    // #1181 (ruled 2026-11-13): the only terminal actions are save-draft and
+    // prepare. The public click must not survive as a flag check downstream.
+    expect(source).not.toContain('data-e2e="post_video_button"');
+    expect(source).not.toContain('if (hasFlag("publish")) {');
+    expect(source).toContain("resolveUploadPrepAction({");
   });
 
-  it("keeps one apply implementation shared by both exits", () => {
-    // A copy in the draft branch is the defect with extra steps: the publish
-    // exit's comments and its OVERLAY_CLOSED wait are the reason it works.
+  it("keeps one apply implementation", () => {
+    // A copy in the draft branch is the defect with extra steps: the apply
+    // step's comments and its OVERLAY_CLOSED wait are the reason it works.
     expect(source.match(/async function applyClipEdit\(/g)).toHaveLength(1);
     expect(source.match(/TAG_BY_TEXT\("保存"\)/g)).toHaveLength(1);
   });

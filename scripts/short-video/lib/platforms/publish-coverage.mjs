@@ -78,7 +78,10 @@ export const STEP_COVERAGE = Object.freeze({
       "distribution weighting as an in-app pick is unmeasured",
     pendingWithoutPublish: true,
     draftLost: true,
-    pendingNote: "staged in the open editor; 保存 then 发布 in the tab (or re-run with --publish)",
+    pendingNote:
+      "staged in the open editor; 保存 then 发布 in the tab, or re-run without " +
+      "--save-draft to prepare the session that publishes. Whether a web attach " +
+      "weights like an in-app pick is unmeasured",
     draftNote:
       "a saved draft drops the attached sound; the draft also does not reach " +
       "the phone app, so re-attach it in whichever session finishes the post",
@@ -98,13 +101,12 @@ export const STEP_COVERAGE = Object.freeze({
     note: "not set by this script; confirm Public in the open tab before publishing",
   }),
   publish: Object.freeze({
-    kind: "auto",
+    kind: "not-covered",
     short: "Publish",
-    pendingWithoutPublish: true,
-    pendingNote: "the tab is prepared; click 发布 after review (or re-run with --publish)",
-    draftNote:
-      "saved into the web Studio drafts (TikTok does not sync drafts to the " +
-      "phone app); publish from the open Studio tab",
+    note:
+      "public publishing is manual (#1181, ruled 2026-11-13): the automated " +
+      "path stops at a saved draft; click 发布 yourself in Studio, or upload " +
+      "the exported mp4 in the app",
   }),
   "first-hour-engagement": Object.freeze({
     kind: "post-publish",
@@ -123,7 +125,6 @@ export const STEP_COVERAGE = Object.freeze({
  *
  * @param {Object} profile - Platform profile (must carry manualGuide.steps)
  * @param {Object} [opts]
- * @param {boolean} [opts.publish=false] - this run clicks 发布
  * @param {boolean} [opts.aigcEnabled=true] - the AIGC label is applied
  * @param {boolean} [opts.draftSaved=false] - this run saves a draft instead
  * @param {boolean} [opts.aborted=false] - the run stopped before completion
@@ -131,7 +132,7 @@ export const STEP_COVERAGE = Object.freeze({
  */
 export function buildCoverageDiff(
   profile,
-  { publish = false, aigcEnabled = true, draftSaved = false, aborted = false } = {},
+  { aigcEnabled = true, draftSaved = false, aborted = false } = {},
 ) {
   const steps = profile?.manualGuide?.steps;
   if (!Array.isArray(steps) || steps.length === 0) {
@@ -152,10 +153,10 @@ export function buildCoverageDiff(
     if (rule.offWhenNoAigc && aigcEnabled === false) {
       kind = "off";
       note = rule.offNote;
-    } else if (rule.draftLost && draftSaved && !publish) {
+    } else if (rule.draftLost && draftSaved) {
       kind = "draft-lost";
       note = rule.draftNote;
-    } else if (rule.pendingWithoutPublish && !publish) {
+    } else if (rule.pendingWithoutPublish) {
       kind = "pending";
       note = draftSaved && rule.draftNote ? rule.draftNote : (rule.pendingNote ?? null);
     }

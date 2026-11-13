@@ -114,12 +114,16 @@ export const tiktokProfile = {
    * method fails closed.
    *
    * `cdp` is enabled because it IS the approved default path (user decision
-   * 2026-10-25: publish end to end after HITL, via the Studio web upload page).
-   * Before #951 this array said `["manual-guide"]` while
-   * `tiktok-upload-prep.mjs` drove CDP anyway — a declaration with no consumer,
-   * which made "fails closed" false. The driver now resolves its method through
-   * here (`lib/platforms/upload-prep-policy.mjs`), so removing `cdp` from this
-   * line really does stop the driver.
+   * 2026-10-25: prepare end to end after HITL, via the Studio web upload page).
+   * Since #1181 (ruled 2026-11-13) the CDP method is draft-only: it prepares
+   * the post and may save a Studio draft, but the public click is the
+   * operator's. The method name still covers that path; the terminal action is
+   * decided by `resolveUploadPrepAction()` in
+   * `lib/platforms/upload-prep-policy.mjs`. Before #951 this array said
+   * `["manual-guide"]` while `tiktok-upload-prep.mjs` drove CDP anyway — a
+   * declaration with no consumer, which made "fails closed" false. The driver
+   * now resolves its method through here, so removing `cdp` from this line
+   * really does stop the driver.
    *
    * `api` stays out until the Content Posting API route is chosen (#210).
    */
@@ -280,12 +284,16 @@ export const tiktokProfile = {
         // unmeasured; the run's coverage diff lists the app-only steps.
         //
         // STANDING DEFAULT (user, 2026-10-25): once the video is approved at
-        // HITL, publish it end to end — attach the music bed, set its level,
-        // disclose AIGC, click 发布 — without coming back with a BGM question.
-        label: "Audio: attach the music bed at the calibrated level, then publish",
+        // HITL, prepare it end to end — attach the music bed, set its level,
+        // disclose AIGC — without coming back with a BGM question. Since #1181
+        // (ruled 2026-11-13) the run stops before 发布: the operator reviews the
+        // prepared tab and clicks the public button.
+        label: "Audio: attach the music bed at the calibrated level, then stop for the operator",
         detail: [
           "Automation (one pass, after HITL approval):",
-          'node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish',
+          'node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --sound "Breaking News" --sound-owner Voxie --volume-db -15',
+          "The run never clicks 发布 (#1181): it leaves the prepared tab open; review it and click the public button yourself.",
+          "Adding --save-draft ends in a web Studio draft instead, but a saved draft drops the attached sound and does not reach the phone app.",
           "Set the level by measurement: a -20 dB slider reading measured 22.2 dB below the narration on the live post.",
           "-15 dB lands near -17 dB, mid-range in the 15-25 dB guidance for music under speech.",
           "The script reads the slider back and aborts if it misses by more than 1 dB.",

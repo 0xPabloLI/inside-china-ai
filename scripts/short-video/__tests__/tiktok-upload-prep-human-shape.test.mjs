@@ -198,11 +198,13 @@ describe("the driver's input shape", () => {
     expect(source).toContain("WARMUP_URL");
   });
 
-  it("reviews the prepared video before the publish click", () => {
+  it("reviews the prepared video before the terminal action", () => {
     const reviewIndex = source.indexOf("reviewBeforePublish");
-    const publishIndex = source.indexOf("Publishing (--publish)");
+    const draftIndex = source.indexOf('terminalAction.action === "save-draft"');
+    const preparedIndex = source.indexOf("✅ Editor is prepared");
     expect(reviewIndex).toBeGreaterThan(-1);
-    expect(publishIndex).toBeGreaterThan(reviewIndex);
+    expect(draftIndex).toBeGreaterThan(reviewIndex);
+    expect(preparedIndex).toBeGreaterThan(reviewIndex);
   });
 
   it("writes the publish log, review verdict included", () => {

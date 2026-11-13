@@ -48,15 +48,18 @@ if (!PUBLISH_METHODS.includes(CDP_PUBLISH_METHOD)) {
  * The declaration is `profile.aiDisclosure.required`. TikTok cannot add the
  * label after publishing (verified: the Studio ⋯ menu only offers
  * 置顶/下载/删除), so the missing-label case is the one that has no recovery —
- * which is why `--publish` + `--no-aigc` needs more than a warning.
+ * which is why `--no-aigc` on a publish-bound run needs more than a warning.
+ * Since #1181 (ruled 2026-11-13) every non-dry run is publish-bound: it ends
+ * in a prepared tab or a saved draft that the operator is one click from
+ * publishing.
  *
  * @param {Object} profile - Platform profile
  * @param {Object} [opts]
  * @param {boolean} [opts.noAigc=false] - `--no-aigc` was passed
- * @param {boolean} [opts.publish=false] - `--publish` was passed (this run publishes)
+ * @param {boolean} [opts.publish=false] - this run hands the operator a publish-bound post
  * @param {boolean} [opts.confirmUnlabeled=false] - `--confirm-unlabeled` was passed
  * @returns {{enabled: boolean, required: boolean, warning: string|null, overridden: boolean}}
- * @throws {Error} When the label is required and an automated publish would skip it
+ * @throws {Error} When the label is required and a publish-bound run would skip it
  */
 export function resolveAigcPolicy(
   profile,
@@ -76,12 +79,40 @@ export function resolveAigcPolicy(
   if (publish && !confirmUnlabeled) {
     throw new Error(
       `AIGC disclosure is required for platform "${profile.platform}" ` +
-        `(profile.aiDisclosure.required: true) but --no-aigc was passed with --publish. ` +
-        `The label cannot be added after publishing. Remove --no-aigc, or pass ` +
-        `--confirm-unlabeled when this video genuinely contains no AI-generated content.` +
+        `(profile.aiDisclosure.required: true) but --no-aigc was passed in a run ` +
+        `that prepares a publish-bound post. The label cannot be added after ` +
+        `publishing. Remove --no-aigc, or pass --confirm-unlabeled when this video ` +
+        `genuinely contains no AI-generated content.` +
         (warning ? ` Profile note: ${warning}` : ""),
     );
   }
 
   return { enabled: false, required: true, warning, overridden: publish };
+}
+
+/**
+ * The terminal action a CDP upload run may take (#1181, ruled 2026-11-13).
+ *
+ * The ruling downgraded the web path to draft-only: an automated run may save
+ * a draft, never click 发布 — the public click belongs to the operator. This is
+ * the single contract entry for that decision; `--publish` is refused here,
+ * before the browser opens, so no downstream branch can re-enable the public
+ * exit by accident.
+ *
+ * @param {Object} [opts]
+ * @param {boolean} [opts.publish=false] - `--publish` was passed
+ * @param {boolean} [opts.saveDraft=false] - `--save-draft` was passed
+ * @returns {{action: "save-draft"|"prepare"}}
+ * @throws {Error} When `--publish` is requested (automated public exit is closed)
+ */
+export function resolveUploadPrepAction({ publish = false, saveDraft = false } = {}) {
+  if (publish) {
+    throw new Error(
+      "Automated public publishing through the TikTok Studio web path is disabled " +
+        "(#1181, ruled 2026-11-13): the automated run saves a draft only, and the " +
+        "public click is made by the operator. Re-run with --save-draft, review the " +
+        "draft in TikTok Studio, then click 发布 yourself.",
+    );
+  }
+  return { action: saveDraft ? "save-draft" : "prepare" };
 }

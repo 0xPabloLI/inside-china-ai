@@ -20,11 +20,12 @@
  *
  * Fail-closed boundary
  * --------------------
- * `--publish` is blocked when the country cannot be determined (probe failure,
- * timeout, `loc=XX`) as well as on a mismatch: "we could not verify" is not
- * evidence that the route is safe. Prepare-only runs warn instead — nothing is
- * published, but the operator can still click 发布 in the open tab, so the
- * warning says that too.
+ * With `publish: true` the check blocks when the country cannot be determined
+ * (probe failure, timeout, `loc=XX`) as well as on a mismatch: "we could not
+ * verify" is not evidence that the route is safe. Since #1181 (ruled
+ * 2026-11-13) the CDP driver is draft-only and always evaluates with
+ * `publish: false`, so a mismatch warns: nothing is published, but the operator
+ * is one click from doing it, so the warning names the risk.
  */
 
 export const EGRESS_TRACE_URL = "https://www.cloudflare.com/cdn-cgi/trace";
