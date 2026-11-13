@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "issue": "#541",
+  "notes": [
+    "Bench-only fixture set. Assets live under scripts/short-video/assets/ and are gitignored (pexels-*), so a fresh worktree does not have them — pass --assets-dir.",
+    "`design` is the review-time intent recorded by the agent that built this bench; it is NOT ground truth. Ground truth is labels.json, written by a human through `queue`'s accept/reject page.",
+    "Claims are shaped like production claims: `voiceover` is the scene narration, `assetNeed` is the declared visual (as aiImage.prompt / aiVideo.prompt would supply it).",
+    "Only the image track is in scope (#541 body). The two videos in the design doc stay out until the image arm concludes."
+  ],
+  "assets": {
+    "A": {
+      "file": "pexels-alibaba-01.jpg",
+      "type": "image",
+      "seen": "阿里中心 office tower with the orange 阿里 logo, a red bus in the foreground, Chinese street signs"
+    },
+    "B": {
+      "file": "pexels-ai-chip.jpg",
+      "type": "image",
+      "seen": "macro of a circuit board behind a wire fence, magenta/pink grade, no readable brand"
+    },
+    "C": {
+      "file": "pexels-chart-01.jpg",
+      "type": "image",
+      "seen": "printed bar-chart poster (English month labels) with a phone on top showing a stacked bar chart"
+    },
+    "D": {
+      "file": "pexels-code-02.jpg",
+      "type": "image",
+      "seen": "blurred HTML source on a dark screen, Cyrillic strings, no repository or brand chrome"
+    },
+    "E": {
+      "file": "pexels-dc-server.jpg",
+      "type": "image",
+      "seen": "server-room aisle, rows of racks, no readable brand"
+    },
+    "F": {
+      "file": "pexels-architecture-03.jpg",
+      "type": "image",
+      "seen": "upward view of a glass atrium / curtain wall against a flat blue sky, no logo"
+    }
+  },
+  "cases": [
+    {
+      "id": "A1",
+      "asset": "A",
+      "claim": {
+        "voiceover": "阿里巴巴发布通义千问3，性能超越DeepSeek。",
+        "assetNeed": "阿里巴巴公司或产品画面"
+      },
+      "design": {
+        "label": "usable",
+        "bucket": "direct",
+        "note": "图上就是阿里中心的橙色标识；主体级直接支撑。旧设计稿写『Alibaba 展台』，实测是办公楼。"
+      }
+    },
+    {
+      "id": "A2",
+      "asset": "A",
+      "claim": {
+        "voiceover": "DeepSeek 开源 DeepSeek-V3 模型。",
+        "assetNeed": "DeepSeek 产品或 Logo"
+      },
+      "design": {
+        "label": "unusable",
+        "bucket": "unrelated",
+        "note": "阿里标识 ≠ DeepSeek，主体级错实体。"
+      }
+    },
+    {
+      "id": "A3",
+      "asset": "A",
+      "claim": {
+        "voiceover": "中国 AI 企业加速布局大模型。",
+        "assetNeed": "中国科技公司总部或展台"
+      },
+      "design": {
+        "label": "usable",
+        "bucket": "generic",
+        "note": "泛指的中国科技公司总部，阿里是其中一例；属于 50 分带（同域但泛主体）。"
+      }
+    },
+    {
+      "id": "B1",
+      "asset": "B",
+      "claim": {
+        "voiceover": "英伟达发布新一代 AI 加速芯片。",
+        "assetNeed": "AI 芯片或处理器特写"
+      },
+      "design": {
+        "label": "usable",
+        "bucket": "generic",
+        "note": "电路板/元件特写，不是芯片裸片；观众读到『算力硬件』但读不到英伟达。旧的『直接匹配』判断不成立。"
+      }
+    },
+    {
+      "id": "B2",
+      "asset": "B",
+      "claim": {
+        "voiceover": "阿里云通义千问3 API 价格降低。",
+        "assetNeed": "API 定价页面或云服务控制台"
+      },
+      "design": {
+        "label": "unusable",
+        "bucket": "unrelated",
+        "note": "硬件特写 ≠ 定价界面。"
+      }
+    },
+    {
+      "id": "C1",
+      "asset": "C",
+      "claim": {
+        "voiceover": "GPT-4o 在 MMLU 基准测试中得分第一。",
+        "assetNeed": "benchmark 对比图表"
+      },
+      "design": {
+        "label": "usable",
+        "bucket": "generic",
+        "note": "通用柱状图，可承载『数据对比』的画面语义，但图上没有任何 GPT-4o / MMLU 信息。旧稿判『直接匹配 85』过宽。"
+      }
+    },
+    {
+      "id": "C2",
+      "asset": "C",
+      "claim": {
+        "voiceover": "OpenAI 发布 GPT-4o 模型。",
+        "assetNeed": "OpenAI 产品发布画面或界面"
+      },
+      "design": {
+        "label": "unusable",
+        "bucket": "unrelated",
+        "note": "图表 ≠ 产品发布。"
+      }
+    },
+    {
+      "id": "D1",
+      "asset": "D",
+      "claim": {
+        "voiceover": "DeepSeek 开源代码在 GitHub 获得万星。",
+        "assetNeed": "GitHub 仓库页或代码截图"
+      },
+      "design": {
+        "label": "usable",
+        "bucket": "generic",
+        "note": "代码截图符合『代码』语义，但没有 GitHub chrome，且是俄文 HTML。"
+      }
+    },
+    {
+      "id": "D2",
+      "asset": "D",
+      "claim": {
+        "voiceover": "中国 AI 芯片产能持续增长。",
+        "assetNeed": "芯片制造工厂产线"
+      },
+      "design": {
+        "label": "unusable",
+        "bucket": "unrelated",
+        "note": "代码 ≠ 产线。"
+      }
+    },
+    {
+      "id": "E1",
+      "asset": "E",
+      "claim": {
+        "voiceover": "阿里云建设超大规模智算中心。",
+        "assetNeed": "数据中心或服务器机房"
+      },
+      "design": {
+        "label": "usable",
+        "bucket": "direct",
+        "note": "机房实拍，主体级直接支撑；无阿里云标识但符合『数据中心』语义。"
+      }
+    },
+    {
+      "id": "E2",
+      "asset": "E",
+      "claim": {
+        "voiceover": "通义千问3 支持 128K 上下文长度。",
+        "assetNeed": "模型能力演示或文本生成界面"
+      },
+      "design": {
+        "label": "unusable",
+        "bucket": "unrelated",
+        "note": "机房 ≠ 模型能力界面。"
+      }
+    },
+    {
+      "id": "F1",
+      "asset": "F",
+      "claim": {
+        "voiceover": "北京智源研究院成立人工智能实验室。",
+        "assetNeed": "研究机构建筑外观"
+      },
+      "design": {
+        "label": "usable",
+        "bucket": "generic",
+        "note": "通用现代建筑，可做机构外观占位；无任何机构标识。旧稿 75 分接近，但需人工确认。"
+      }
+    },
+    {
+      "id": "F2",
+      "asset": "F",
+      "claim": {
+        "voiceover": "GPT-4o 实时语音对话能力演示。",
+        "assetNeed": "AI 语音助手界面"
+      },
+      "design": {
+        "label": "unusable",
+        "bucket": "unrelated",
+        "note": "建筑 ≠ 语音界面。"
+      }
+    }
+  ]
+}

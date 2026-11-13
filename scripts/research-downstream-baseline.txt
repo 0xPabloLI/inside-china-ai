@@ -74,7 +74,6 @@ docs/research/tiktok-practical-guide-2026.md
 docs/research/video-background-coverage-audit-2026-08-21.md
 docs/research/vlm-landscape-survey-2026-09.md
 docs/research/vlm-model-selection-benchmark.md
-docs/research/vlm-relevance-accuracy-test-design.md
 docs/research/voice-cloning-solutions-m2-pro.md
 docs/research/voice-prosody-hook-optimization.md
 docs/research/voiceover-pacing-research.md
