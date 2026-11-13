@@ -57,8 +57,21 @@
  *      <video> element, so the evidence is the player's own clock.
  *      `--skip-review` opts out.
  *   5. Session warm-up. Unless `--no-warmup`, the session opens on the For You
- *      feed, scrolls 2-4 times with a 2.3-4.7s dwell after each, and only then
- *      navigates to the upload page.
+ *      feed, dwells on 3-8 feed items (5-20s each, log-normal), travels to the
+ *      scroll point on a Bézier path, and only then navigates to /upload.
+ *      #1288 makes each item and the navigation a separate publish-log line.
+ *
+ * Behaviour distributions & pacing gate (#1288, added 2026-11-13)
+ * ---------------------------------------------------------------
+ * Uniform `base ± spread` jitter is still a machine's shape. The bands stay
+ * (they are the machine-checked contract), but their interiors now come from
+ * `lib/behavior-sampling.mjs`: log-normal dwells, gamma scroll steps and beta
+ * keystroke gaps. Every sampled value is written to the publish log as a
+ * `behavior.sample` line, so "the values vary" is measurable rather than
+ * asserted. `lib/publish-throttle.mjs` keeps a profile-level daily cap, a
+ * 90min floor and a ±45min sampled interval; the deadline is stored as an
+ * absolute time so two shells cannot disagree. Only a successful terminal
+ * action commits a slot, and `--no-throttle` is the explicit escape hatch.
  *
  * The technical enabler: Chrome accepts a second flattened CDP session on the
  * same target, so the driver opens its own browser-level session on the tab
@@ -73,6 +86,9 @@
  * `output/{content}/publish/tiktok/publish-log.jsonl` (when `--content` points
  * at an existing pipeline directory): warm-up, caption mode, AIGC, sound,
  * volume, review verdict and publish result. That is where "已审阅" lives.
+ * #1288 adds `warmup.feed` (one per feed item), `upload.navigate`,
+ * `behavior.sample` (every drawn value), `throttle` / `throttle.blocked` /
+ * `throttle.commit` — the three acceptance checks read these lines directly.
  *
  * Five steps in this flow failed silently or were missing on the first run and
  * are now guarded:
@@ -184,6 +200,10 @@
  *                         operator's. The run exits non-zero before the browser
  *                         opens and points at --save-draft.
  *   --no-warmup           Skip the For You warm-up before the upload page.
+ *                         The straight-to-/upload navigation is still logged.
+ *   --no-throttle         Skip the profile-level pacing gate (#1288). The
+ *                         bypass is recorded in the publish log; meant for a
+ *                         deliberate immediate re-run, not as the default.
  *   --paste-caption       Paste the caption in one event instead of typing it.
  *                         The run does this automatically when typed text does
  *                         not verify; this flag just skips the attempt.
@@ -223,6 +243,7 @@ import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
   clickAtPoint,
   emulateFocus,
+  hoverAtPoint,
   openVisibleSession,
   planTyping,
   pokeEditorState,
@@ -233,6 +254,20 @@ import {
   typePlan,
   wheelScroll,
 } from "./lib/human-input.mjs";
+import {
+  BEHAVIOR_BANDS,
+  sampleGammaWeight,
+  sampleIntBetween,
+  samplePacing,
+} from "./lib/behavior-sampling.mjs";
+import {
+  THROTTLE_POLICY,
+  describeThrottleBlock,
+  commitThrottleRun,
+  evaluateThrottle,
+  readThrottleState,
+  throttleStatePath,
+} from "./lib/publish-throttle.mjs";
 import { FINGERPRINT_PROBE, classifyFingerprint } from "./lib/cdp-fingerprint.mjs";
 import { PUBLISH_PACING, REVIEW_WATCH_MS } from "./lib/publish-pacing.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
@@ -849,7 +884,7 @@ const REVIEW_STATE = `
  * typo cannot create a stray output tree. Without a log file the same entries
  * go nowhere; stdout remains the operator-facing trace.
  */
-function makePublishLogger(contentId) {
+export function makePublishLogger(contentId, outputRoot = join(__dirname, "output")) {
   if (!contentId) return () => {};
   // `contentId` arrives from argv and is about to become a path component.
   // Pipeline ids are slugs; anything else is a typo or an attempt to climb out
@@ -857,7 +892,7 @@ function makePublishLogger(contentId) {
   if (!/^[A-Za-z0-9._-]+$/.test(contentId) || contentId === "." || contentId === "..") {
     throw new Error(`--content must be a pipeline id, not a path: ${JSON.stringify(contentId)}`);
   }
-  const outDir = join(__dirname, "output", contentId);
+  const outDir = join(outputRoot, contentId);
   if (!existsSync(outDir)) return () => {};
   const dir = join(outDir, "publish", "tiktok");
   mkdirSync(dir, { recursive: true });
@@ -1312,63 +1347,142 @@ async function searchSound(tabId, cdp, query) {
 }
 
 /**
- * Warm the session up on the For You feed before the upload page opens.
+ * Warm the session up on For You BEFORE the upload page (#1013, #1288).
  *
- * A session that goes straight to the upload URL, fills a form and publishes
- * is a shape no creator produces. This dwells and scrolls first, with human
- * wheel events, then navigates the same tab to the upload page so the journey
- * has a history.
+ * A session that goes straight to /upload, fills a form and saves a draft is a
+ * shape no creator produces. #1288 makes the journey auditable instead of
+ * asserted: 3–8 feed items, each with a Bézier pointer approach, a hover, one
+ * or more trusted wheel bursts (gamma-sized, with an occasional look-back) and
+ * a 5–20s log-normal dwell. Every item writes a `warmup.feed` line with its
+ * own `items`, `dwellMs[]` and `scrollCount`, and the navigation writes
+ * `upload.navigate` AFTER them — so "the first navigation was /upload" is
+ * checkable in `publish-log.jsonl` rather than taken on trust.
+ *
+ * Everything mechanical is injectable (`log`, `rand`, `sleepFn`, `navigate`)
+ * so the evidence script and the unit tests drive the PRODUCTION function with
+ * a fake CDP session instead of a second copy of the logic.
  */
-async function runSessionWarmup(cdp, tab) {
+export async function runSessionWarmup(cdp, tab, opts = {}) {
+  const {
+    log = () => {},
+    rand = Math.random,
+    sleepFn = (ms) => new Promise((r) => setTimeout(r, ms)),
+    navigate = async (url) =>
+      fetch(`${CDP_BASE}/navigate?target=${tab}`, { method: "POST", body: url }),
+  } = opts;
   const startedAt = Date.now();
-  const scrolls = [];
+  const feeds = [];
   const modes = [];
-  const cycles = Math.max(2, Math.round(randomBetween(2, 4)));
+  const cycles = sampleIntBetween(3, 8, rand);
+  let pointerAt = { x: 320, y: 320 };
   let scriptedStreak = 0;
-  for (let i = 0; i < cycles; i++) {
-    const deltaY = Math.round(randomBetween(280, 760));
+
+  const logSample = (kind, value, min, max) =>
+    log("behavior.sample", { kind, value, band: [min, max] });
+
+  const doScroll = async (deltaY, at, label) => {
     let scrolled = { mode: "wheel" };
     // A scripted burst is not proof that wheels are dead: the failed dispatch
-    // also heals the throttle (that happens inside `cdp.send`), and the next
-    // burst then acks again — measured on the fixture 2026-10-31, where the
-    // second burst after a heal came back with `mode: "wheel"`. So keep trying
-    // until two bursts in a row are scripted.
+    // also heals the throttle, and the next burst then acks again. Keep trying
+    // until two bursts in a row are scripted (fixture 2026-10-31).
     if (scriptedStreak < 2) {
       scrolled = await wheelScroll(cdp, {
-        x: Math.round(randomBetween(480, 980)),
-        y: Math.round(randomBetween(320, 620)),
+        x: at.x,
+        y: at.y,
         totalDeltaY: deltaY,
+        rand,
+        sleepFn,
       });
       if (scrolled.mode !== "wheel") {
-        // Chrome sometimes stops acknowledging wheel dispatches on this build
-        // (measured 2026-10-30). The fallback scrolls anyway; naming it here
-        // keeps the difference between a human scroll and a scripted one
-        // visible.
         console.log(
-          `      ⚠️ warm-up scroll ${i + 1}/${cycles} was scripted: ${scrolled.reason}` +
+          `      ⚠️ warm-up scroll ${label} was scripted: ${scrolled.reason}` +
             (scrolled.scriptedPx
               ? ""
-              : " (the page pins its scroll position, so scripting moved nothing)") +
-            (scrolled.correctedPx ? ` (corrected ${scrolled.correctedPx}px of late dispatch)` : ""),
+              : " (the page pins its scroll position, so scripting moved nothing)"),
         );
         scriptedStreak += 1;
       } else {
         scriptedStreak = 0;
       }
     } else {
-      // Same container trap as the wheel path: on this app shell
-      // `window.scrollBy` moves nothing, so scroll whatever element really
-      // scrolls. Imported from the library so both paths agree.
       await evalJson(tab, scriptedScrollBy(deltaY));
       scrolled = { mode: "js-fallback" };
     }
     modes.push(scrolled.mode);
-    scrolls.push(deltaY);
-    await sleepJitter(...PUBLISH_PACING.warmupDwell);
+    return scrolled;
+  };
+
+  for (let i = 0; i < cycles; i++) {
+    // The pointer TRAVELS to the scroll point (#1288): hovering used to be a
+    // single teleported mouseMoved while only clicks had a Bézier path.
+    const at = {
+      x: sampleIntBetween(480, 980, rand),
+      y: sampleIntBetween(320, 620, rand),
+    };
+    const hover = await hoverAtPoint(cdp, { from: pointerAt, to: at, rand, sleepFn });
+    pointerAt = at;
+    logSample(
+      "hoverHold",
+      hover.holdMs,
+      BEHAVIOR_BANDS.hoverHold.minMs,
+      BEHAVIOR_BANDS.hoverHold.maxMs,
+    );
+
+    const lookBack = i > 0 && i % 3 === 0;
+    const stepWeight = sampleGammaWeight({ ...BEHAVIOR_BANDS.scrollStep, rand });
+    logSample(
+      "scrollStep",
+      stepWeight,
+      BEHAVIOR_BANDS.scrollStep.min,
+      BEHAVIOR_BANDS.scrollStep.max,
+    );
+    const step = Math.round(stepWeight * 520);
+    const scrolls = [step];
+    await doScroll(step, at, `${i + 1}/${cycles}`);
+    if (lookBack) {
+      // A person scrolls back to re-read something. Roll up a little and then
+      // return, so the net journey is still forward.
+      const back = -Math.round(step * 0.45);
+      scrolls.push(back);
+      await doScroll(back, at, `${i + 1}/${cycles} look-back`);
+      const forward = Math.round(step * 0.45);
+      scrolls.push(forward);
+      await doScroll(forward, at, `${i + 1}/${cycles} return`);
+    }
+
+    const dwellMs = samplePacing(PUBLISH_PACING.warmupDwell, { rand });
+    logSample("feedDwell", dwellMs, BEHAVIOR_BANDS.feedDwell.minMs, BEHAVIOR_BANDS.feedDwell.maxMs);
+    await sleepFn(dwellMs);
+
+    const feed = {
+      index: i + 1,
+      items: sampleIntBetween(1, 3, rand),
+      dwellMs: [hover.holdMs, dwellMs],
+      scrollCount: scrolls.length,
+      scrolls,
+      modes: modes.slice(-scrolls.length),
+      lookBack,
+    };
+    log("warmup.feed", feed);
+    feeds.push(feed);
   }
-  const dwellMs = Date.now() - startedAt;
-  await fetch(`${CDP_BASE}/navigate?target=${tab}`, { method: "POST", body: UPLOAD_URL });
-  return { dwellMs, scrolls, cycles, modes };
+
+  const totalDwellMs = Date.now() - startedAt;
+  // Written BEFORE the navigation: the log itself proves the ordering.
+  log("upload.navigate", {
+    url: UPLOAD_URL,
+    from: WARMUP_URL,
+    afterWarmupFeeds: feeds.length,
+    totalDwellMs,
+  });
+  await navigate(UPLOAD_URL);
+  return {
+    dwellMs: totalDwellMs,
+    feeds,
+    cycles,
+    modes,
+    scrolls: feeds.flatMap((f) => f.scrolls),
+  };
 }
 
 /**
@@ -1611,6 +1725,52 @@ async function main() {
     aigcNote: tiktokProfile.aiDisclosure.note,
   });
 
+  // #1288 pacing gate. It sits BEFORE the egress probe (which already opens a
+  // browser tab), so a throttled run touches no Chrome at all. State lives in
+  // the automation profile, so a second shell sees the same last-run time.
+  // Only a successful terminal action is committed at the end of the try, so
+  // a run that failed mid-upload can be retried without burning a daily slot.
+  const throttleEnabled = !dryRun && !hasFlag("no-throttle");
+  const statePath = throttleStatePath();
+  if (throttleEnabled) {
+    let verdict;
+    try {
+      verdict = evaluateThrottle({ state: readThrottleState(statePath), now: new Date() });
+    } catch (err) {
+      // A corrupt state file fails CLOSED. Silently resetting it would erase
+      // the daily counter, which is exactly the control this file provides.
+      log("throttle.error", { message: err.message });
+      console.error(`❌ ${err.message}`);
+      console.error(
+        "   Inspect or move the state file before retrying; it is not reset automatically.",
+      );
+      process.exit(1);
+    }
+    log("throttle", { ...verdict, policy: THROTTLE_POLICY });
+    if (!verdict.allowed) {
+      log("throttle.blocked", {
+        reason: verdict.reason,
+        lastRunAt: verdict.lastRunAt,
+        nextAllowedAt: verdict.nextAllowedAt,
+        remainingMs: verdict.remainingMs,
+        runsToday: verdict.runsToday,
+      });
+      console.error(`❌ publish pacing: ${describeThrottleBlock(verdict)}`);
+      console.error(
+        "   Explicit escape hatch: --no-throttle (the bypass is recorded in the publish log).",
+      );
+      process.exit(1);
+    }
+    console.log(
+      `  Pacing:  ${verdict.runsToday}/${THROTTLE_POLICY.maxPerDay} today · ` +
+        (verdict.nextAllowedAt
+          ? `last interval ${Math.round((verdict.sampledIntervalMs ?? 0) / 60_000)} min`
+          : "first run in this profile"),
+    );
+  } else {
+    log("throttle", { bypassed: true, reason: dryRun ? "dry-run" : "--no-throttle" });
+  }
+
   // Egress-region probe (#964). The probe runs in Chrome, not the shell: the
   // browser's exit is what TikTok sees. It opens one trace tab and closes it.
   // Draft-only since #1181, so a mismatch warns instead of blocking: the run
@@ -1778,15 +1938,27 @@ async function main() {
     if (hasFlag("no-warmup")) {
       console.log("  0/6 warm-up skipped (--no-warmup)");
       log("warmup", { skipped: true });
+      // openVisibleSession opened this tab straight at /upload. Record it in
+      // the same vocabulary as the warmed path so an explicit escape hatch is
+      // never confused with a silent straight-to-upload run.
+      log("upload.navigate", { url: UPLOAD_URL, warmupSkipped: true, afterWarmupFeeds: 0 });
       await sleepJitter(...PUBLISH_PACING.uploadPageOpen);
     } else {
       console.log("  0/6 warming the session up on For You…");
       await sleepJitter(...PUBLISH_PACING.warmupPageLoad);
-      const warmed = await runSessionWarmup(cdp, tab);
+      const warmed = await runSessionWarmup(cdp, tab, { log });
       console.log(
-        `      warmed: ${warmed.cycles} scroll(s), ${Math.round(warmed.dwellMs / 1000)}s dwell`,
+        `      warmed: ${warmed.feeds.length} feed item(s), ${warmed.scrolls.length} scroll(s), ` +
+          `${Math.round(warmed.dwellMs / 1000)}s dwell`,
       );
-      log("warmup", { skipped: false, ...warmed });
+      log("warmup", {
+        skipped: false,
+        cycles: warmed.cycles,
+        feeds: warmed.feeds.length,
+        scrolls: warmed.scrolls.length,
+        dwellMs: warmed.dwellMs,
+        modes: warmed.modes,
+      });
       await sleepJitter(...PUBLISH_PACING.uploadPageSettle);
     }
 
@@ -2121,6 +2293,19 @@ async function main() {
       keepTab = true;
     }
     log("prepared", { action: terminalAction.action, published: false });
+    // #1288: only a SUCCESSFUL terminal action consumes a slot. Failures land
+    // in the catch below and never reach this line, so retrying a failed run
+    // is never punished by the throttle (the objection #1181 raised against a
+    // naive cross-run lock).
+    if (throttleEnabled) {
+      const committed = commitThrottleRun({ statePath, now: new Date() });
+      log("throttle.commit", {
+        intervalMs: committed.intervalMs,
+        jitterMs: committed.jitterMs,
+        nextAllowedAt: new Date(committed.state.nextAllowedAt).toISOString(),
+        runsToday: committed.state.runs,
+      });
+    }
   } catch (err) {
     console.error(`\n❌ ${err.message}`);
     // The tab stays open for a hand-over; put the coverage gaps where the

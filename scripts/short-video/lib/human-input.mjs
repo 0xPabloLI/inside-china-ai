@@ -24,6 +24,13 @@
  */
 
 import { automationPort } from "./cdp-profile-guard.mjs";
+import {
+  BEHAVIOR_BANDS,
+  sampleBetaMs,
+  sampleGammaWeight,
+  sampleLogNormalMs,
+  samplePacing,
+} from "./behavior-sampling.mjs";
 
 /** Typing gap between segments: the band a person's keystrokes fall in. */
 export const TYPING_GAP_MS = Object.freeze([30, 120]);
@@ -80,7 +87,12 @@ export function randomBetween(min, max, rand = Math.random) {
 }
 
 /**
- * Sleep `baseMs ± spreadMs`, never below zero.
+ * Sleep a LOG-NORMAL dwell clamped to `baseMs ± spreadMs`, never below zero.
+ *
+ * #1013 introduced the band; #1288 changed its interior. A uniform jitter
+ * spends as long at the top of the band as in the middle, which is not how a
+ * person reads a feed. `samplePacing` keeps the band as a hard contract, so
+ * every existing pacing value and its machine-checked bounds still hold.
  *
  * @param {number} baseMs
  * @param {number} spreadMs
@@ -89,7 +101,7 @@ export function randomBetween(min, max, rand = Math.random) {
  */
 export async function sleepJitter(baseMs, spreadMs, opts = {}) {
   const { rand = Math.random, sleepFn = defaultSleep } = opts;
-  const ms = Math.max(0, Math.round(baseMs + randomBetween(-spreadMs, spreadMs, rand)));
+  const ms = samplePacing([baseMs, spreadMs], { rand });
   await sleepFn(ms);
   return ms;
 }
@@ -183,16 +195,19 @@ export function mousePath(from, to, opts = {}) {
 }
 
 /**
- * Move the pointer to a point and click there with a real press/release.
+ * Travel the bent Bézier path WITHOUT pressing anything (#1288).
+ *
+ * #1013 gave clicks a human pointer path, but scrolling and hovering still
+ * teleported the pointer to a coordinate. This shared primitive is what clicks,
+ * hovers and the feed warm-up all use, so the same curve and deceleration show
+ * up in every pointer action on the publish path.
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
  * @param {{ from: {x:number,y:number}, to: {x:number,y:number}, rand?: () => number, sleepFn?: (ms:number)=>Promise<void> }} opts
- * @returns {Promise<{ from: object, to: object, points: object[], holdMs: number }>}
  */
-export async function clickAtPoint(session, opts) {
+export async function movePointerAlongPath(session, opts) {
   const { from, to, rand = Math.random, sleepFn = defaultSleep } = opts;
   const path = mousePath(from, to, { rand });
-
   for (let i = 1; i < path.points.length; i++) {
     const p = path.points[i];
     await session.send("Input.dispatchMouseEvent", {
@@ -203,6 +218,32 @@ export async function clickAtPoint(session, opts) {
     });
     await sleepJitter(...POINTER_STEP_MS, { rand, sleepFn });
   }
+  return { from: { ...from }, to: { ...to }, points: path.points, distance: path.distance };
+}
+
+/**
+ * Move to a point and hold there for a log-normal beat (#1288). A hand rests
+ * on the feed before the first wheel burst; it does not arrive and scroll in
+ * the same frame.
+ */
+export async function hoverAtPoint(session, opts) {
+  const { rand = Math.random, sleepFn = defaultSleep } = opts;
+  const moved = await movePointerAlongPath(session, { ...opts, rand, sleepFn });
+  const holdMs = sampleLogNormalMs({ ...BEHAVIOR_BANDS.hoverHold, rand });
+  await sleepFn(holdMs);
+  return { ...moved, holdMs };
+}
+
+/**
+ * Move the pointer to a point and click there with a real press/release.
+ *
+ * @param {{ send: (method: string, params?: object) => Promise<object> }} session
+ * @param {{ from: {x:number,y:number}, to: {x:number,y:number}, rand?: () => number, sleepFn?: (ms:number)=>Promise<void> }} opts
+ * @returns {Promise<{ from: object, to: object, points: object[], holdMs: number }>}
+ */
+export async function clickAtPoint(session, opts) {
+  const { from, to, rand = Math.random, sleepFn = defaultSleep } = opts;
+  const path = await movePointerAlongPath(session, { from, to, rand, sleepFn });
 
   await sleepJitter(...POINTER_SETTLE_MS, { rand, sleepFn });
   await session.send("Input.dispatchMouseEvent", {
@@ -342,7 +383,12 @@ export async function wheelScroll(session, opts) {
   await sleepJitter(...WHEEL_SETTLE_MS, { rand, sleepFn });
 
   const count = Math.min(total, Math.max(3, Math.round(randomBetween(3, 6, rand))));
-  const weights = Array.from({ length: count }, () => randomBetween(0.6, 1.4, rand));
+  // #1288: gamma-shaped burst sizes instead of flat ±0.4 weights. The sum is
+  // still corrected back to `total` below, so the scroll distance contract is
+  // unchanged — only its distribution across bursts is human-shaped.
+  const weights = Array.from({ length: count }, () =>
+    sampleGammaWeight({ ...BEHAVIOR_BANDS.scrollStep, rand }),
+  );
   const weightSum = weights.reduce((a, b) => a + b, 0);
   const chunks = weights.map((w) => Math.max(1, Math.round((total * w) / weightSum)));
   // Correct the rounding residual on the largest chunk. The last chunk can be
@@ -473,7 +519,15 @@ export function planTyping(text, opts = {}) {
     if (prevText && BOUNDARY_RE.test(prevText) && rand() < PAUSE_CHANCE) {
       return Math.round(randomBetween(TYPING_PAUSE_MS[0], TYPING_PAUSE_MS[1], rand));
     }
-    return Math.round(randomBetween(TYPING_GAP_MS[0], TYPING_GAP_MS[1], rand));
+    // #1288: a beta-shaped keystroke gap inside the same 30–120ms band. The
+    // band stays the contract (the bounds are pinned by tests); only the
+    // interior changes from flat to centre-weighted.
+    return sampleBetaMs({
+      ...BEHAVIOR_BANDS.typingGap,
+      minMs: TYPING_GAP_MS[0],
+      maxMs: TYPING_GAP_MS[1],
+      rand,
+    });
   };
 
   for (const grapheme of graphemes) {
