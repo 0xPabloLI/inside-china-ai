@@ -150,6 +150,49 @@ def test_tolerance_table_reports_what_each_target_allows():
     assert rows[0.05]["nToSeparateFromDouble"] > rows[0.20]["nToSeparateFromDouble"]
 
 
+def test_report_separates_current_n_boundary_from_required_n():
+    """A reader must not confuse "what n=6 can say" with "what a target needs"."""
+    metrics = {
+        "meta": {"engine": "e", "temperature": 0.0, "threshold": 60, "repeats": 1, "restarts": 0},
+        "generatedAt": "2026-11-13T00:00:00Z",
+        "gtCounts": {"usable": 5, "unusable": 6, "unsure": 2, "missing": 0},
+        "arms": {},
+        "pooled": {},
+        "stability": {},
+        "tolerance": bench.tolerance_table(5, 6),
+    }
+    report = bench.render_report(metrics, using_design=False)
+    assert "### A. 当前 n 下的结论边界" in report
+    assert "### B. 各目标所需样本量" in report
+    assert "不能断言「已满足 10% 容忍度」" in report
+
+
+def test_per_case_verdicts_apply_production_rule_and_exclude_unsure():
+    """Every case must expose its own verdict; the miss must be visible, not pooled."""
+    manifest = {
+        "cases": [
+            {"id": "A1", "asset": "A"},
+            {"id": "C1", "asset": "C"},
+            {"id": "F1", "asset": "F"},
+        ]
+    }
+    label_map = {
+        "A1": {"label": "usable", "source": "human"},
+        "C1": {"label": None, "source": "human"},
+        "F1": {"label": "usable", "source": "human"},
+    }
+    runs = [
+        {"arm": "intra", "caseId": "A1", "firstPass": {"relevance": 50}, "secondPass": {"verdict": "match"}},
+        {"arm": "intra", "caseId": "C1", "firstPass": {"relevance": 50}, "secondPass": {"verdict": "match"}},
+        {"arm": "intra", "caseId": "F1", "firstPass": {"relevance": 0}},
+    ]
+    rows = {row["caseId"]: row for row in bench.per_case_verdicts(manifest, label_map, {}, runs)}
+    assert rows["A1"]["outcome"] == "TP"  # 50 + second-pass match is admitted
+    assert rows["F1"]["outcome"] == "FN"  # usable but scored 0
+    assert rows["C1"]["outcome"] is None and rows["C1"]["gt"] == "unsure"
+    assert rows["A1"]["admissionStable"] is True
+
+
 # ─── labels: the GT boundary ───
 
 
