@@ -884,7 +884,7 @@ const REVIEW_STATE = `
  * typo cannot create a stray output tree. Without a log file the same entries
  * go nowhere; stdout remains the operator-facing trace.
  */
-export function makePublishLogger(contentId, outputRoot = join(__dirname, "output")) {
+export function makePublishLogger(contentId) {
   if (!contentId) return () => {};
   // `contentId` arrives from argv and is about to become a path component.
   // Pipeline ids are slugs; anything else is a typo or an attempt to climb out
@@ -892,7 +892,7 @@ export function makePublishLogger(contentId, outputRoot = join(__dirname, "outpu
   if (!/^[A-Za-z0-9._-]+$/.test(contentId) || contentId === "." || contentId === "..") {
     throw new Error(`--content must be a pipeline id, not a path: ${JSON.stringify(contentId)}`);
   }
-  const outDir = join(outputRoot, contentId);
+  const outDir = join(__dirname, "output", contentId);
   if (!existsSync(outDir)) return () => {};
   const dir = join(outDir, "publish", "tiktok");
   mkdirSync(dir, { recursive: true });

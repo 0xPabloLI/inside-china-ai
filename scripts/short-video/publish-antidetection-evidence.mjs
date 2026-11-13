@@ -87,7 +87,7 @@ async function main() {
   mkdirSync(EVIDENCE_DIR, { recursive: true });
   if (existsSync(LOG_PATH)) writeFileSync(LOG_PATH, "", "utf8");
   writeFileSync(STATE_PATH, `${JSON.stringify(emptyThrottleState(dayKey()))}\n`, "utf8");
-  const log = makePublishLogger(EVIDENCE_ID, OUTPUT_ROOT);
+  const log = makePublishLogger(EVIDENCE_ID);
   const sleepFn = async () => {};
   const navigate = async () => {};
 
