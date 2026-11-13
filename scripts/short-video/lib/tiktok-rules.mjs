@@ -170,6 +170,91 @@ export const HOOK_INTENSITY_PATTERN =
 export const HOOK_CONCRETE_FACT_PATTERN =
   /\b(?:beat|beats|beating|outperform(?:s|ed)?|faster than|cheaper than|twice|vs\.?)\b/i;
 
+/**
+ * Declarable hook families (P1–P6).
+ *
+ * `checkHookCompellingElement` accepted exactly two shapes: any digit, or one
+ * of the 13 strong words above. Measured over the 35 packs on disk that
+ * collapsed into a single hook shape — 26 number-led, and `V4.1` passed on the
+ * strength of its `4`, which is a nameplate, not a result. A family lets the
+ * writer name the shape they wrote; each entry carries the test for whether
+ * that shape was EXECUTED. None of them judges quality — quality stays with the
+ * writer and the human reviewer (#763).
+ *
+ * `hints` reuses the sentence-family patterns above so each shape has one
+ * definition; `pattern` adds the markers those families do not cover.
+ */
+
+/** Contrast connective: a claim that argues against the obvious. */
+const HOOK_CONTRAST_PATTERN =
+  /\b(?:but|while|despite|instead|yet|still|even though|even as|actually|except|proves?|turns out)\b/i;
+
+/** Open loop: names a gap without filling it. */
+const HOOK_OPEN_LOOP_PATTERN =
+  /\b(?:here is|here's|here are|nobody|no one|the reason|what happened|why it|how it|until)\b/i;
+
+/** First-person evidence: the mark of an authority breakdown. */
+const HOOK_FIRST_PERSON_EVIDENCE_PATTERN =
+  /\b(?:i|we)\s+(?:read|checked|went through|dug into|pulled|counted|compared|watched|sat through)\b/i;
+
+/** Imperative interrupt. */
+const HOOK_IMPERATIVE_PATTERN =
+  /\b(?:stop|forget|ignore|watch|look|imagine|picture|don't|do not|quit|listen)\b/i;
+
+/** Counted plural: the mark of a list promise ("three numbers", "two markets").
+ * The number must be a word or 2+ digits and the noun 4+ letters, or the `1 is`
+ * in "V4.1 is available" reads as a one-item list. */
+const HOOK_COUNTED_PLURAL_PATTERN =
+  /\b(?:\d{2,}|one|two|three|four|five|six|seven|eight|nine|ten)\s+[a-z]{4,}s\b/i;
+
+export const HOOK_FAMILY_TESTS = {
+  "result-first": {
+    label: "结果先行（P1）",
+    // `just + 事件` belongs here: an event that just landed IS the result.
+    // Leaving it out failed four tracked packs whose hooks are exactly that
+    // shape (deepseek-v41-flash, didi-robotaxi-r2, kimi-sandbox,
+    // zhipu-glm6-self-training) — they used to pass on a nameplate digit.
+    hints: ["quantity-anchor", "scale-superlative", "just-event"],
+    pattern: null,
+    missing:
+      "没有可核对的结果量：真实数量、百分比、金额、规模最高级，或 [主体] just [事件]（型号铭牌 V4.1 / GLM-6.0 / H100 不算）",
+  },
+  "contrarian-claim": {
+    label: "反直觉断言（P2）",
+    hints: ["contrarian"],
+    pattern: HOOK_CONTRAST_PATTERN,
+    missing:
+      "没有反直觉的对照：需要 but / while / despite / instead / proves 一类转折，或点名对照（beats GPT-5）",
+  },
+  "curiosity-gap": {
+    label: "好奇心缺口（P3）",
+    hints: ["question"],
+    pattern: HOOK_OPEN_LOOP_PATTERN,
+    missing:
+      "缺口不具体：需要一个一句话能说清的未知（here is / nobody / the reason / what happened）或一个提问",
+  },
+  "pattern-interrupt": {
+    label: "模式打断（P4）",
+    hints: ["second-person"],
+    pattern: HOOK_IMPERATIVE_PATTERN,
+    missing: "没有打断：需要第二人称或祈使句（stop / forget / watch / don't）",
+  },
+  "authority-breakdown": {
+    label: "权威拆解（P5）",
+    hints: [],
+    pattern: HOOK_FIRST_PERSON_EVIDENCE_PATTERN,
+    missing: "没有第一手证据：需要 I read / I checked / we went through 一类自述动作",
+  },
+  "list-promise": {
+    label: "清单承诺（P6）",
+    hints: ["quantity-anchor"],
+    pattern: HOOK_COUNTED_PLURAL_PATTERN,
+    missing: "没有可数的承诺：需要一个数字或数词加复数名词（three numbers / two markets）",
+  },
+};
+
+export const HOOK_FAMILY_IDS = Object.keys(HOOK_FAMILY_TESTS);
+
 /** B3: Written-style opener detection */
 export const WRITTEN_OPENER_PATTERN =
   /in this video,? i will|today i want to talk about|in this video,? we will|today we're going to/i;

@@ -80,7 +80,7 @@ export const scenes = [
 - Each `voiceover` ≤ 25 words (one breath)
 - No em/en/double dashes (`—`, `–`, `--`)
 - No AI vocabulary (leverage, delve, harness, etc.)
-- Hook (Scene 1) must have a number or strong word
+- Hook (Scene 1) must execute a hook family: declare `hookFamily` (`result-first` / `contrarian-claim` / `curiosity-gap` / `pattern-interrupt` / `authority-breakdown` / `list-promise`) and write that shape. Undeclared hooks pass when they hit any family marker or a strong word; a bare product nameplate (`V4.1`) does not count as a number (#1289)
 - ≥2 scenes mention sources
 - "China", "AI", and main subject each appear in ≥2 scenes
 

@@ -432,20 +432,31 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 ### Hook 合格判据（评审端，#752）
 
-**这是评审门，不是 CI 门。** 四轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。hook 的机检项只报编辑建议（`checkHookCompellingElement` / `checkNoWrittenOpener` / `checkHookSentenceFamily` / `checkHookDuration`，见 🧭 Editorial Suggestions），不进退出码；机械契约仍由 `checkHookContract` / `checkHookDiffersFromText` / `checkHookMediaContract` 把门（#763）。
+**这是评审门，不是 CI 门。** 四轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。hook 的机检项只报编辑建议（`checkHookCompellingElement` / `checkNoWrittenOpener` / `checkHookSentenceFamily` / `checkHookDuration`，见 🧭 Editorial Suggestions），不进退出码；机械契约仍由 `checkHookContract` / `checkHookDiffersFromText` / `checkHookMediaContract` 把门（#763）。`checkHookCompellingElement` 与 `checkHookSentenceFamily` 自 #1289 起按 hook 场景声明的 `hookFamily` 判形态是否被执行（见下「六族声明」）。
 
 | 轴 | 检查项（逐项勾选） | FAIL 签名 |
 | --- | --- | --- |
 | **1 首句冲突密度** | hook 前 1.5s（首分句，读到第一个句读 `. ! ?` 或 `,` 为止）是否已落出**冲突/反差/冲击本身**（结果先行）？ | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"） |
 | **2 可感知比较锚点** | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长）是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？hook 无度量数字时本轴记 **N/A**，不因缺数字判 FAIL | 裸报绝对量无对照（"raised $10B"、"10T tokens"） |
 | **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（判定表与严重度见下节 `### Hook 媒体策展（#299）`；机检在 `lib/hook-media.mjs`），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b 违反 #299 契约（项与严重度按该表判，本表不重述） |
-| **4 首句句子族与时长**（#1231） | 4a 首句是否命中头族（规模/最高级、数量锚点、`just` + 事件），或提问式同句自带数字/规模锚点？4b 强度词是否有具体事实兜底？4c hook VO 是否在 **4.5–5.0s** 目标带——TTS 前按约 12 词预估，TTS 后按 `audio/scene-durations.json` 实测？ | 4a 首句无任何头族，或提问式无锚点；4b 强度词单独撑句；4c 实测/预估超出 **4.1–6.6s** 可接受带 |
+| **4 首句句子族与时长**（#1231） | 4a 首句是否命中头族（规模/最高级、数量锚点、`just` + 事件），或提问式同句自带数字/规模锚点，或**声明了六族中的某一族且已按该族形态写出**（#1289，见下）？4b 强度词是否有具体事实兜底？4c hook VO 是否在 **4.5–5.0s** 目标带——TTS 前按约 12 词预估，TTS 后按 `audio/scene-durations.json` 实测？ | 4a 首句无任何头族且未声明族，或提问式无锚点，或声明了族却没执行；4b 强度词单独撑句；4c 实测/预估超出 **4.1–6.6s** 可接受带 |
 
 **建议级（不计 FAIL）**：首拍可被陌生观众识别的新实体（公司/模型/产品/事件）≤2 个。triage 原把它列为轴 3 的硬项，本轮按 HITL「不新增机械阻断」降为建议级——一句话塞进 3 家公司是密度问题，owner 归 #235/#252。
 
 **首分句不设词数阈值，hook 总长走时长口径**：已验证的正面样本首分句 5–13 词，任何固定词数阈值都会把 405 与外部样本判死。hook **总**长不由词数审美决定，而由 4.5–5s 目标换算（约 12 词，可接受约 11–16 词，见上节）。303/405 是**句式张力**的参照，不是时长模板——303 的 18 词按 2.5 词/秒 ≈ 7.2s、405 的 21 词 ≈ 8.4s，都落在可接受带外；沿用它们的形状时按目标词带重写。
 
 **与既有句式库的关系**：与 P1–P6（`docs/research/tiktok-hook-patterns-best-practices.md`）不冲突。`[Company] just [verb]…` 这个**形状**本身不判 FAIL——FAIL 的是首分句落在中性对象上。P1a 的既有范例 "SenseTime just posted its strongest year ever." 首分句落的是最高级结果，过轴 1；P1 模板里的 `[specific number]` 若为裸数，另须过轴 2 锚点。
+
+**六族声明（`hookFamily`，#1289）**：hook 场景可声明 `hookFamily`，取值 `result-first` / `contrarian-claim` / `curiosity-gap` / `pattern-interrupt` / `authority-breakdown` / `list-promise`（与 P1–P6 一一对应，定义在 `lib/tiktok-rules.mjs` 的 `HOOK_FAMILY_TESTS`）。
+
+声明后 `checkHookCompellingElement` 判的是**这一族的形态有没有被执行**，不再是「有没有数字」。原因可核对：旧规接受「任意数字或 13 个强词」，35 个内容包里 26 个因此写成数字型；`NUMBER_PATTERN` 还让 `V4.1` 靠那个 `4` 过关——型号铭牌不是结果量，它是轴 1 禁止的中性对象开场。把 P1–P6 喂进旧机检，非数字型 **6/6 FAIL**。
+
+- **判据是结构标记，不是词表**：对照连词（but / while / despite / proves）、开环句（here is / nobody / what happened）、祈使与第二人称、第一人称证据（I read / we went through）、可数复数、真实数量或规模最高级。换成另一份领域词表只是把 13 词白名单搬个家。
+- **声明了却没执行 = FAIL**。修法是改写成本族形态，或**把声明改成你实际写的族**；补一个关键词不算修好。
+- **未声明时**退化为「六族任一命中即可」，既有包不会被判红。裸铭牌 hook（"V4.1 is now available"）会 FAIL——这是 #1289 有意的收紧。
+- `checkHookSentenceFamily`（轴 4a 的机检面）对已声明且已执行的族改判 pass，不再用首句族分布给非数字 hook 记劣。**这一项才是收敛的真正来源**：它不进退出码，但出现在记分牌上，写的人会照着它优化。
+
+**轮换仍是写稿侧约定，不做机检**：相邻两条不同族（number-led / claim-led 交替只是其中一种落法），每包在 `scene-data.mjs` 头部注释写清族与理由。在拿到对照组数据前把轮换做成门禁，等于用一个未验证的假设约束写法（同 #763 的结论）。
 
 **W2 的机械面**：W2（Hook 具体性）仍是 Agent 判断项——triage 提议把 `checkHookSpecificity` 收缩为「只保留最底线机械检查」，但该函数在代码中**不存在**（`scripts/` 与 `src/` 零命中），故 W2 无机械项可收缩，本表即其唯一判据。
 
