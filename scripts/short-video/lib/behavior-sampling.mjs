@@ -27,7 +27,7 @@ export function clamp(value, min, max) {
  * Standard normal via Box–Muller. Re-draws zeros because log(0) is -Infinity.
  * @param {() => number} rand
  */
-export function normalSample(rand = Math.random) {
+function normalSample(rand = Math.random) {
   let u = 0;
   let v = 0;
   while (u === 0) u = rand();

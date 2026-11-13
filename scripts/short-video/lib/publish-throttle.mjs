@@ -31,7 +31,7 @@ export const THROTTLE_POLICY = Object.freeze({
   jitterMs: 45 * 60_000,
 });
 
-export const THROTTLE_STATE_VERSION = 1;
+const THROTTLE_STATE_VERSION = 1;
 
 /** The one state file for the automation profile; overridable in tests. */
 export function throttleStatePath(profileDir = automationProfileDir()) {
