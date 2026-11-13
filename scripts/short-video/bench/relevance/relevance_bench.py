@@ -24,21 +24,20 @@ actually answer them:
 Landing decisions (why the shape is this and not another):
   - Repeats are NOT independent samples: production runs temperature 0.0, so a
     single-process repeat measures transport/decoding determinism, not model
-    uncertainty. The `restart` arm exists because the one measured drift
-    (relevance 50 -> 0 on `shanghai-skyline`, #334 comment) happened across
-    processes.
-  - `labelSource` on every GT label is `human`, `design` (pre-annotation
-    scaffolding only, never reportable as accuracy) or `framing-auto` (the
-    accepted subject box provably does not survive the crop — geometry, not a
-    model vote).
+    uncertainty. The `restart` arm exists because the one recorded drift
+    (relevance 50 -> 0 on `shanghai-skyline`, #334 comment) was attributed to
+    process-to-process variation.
+  - Every GT label carries a `source`: `human` (labels.json), `design` (the
+    manifest's pre-annotation scaffolding — reportable only as a pipeline
+    self-check, never as accuracy) or `framing-auto` (the accepted subject box
+    provably does not survive the crop — geometry, not a model vote).
 
-Usage:
-  BENCH_PY=~/.venvs/mlx-vlm/bin/python   # default; needs mlx-vlm + opencv + Pillow
-
-  python relevance_bench.py queue  --assets-dir ../../assets --out ../../../.scratch/relevance-bench
-  python relevance_bench.py score  --assets-dir ../../assets --out ../../../.scratch/relevance-bench \\
-                                   --repeats 5 --restarts 2
-  python relevance_bench.py eval   --out ../../../.scratch/relevance-bench --labels labels.json
+Usage (paths are relative to this directory):
+  python relevance_bench.py queue --assets-dir /path/to/checkout/scripts/short-video/assets \\
+                                  --out ../../../.scratch/relevance-bench
+  python relevance_bench.py score --assets-dir /path/to/checkout/scripts/short-video/assets \\
+                                  --out ../../../.scratch/relevance-bench --repeats 5 --restarts 2
+  python relevance_bench.py eval  --out ../../../.scratch/relevance-bench --labels labels.json
 """
 
 import argparse

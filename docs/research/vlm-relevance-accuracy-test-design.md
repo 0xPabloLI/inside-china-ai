@@ -204,9 +204,9 @@ scripts/short-video/bench/relevance/
 ```
 
 ```bash
-BENCH_PY=~/.venvs/mlx-vlm/bin/python   # 需要 mlx-vlm + opencv + Pillow
-ASSETS=/path/to/checkout/scripts/short-video/assets
+ASSETS=/path/to/checkout/scripts/short-video/assets   # 默认指向本仓库 assets，但 pexels-* 被 gitignore
 
+# 解释器默认 ~/.venvs/mlx-vlm/bin/python（需要 mlx-vlm + opencv + Pillow）；换路径用 --python
 python3 scripts/short-video/bench/relevance/relevance_bench.py queue \
   --assets-dir "$ASSETS" --out .scratch/relevance-bench
 # 打开 .scratch/relevance-bench/queue.html，接受/拒绝，导出 labels.json
