@@ -143,9 +143,9 @@ def probe_face_intervals(video, focus_detector):
 
 def pass_b(asset_slugs=None, config_slugs=None):
     import focus_detector  # production module, unmodified
-    focus_detector.init_classifier()
-    if not focus_detector._cascade_loaded:
-        print("FATAL: production Haar cascade failed to load")
+    focus_detector.init_detector()
+    if not focus_detector._detector_loaded:
+        print("FATAL: production focus detector failed to load")
         sys.exit(1)
 
     face_gt = {}

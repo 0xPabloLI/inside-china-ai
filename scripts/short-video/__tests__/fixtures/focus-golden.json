@@ -1,8 +1,8 @@
 {
   "description": "Golden fixture for focus_detector.py output schema validation.",
-  "version": "1.0.0",
-  "createdAt": "2026-08-18",
-  "testImage": "scripts/short-video/assets/shanghai-skyline.jpg",
+  "version": "2.0.0",
+  "createdAt": "2026-11-13",
+  "testImage": "scripts/short-video/assets/dh-fixtures/portrait-face.jpg",
   "expectedSchema": {
     "status": {
       "type": "string",
@@ -23,8 +23,8 @@
       "items": {
         "rect": "array<number> [x, y, w, h] (normalized 0-1)",
         "kind": "string",
-        "confidence": "number|null",
-        "confidenceKind": "string"
+        "confidence": "number|null (YuNet detector score)",
+        "confidenceKind": "string (detector_score)"
       }
     },
     "saliency": {
@@ -38,15 +38,15 @@
   },
   "goldenCases": [
     {
-      "name": "real-image-ok-no-faces",
-      "input": "scripts/short-video/assets/shanghai-skyline.jpg",
-      "description": "City skyline — no human faces expected. Haar may produce false positives on building windows/signs.",
+      "name": "real-image-with-face",
+      "input": "scripts/short-video/assets/dh-fixtures/portrait-face.jpg",
+      "description": "Tracked real portrait (#396). YuNet must return the face with a detector score on the production interpreter; the previous fixture pointed at a shanghai-skyline.jpg that only existed inside content packs, so the suite skipped instead of catching a degraded production runtime.",
       "expectedStatus": "ok",
       "expectedErrorCode": null,
       "expectedFrameOrientation": "portrait",
       "expectedSaliencyAvailable": true,
-      "minProtectedRegions": 0,
-      "note": "Haar false positives known — face count assertion is skipped in smoke test (see P1-1: YuNet replacement in Phase 2)",
+      "minProtectedRegions": 1,
+      "expectedConfidenceKind": "detector_score",
       "maxResponseTimeMs": 15000
     },
     {

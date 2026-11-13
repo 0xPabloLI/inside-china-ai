@@ -1,9 +1,14 @@
-# focus_detector.py dependencies — pinned versions
-# Install: pip install -r scripts/short-video/lib/requirements-focus.txt
-# NOTE: opencv-contrib-python (not opencv-python) is required for:
-#   - cv2.CascadeClassifier (face detection)
-#   - cv2.saliency.StaticSaliencySpectralResidual (saliency map)
-# Keep to the 4.x series — OpenCV 5.x removed the modules above
-opencv-contrib-python==5.0.0.93
+# focus_detector.py dependencies — pinned to the production focus runtime
+# (`~/.venvs/mlx-vlm`, OpenCV 5.0) as of #396.
+#
+# Install:
+#   ~/.venvs/mlx-vlm/bin/python -m pip install -r scripts/short-video/lib/requirements-focus.txt
+#
+# OpenCV 5.x removed both cv2.CascadeClassifier and cv2.saliency, so
+# focus_detector.py uses cv2.FaceDetectorYN (YuNet, weights in
+# scripts/short-video/models/) and a numpy spectral-residual saliency map.
+# `opencv-python` is enough — do not swap in opencv-contrib-python, which
+# pins a different module set and re-splits the runtime from production.
+opencv-python==5.0.0.93
+numpy==2.5.3
 Pillow==12.3.0
-numpy==2.5.4

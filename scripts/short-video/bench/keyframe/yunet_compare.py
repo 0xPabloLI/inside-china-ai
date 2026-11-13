@@ -3,19 +3,20 @@
 
 For each bench asset, samples 6-8 frames (mix: scene-detected frames likely
 to contain content + uniform frames covering static stretches), then runs
-BOTH face detectors per frame:
+BOTH legs per frame:
 
-  - Haar: the CURRENT production path — focus_detector.py is imported
-    UNMODIFIED and its handle_analyze() is called per frame file, so the
-    Haar numbers below are exactly what production would produce.
-  - YuNet: cv2.FaceDetectorYN with the opencv_zoo 2023mar ONNX
+  - Production: focus_detector.py is imported UNMODIFIED and its
+    handle_analyze() is called per frame file. **Since #396 this is YuNet**,
+    so the "haar" JSON key / column below records the production path and the
+    run is a production-vs-direct parity check.
+  - YuNet (direct): cv2.FaceDetectorYN with the opencv_zoo 2023mar ONNX
     (input resized to 320x320, scoreThreshold 0.6).
 
-Outputs per-frame JSON (boxes normalized to source frame, confidences, ms)
-to .scratch/keyframe-bench/results/yunet_haar_compare.json and prints a
-Haar false-positive / false-negative report cross-validated by YuNet.
+The historical Haar-vs-YuNet numbers this script produced for #391 are
+archived at .scratch/keyframe-bench/results/yunet_haar_compare.json; Haar is
+no longer reachable from production, so they cannot be regenerated here.
 
-Run: ~/.video-tts-env/bin/python scripts/short-video/bench/keyframe/yunet_compare.py
+Run: ~/.venvs/mlx-vlm/bin/python scripts/short-video/bench/keyframe/yunet_compare.py
 """
 
 import json
@@ -184,11 +185,17 @@ def main():
     )
     detector.setInputSize((YUNET_INPUT_SIZE, YUNET_INPUT_SIZE))
 
-    # Production Haar classifier init (same call production main() makes)
-    focus_detector.init_classifier()
-    if not focus_detector._cascade_loaded:
-        print("FATAL: production Haar cascade failed to load")
+    # Production detector init (same call production main() makes). Since #396
+    # the production path IS YuNet, so the "haar" leg below is a
+    # production-vs-direct parity check, not a Haar comparison; the historical
+    # 34-frame Haar numbers live in .scratch/keyframe-bench/results/.
+    focus_detector.init_detector()
+    if not focus_detector._detector_loaded:
+        print("FATAL: production focus detector failed to load")
         sys.exit(1)
+    print("NOTE (#396): production focus detection is YuNet now — the 'haar' "
+          "column is the production path, not Haar. Historical Haar results "
+          "are archived in .scratch/keyframe-bench/results/yunet_haar_compare.json")
 
     os.makedirs(RESULTS, exist_ok=True)
     per_frame = []

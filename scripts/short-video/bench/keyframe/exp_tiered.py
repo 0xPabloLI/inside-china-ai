@@ -289,9 +289,9 @@ def tiered_timestamps(video, budget=BUDGET, floor=FLOOR, extra_cuts=None,
 
 def face_intervals_for(video):
     import focus_detector
-    focus_detector.init_classifier()
-    if not focus_detector._cascade_loaded:
-        raise RuntimeError("haar cascade failed")
+    focus_detector.init_detector()
+    if not focus_detector._detector_loaded:
+        raise RuntimeError("production focus detector failed to load")
     from criteria_eval import probe_face_intervals
     intervals, _ = probe_face_intervals(video, focus_detector)
     return intervals
