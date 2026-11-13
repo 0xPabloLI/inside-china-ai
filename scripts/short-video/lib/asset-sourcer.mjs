@@ -104,9 +104,11 @@ import {
   ytdlpRecord412,
   ytdlpRecordSuccess,
   matchYtdlp412,
+  paceYtdlpItem,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
   resolveYtdlpProxy,
+  ytdlpPacingArgs,
   ytdlpProxyEnv,
 } from "./ytdlp-guard.mjs";
 // Artifact schema versions (#199 2.5) — bump on breaking shape changes so
@@ -2373,6 +2375,9 @@ export function downloadYtdlp(url, destPath) {
     "20M",
     "--download-sections",
     brollSectionSpec(),
+    // #405: measured serial pacing shared with the video-downloaders adapter
+    // and the bench downloader (`YTDLP_PACING` in ytdlp-guard.mjs).
+    ...ytdlpPacingArgs(),
     // #324: --download-sections delegates the fetch to ffmpeg, which only
     // reads a lowercase http_proxy — hand yt-dlp the proxy explicitly.
     ...(proxy ? ["--proxy", proxy] : []),
@@ -2384,6 +2389,10 @@ export function downloadYtdlp(url, destPath) {
   // #323 review: clear stale suffixed siblings (orphaned `<dest>.mp4.webm`
   // from pre-fix failed runs) so the resolver only sees THIS run's output.
   removeYtdlpStaleOutput(destPath);
+
+  // #405: serial gap between downloads in this process. The first item never
+  // waits; gate hits and cache hits above return before this (no request).
+  paceYtdlpItem();
 
   try {
     execFileSync("yt-dlp", args, {

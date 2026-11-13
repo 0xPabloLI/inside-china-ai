@@ -40,9 +40,11 @@ import {
   ytdlpRecord412,
   ytdlpRecordSuccess,
   matchYtdlp412,
+  paceYtdlpItem,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
   shellQuote,
+  ytdlpPacingShell,
   ytdlpProxyArg,
   ytdlpProxyEnv,
 } from "./ytdlp-guard.mjs";
@@ -724,6 +726,12 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
     parts.push(`--cookies-from-browser ${shellQuote(ytdlpCookieSource())}`);
   }
   parts.push(`--user-agent ${shellQuote(YTDLP_BROWSER_UA)}`);
+  // #405: the measured serial pacing (`YTDLP_PACING` in ytdlp-guard.mjs). A
+  // burst of 23 YouTube URLs was blocked 100%; paced and serial it was 22/23.
+  // The values come from the one constant, overridable per env, so no call
+  // site can drift onto its own numbers.
+  const pacing = ytdlpPacingShell();
+  if (pacing) parts.push(pacing);
   parts.push(
     isTiktok
       ? // One single-file format with audio, long side capped at 1920 (1080p).
@@ -809,6 +817,11 @@ export function downloadYtdlpAdapter(url) {
   // #323 review: clear stale suffixed siblings so the resolver only sees THIS
   // invocation's output (pre-fix-era orphans must not pass as fresh).
   removeYtdlpStaleOutput(tmpPath);
+
+  // #405: serial gap between downloads in this process. The first item never
+  // waits, so a single known download pays nothing; gate hits above also skip
+  // it (no request was made).
+  paceYtdlpItem();
 
   try {
     execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
