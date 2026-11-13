@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.66.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.65.0...tanstack_start_ts-v1.66.0) (2026-11-13)
+
+
+### Features
+
+* **short-video:** relevance 半自动标注与评测脚手架 + v6 设计文档重写 ([#541](https://github.com/0xPabloLI/inside-china-ai/issues/541)) ([#1285](https://github.com/0xPabloLI/inside-china-ai/issues/1285)) ([1cb1983](https://github.com/0xPabloLI/inside-china-ai/commit/1cb1983ebbb26b2974db87ce1445f8f040836df8))
+
 ## [1.65.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.64.0...tanstack_start_ts-v1.65.0) (2026-11-13)
 
 
