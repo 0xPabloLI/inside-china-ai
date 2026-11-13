@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.63.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.5...tanstack_start_ts-v1.63.0) (2026-11-13)
+
+
+### Features
+
+* **short-video:** search orthogonality bench + pilot conclusion ([#457](https://github.com/0xPabloLI/inside-china-ai/issues/457)) ([#1277](https://github.com/0xPabloLI/inside-china-ai/issues/1277)) ([c07ef2a](https://github.com/0xPabloLI/inside-china-ai/commit/c07ef2a29de998950da173477881d6e83df3b11c))
+
 ## [1.62.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.4...tanstack_start_ts-v1.62.5) (2026-11-12)
 
 
