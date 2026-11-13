@@ -15,6 +15,7 @@
 
 ## 逐轮盘点（Round CLXXXII → LV）
 
+（**Round CLXXXIV：`#457` 正交性试点交付闭票**——5 查询 × 13 信道测量台 + 研究文档；PR #1277，squash `c07ef2a2`；同 PR 附带 `hono`→4.13.16 解掉阻塞 push 的新 GHSA。裁决：池三族独立被支持（URL 包含度中位数 11/40/0%）、「Jina×Serper 100% 重合」未复现（50%）故改按成本/时延排除、Google×Serper 73/33/54% 无法检验；5 条样本不改族表，**无产出差异（enabling fix）**。frontier：Track 2 `#310`（AFK 空）、Track 1B `#396` → ④ 段；新开 `#1276`（needs-triage）。）
 （**Round CLXXXIII：`#390` 交付闭票——web-deep-research 候选发现三源 + 路径/年份去硬编码**——Phase 2 新增 Candidate Discovery（热度榜 top 30 / 厂商 org 页 / 角度查询并集，纳入判据引 `proposal-review.md` §4 不抄一份）；`SKILL.md` 5 处命令改仓根解析（干净 clone 实测 `vertical-search --list` 可执行）、`angles.md` 16 行 24 个年份 token 改 `{year}`、Wikipedia 改走 `--sources wikipedia`（PR #1274，squash `9ec548eb`，子模块 `1ac7b35`）；同 PR 附带 `overrides` `@hono/node-server`→2.1.8 解掉阻塞所有 push 的 GHSA，`scan:deps` 转绿；产品验证门：**无产出差异（enabling fix）**；frontier：Track 2 `#310`（AFK 空，`#541` grilling）、Track 1B `#457`（试点段）→ `#396`。）
 （**Round CLXXXII：`#468` 交付闭票——垂直源去重保留 query + 礼貌身份/有界退避/诊断**——`normUrl` 不再丢 query（wikipedia `?curid=`、HN `?id=` 多条塌成 1 条）；UA 中立化、OpenAlex `mailto`、GitHub token/匿名 6s 串行、429 有界退避、`doctor` 读 `.env.local`+`config.env`、`fanout` 新增 `warnings`（PR #1272，squash `8c9f555b`；子模块 `4b281bf`）；产品验证门：**有产出差异**——同一条真实 HN 响应 5 条由 1 → 5；frontier：Track 2 `#310`（AFK 空，`#541` grilling）、Track 1B `#390` → `#457`（试点段）→ `#396`。）
 
