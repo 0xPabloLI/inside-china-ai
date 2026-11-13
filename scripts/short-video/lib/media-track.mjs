@@ -247,8 +247,8 @@ export async function runMediaTrack({
           if (result.planFile) console.log(`   Plan: ${relative(baseDir, result.planFile)}`);
           if ((counts.approvalRequired ?? 0) > 0) {
             console.log(
-              "   ⏸  Chain generation is gated: review the plan, then rerun main.mjs with " +
-                "--approve-auto (optional --auto-budget N / --video-budget N) after HITL confirmation.",
+              "   ⏸  Chain generation is gated by --no-auto-generate: review the plan, then rerun" +
+                " main.mjs without it (optional --auto-budget N / --video-budget N) after HITL confirmation.",
             );
           }
           if (counts.failed > 0 || counts.escalated > 0) {

@@ -98,6 +98,9 @@ const validScenes = [
     layout: "hero-center",
     voiceover: "Bloomberg reported the news first. Liang Wenfeng confirmed it.",
     texts: { title: "BLOOMBERG EXCLUSIVE", context: "LIANG WENFENG CONFIRMED IT" },
+    // #1296: the valid pack must clear the media-density gate — this fixture is
+    // the "clean" example, so its two media-capable scenes carry media.
+    media: { type: "image", path: "assets/bloomberg.jpg", fit: "cover", source: "test" },
   },
   {
     id: 3,
@@ -114,6 +117,7 @@ const validScenes = [
     layout: "hero-center",
     voiceover: "DeepSeek chose open source. Others chose closed.",
     texts: { title: "OPEN VS CLOSED", left: ["OPEN"], right: ["CLOSED"] },
+    media: { type: "image", path: "assets/open-vs-closed.jpg", fit: "cover", source: "test" },
   },
   {
     id: 5,

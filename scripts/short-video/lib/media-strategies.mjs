@@ -63,6 +63,23 @@ export const DEFAULT_AUTO_SCENE_BUDGET = 4;
 export const DEFAULT_AUTO_VIDEO_BUDGET = 1;
 
 /**
+ * Whether the chain's GPU rung may run without a per-run approval (#1296).
+ *
+ * Default is ON. `approveAuto` used to follow `--approve-auto`, so a run that
+ * forgot the flag left every chain scene at "approval-required" and shipped a
+ * text-only video — the 2026-11-13 failure that produced three all-text packs.
+ * Spend stays bounded by DEFAULT_AUTO_SCENE_BUDGET / _VIDEO_BUDGET, the plan is
+ * still printed before any GPU starts, and `--no-auto-generate` is the explicit
+ * way back to "ask me first".
+ *
+ * A leftover `--approve-auto` is accepted (scripts and notes in the wild pass
+ * it) but cannot re-enable generation once `--no-auto-generate` says no.
+ */
+export function resolveApproveAuto(argv = []) {
+  return !argv.includes("--no-auto-generate");
+}
+
+/**
  * Parse a non-negative integer budget flag shared by both CLI entrypoints.
  * Throws instead of returning NaN: `count >= NaN` is false, which would
  * silently disable the spend cap.

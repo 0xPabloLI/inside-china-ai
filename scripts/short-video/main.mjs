@@ -45,6 +45,7 @@ import {
   DEFAULT_AUTO_SCENE_BUDGET,
   DEFAULT_AUTO_VIDEO_BUDGET,
   parseBudgetArg,
+  resolveApproveAuto,
 } from "./lib/media-strategies.mjs";
 import { closeAsrAnalyzer } from "./lib/asr-analyzer.mjs";
 import {
@@ -357,11 +358,13 @@ async function main() {
           baseDir: __dirname,
           broll,
           prof,
-          // #355: the chain's implicit generation rung is HITL-gated. Explicit
-          // b-roll / ai-image overrides are unaffected; only scenes relying on
-          // the default chain wait for --approve-auto.
+          // #355: the chain's implicit generation rung is bounded by the
+          // per-content budgets. #1296: it is ON by default — a run that
+          // forgot a flag used to ship text-only video. `--no-auto-generate`
+          // is the explicit opt-out; the plan is still printed before any GPU
+          // starts (lib/media-track.mjs Stage 1.5d).
           mediaChain: {
-            approveAuto: args.includes("--approve-auto"),
+            approveAuto: resolveApproveAuto(args),
             autoBudget: getBudgetArg("auto-budget", DEFAULT_AUTO_SCENE_BUDGET),
             videoBudget: getBudgetArg("video-budget", DEFAULT_AUTO_VIDEO_BUDGET),
           },
