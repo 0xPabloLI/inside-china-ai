@@ -293,7 +293,7 @@ const SENTENCE_FAMILY_BY_ID = new Map(HOOK_SENTENCE_FAMILIES.map((f) => [f.id, f
  * a fixed word list would rebuild the problem it replaces — the old gate
  * accepted a number or one of 13 words, so the writer optimised for those 13.
  */
-export function matchHookFamily(familyId, voiceover) {
+function matchHookFamily(familyId, voiceover) {
   const family = HOOK_FAMILY_TESTS[familyId];
   if (!family) return null;
   const vo = voiceover || "";

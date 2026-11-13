@@ -186,25 +186,25 @@ export const HOOK_CONCRETE_FACT_PATTERN =
  */
 
 /** Contrast connective: a claim that argues against the obvious. */
-export const HOOK_CONTRAST_PATTERN =
+const HOOK_CONTRAST_PATTERN =
   /\b(?:but|while|despite|instead|yet|still|even though|even as|actually|except|proves?|turns out)\b/i;
 
 /** Open loop: names a gap without filling it. */
-export const HOOK_OPEN_LOOP_PATTERN =
+const HOOK_OPEN_LOOP_PATTERN =
   /\b(?:here is|here's|here are|nobody|no one|the reason|what happened|why it|how it|until)\b/i;
 
 /** First-person evidence: the mark of an authority breakdown. */
-export const HOOK_FIRST_PERSON_EVIDENCE_PATTERN =
+const HOOK_FIRST_PERSON_EVIDENCE_PATTERN =
   /\b(?:i|we)\s+(?:read|checked|went through|dug into|pulled|counted|compared|watched|sat through)\b/i;
 
 /** Imperative interrupt. */
-export const HOOK_IMPERATIVE_PATTERN =
+const HOOK_IMPERATIVE_PATTERN =
   /\b(?:stop|forget|ignore|watch|look|imagine|picture|don't|do not|quit|listen)\b/i;
 
 /** Counted plural: the mark of a list promise ("three numbers", "two markets").
  * The number must be a word or 2+ digits and the noun 4+ letters, or the `1 is`
  * in "V4.1 is available" reads as a one-item list. */
-export const HOOK_COUNTED_PLURAL_PATTERN =
+const HOOK_COUNTED_PLURAL_PATTERN =
   /\b(?:\d{2,}|one|two|three|four|five|six|seven|eight|nine|ten)\s+[a-z]{4,}s\b/i;
 
 export const HOOK_FAMILY_TESTS = {
