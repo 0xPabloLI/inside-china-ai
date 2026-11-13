@@ -364,7 +364,22 @@ export const MediaBackground: React.FC<Props> = ({
         style={{
           position: "absolute",
           inset: 0,
-          background: `rgba(10, 10, 20, ${overlayOpacity})`,
+          // #1305 follow-up: a single flat scrim cannot serve both jobs. At the
+          // old 0.7 the picture was invisible; at 0.55 the picture reads but the
+          // subtitle gap does too — measured 23.3% bright pixels in y 1298–1328
+          // against a 5% ceiling (`BRIGHT_RATIO_FAIL`), a hard frame-analysis
+          // failure.
+          //
+          // So the scrim is graded: the frame keeps the lighter value, the
+          // bottom band (from 60% of the height, i.e. above the content edge at
+          // 67.6%) deepens to a subtitle-safe floor. The bottom stop uses the
+          // configured `overlay`, not the animated `overlayOpacity`, so the
+          // exit fade cannot brighten the subtitle lane on its way out.
+          background: `linear-gradient(to bottom,
+            rgba(10, 10, 20, ${overlayOpacity}) 0%,
+            rgba(10, 10, 20, ${overlayOpacity}) 60%,
+            rgba(10, 10, 20, ${Math.max(0.88, overlay + 0.3)}) 66%,
+            rgba(10, 10, 20, ${Math.max(0.88, overlay + 0.3)}) 100%)`,
           transition: "background 0.3s",
         }}
       />
