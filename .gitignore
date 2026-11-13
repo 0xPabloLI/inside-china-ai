@@ -34,6 +34,9 @@ src/routeTree.gen.ts
 # Short-video pipeline: outputs and binary assets
 scripts/short-video/output/
 
+# Orthogonality bench run artifacts (raw search responses, machine-local)
+scripts/short-video/bench/search-orthogonality/output/
+
 # Per-content derived caches (focus-detection results — reproducible from scene media)
 scripts/short-video/content/*/.focus-cache/
 scripts/short-video/content/**/.focus-cache/
