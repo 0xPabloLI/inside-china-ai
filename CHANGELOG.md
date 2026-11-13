@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.69.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.2...tanstack_start_ts-v1.69.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **media:** reject decoration shapes before the VLM spends a call ([#1309](https://github.com/0xPabloLI/inside-china-ai/issues/1309)) ([6c80625](https://github.com/0xPabloLI/inside-china-ai/commit/6c80625feb9fe594288220d39218bc9a63b502b6))
+
 ## [1.69.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.1...tanstack_start_ts-v1.69.2) (2026-11-13)
 
 
