@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.65.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.64.0...tanstack_start_ts-v1.65.0) (2026-11-13)
+
+
+### Features
+
+* **publish:** stop the CDP path at a draft, refuse automated public publish ([#1181](https://github.com/0xPabloLI/inside-china-ai/issues/1181)) ([#1283](https://github.com/0xPabloLI/inside-china-ai/issues/1283)) ([2de2776](https://github.com/0xPabloLI/inside-china-ai/commit/2de27761c481604e50aad1628f89a1ef914b74b8))
+
 ## [1.64.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.63.0...tanstack_start_ts-v1.64.0) (2026-11-13)
 
 
