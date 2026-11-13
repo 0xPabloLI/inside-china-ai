@@ -27,10 +27,13 @@ describe("buildMediaExtractScript", () => {
     expect(script.length).toBeGreaterThan(100);
   });
 
-  it("includes image extraction with naturalWidth > 400 filter", () => {
+  it("#1304: gates images at 600px and ships their dimensions to the parser", () => {
     const script = buildMediaExtractScript();
     expect(script).toContain("naturalWidth");
-    expect(script).toContain("400");
+    expect(script).toContain("600");
+    expect(script).not.toContain(">= 400");
+    expect(script).toContain("width: w");
+    expect(script).toContain("height: h");
   });
 
   it("excludes data URI images (1x1 SVG placeholders report viewBox naturalWidth)", () => {
@@ -84,7 +87,7 @@ describe("buildMediaExtractScript", () => {
 describe("parseMediaExtractResult", () => {
   it("parses a result with images, videos, and metadata", () => {
     const raw = {
-      images: [{ url: "https://example.com/img1.jpg", alt: "DeepSeek logo" }],
+      images: [{ url: "https://example.com/img1.jpg", alt: "DeepSeek V4 发布会现场" }],
       videos: [{ url: "https://example.com/video.mp4", platform: "direct" }],
       metadata: {
         ogImage: "https://example.com/og.jpg",
@@ -142,6 +145,69 @@ describe("parseMediaExtractResult", () => {
     expect(result.videos[0].platform).toBe("youtube");
     expect(result.videos[1].platform).toBe("bilibili");
     expect(result.videos[2].platform).toBe("direct");
+  });
+});
+
+// ─── #1304: page furniture must not reach the cache ───
+
+describe("parseMediaExtractResult — decoration filtering", () => {
+  const parse = (images) =>
+    parseMediaExtractResult({ images, videos: [], metadata: {} }, "https://example.com/a");
+
+  it("drops a leaderboard-shaped image (1200×90 promo banner)", () => {
+    // The measured #1304 defect: xinhua's "download our app" strip cleared the
+    // old width-only gate at 1200px wide and was cached as a stage photo.
+    const out = parse([
+      { url: "https://example.com/news/2026/stage.jpg", alt: "", width: 1200, height: 90 },
+    ]);
+    expect(out.images).toEqual([]);
+  });
+
+  it("keeps a normal article figure and its dimensions", () => {
+    const out = parse([
+      { url: "https://example.com/news/2026/stage.jpg", alt: "大会现场", width: 1200, height: 800 },
+    ]);
+    expect(out.images).toHaveLength(1);
+    expect(out.images[0]).toMatchObject({ width: 1200, height: 800, alt: "大会现场" });
+  });
+
+  it("drops images whose alt copy is page furniture", () => {
+    const out = parse([
+      { url: "https://example.com/a.jpg", alt: "扫码下载客户端", width: 1200, height: 800 },
+      { url: "https://example.com/b.jpg", alt: "关注公众号", width: 1200, height: 800 },
+      { url: "https://example.com/c.jpg", alt: "大会现场", width: 1200, height: 800 },
+    ]);
+    expect(out.images.map((i) => i.alt)).toEqual(["大会现场"]);
+  });
+
+  it("drops images whose URL slug says what they are", () => {
+    const out = parse([
+      { url: "https://example.com/qrcode_share.png", alt: "", width: 1200, height: 1200 },
+      { url: "https://example.com/site-banner.png", alt: "", width: 1200, height: 800 },
+      { url: "https://example.com/keynote.jpg", alt: "", width: 1200, height: 800 },
+    ]);
+    expect(out.images.map((i) => i.url)).toEqual(["https://example.com/keynote.jpg"]);
+  });
+
+  it("keeps a lazy image that reported no height", () => {
+    // A 0/absent height is "not measured yet", not "banner" — dropping it
+    // would silently lose every below-the-fold figure.
+    const out = parse([
+      { url: "https://example.com/keynote.jpg", alt: "", width: 1200, height: 0 },
+    ]);
+    expect(out.images).toHaveLength(1);
+  });
+
+  it("keeps legacy cache rows that carry no dimensions at all", () => {
+    const out = parse([{ url: "https://example.com/keynote.jpg", alt: "大会现场" }]);
+    expect(out.images).toHaveLength(1);
+  });
+
+  it("still drops a narrow image even when it has a good alt", () => {
+    const out = parse([
+      { url: "https://example.com/x.jpg", alt: "大会现场", width: 320, height: 320 },
+    ]);
+    expect(out.images).toEqual([]);
   });
 });
 

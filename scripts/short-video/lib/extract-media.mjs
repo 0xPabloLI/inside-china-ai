@@ -39,8 +39,35 @@ import { EMBED_HOST_PLATFORMS, PAGE_DATE_META_SELECTORS } from "./page-media-sig
 
 export const MEDIA_CACHE_VERSION = 1;
 
-/** Minimum image natural width for inclusion (matches CDP fallback scripts) */
-const MIN_IMAGE_WIDTH = 400;
+/**
+ * Minimum natural width for a content image.
+ *
+ * #1304: 400 was only a width test, so a 1200×90 "download our app" leaderboard
+ * cleared it and landed in the cache named after the search query. 600 is the
+ * smallest width a real article figure shows at on the pages this pipeline
+ * reads; anything narrower is a chip, an inline icon or a table glyph.
+ */
+const MIN_IMAGE_WIDTH = 600;
+
+/**
+ * Width / height above which the image is a banner, not a picture.
+ *
+ * #1304: leaderboards and section rules are wide and short (13:1 measured on
+ * the xinhua banner). A photographic figure on these pages stays under 3:1
+ * even when cropped to a panorama.
+ */
+const MAX_ASPECT_RATIO = 3;
+
+/**
+ * Page furniture that is never article content.
+ *
+ * Split in two on purpose: the `alt` copy is human-written Chinese and can say
+ * "扫码下载客户端", while a URL path only ever carries ASCII slugs — running the
+ * Chinese half against URLs would be dead weight, and running the ASCII half
+ * against `alt` would reject a legitimate photo captioned "banner year".
+ */
+const DECORATION_ALT = /二维码|扫码|下载|客户端|公众号|关注我们|广告|推广|logo|icon|banner|qrcode/i;
+const DECORATION_URL = /qrcode|qr-code|banner|sprite|advert|promo|placeholder/i;
 
 // ─── Eval script builder ───
 
@@ -51,7 +78,8 @@ const MIN_IMAGE_WIDTH = 400;
  *   { images: [{url, alt}], videos: [{url, platform}], metadata: {ogImage?, ogTitle?, publishedTime?} }
  *
  * Extraction targets:
- * - <img> with naturalWidth > 400 (content images, not thumbnails/icons)
+ * - <img> with naturalWidth >= 600 (content images, not thumbnails/icons);
+ *   the reported height rides along so the parser can reject banners (#1304)
  * - <video> src + <source> child src
  * - <iframe> YouTube/Bilibili/Douyin embeds
  * - og:image, og:title, article:published_time meta tags
@@ -62,12 +90,17 @@ export function buildMediaExtractScript() {
   return `
     var results = { images: [], videos: [], metadata: {} };
 
-    // Images: naturalWidth > 400 (content images, not icons/thumbnails).
+    // Images: naturalWidth >= ${MIN_IMAGE_WIDTH} (content images, not icons/thumbnails).
     // data: URIs are excluded — WeChat 1x1 SVG placeholders report a
     // viewBox-derived naturalWidth that defeats the pixel filter (#128).
+    // width/height ship with each hit so parseMediaExtractResult can drop
+    // leaderboard-shaped images (#1304); a lazy image reports 0 and is kept
+    // on width alone rather than silently discarded.
     document.querySelectorAll('img').forEach(function(img) {
-      if ((img.naturalWidth > ${MIN_IMAGE_WIDTH} || img.width > ${MIN_IMAGE_WIDTH}) && img.src && !img.src.startsWith('data:')) {
-        results.images.push({ url: img.src, alt: img.alt || '' });
+      var w = img.naturalWidth || img.width || 0;
+      var h = img.naturalHeight || img.height || 0;
+      if (w >= ${MIN_IMAGE_WIDTH} && img.src && !img.src.startsWith('data:')) {
+        results.images.push({ url: img.src, alt: img.alt || '', width: w, height: h });
       }
     });
 
@@ -127,6 +160,34 @@ function detectPlatform(url) {
 // ─── Parse raw CDP result ───
 
 /**
+ * Is this `<img>` page furniture rather than article content?
+ *
+ * Three independent tells, because each one alone has a false negative
+ * (#1304): the width gate passes whatever is wide enough, the `alt` text is
+ * empty on lazily loaded figures, and the URL slug is often the only honest
+ * signal left (".../qrcode_share.png").
+ *
+ * A missing dimension is NOT evidence of a banner — lazy images report 0 — so
+ * the shape test needs both sides before it fires.
+ *
+ * @param {{url: string, alt?: string, width?: number, height?: number}} img
+ * @returns {boolean}
+ */
+export function isDecorationImage(img) {
+  if (!img || typeof img.url !== "string") return true;
+  const alt = typeof img.alt === "string" ? img.alt : "";
+  if (DECORATION_ALT.test(alt)) return true;
+  if (DECORATION_URL.test(img.url)) return true;
+  const width = Number(img.width);
+  const height = Number(img.height);
+  if (Number.isFinite(width) && width > 0 && width < MIN_IMAGE_WIDTH) return true;
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+    if (width / height > MAX_ASPECT_RATIO) return true;
+  }
+  return false;
+}
+
+/**
  * Parse the raw CDP eval result into a normalized media cache entry.
  *
  * Filters out logo/icon images, ensures video platform is identified,
@@ -147,13 +208,24 @@ export function parseMediaExtractResult(raw, sourceUrl) {
 
   if (!raw || typeof raw !== "object") return empty;
 
-  // Filter images: exclude logos/icons
+  // Filter images: exclude logos/icons and page furniture. The dimensions
+  // ride along into the cache so a triage pass can tell "rejected for shape"
+  // from "rejected for alt copy" without re-scraping (#1304).
   const rawImages = Array.isArray(raw.images) ? raw.images : [];
-  const images = rawImages.filter((img) => {
-    if (!img || !img.url) return false;
-    if (isLogoOrIcon(img.url)) return false;
-    return true;
-  });
+  const images = rawImages
+    .filter((img) => {
+      if (!img || !img.url) return false;
+      if (isLogoOrIcon(img.url)) return false;
+      return !isDecorationImage(img);
+    })
+    .map((img) => {
+      const kept = { url: img.url, alt: typeof img.alt === "string" ? img.alt : "" };
+      if (Number.isFinite(Number(img.width)) && Number(img.width) > 0)
+        kept.width = Number(img.width);
+      if (Number.isFinite(Number(img.height)) && Number(img.height) > 0)
+        kept.height = Number(img.height);
+      return kept;
+    });
 
   // Normalize videos: ensure platform is identified
   const rawVideos = Array.isArray(raw.videos) ? raw.videos : [];
