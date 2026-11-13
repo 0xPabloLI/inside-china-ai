@@ -17,6 +17,8 @@
  * Env:
  *   YTDLP_412_STATE_PATH — override the state file location (tests)
  *   YTDLP_GUARD_DISABLED=1 — escape hatch (tests/debugging)
+ *   YTDLP_SLEEP_REQUESTS / YTDLP_SLEEP_INTERVAL / YTDLP_ITEM_GAP — pacing
+ *     overrides in seconds (#405; see `YTDLP_PACING`)
  *
  * Consumers: asset-sourcer.mjs (searchYtdlp / downloadYtdlp),
  * video-downloaders.mjs (downloadYtdlpAdapter). Also exports a browser-like
@@ -726,6 +728,143 @@ const YTDLP_CONTAINER_MIME = {
  */
 export function ytdlpContainerMime(ext) {
   return YTDLP_CONTAINER_MIME[ext] ?? "application/octet-stream";
+}
+
+// ─── Serial pacing (#405) ───
+//
+// Measured 2026-09-28 while fetching the Video-MME short subset (#391): a burst
+// batch of 23 YouTube URLs was blocked 100%; one-at-a-time with
+// `--sleep-requests 3 --sleep-interval 8`, a 6s gap between items and a single
+// retry got 22/23 (the one failure was a genuinely unavailable video). Those
+// three numbers are the only empirical basis in the repo, so they live here
+// once — the bench downloader and both production adapters read them from this
+// constant instead of each carrying a copy. The retry stays bench-side:
+// production never re-hits a blocked domain, the 412 box below handles that.
+//
+// Pacing lowers the chance of being blocked; it does not replace the 412
+// penalty box below. A run can still be rate-limited, and a penalized domain is
+// skipped (`ytdlpGate`), never retried with a longer sleep.
+
+/**
+ * Measured serial pacing (see the section comment). All values are seconds.
+ * `sleepRequestsSec` / `sleepIntervalSec` are yt-dlp's own flags;
+ * `itemGapSec` is a gap between consecutive downloads in this process.
+ */
+export const YTDLP_PACING = { sleepRequestsSec: 3, sleepIntervalSec: 8, itemGapSec: 6 };
+
+/**
+ * A pacing value from the environment, or the measured default.
+ *
+ * Only a non-negative number is an override. A typo (`abc`, `-1`) keeps the
+ * default instead of silently switching the rate limit off — going unpaced has
+ * to be an explicit `0`.
+ *
+ * @param {string|undefined} value - raw env value
+ * @param {number} fallback - measured default
+ * @returns {number} seconds
+ */
+function pacingSeconds(value, fallback) {
+  if (value === undefined || value === "") return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+/**
+ * Resolve the pacing triple, honouring the env overrides.
+ *
+ * Env (seconds, `0` disables that knob):
+ *   YTDLP_SLEEP_REQUESTS — yt-dlp extraction request interval
+ *   YTDLP_SLEEP_INTERVAL — yt-dlp per-download interval
+ *   YTDLP_ITEM_GAP       — gap between consecutive items in this process
+ *
+ * @param {Record<string, string|undefined>} [env] - environment to read
+ * @returns {{sleepRequestsSec: number, sleepIntervalSec: number, itemGapSec: number}}
+ */
+export function ytdlpPacing(env = process.env) {
+  return {
+    sleepRequestsSec: pacingSeconds(env.YTDLP_SLEEP_REQUESTS, YTDLP_PACING.sleepRequestsSec),
+    sleepIntervalSec: pacingSeconds(env.YTDLP_SLEEP_INTERVAL, YTDLP_PACING.sleepIntervalSec),
+    itemGapSec: pacingSeconds(env.YTDLP_ITEM_GAP, YTDLP_PACING.itemGapSec),
+  };
+}
+
+/**
+ * yt-dlp argv fragment for the pacing flags — empty when both are disabled.
+ *
+ * @param {ReturnType<typeof ytdlpPacing>} [pacing] - resolved pacing
+ * @returns {string[]} e.g. `["--sleep-requests", "3", "--sleep-interval", "8"]`
+ */
+export function ytdlpPacingArgs(pacing = ytdlpPacing()) {
+  const args = [];
+  if (pacing.sleepRequestsSec > 0) args.push("--sleep-requests", String(pacing.sleepRequestsSec));
+  if (pacing.sleepIntervalSec > 0) args.push("--sleep-interval", String(pacing.sleepIntervalSec));
+  return args;
+}
+
+/**
+ * Shell-string fragment for the `execSync` call site (#319 kept that one on a
+ * command string). Values are numbers, so no quoting is needed.
+ *
+ * @returns {string} flag fragment, or "" when pacing is disabled
+ */
+export function ytdlpPacingShell() {
+  return ytdlpPacingArgs().join(" ");
+}
+
+/** Completion time of the last item this process downloaded; 0 = none yet. */
+const itemGapState = { lastEnd: 0 };
+
+/** Synchronous sleep — every yt-dlp call site here is `execFileSync`/`execSync`. */
+function sleepSync(ms) {
+  // Atomics.wait on a private zeroed buffer is the standard main-thread sleep
+  // in Node; `execSync` cannot await a timer.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Enforce the gap between consecutive yt-dlp downloads in this process.
+ *
+ * The gap is measured from when the previous item *finished*, not from when it
+ * started: the measured protocol slept 6s after each download returned, and
+ * measuring from the start would make the gap vanish for any download longer
+ * than 6s — which is most of them. A caller that has been idle longer than the
+ * gap pays nothing.
+ *
+ * The first item never waits, so a single-download path pays no gap at all —
+ * that is the "known single item" case, without a flag that could default to
+ * unsafe. A whole batch can still opt out with `YTDLP_ITEM_GAP=0`. Both
+ * adapters share the module state on purpose: a pipeline run that downloads
+ * through both is still serial.
+ *
+ * @param {Object} [deps]
+ * @param {ReturnType<typeof ytdlpPacing>} [deps.pacing] - resolved pacing
+ * @param {() => number} [deps.now] - clock in ms
+ * @param {(ms: number) => void} [deps.sleep] - sleep sink
+ * @param {{lastEnd: number}} [deps.state] - completion clock (tests pass their own)
+ * @returns {number} milliseconds waited
+ */
+export function paceYtdlpItem({
+  pacing = ytdlpPacing(),
+  now = () => Date.now(),
+  sleep = sleepSync,
+  state = itemGapState,
+} = {}) {
+  const gapMs = pacing.itemGapSec * 1000;
+  if (gapMs <= 0 || !state.lastEnd) return 0;
+  const waitMs = Math.max(0, state.lastEnd + gapMs - now());
+  if (waitMs > 0) sleep(waitMs);
+  return waitMs;
+}
+
+/**
+ * Stamp the end of a yt-dlp item so the next `paceYtdlpItem()` can measure the
+ * gap from completion. Call from a `finally` so failed downloads pace too —
+ * a rate limiter reacts to the request, not to its outcome.
+ *
+ * @param {{now?: () => number, state?: {lastEnd: number}}} [deps]
+ */
+export function endYtdlpItem({ now = () => Date.now(), state = itemGapState } = {}) {
+  state.lastEnd = now();
 }
 
 /** Default persistent state file (gitignored output dir — survives sessions). */
