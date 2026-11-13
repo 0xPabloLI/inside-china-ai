@@ -79,7 +79,9 @@ describe("ContrastScene renders bound media (#761)", { timeout: 300_000 }, () =>
     const plain = await still("baseline-contrast");
     const withMedia = await still("baseline-contrast-media");
 
-    // The image fills the frame and is dimmed by the 0.7 overlay; the text
+    // The image fills the frame and is dimmed by the scene's overlay (#1305:
+    // 0.55 from lib/media-overlay.mjs; the assertion only needs the layer to
+    // render, so the exact scrim value is not load-bearing); the text
     // and decorations are identical in both stills. 1080x1920 = 2,073,600
     // pixels, so anything above ~10% proves a full-bleed layer rendered
     // (an absent / unloaded asset would leave only the grid, diffing 0).

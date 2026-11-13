@@ -104,7 +104,8 @@ describe("#1030 Slice 1 — content-aware animation", () => {
       expect(recommendScene({ type: "video" }, [makeScene(2, visualType)])).toEqual({
         sceneId: 2,
         animation: "fade",
-        overlay: 0.7,
+        // #1305: shared scrim table — context/contrast are 0.55 now.
+        overlay: 0.55,
       });
     }
   });

@@ -85,6 +85,17 @@ try {
 const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
 
 const OUTPUT_DIR = join(__dirname, "output", pipelineId);
+/**
+ * #1305: the scenes the renderer actually used.
+ *
+ * `scene-data.mjs` is the authored state and every `media` in it is null —
+ * sourcing and generation bind media in memory during the run. Judging the
+ * authored array produced `Empty field` warnings on scenes that carried a
+ * picture on screen. Post-render reads this file when it exists; `--pre`
+ * never does (no run has resolved anything yet, and a leftover file from an
+ * earlier run must not stand in for this one).
+ */
+const RESOLVED_SCENES_PATH = join(OUTPUT_DIR, "scenes.resolved.json");
 const SUBTITLE_TIMING_PATH = join(OUTPUT_DIR, "audio", "subtitle-timing.json");
 // Written by lib/subtitles/generate.mjs after TTS; read by the empty-field
 // persistence window (#739) and the BGM mix measurement (#950).
@@ -324,14 +335,44 @@ console.log("\n📝 Scene Data Checks");
 console.log("─".repeat(50));
 
 let scenes, seriesMeta;
+let sceneSource = "scene-data.mjs";
+// #1305: prefer the resolved snapshot in post-render mode. A malformed or
+// empty file is not fatal — fall through to the authored state rather than
+// fail a verification run over a cache artifact.
+if (!preMode && existsSync(RESOLVED_SCENES_PATH)) {
+  try {
+    const resolved = JSON.parse(readFileSync(RESOLVED_SCENES_PATH, "utf8"));
+    if (Array.isArray(resolved?.scenes) && resolved.scenes.length > 0) {
+      scenes = resolved.scenes;
+      sceneSource = "scenes.resolved.json";
+      pass(
+        "Scene Data",
+        "Resolved scenes load",
+        `${scenes.length} scenes from ${sceneSource} (run ${resolved.version ?? "unknown"})`,
+      );
+    }
+  } catch (e) {
+    fail(
+      "Scene Data",
+      "Resolved scenes load",
+      e.message,
+      "Re-run main.mjs, or delete the stale scenes.resolved.json",
+    );
+  }
+}
 try {
+  // Always import the authored module: it also carries `seriesMeta`, which the
+  // resolved snapshot does not (it is a run artifact, not series data). Only
+  // the scene array is replaced by the resolved one.
   const mod = await import(`file://${SCENE_DATA_PATH}`);
-  scenes = mod.scenes || mod.default?.scenes;
+  if (!scenes) scenes = mod.scenes || mod.default?.scenes;
   seriesMeta = mod.seriesMeta || null;
 } catch (e) {
   fail("Scene Data", "scene-data.mjs loads", e.message, "Fix syntax errors in scene-data.mjs");
-  printSummary();
-  process.exit(1);
+  if (!scenes) {
+    printSummary();
+    process.exit(1);
+  }
 }
 
 if (!scenes || scenes.length === 0) {

@@ -503,7 +503,8 @@ describe("recommendScene", () => {
     const rec = recommendScene(asset, scenes);
     expect(rec.sceneId).toBe(2);
     expect(["fade", "zoom"]).toContain(rec.animation);
-    expect(rec.overlay).toBe(0.7);
+    // #1305: scrim comes from lib/media-overlay.mjs — narrative is 0.55 now.
+    expect(rec.overlay).toBe(0.55);
   });
 
   it("recommends ken-burns for info-card scene with image", () => {
@@ -512,7 +513,8 @@ describe("recommendScene", () => {
     const rec = recommendScene(asset, scenes);
     expect(rec.sceneId).toBe(4);
     expect(rec.animation).toBe("ken-burns");
-    expect(rec.overlay).toBe(0.75);
+    // #1305: info-card 0.75 → 0.65.
+    expect(rec.overlay).toBe(0.65);
   });
 
   it("recommends the content-aware preset for quote scene", () => {
@@ -540,7 +542,7 @@ describe("recommendScene", () => {
     // `return null` silently dropped them from asset-analysis.json.
     for (const visualType of ["context", "contrast"]) {
       const rec = recommendScene({ type: "video" }, [{ visualType, id: 8 }]);
-      expect(rec, visualType).toEqual({ sceneId: 8, animation: "fade", overlay: 0.7 });
+      expect(rec, visualType).toEqual({ sceneId: 8, animation: "fade", overlay: 0.55 });
     }
   });
 
