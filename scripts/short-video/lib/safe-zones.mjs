@@ -411,6 +411,63 @@ export function scrimGradient(alpha, direction, reverse = false) {
   return `linear-gradient(${direction}, ${stops.join(", ")})`;
 }
 
+/**
+ * Action-rail vignette for FULL-FRAME media (MediaBackground) — a plateau, not
+ * the smoothstep MediaScrims puts on the media band.
+ *
+ * The two geometries differ because the pictures differ, and the numbers below
+ * are measured on the frame that forced this (minimax-h3-image scene 2, a bright
+ * film-strip still at `overlay` 0.55 — bright pixels in the rail band, x
+ * 880-1080 / y 640-1775, against the 5% ceiling in `BRIGHT_RATIO_FAIL`):
+ *
+ *   no vignette                       15.7%
+ *   MediaScrims geometry @ 0.85        5.2%   ← still over the ceiling
+ *   plateau 0.60 from x 880            0.0%
+ *
+ * The smoothstep spends most of its ramp INSIDE the rail, so the rail's left
+ * edge — exactly where a full-frame picture's subject tends to land — gets
+ * almost no scrim, and raising the peak alpha barely helps (0.6 → 0.85 buys
+ * 0.6 points). A plateau darkens the whole 200px the platform's own buttons
+ * cover, which is why it works and why it costs the picture nothing visible.
+ *
+ * A plateau needs an edge, and a hard one at 880 reads as a vertical seam once
+ * Ken Burns pans the picture. The 30px ramp buys that softness for 30px of
+ * picture — an order of magnitude less than the 180px the 2026-10-29
+ * calibration rejected ("右边的内容好像被你遮挡掉一些了", see
+ * MEDIA_BAND.vignetteStartX).
+ */
+export const RAIL_VIGNETTE = {
+  /** Alpha 0 here; the gate's own region starts 30px later. */
+  rampStartX: 850,
+  /** Alpha reaches `alpha` here — the action rail's own left edge. */
+  holdX: 880,
+  /** Reuses the alpha the band layouts were calibrated with. */
+  alpha: MEDIA_BAND.vignetteAlpha,
+};
+
+/**
+ * CSS gradient for {@link RAIL_VIGNETTE}: ramp 850→880, flat alpha to the edge.
+ *
+ * @param {number} [alpha=RAIL_VIGNETTE.alpha] - peak alpha at the right edge
+ * @returns {string} a CSS `linear-gradient(...)` value spanning the full canvas
+ *   width, so callers can start the element at `RAIL_VIGNETTE.rampStartX` and
+ *   still get the ramp in the right place
+ */
+export function railVignetteGradient(alpha = RAIL_VIGNETTE.alpha) {
+  const { rampStartX, holdX } = RAIL_VIGNETTE;
+  const pct = (x) => ((x / CANVAS.width) * 100).toFixed(2);
+  const stops = [
+    { x: rampStartX, a: 0 },
+    ...SCRIM_CURVE.slice(1).map(({ offset }) => ({
+      x: rampStartX + (holdX - rampStartX) * offset,
+      a: alpha * (offset * offset * (3 - 2 * offset)),
+    })),
+    { x: CANVAS.width, a: alpha },
+  ];
+  const css = stops.map(({ x, a }) => `rgba(10,10,20,${a.toFixed(4)}) ${pct(x)}%`);
+  return `linear-gradient(to right, ${css.join(", ")})`;
+}
+
 /** Channel watermark position (top-left corner, outside the content band). */
 export const WATERMARK_POS = { top: 60, left: 60 };
 
