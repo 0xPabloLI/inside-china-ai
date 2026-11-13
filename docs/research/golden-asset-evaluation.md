@@ -1,6 +1,7 @@
 # Golden Asset Evaluation for VLM Quality
 
 > **Status**: Active · **Created**: 2026-08-18 · **ADR**: [0009](../adr/0009-vlm-qwen3-vl-mlx.md), [0015](../adr/0015-opencv-focus-detection.md)
+> **下游票**：#396
 >
 > **Scope**: Defines the golden asset set, human expectations, model/prompt versions, and testing strategy for the VLM analysis layer (`visual-analyzer.mjs` + `vlm_analyzer.py` + `focus_detector.py`).
 
@@ -87,7 +88,7 @@ Each golden asset has a human-verified expectation file in `golden-expectations.
 | -------------- | ----------------------------------------- | -------------- | ------ | ----------- |
 | VLM (primary)  | `mlx-community/Qwen3-VL-8B-Instruct-8bit` | mlx-vlm 0.6.13 | 9.2 GB | HuggingFace |
 | VLM (fallback) | `mlx-community/Qwen3-VL-8B-Instruct-4bit` | —              | 4.8 GB | HuggingFace |
-| Focus detector | OpenCV Haar Cascade + Spectral Residual   | OpenCV 4.x     | —      | pip         |
+| Focus detector | YuNet (`cv2.FaceDetectorYN`) + numpy Spectral Residual | OpenCV 5.0 (4.x compatible) | 232 KB ONNX | `scripts/short-video/models/` |
 
 ### Prompt Versions
 

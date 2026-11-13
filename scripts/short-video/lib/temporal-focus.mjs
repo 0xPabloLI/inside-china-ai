@@ -35,6 +35,7 @@ import { execFileSync } from "child_process";
 import { createHash } from "crypto";
 import { fileFingerprint } from "./vlm-cache.mjs";
 import { getCachedResult, writeCachedResult, VLM_CACHE_PIPELINE_VERSION } from "./vlm-cache.mjs";
+import { FOCUS_ANALYZER_VERSION } from "./focus-cache.mjs";
 
 export const TEMPORAL_FOCUS_VERSION = "v1-2026-09-05";
 
@@ -51,6 +52,10 @@ export async function computeTemporalFocusCacheKey(req) {
   const frameCount = clampFrameCount(req.samplingProfile?.frameCount);
   const h = createHash("sha256");
   h.update(TEMPORAL_FOCUS_VERSION + "\n");
+  // Per-frame results come from focus_detector.py, so a detector change must
+  // invalidate temporal artifacts too — otherwise #396's YuNet switch would
+  // keep serving aggregates built from Haar/degraded frames.
+  h.update(FOCUS_ANALYZER_VERSION + "\n");
   // Shared analysis-pipeline version (P7 protocol) — bumping it in
   // vlm-cache.mjs invalidates every analysis cache family together.
   h.update(VLM_CACHE_PIPELINE_VERSION + "\n");

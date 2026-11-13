@@ -5,7 +5,8 @@
  *   1. vlm_analyzer.py  — mlx-vlm MiniCPM-o 4.5 (default) or Qwen3-VL-30B-A3B
  *      (analyzeAssetSemantics / analyzeAssetAudio) — engine declared by
  *      vlm-model.json (#361)
- *   2. focus_detector.py — OpenCV Haar Cascade + Saliency (detectFocus)
+ *   2. focus_detector.py — OpenCV YuNet face detector + spectral-residual
+ *      saliency (detectFocus)
  *
  * API:
  *   analyzeAssetSemantics(assetPath) -> Promise<AssetSemantics>
@@ -34,7 +35,7 @@
  * @module visual-analyzer
  */
 
-import { spawn } from "child_process";
+import { spawn, execFileSync } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync } from "fs";
@@ -56,6 +57,55 @@ const HOME = process.env.HOME || "/Users/pabloli";
 const PYTHON_BIN =
   process.env.VLM_ANALYZER_PYTHON_BIN || join(HOME, ".venvs", "mlx-vlm", "bin", "python");
 const E2V_PYTHON_BIN = process.env.E2V_PYTHON_BIN || join(HOME, ".video-tts-env", "bin", "python3");
+
+/**
+ * Interpreter the focus subprocess actually runs on (#396). It defaults to the
+ * production VLM venv, which is what `main.mjs` and the tests probe — a second
+ * venv that happens to have the APIs turns "production degraded" into "tests
+ * green", which is the failure #396 fixes.
+ */
+export const FOCUS_PYTHON_BIN = process.env.FOCUS_PYTHON_BIN || PYTHON_BIN;
+
+/** YuNet weights loaded by focus_detector.py (its own default is the same). */
+export const FOCUS_MODEL_PATH =
+  process.env.FOCUS_FACE_MODEL ||
+  join(__dirname, "..", "models", "face_detection_yunet_2023mar.onnx");
+
+/**
+ * Single capability probe for the focus runtime, shared by the pipeline
+ * preflight (`main.mjs`) and both focus test files. It asserts exactly what
+ * production loads — `cv2.FaceDetectorYN` plus the ONNX weights — on the
+ * interpreter the subprocess spawns.
+ *
+ * @returns {{ok: boolean, pythonBin: string, modelPath: string, detail: string}}
+ */
+export function probeFocusRuntime() {
+  const result = {
+    ok: false,
+    pythonBin: FOCUS_PYTHON_BIN,
+    modelPath: FOCUS_MODEL_PATH,
+    detail: "",
+  };
+  if (!existsSync(FOCUS_PYTHON_BIN)) {
+    result.detail = `python not found: ${FOCUS_PYTHON_BIN}`;
+    return result;
+  }
+  const source = [
+    "import os, cv2",
+    "assert hasattr(cv2, 'FaceDetectorYN'), 'cv2.FaceDetectorYN missing'",
+    `assert cv2.FaceDetectorYN.create(${JSON.stringify(FOCUS_MODEL_PATH)}, '', (320, 320)) is not None, 'YuNet model failed to load'`,
+    // cv2's ONNX session teardown stalls interpreter exit (measured 13s on
+    // OpenCV 5.0, 72s on 4.10); the probe has nothing left to flush.
+    "os._exit(0)",
+  ].join("; ");
+  try {
+    execFileSync(FOCUS_PYTHON_BIN, ["-c", source], { stdio: "pipe", timeout: 20_000 });
+    result.ok = true;
+  } catch (err) {
+    result.detail = String(err.stderr || err.message || err).trim();
+  }
+  return result;
+}
 
 const RESPONSE_TIMEOUT_MS = Number(process.env.VLM_RESPONSE_TIMEOUT_MS) || 180_000; // 180s per VLM asset (video analysis can take 100s+)
 const FOCUS_RESPONSE_TIMEOUT_MS = 10_000; // 10s per focus detection (target <1s)
@@ -747,8 +797,8 @@ let focusWorkerGeneration = 0;
  * Returns the process or null on failure.
  */
 function spawnFocusDetector() {
-  if (!existsSync(PYTHON_BIN)) {
-    console.warn(`Focus detector not available: Python not found at ${PYTHON_BIN}`);
+  if (!existsSync(FOCUS_PYTHON_BIN)) {
+    console.warn(`Focus detector not available: Python not found at ${FOCUS_PYTHON_BIN}`);
     focusAvailable = false;
     return null;
   }
@@ -762,7 +812,7 @@ function spawnFocusDetector() {
   focusWorkerGeneration++;
   const myGen = focusWorkerGeneration;
 
-  const proc = spawn(PYTHON_BIN, [FOCUS_SCRIPT], {
+  const proc = spawn(FOCUS_PYTHON_BIN, [FOCUS_SCRIPT], {
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env },
   });

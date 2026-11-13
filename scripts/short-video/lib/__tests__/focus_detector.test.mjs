@@ -1,14 +1,16 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
-import { spawn, execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { writeFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { FOCUS_PYTHON_BIN, probeFocusRuntime } from "../visual-analyzer.mjs";
 
 const SCRIPT = join(process.cwd(), "scripts/short-video/lib/focus_detector.py");
-const VENV_PYTHON = join(process.env.HOME || "/Users/pabloli", ".video-tts-env/bin/python3");
 
-const PYTHON_BIN = process.env.FOCUS_PYTHON || VENV_PYTHON;
+// Same interpreter the production subprocess spawns (#396) — never a second
+// venv that merely has the APIs.
+const PYTHON_BIN = FOCUS_PYTHON_BIN;
 
 let proc = null;
 let tmpDir = null;
@@ -71,26 +73,11 @@ function setupStdout() {
   });
 }
 
-// Skip tests if Python/OpenCV not available
-// P2: Serial execution enforced by vitest.config.mjs (subprocess project: fileParallelism=false, singleFork=true)
-// The detector reports `classifier_load_failed` (status=degraded) when OpenCV
-// lacks the API it needs — OpenCV 5.x dropped `cv2.CascadeClassifier`, and a
-// stray `opencv-python` can shadow the pinned `opencv-contrib-python` from
-// requirements-focus.txt. The pipeline is designed to run degraded then, so the
-// suite skips instead of failing on an incomplete env.
-function opencvUsable(bin) {
-  try {
-    execSync(`"${bin}" -c "import cv2; assert hasattr(cv2, 'CascadeClassifier')"`, {
-      stdio: "ignore",
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
+// Skip when the production focus runtime is incomplete (no venv, no
+// FaceDetectorYN, missing YuNet weights). The probe is the same one main.mjs
+// runs, so this suite cannot stay green while production degrades (#396).
 const maybeDescribe =
-  PYTHON_BIN && existsSync(PYTHON_BIN) && existsSync(SCRIPT) && opencvUsable(PYTHON_BIN)
+  PYTHON_BIN && existsSync(PYTHON_BIN) && existsSync(SCRIPT) && probeFocusRuntime().ok
     ? describe
     : describe.skip;
 

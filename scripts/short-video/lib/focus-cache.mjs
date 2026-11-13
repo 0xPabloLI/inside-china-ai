@@ -29,8 +29,12 @@ import { fileFingerprint } from "./vlm-cache.mjs";
 /**
  * Bump when focus_detector.py analysis semantics change in a way that
  * alters results (detector model, thresholds, output shape).
+ *
+ * v2 (#396): Haar Cascade -> YuNet, numpy spectral-residual saliency, real
+ * detector scores in `confidence`. Old entries were overwhelmingly degraded
+ * results; this bump is what stops them from being served as valid cache.
  */
-export const FOCUS_ANALYZER_VERSION = "v1-2026-09-05";
+export const FOCUS_ANALYZER_VERSION = "v2-2026-11-13-yunet";
 
 /**
  * Compute the cache key for one focus analysis request.

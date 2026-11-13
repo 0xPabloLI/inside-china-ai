@@ -53,6 +53,7 @@ import {
   isAvatarDeclared,
 } from "./lib/avatar-guard.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
+import { probeFocusRuntime } from "./lib/visual-analyzer.mjs";
 import { warnStaleCacheEntries } from "./lib/vlm-cache.mjs";
 
 loadEnv(); // #287 — entry owns env loading; library modules never self-load
@@ -302,20 +303,18 @@ async function main() {
   }
 
   // ── Focus detector dependency check (optional, warning only) ──
-  // detectFocus() gracefully degrades if OpenCV not installed, so this is
-  // a warning, not a hard failure. See spec §7.1.
+  // detectFocus() gracefully degrades if the runtime is incomplete, so this is
+  // a warning, not a hard failure. The probe is the same one the focus tests
+  // use and it targets the interpreter the subprocess spawns (#396) — probing a
+  // second venv is how "tests green / production degraded" stayed invisible.
   const focusScript = join(__dirname, "lib", "focus_detector.py");
   if (existsSync(focusScript)) {
-    try {
-      // argv, never a shell string (#319 deferred class sweep): the venv path
-      // is data, and the probe script is one argument.
-      execFileSync(
-        join(process.env.HOME || "", ".video-tts-env/bin/python3"),
-        ["-c", "import cv2; assert hasattr(cv2, 'CascadeClassifier') and hasattr(cv2, 'saliency')"],
-        { stdio: "pipe", timeout: 5000 },
+    const focusRuntime = probeFocusRuntime();
+    if (!focusRuntime.ok) {
+      console.warn(
+        `⚠️  Focus detector unavailable on ${focusRuntime.pythonBin} — focus detection will be skipped (degraded mode).`,
       );
-    } catch {
-      console.warn("⚠️  OpenCV not available — focus detection will be skipped (degraded mode).");
+      if (focusRuntime.detail) console.warn(`   ${focusRuntime.detail.split("\n")[0]}`);
       console.warn("   Install: pip install -r scripts/short-video/lib/requirements-focus.txt");
     }
   }

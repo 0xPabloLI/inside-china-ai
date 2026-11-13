@@ -9,41 +9,33 @@
  *
  * Golden fixture: __tests__/fixtures/focus-golden.json
  *
- * Skipped if Python/OpenCV not available.
+ * Skipped if the production focus runtime (interpreter + YuNet weights) is not
+ * available.
  */
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
-import { execSync } from "child_process";
 import { existsSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
+import { FOCUS_PYTHON_BIN, probeFocusRuntime } from "../lib/visual-analyzer.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const GOLDEN_PATH = join(__dirname, "fixtures", "focus-golden.json");
-// Use process.cwd() as base — vitest runs from project root
-const TEST_IMAGE = join(process.cwd(), "scripts/short-video/assets/shanghai-skyline.jpg");
+// Use process.cwd() as base — vitest runs from project root. This fixture is
+// tracked; the old shanghai-skyline.jpg path only existed inside individual
+// content packs, so the whole suite silently skipped in a clean checkout.
+const TEST_IMAGE = join(process.cwd(), "scripts/short-video/assets/dh-fixtures/portrait-face.jpg");
 
-const PYTHON_BIN = join(process.env.HOME || "/Users/pabloli", ".video-tts-env/bin/python3");
+// Same interpreter the production subprocess spawns (#396).
+const PYTHON_BIN = FOCUS_PYTHON_BIN;
 const FOCUS_SCRIPT = join(process.cwd(), "scripts/short-video/lib/focus_detector.py");
 
-// The detector degrades to `classifier_load_failed` when OpenCV lacks the API it
-// needs. OpenCV 5.x dropped `cv2.CascadeClassifier`, and a stray `opencv-python`
-// install can shadow the pinned `opencv-contrib-python` from
-// lib/requirements-focus.txt. The pipeline runs degraded in that case by design,
-// so the suite must skip rather than fail — probe the API we actually use.
-function opencvUsable() {
-  try {
-    execSync(`"${PYTHON_BIN}" -c "import cv2; assert hasattr(cv2, 'CascadeClassifier')"`, {
-      stdio: "ignore",
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Skip entire suite if Python or OpenCV not available
+// Skip entire suite if the production runtime cannot load YuNet. The probe is
+// shared with main.mjs, so "tests green / production degraded" cannot recur.
 const shouldRun =
-  existsSync(PYTHON_BIN) && existsSync(FOCUS_SCRIPT) && existsSync(TEST_IMAGE) && opencvUsable();
+  existsSync(PYTHON_BIN) &&
+  existsSync(FOCUS_SCRIPT) &&
+  existsSync(TEST_IMAGE) &&
+  probeFocusRuntime().ok;
 
 // P2: Serial execution enforced by vitest.config.mjs (subprocess project: fileParallelism=false, singleFork=true)
 const maybeDescribe = shouldRun ? describe : describe.skip;
@@ -60,7 +52,7 @@ maybeDescribe("Focus Detection Smoke Test (real subprocess)", () => {
     detectFocus = mod.detectFocus;
     closeFocusDetector = mod.closeFocusDetector;
 
-    // Warm-up: spawn Python subprocess + load cv2 + Haar Cascade BEFORE timed tests.
+    // Warm-up: spawn Python subprocess + load cv2 + YuNet weights BEFORE timed tests.
     // Cold start can take 5-10s; subsequent calls are <1s.
     // Using the real test image ensures the subprocess is fully initialized.
     console.log("  🔥 Warming up focus detector subprocess...");
@@ -75,8 +67,8 @@ maybeDescribe("Focus Detection Smoke Test (real subprocess)", () => {
     }
   });
 
-  test("golden: real-image-ok-no-faces — shanghai-skyline.jpg returns ok with saliency (no real faces)", async () => {
-    const testCase = golden.goldenCases.find((c) => c.name === "real-image-ok-no-faces");
+  test("golden: real-image-with-face — portrait-face.jpg finds the face with a detector score", async () => {
+    const testCase = golden.goldenCases.find((c) => c.name === "real-image-with-face");
     expect(testCase).toBeDefined();
 
     const t0 = Date.now();
@@ -99,14 +91,21 @@ maybeDescribe("Focus Detection Smoke Test (real subprocess)", () => {
     expect(result.saliency.dispersion).toBeGreaterThan(0);
     expect(result.saliency.centroid).toHaveLength(2);
 
+    // The tracked fixture has one prominent face — a detector that cannot load
+    // or cannot see it must fail here, not skip.
+    expect(result.protectedRegions.length).toBeGreaterThanOrEqual(testCase.minProtectedRegions);
+
     // Schema completeness: every protected region has required fields
-    // (Haar may produce false positives on building windows/signs — known limitation)
     for (const r of result.protectedRegions) {
       expect(r).toHaveProperty("rect");
       expect(r.rect).toHaveLength(4);
       expect(r).toHaveProperty("kind");
       expect(r).toHaveProperty("confidence");
       expect(r).toHaveProperty("confidenceKind");
+      // YuNet supplies a real score (Haar left this null)
+      expect(r.confidenceKind).toBe(testCase.expectedConfidenceKind);
+      expect(r.confidence).toBeGreaterThan(0);
+      expect(r.confidence).toBeLessThanOrEqual(1);
       // Rect values are normalized 0-1
       for (const v of r.rect) {
         expect(v).toBeGreaterThanOrEqual(0);
