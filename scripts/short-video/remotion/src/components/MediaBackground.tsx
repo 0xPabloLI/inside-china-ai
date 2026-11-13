@@ -364,7 +364,33 @@ export const MediaBackground: React.FC<Props> = ({
         style={{
           position: "absolute",
           inset: 0,
-          background: `rgba(10, 10, 20, ${overlayOpacity})`,
+          // #1305 follow-up: a single flat scrim cannot serve both jobs. At the
+          // old 0.7 the picture was invisible; at 0.55 the picture reads but the
+          // subtitle gap does too — measured 23.3% bright pixels in y 1298–1328
+          // against a 5% ceiling (`BRIGHT_RATIO_FAIL`), a hard frame-analysis
+          // failure.
+          //
+          // The stop is tied to the content edge, not a fraction of the frame:
+          // 66.8%..67.6% of 1920 is y 1283..1298, i.e. a 15px ramp that lands
+          // on the gap's top edge. Anything that starts higher eats into a
+          // contained picture's visible box (y 656..1263, `#1075`) and the
+          // focus-anchor render contract reads it as a cropped image.
+          //
+          // The bottom stop reads the configured `overlay`, not the animated
+          // `overlayOpacity`, so the exit fade cannot brighten the lane. It
+          // tops out at 0.75 (not 0.88): a `bottom`-anchored contained picture
+          // sits INSIDE the lane (y 1313..1919, #1075) and the focus-anchor
+          // contract still has to classify its colour — past ~0.8 the palette
+          // read collapses and the picture audits as absent.
+          //
+          // `overlay: 0` means "no dim layer" and is honoured literally: the
+          // render contracts drive a pure-colour fixture through this component
+          // and a floor there would recolour it.
+          background: `linear-gradient(to bottom,
+            rgba(10, 10, 20, ${overlayOpacity}) 0%,
+            rgba(10, 10, 20, ${overlayOpacity}) 66.8%,
+            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 67.6%,
+            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 100%)`,
           transition: "background 0.3s",
         }}
       />

@@ -182,3 +182,48 @@ export function probeMedia(videoPath) {
     return null;
   }
 }
+
+/**
+ * Read an image's pixel dimensions.
+ *
+ * `probeMedia` cannot serve this: `parseProbeOutput` requires
+ * `format.duration`, which an image does not carry, so it returns null for
+ * every JPEG/PNG. #1304 needs dimensions BEFORE the pre-filter — the shape
+ * gate is keyword-independent and cannot lean on `resolution` (only Pexels and
+ * a few others report it), while focus detection deliberately runs after that
+ * gate (T06). One ffprobe per image is ~60ms against a ~45s VLM call per
+ * banner that would otherwise be judged.
+ *
+ * Never throws. A missing or undecodable file returns null, and the caller
+ * must read that as "not measured" — never as "rejected".
+ *
+ * @param {string} imagePath - absolute path to the image
+ * @returns {{width: number, height: number}|null}
+ */
+export function probeImageDimensions(imagePath) {
+  if (!imagePath || !existsSync(imagePath)) return null;
+  try {
+    const raw = execFileSync(
+      ffprobeCmd,
+      [
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-select_streams",
+        "v:0",
+        "-show_streams",
+        imagePath,
+      ],
+      { encoding: "utf8", timeout: 10000 },
+    );
+    const parsed = JSON.parse(raw);
+    const stream = Array.isArray(parsed?.streams) ? parsed.streams[0] : null;
+    const width = Number(stream?.width);
+    const height = Number(stream?.height);
+    if (!(width > 0) || !(height > 0)) return null;
+    return { width, height };
+  } catch {
+    return null;
+  }
+}

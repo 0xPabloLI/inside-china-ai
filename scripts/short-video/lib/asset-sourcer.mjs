@@ -1630,7 +1630,7 @@ export async function analyzeAssets(assets, opts = {}) {
     getVlmModelId,
     getVlmVideoInput,
   } = await import("./visual-analyzer.mjs");
-  const { probeMedia } = await import("./media-probe.mjs");
+  const { probeMedia, probeImageDimensions } = await import("./media-probe.mjs");
 
   if (!assets || assets.length === 0) return [];
 
@@ -1647,6 +1647,31 @@ export async function analyzeAssets(assets, opts = {}) {
   // ── Phase 1: Pre-filter (free — runs before expensive focus detection) ──
   // T06 fix: move pre-filter before detectFocus so OpenCV doesn't waste 0.5s
   // on assets that will be skipped anyway.
+  //
+  // #1304: the shape gate reads real pixel dimensions, and at this point most
+  // images have none — `resolution` only exists on sources that report it
+  // (Pexels and friends), and focus detection deliberately runs after this
+  // gate. One ffprobe per image (~60ms) buys the shape verdict; leaving it
+  // unmeasured costs a ~45s VLM call per banner, which is what the 2026-11-13
+  // batch did. A file that cannot be probed stays unmeasured and is kept.
+  for (const asset of assets) {
+    if (asset.type !== "image") continue;
+    if (asset.width > 0 && asset.height > 0) continue;
+    // Semgrep flags this `join` as path traversal. The input is not
+    // attacker-controlled: `asset.path` is written by our own download layer
+    // (`buildFilename`) and `contentDir` is the CLI's `--content` slug, which
+    // must name a real directory under `content/` for the run to have started.
+    // Phase 2 below resolves the identical expression, so suppressing keeps
+    // the two call sites byte-identical instead of inventing a second scheme.
+    // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+    const absPath =
+      contentDir && !isAbsolute(asset.path) ? join(contentDir, asset.path) : asset.path;
+    const dims = probeImageDimensions(absPath);
+    if (dims) {
+      asset.width = dims.width;
+      asset.height = dims.height;
+    }
+  }
   const analyzableAssets = [];
   for (const asset of assets) {
     if (!asset.path) continue;
