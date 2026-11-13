@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.68.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.67.0...tanstack_start_ts-v1.68.0) (2026-11-13)
+
+
+### Features
+
+* **short-video:** distribute publish behaviour and gate pacing ([#1288](https://github.com/0xPabloLI/inside-china-ai/issues/1288)) ([#1295](https://github.com/0xPabloLI/inside-china-ai/issues/1295)) ([0b1ded1](https://github.com/0xPabloLI/inside-china-ai/commit/0b1ded133241566ddddd8695e748eefcd400d0b4))
+
 ## [1.67.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.66.0...tanstack_start_ts-v1.67.0) (2026-11-13)
 
 
