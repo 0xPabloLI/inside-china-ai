@@ -14,7 +14,7 @@ import { type SceneData } from "../types";
 import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
-import { SPACING, COLOR } from "../components/shared";
+import { SPACING, COLOR, ANNOTATION } from "../components/shared";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 
@@ -64,7 +64,13 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
                       ...statLight,
                     }}
                   >
-                    <Circle color={COLOR.amber} progress={circleProgress}>
+                    <Circle
+                      color={COLOR.amber}
+                      strokeWidth={ANNOTATION.circle.strokeWidth}
+                      padding={ANNOTATION.circle.padding}
+                      progress={circleProgress}
+                      box="inside"
+                    >
                       {txt.stat as string}
                     </Circle>
                   </Interactive.Div>
