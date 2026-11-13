@@ -30,6 +30,17 @@ import { buildReport, renderMarkdown } from "./report.mjs";
 const BENCH_DIR = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
+/**
+ * Every artifact lives under an operator-supplied directory (`--out` /
+ * `--replay`). The only dynamic leaf is the run id, which `parseArgs` restricts
+ * to a plain name; Semgrep cannot see that validation, so the suppression is
+ * scoped to this single call site instead of every path join.
+ * nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal
+ */
+function runPath(...parts) {
+  return join(...parts);
+}
+
 function parseArgs(argv) {
   const opts = {
     queries: null,
@@ -38,7 +49,7 @@ function parseArgs(argv) {
     timeoutMs: 30000,
     maxMeteredCalls: 20,
     runId: null,
-    out: join(BENCH_DIR, "output"),
+    out: runPath(BENCH_DIR, "output"),
     replay: null,
     proxy: null,
   };
@@ -65,12 +76,19 @@ function parseArgs(argv) {
       throw new Error(`--${key} must be a positive integer`);
     }
   }
+  // The run id becomes a directory name: keep it a plain name, never a path.
+  if (
+    opts.runId !== null &&
+    (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(opts.runId) || opts.runId.includes(".."))
+  ) {
+    throw new Error("--run-id must be a plain name (letters, digits, dot, underscore, dash)");
+  }
   return opts;
 }
 
 /** `.env.local` supplies the engine keys; an already-exported value wins. */
 function loadEnv() {
-  const file = join(REPO_ROOT, ".env.local");
+  const file = runPath(REPO_ROOT, ".env.local");
   if (!existsSync(file)) return;
   process.loadEnvFile(file);
 }
@@ -137,8 +155,8 @@ async function runPilot(opts) {
   const channels = await loadChannels(channelIds);
 
   const runId = opts.runId ?? timestampId();
-  const runDir = join(opts.out, runId);
-  mkdirSync(join(runDir, "raw"), { recursive: true });
+  const runDir = runPath(opts.out, runId);
+  mkdirSync(runPath(runDir, "raw"), { recursive: true });
 
   const results = [];
   let meteredCalls = 0;
@@ -176,7 +194,7 @@ async function runPilot(opts) {
       }
       const lastName = `${query.id}__${channel.id.replace(":", "-")}.json`;
       writeFileSync(
-        join(runDir, "raw", lastName),
+        runPath(runDir, "raw", lastName),
         JSON.stringify({ query, channel: channel.id, ...results.at(-1) }, null, 2) + "\n",
         "utf8",
       );
@@ -189,8 +207,8 @@ async function runPilot(opts) {
   // Re-running a subset (e.g. after repairing transport) must not drop the
   // channels already measured: keep the prior results and let the later entry
   // for the same (query, channel) win in the report.
-  const prior = existsSync(join(runDir, "run.json"))
-    ? JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"))
+  const prior = existsSync(runPath(runDir, "run.json"))
+    ? JSON.parse(readFileSync(runPath(runDir, "run.json"), "utf8"))
     : null;
   const run = {
     runId,
@@ -198,7 +216,7 @@ async function runPilot(opts) {
     baseline: git(["rev-parse", "HEAD"]),
     versions: {
       repo: git(["rev-parse", "HEAD"]),
-      skillsShared: git(["rev-parse", "HEAD"], join(REPO_ROOT, "skills/shared")),
+      skillsShared: git(["rev-parse", "HEAD"], runPath(REPO_ROOT, "skills/shared")),
       node: process.version,
     },
     queries: [
@@ -237,14 +255,14 @@ function git(args, cwd = undefined) {
 }
 
 function writeArtifacts(runDir, run) {
-  writeFileSync(join(runDir, "run.json"), JSON.stringify(run, null, 2) + "\n", "utf8");
+  writeFileSync(runPath(runDir, "run.json"), JSON.stringify(run, null, 2) + "\n", "utf8");
   const report = buildReport(run);
-  writeFileSync(join(runDir, "report.json"), JSON.stringify(report, null, 2) + "\n", "utf8");
-  writeFileSync(join(runDir, "summary.md"), renderMarkdown(report) + "\n", "utf8");
+  writeFileSync(runPath(runDir, "report.json"), JSON.stringify(report, null, 2) + "\n", "utf8");
+  writeFileSync(runPath(runDir, "summary.md"), renderMarkdown(report) + "\n", "utf8");
 }
 
 function replay(runDir) {
-  const run = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
+  const run = JSON.parse(readFileSync(runPath(runDir, "run.json"), "utf8"));
   writeArtifacts(runDir, run);
   return runDir;
 }

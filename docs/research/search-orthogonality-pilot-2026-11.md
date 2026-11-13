@@ -50,18 +50,18 @@ Jina 的 58.9k 锚点与实际同量级（91.2k，1.55×），但**harness 记�
 
 | 信道                   | 条数 | 唯一发布域 | 对题率 | p50 ms | p95 ms |
 | ---------------------- | ---- | ---------- | ------ | ------ | ------ |
-| pool:serper            | 49   | 37         | 66%    | 2350   | 2692   |
-| pool:brave             | 50   | 38         | 74%    | 1307   | 1401   |
-| pool:tavily            | 50   | 41         | 69%    | 2802   | 3715   |
-| pool:jina              | 50   | 37         | 50%    | 19957  | 23072  |
-| searxng:google         | 50   | 46         | 65%    | 19886  | 19897  |
-| searxng:brave          | 50   | 39         | 57%    | 19840  | 19894  |
-| searxng:tavily         | 50   | 46         | 60%    | 18668  | 19903  |
-| vertical:openalex      | 37   | 2          | 34%    | 772    | 2135   |
+| pool:serper            | 49   | 37         | 63%    | 2350   | 2692   |
+| pool:brave             | 50   | 38         | 71%    | 1307   | 1401   |
+| pool:tavily            | 50   | 41         | 66%    | 2802   | 3715   |
+| pool:jina              | 50   | 37         | 48%    | 19957  | 23072  |
+| searxng:google         | 50   | 46         | 62%    | 19886  | 19897  |
+| searxng:brave          | 50   | 39         | 56%    | 19840  | 19894  |
+| searxng:tavily         | 50   | 46         | 59%    | 18668  | 19903  |
+| vertical:openalex      | 37   | 2          | 31%    | 772    | 2135   |
 | vertical:arxiv         | 40   | 1          | 29%    | 1480   | 1709   |
 | vertical:hn            | 0    | 0          | —      | 823    | 2279   |
 | vertical:stackoverflow | 1    | 1          | 0%     | 709    | 749    |
-| vertical:wikipedia     | 20   | 1          | 42%    | 708    | 1293   |
+| vertical:wikipedia     | 20   | 1          | 36%    | 708    | 1293   |
 | vertical:github        | 1    | 1          | 100%   | 597    | 978    |
 
 ### 3.2 相对现有三族的边际新增（域级 / URL 级）

@@ -216,13 +216,17 @@ const STOPWORDS = new Set([
   "why",
 ]);
 const CJK_RE = /[\u4e00-\u9fff]/;
+const NON_ALNUM_RE = /[^a-z0-9]+/;
+
+/** Latin tokens: split on anything that is not a letter or digit. */
+function latinTokens(text) {
+  return String(text).toLowerCase().split(NON_ALNUM_RE).filter(Boolean);
+}
 
 /** Query terms for the cheap relevance heuristic: Latin words + CJK bigrams. */
 function queryTerms(query) {
   const terms = new Set();
-  for (const word of String(query)
-    .toLowerCase()
-    .match(/[a-z0-9][a-z0-9.+-]*/g) ?? []) {
+  for (const word of latinTokens(query)) {
     if (word.length >= 2 && !STOPWORDS.has(word)) terms.add(word);
   }
   for (const run of String(query).match(/[\u4e00-\u9fff]+/g) ?? []) {
@@ -230,10 +234,6 @@ function queryTerms(query) {
     for (let i = 0; i + 1 < run.length; i++) terms.add(run.slice(i, i + 2));
   }
   return [...terms];
-}
-
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -245,11 +245,14 @@ export function relevanceCoverage(query, article) {
   const terms = queryTerms(query);
   if (terms.length === 0) return { coverage: 0, matched: 0, total: 0 };
   const text = `${article?.title ?? ""} ${article?.snippet ?? ""}`.toLowerCase();
+  // A token set, not a constructed pattern: the query is operator input, so a
+  // regex built from it would be both a ReDoS surface and slower than a Set.
+  const words = new Set(latinTokens(text));
   let matched = 0;
   for (const term of terms) {
     if (CJK_RE.test(term)) {
       if (text.includes(term)) matched++;
-    } else if (new RegExp(`\\b${escapeRegExp(term)}`).test(text)) {
+    } else if (words.has(term)) {
       matched++;
     }
   }
