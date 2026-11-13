@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.64.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.63.0...tanstack_start_ts-v1.64.0) (2026-11-13)
+
+
+### Features
+
+* **short-video:** share the measured yt-dlp pacing across adapters and bench ([#405](https://github.com/0xPabloLI/inside-china-ai/issues/405)) ([#1280](https://github.com/0xPabloLI/inside-china-ai/issues/1280)) ([d6500b3](https://github.com/0xPabloLI/inside-china-ai/commit/d6500b3b2437ab7d7b9a556af3bfcf29d89c06e3))
+
+
+### Bug Fixes
+
+* **short-video:** run focus detection on YuNet in the production interpreter ([#396](https://github.com/0xPabloLI/inside-china-ai/issues/396)) ([#1281](https://github.com/0xPabloLI/inside-china-ai/issues/1281)) ([61e46ba](https://github.com/0xPabloLI/inside-china-ai/commit/61e46ba86b6e1364f82f43fffcbd18392f68ae6c))
+
 ## [1.63.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.62.5...tanstack_start_ts-v1.63.0) (2026-11-13)
 
 
