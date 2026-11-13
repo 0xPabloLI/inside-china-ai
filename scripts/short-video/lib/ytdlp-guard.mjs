@@ -738,7 +738,8 @@ export function ytdlpContainerMime(ext) {
 // retry got 22/23 (the one failure was a genuinely unavailable video). Those
 // three numbers are the only empirical basis in the repo, so they live here
 // once — the bench downloader and both production adapters read them from this
-// constant instead of each carrying a copy.
+// constant instead of each carrying a copy. The retry stays bench-side:
+// production never re-hits a blocked domain, the 412 box below handles that.
 //
 // Pacing lowers the chance of being blocked; it does not replace the 412
 // penalty box below. A run can still be rate-limited, and a penalized domain is
@@ -804,15 +805,14 @@ export function ytdlpPacingArgs(pacing = ytdlpPacing()) {
  * Shell-string fragment for the `execSync` call site (#319 kept that one on a
  * command string). Values are numbers, so no quoting is needed.
  *
- * @param {ReturnType<typeof ytdlpPacing>} [pacing] - resolved pacing
  * @returns {string} flag fragment, or "" when pacing is disabled
  */
-export function ytdlpPacingShell(pacing = ytdlpPacing()) {
-  return ytdlpPacingArgs(pacing).join(" ");
+export function ytdlpPacingShell() {
+  return ytdlpPacingArgs().join(" ");
 }
 
-/** Start time of the last item this process downloaded; 0 = none yet. */
-const itemGapState = { at: 0 };
+/** Completion time of the last item this process downloaded; 0 = none yet. */
+const itemGapState = { lastEnd: 0 };
 
 /** Synchronous sleep — every yt-dlp call site here is `execFileSync`/`execSync`. */
 function sleepSync(ms) {
@@ -824,16 +824,23 @@ function sleepSync(ms) {
 /**
  * Enforce the gap between consecutive yt-dlp downloads in this process.
  *
+ * The gap is measured from when the previous item *finished*, not from when it
+ * started: the measured protocol slept 6s after each download returned, and
+ * measuring from the start would make the gap vanish for any download longer
+ * than 6s — which is most of them. A caller that has been idle longer than the
+ * gap pays nothing.
+ *
  * The first item never waits, so a single-download path pays no gap at all —
- * that is the "known single item" case the ticket worried about, without a
- * flag that could default to unsafe. Two separate adapters share the module
- * state on purpose: a pipeline run that downloads through both is still serial.
+ * that is the "known single item" case, without a flag that could default to
+ * unsafe. A whole batch can still opt out with `YTDLP_ITEM_GAP=0`. Both
+ * adapters share the module state on purpose: a pipeline run that downloads
+ * through both is still serial.
  *
  * @param {Object} [deps]
  * @param {ReturnType<typeof ytdlpPacing>} [deps.pacing] - resolved pacing
  * @param {() => number} [deps.now] - clock in ms
  * @param {(ms: number) => void} [deps.sleep] - sleep sink
- * @param {{at: number}} [deps.state] - last-item clock (tests pass their own)
+ * @param {{lastEnd: number}} [deps.state] - completion clock (tests pass their own)
  * @returns {number} milliseconds waited
  */
 export function paceYtdlpItem({
@@ -843,12 +850,21 @@ export function paceYtdlpItem({
   state = itemGapState,
 } = {}) {
   const gapMs = pacing.itemGapSec * 1000;
-  const previous = state.at;
-  state.at = now();
-  if (gapMs <= 0 || !previous) return 0;
-  const waitMs = Math.max(0, previous + gapMs - state.at);
+  if (gapMs <= 0 || !state.lastEnd) return 0;
+  const waitMs = Math.max(0, state.lastEnd + gapMs - now());
   if (waitMs > 0) sleep(waitMs);
   return waitMs;
+}
+
+/**
+ * Stamp the end of a yt-dlp item so the next `paceYtdlpItem()` can measure the
+ * gap from completion. Call from a `finally` so failed downloads pace too —
+ * a rate limiter reacts to the request, not to its outcome.
+ *
+ * @param {{now?: () => number, state?: {lastEnd: number}}} [deps]
+ */
+export function endYtdlpItem({ now = () => Date.now(), state = itemGapState } = {}) {
+  state.lastEnd = now();
 }
 
 /** Default persistent state file (gitignored output dir — survives sessions). */

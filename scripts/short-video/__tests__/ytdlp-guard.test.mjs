@@ -57,6 +57,7 @@ vi.mock("child_process", async (importOriginal) => {
 
 import {
   createYtdlp412Guard,
+  endYtdlpItem,
   firefoxProfileCandidates,
   matchYtdlp412,
   paceYtdlpItem,
@@ -215,8 +216,8 @@ describe("#405 ytdlpPacing", () => {
     expect(ytdlpPacingArgs()).toEqual(["--sleep-requests", "3", "--sleep-interval", "8"]);
   });
 
-  it("never makes the first item wait; the second one pays the gap", () => {
-    const state = { at: 0 };
+  it("measures the gap from the previous item's completion, not its start", () => {
+    const state = { lastEnd: 0 };
     let t = 1_000_000;
     const sleeps = [];
     const deps = {
@@ -225,11 +226,15 @@ describe("#405 ytdlpPacing", () => {
       sleep: (ms) => sleeps.push(ms),
       state,
     };
-    expect(paceYtdlpItem(deps)).toBe(0); // single-download path pays nothing
+    expect(paceYtdlpItem(deps)).toBe(0); // first item: single-download path pays nothing
+    t += 20_000; // a long download...
+    endYtdlpItem({ now: () => t, state }); // ...ends here
     t += 1_000;
-    expect(paceYtdlpItem(deps)).toBe(5_000); // 6s gap minus the 1s elapsed
+    expect(paceYtdlpItem(deps)).toBe(5_000); // next item waits 6s AFTER it, not from its start
+    t += 60_000; // caller was idle far longer than the gap
+    endYtdlpItem({ now: () => t, state });
     t += 10_000;
-    expect(paceYtdlpItem(deps)).toBe(0); // gap already satisfied
+    expect(paceYtdlpItem(deps)).toBe(0);
     expect(sleeps).toEqual([5_000]);
   });
 
@@ -239,7 +244,7 @@ describe("#405 ytdlpPacing", () => {
       pacing: { ...YTDLP_PACING, itemGapSec: 0 },
       now: () => 1_000_000,
       sleep: (ms) => sleeps.push(ms),
-      state: { at: 1 },
+      state: { lastEnd: 1 },
     };
     expect(paceYtdlpItem(deps)).toBe(0);
     expect(paceYtdlpItem(deps)).toBe(0);
@@ -432,12 +437,14 @@ describe("resolveFirefoxCookieSource", () => {
 
 describe("yt-dlp wiring", () => {
   let tmp;
+  let savedItemGap;
 
   beforeEach(() => {
     tmp = mkdtempSync(join(tmpdir(), "ytdlp-guard-"));
     process.env.YTDLP_412_STATE_PATH = join(tmp, "state.json");
     // The item gap is wall-clock by design; the seam itself is unit-tested
     // with an injected clock, so the wiring cases opt out to stay instant.
+    savedItemGap = process.env.YTDLP_ITEM_GAP;
     process.env.YTDLP_ITEM_GAP = "0";
     execSyncMock.mockReset();
     execFileSyncMock.mockReset();
@@ -445,7 +452,9 @@ describe("yt-dlp wiring", () => {
 
   afterEach(() => {
     delete process.env.YTDLP_412_STATE_PATH;
-    delete process.env.YTDLP_ITEM_GAP;
+    // Restore rather than delete: the host may export its own pacing.
+    if (savedItemGap === undefined) delete process.env.YTDLP_ITEM_GAP;
+    else process.env.YTDLP_ITEM_GAP = savedItemGap;
     rmSync(tmp, { recursive: true, force: true });
   });
 
@@ -636,6 +645,20 @@ describe("yt-dlp wiring", () => {
     const argv = fileArgv(execFileSyncMock.mock.calls[0]);
     expect(flagValue(argv, "--sleep-requests")).toBe("3");
     expect(flagValue(argv, "--sleep-interval")).toBe("8");
+  });
+
+  it("#405: a failed attempt still stamps the item end (failed downloads pace too)", () => {
+    execFileSyncMock.mockImplementation(() => {
+      throw new Error("failed");
+    });
+    downloadYtdlp("https://www.bilibili.com/video/BV1E7wtzaEdq", join(tmp, "fail.mp4"));
+    // Default module state with an injected sleep: the failed attempt spent
+    // upstream requests, so the next item must still wait the gap. The wiring
+    // cases run with YTDLP_ITEM_GAP=0, hence the explicit pacing here.
+    const slept = [];
+    const paced = paceYtdlpItem({ pacing: YTDLP_PACING, sleep: (ms) => slept.push(ms) });
+    expect(paced).toBeGreaterThan(0);
+    expect(paced).toBeLessThanOrEqual(6_000);
   });
 
   it("#405: a penalized domain emits no command at all (412 box beats pacing)", () => {
@@ -1304,6 +1327,7 @@ describe("#978 lowercase http_proxy carrying a SOCKS URL", () => {
 describe("#324 yt-dlp proxy hand-off", () => {
   const PROXY_KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
   let saved;
+  let savedItemGap;
   let tmp;
 
   beforeEach(() => {
@@ -1311,6 +1335,7 @@ describe("#324 yt-dlp proxy hand-off", () => {
     tmp = mkdtempSync(join(tmpdir(), "ytdlp-proxy-"));
     process.env.YTDLP_412_STATE_PATH = join(tmp, "state.json");
     // #405: the wall-clock item gap is unit-tested with an injected clock.
+    savedItemGap = process.env.YTDLP_ITEM_GAP;
     process.env.YTDLP_ITEM_GAP = "0";
     execSyncMock.mockReset();
     execFileSyncMock.mockReset();
@@ -1327,7 +1352,8 @@ describe("#324 yt-dlp proxy hand-off", () => {
       else process.env[k] = saved[k];
     }
     delete process.env.YTDLP_412_STATE_PATH;
-    delete process.env.YTDLP_ITEM_GAP;
+    if (savedItemGap === undefined) delete process.env.YTDLP_ITEM_GAP;
+    else process.env.YTDLP_ITEM_GAP = savedItemGap;
     rmSync(tmp, { recursive: true, force: true });
   });
 

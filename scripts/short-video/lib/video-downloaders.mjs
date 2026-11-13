@@ -40,6 +40,7 @@ import {
   ytdlpRecord412,
   ytdlpRecordSuccess,
   matchYtdlp412,
+  endYtdlpItem,
   paceYtdlpItem,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
@@ -728,8 +729,8 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   parts.push(`--user-agent ${shellQuote(YTDLP_BROWSER_UA)}`);
   // #405: the measured serial pacing (`YTDLP_PACING` in ytdlp-guard.mjs). A
   // burst of 23 YouTube URLs was blocked 100%; paced and serial it was 22/23.
-  // The values come from the one constant, overridable per env, so no call
-  // site can drift onto its own numbers.
+  // The values come from the one constant, overridable per env, so neither
+  // adapter carries its own copy.
   const pacing = ytdlpPacingShell();
   if (pacing) parts.push(pacing);
   parts.push(
@@ -916,6 +917,10 @@ export function downloadYtdlpAdapter(url) {
       reason: stderr || e.message?.substring(0, 200) || "yt-dlp failed",
       retryable: false,
     });
+  } finally {
+    // #405: the gap is measured from completion, and a failed attempt still
+    // spent requests upstream — stamp it so the next item paces.
+    endYtdlpItem();
   }
 }
 

@@ -104,6 +104,7 @@ import {
   ytdlpRecord412,
   ytdlpRecordSuccess,
   matchYtdlp412,
+  endYtdlpItem,
   paceYtdlpItem,
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
@@ -2429,6 +2430,10 @@ export function downloadYtdlp(url, destPath) {
       return { success: false, error: "needs auth" };
     }
     return { success: false, error: e.message?.substring(0, 200) || "yt-dlp failed" };
+  } finally {
+    // #405: the gap is measured from completion, and a failed attempt still
+    // spent requests upstream — stamp it so the next item paces.
+    endYtdlpItem();
   }
 }
 

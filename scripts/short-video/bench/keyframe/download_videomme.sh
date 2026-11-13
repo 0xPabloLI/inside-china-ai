@@ -26,41 +26,51 @@ SUBSET=${SUBSET:-$VM/bench_subset.csv}
 # with `PROXY=$(npm run -s proxy:url)` to follow the system proxy instead.
 PROXY=${PROXY:-http://127.0.0.1:7899}
 YTDLP=${YTDLP:-$HOME/.lightning-env/bin/yt-dlp}
-GUARD=$ROOT/scripts/short-video/lib/ytdlp-guard.mjs
+GUARD=${GUARD:-$ROOT/scripts/short-video/lib/ytdlp-guard.mjs}
 
 # One short-lived node process per concern, importing the module production
 # uses — a second copy of the pacing values or the 412 rule in bash is exactly
-# what #405 removed.
+# what #405 removed. Exit codes are part of the contract: 0 = positive answer,
+# 1 = negative answer, 2 = the helper itself failed. Bash must not read a
+# broken helper as "not gated" (fail-open would send every URL anyway).
 guard_call() {
   node --input-type=module -e '
     const { pathToFileURL } = await import("node:url");
     const { readFileSync } = await import("node:fs");
-    const [lib, cmd, arg, extra] = process.argv.slice(1);
-    const m = await import(pathToFileURL(lib).href);
-    if (cmd === "pacing") {
-      const p = m.ytdlpPacing();
-      console.log(p.sleepRequestsSec, p.sleepIntervalSec, p.itemGapSec);
-      process.exit(0);
+    try {
+      const [lib, cmd, arg, extra] = process.argv.slice(1);
+      const m = await import(pathToFileURL(lib).href);
+      if (cmd === "pacing") {
+        const p = m.ytdlpPacing();
+        console.log(p.sleepRequestsSec, p.sleepIntervalSec, p.itemGapSec);
+        process.exit(0);
+      }
+      const domain = m.ytdlpDomain(arg);
+      if (cmd === "gate") process.exit(m.ytdlpGate(domain) ? 0 : 1);
+      if (cmd === "success") { m.ytdlpRecordSuccess(domain); process.exit(0); }
+      if (cmd === "412") {
+        const hit = m.matchYtdlp412({ stderr: readFileSync(extra, "utf8") });
+        if (hit) m.ytdlpRecord412(domain);
+        process.exit(hit ? 0 : 1);
+      }
+      if (cmd === "resolve") {
+        const out = m.resolveYtdlpOutputPath(arg);
+        if (!out) process.exit(1);
+        console.log(out);
+        process.exit(0);
+      }
+      process.exit(2);
+    } catch (e) {
+      console.error(e?.stack ?? String(e));
+      process.exit(2);
     }
-    const domain = m.ytdlpDomain(arg);
-    if (cmd === "gate") process.exit(m.ytdlpGate(domain) ? 0 : 1);
-    if (cmd === "success") { m.ytdlpRecordSuccess(domain); process.exit(0); }
-    if (cmd === "412") {
-      const hit = m.matchYtdlp412({ stderr: readFileSync(extra, "utf8") });
-      if (hit) m.ytdlpRecord412(domain);
-      process.exit(hit ? 0 : 1);
-    }
-    if (cmd === "resolve") {
-      const out = m.resolveYtdlpOutputPath(arg);
-      if (!out) process.exit(1);
-      console.log(out);
-      process.exit(0);
-    }
-    process.exit(2);
   ' "$GUARD" "$@"
 }
 
-read -r SLEEP_REQ SLEEP_INT GAP <<<"$(guard_call pacing)"
+if ! read -r SLEEP_REQ SLEEP_INT GAP <<<"$(guard_call pacing)" || [ -z "${GAP:-}" ]; then
+  echo "FATAL: cannot read pacing from $GUARD — is node available?" >&2
+  exit 1
+fi
 echo "pacing: sleep-requests=${SLEEP_REQ}s sleep-interval=${SLEEP_INT}s item-gap=${GAP}s"
 
 mkdir -p "$VM/videos"
@@ -73,10 +83,12 @@ while IFS=, read -r vid dur url domain sub _rest; do
     echo "$vid have"
     continue
   fi
-  if guard_call gate "$url"; then
-    echo "$vid skipped-412"
-    continue
-  fi
+  guard_call gate "$url"
+  case $? in
+    0) echo "$vid skipped-412"; continue ;;
+    1) ;;
+    *) echo "FATAL: yt-dlp guard failed (gate) for $vid — refusing to download unpaced" >&2; exit 1 ;;
+  esac
 
   TMP="$VM/videos/$vid.mp4"
   ERR="$VM/videos/.$vid.stderr"
@@ -90,22 +102,28 @@ while IFS=, read -r vid dur url domain sub _rest; do
   rc=$?
 
   if [ "$rc" -ne 0 ]; then
-    if guard_call 412 "$url" "$ERR"; then
-      echo "$vid rc=$rc 412-recorded"
-    else
-      echo "$vid rc=$rc"
-    fi
-  elif PRODUCED=$(guard_call resolve "$TMP"); then
-    # Normalize the name: a fixed `.mp4` template makes yt-dlp append the real
-    # container (`$vid.mp4.webm`). Rename to `$vid.<container>` so the resumable
-    # "have" check and any downstream consumer see one extension only.
-    if [ "$PRODUCED" != "$TMP" ]; then
-      mv -f "$PRODUCED" "$VM/videos/$vid.${PRODUCED##*.}"
-    fi
-    guard_call success "$url"
-    echo "$vid ok"
+    guard_call 412 "$url" "$ERR"
+    case $? in
+      0) echo "$vid rc=$rc 412-recorded" ;;
+      1) echo "$vid rc=$rc" ;;
+      *) echo "FATAL: yt-dlp guard failed (412) for $vid" >&2; rm -f "$ERR"; exit 1 ;;
+    esac
   else
-    echo "$vid rc=0 NO-FILE"
+    PRODUCED=$(guard_call resolve "$TMP")
+    case $? in
+      0)
+        # Normalize the name: a fixed `.mp4` template makes yt-dlp append the
+        # real container (`$vid.mp4.webm`). Rename to `$vid.<container>` so the
+        # resumable "have" check and downstream consumers see one extension.
+        if [ "$PRODUCED" != "$TMP" ]; then
+          mv -f "$PRODUCED" "$VM/videos/$vid.${PRODUCED##*.}"
+        fi
+        guard_call success "$url"
+        echo "$vid ok"
+        ;;
+      1) echo "$vid rc=0 NO-FILE" ;;
+      *) echo "FATAL: yt-dlp guard failed (resolve) for $vid" >&2; rm -f "$ERR"; exit 1 ;;
+    esac
   fi
 
   rm -f "$ERR"
