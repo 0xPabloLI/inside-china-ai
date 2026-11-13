@@ -167,6 +167,32 @@ def test_report_separates_current_n_boundary_from_required_n():
     assert "不能断言「已满足 10% 容忍度」" in report
 
 
+def test_per_case_verdicts_apply_production_rule_and_exclude_unsure():
+    """Every case must expose its own verdict; the miss must be visible, not pooled."""
+    manifest = {
+        "cases": [
+            {"id": "A1", "asset": "A"},
+            {"id": "C1", "asset": "C"},
+            {"id": "F1", "asset": "F"},
+        ]
+    }
+    label_map = {
+        "A1": {"label": "usable", "source": "human"},
+        "C1": {"label": None, "source": "human"},
+        "F1": {"label": "usable", "source": "human"},
+    }
+    runs = [
+        {"arm": "intra", "caseId": "A1", "firstPass": {"relevance": 50}, "secondPass": {"verdict": "match"}},
+        {"arm": "intra", "caseId": "C1", "firstPass": {"relevance": 50}, "secondPass": {"verdict": "match"}},
+        {"arm": "intra", "caseId": "F1", "firstPass": {"relevance": 0}},
+    ]
+    rows = {row["caseId"]: row for row in bench.per_case_verdicts(manifest, label_map, {}, runs)}
+    assert rows["A1"]["outcome"] == "TP"  # 50 + second-pass match is admitted
+    assert rows["F1"]["outcome"] == "FN"  # usable but scored 0
+    assert rows["C1"]["outcome"] is None and rows["C1"]["gt"] == "unsure"
+    assert rows["A1"]["admissionStable"] is True
+
+
 # ─── labels: the GT boundary ───
 
 

@@ -942,6 +942,7 @@ def cmd_eval(args):
         "gtCounts": gt_counts,
         "arms": arms,
         "pooled": pooled,
+        "perCase": per_case_verdicts(manifest, label_map, auto, scores.get("runs", [])),
         "stability": stability,
         "tolerance": tolerance_table(gt_counts["usable"], gt_counts["unusable"]),
     }
@@ -950,6 +951,54 @@ def cmd_eval(args):
     with open(os.path.join(out, "report.md"), "w", encoding="utf-8") as fh:
         fh.write(report)
     print(report)
+
+
+def per_case_verdicts(manifest, label_map, auto, runs):
+    """One row per case: GT, both passes, production admission and outcome.
+
+    Admission is read from the first run for the case; `admissionStable` says
+    whether every repeat agreed, so a row cannot hide drift behind one sample.
+    """
+    by_case = {}
+    for run in runs:
+        by_case.setdefault(run["caseId"], []).append(run)
+    rows = []
+    for case in manifest["cases"]:
+        entries = by_case.get(case["id"]) or []
+        if not entries:
+            continue
+        info = label_map.get(case["id"]) or {}
+        label = info.get("label") or auto.get(case["id"])
+        if label in ("usable", "unusable"):
+            gt = label
+        else:
+            gt = "unsure" if case["id"] in label_map else "missing"
+        entry = entries[0]
+        is_admitted = admitted(entry)
+        outcome = None
+        if gt in ("usable", "unusable"):
+            gt_usable = gt == "usable"
+            outcome = (
+                "TP" if gt_usable and is_admitted
+                else "FN" if gt_usable
+                else "FP" if is_admitted
+                else "TN"
+            )
+        rows.append(
+            {
+                "caseId": case["id"],
+                "asset": case["asset"],
+                "gt": gt,
+                "labelSource": info.get("source") or ("auto" if case["id"] in auto else "missing"),
+                "firstPass": (entry.get("firstPass") or {}).get("relevance"),
+                "secondPass": (entry.get("secondPass") or {}).get("verdict"),
+                "admitted": is_admitted,
+                "outcome": outcome,
+                "admissionStable": len({admitted(run) for run in entries}) == 1,
+                "firstPassReason": (entry.get("firstPass") or {}).get("relevanceReason") or "",
+            }
+        )
+    return rows
 
 
 def stability_report(runs):
@@ -1047,6 +1096,33 @@ def render_report(metrics, using_design):
             f"- accuracy = {row['tp'] + row['tn']:g}/{row['usable'] + row['unusable']}"
             f" = {row['accuracy']:.3f}",
             "",
+        ]
+    per_case = metrics.get("perCase") or []
+    if per_case:
+        gt_text = {"usable": "可用", "unusable": "不可用", "unsure": "unsure", "missing": "缺失"}
+        lines += [
+            "",
+            "## 逐条判定（生产准入规则）",
+            "",
+            "| case | 素材 | GT | 首轮 | 二阶段 | 准入 | 结果 | 首轮理由（节选） |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for item in per_case:
+            source = {"human": "（人）", "auto": "（自动）"}.get(item["labelSource"], "")
+            outcome = item["outcome"] or "—"
+            if item["outcome"] and not item["admissionStable"]:
+                outcome += "（重复间不稳定）"
+            reason = " ".join(item["firstPassReason"].split())[:40]
+            first = "—" if item["firstPass"] is None else f"{item['firstPass']:g}"
+            lines.append(
+                f"| {item['caseId']} | {item['asset']} | {gt_text[item['gt']]}{source} | {first} "
+                f"| {item['secondPass'] or '—'} | {'放行' if item['admitted'] else '拒绝'} "
+                f"| {outcome} | {reason} |"
+            )
+        lines += [
+            "",
+            "`unsure`/缺失不参与混淆矩阵；GT 标注为 `（人）` 的来自 `labels.json`，"
+            "`（自动）` 仅用于人工接受候选框且裁切几何可判定的 case。",
         ]
     lines += ["", "## 稳定性（同输入多次打分）", ""]
     for arm, summary in metrics["stability"].items():
