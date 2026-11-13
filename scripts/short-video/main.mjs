@@ -18,7 +18,7 @@
  */
 
 import { writeFileSync, mkdirSync, readdirSync, existsSync, readFileSync } from "fs";
-import { join, dirname, resolve } from "path";
+import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
@@ -424,6 +424,35 @@ async function main() {
       console.error(`   ${density.fix}\n`);
       process.exit(1);
     }
+
+    // #1305: persist the resolved scenes. `verify-video` imports
+    // `scene-data.mjs`, the AUTHORED state, where every `media` is null —
+    // sourcing (1.5), patching (1.5c) and generation (1.5d) all bind media in
+    // memory. So the post-render checks judged a pack that never existed and
+    // reported `Empty field` on scenes whose picture was on screen. Writing
+    // the resolved array gives the verifier the same input the renderer used.
+    // `verify-video --pre` still reads the authored state: no run has resolved
+    // anything at that point, and a stale file must not stand in for it.
+    // Every other writer keys on `meta.pipelineId` (see outputDir above);
+    // verify-video resolves OUTPUT_DIR the same way.
+    const resolvedScenesPath = join(__dirname, "output", meta.pipelineId, "scenes.resolved.json");
+    mkdirSync(dirname(resolvedScenesPath), { recursive: true });
+    writeFileSync(
+      resolvedScenesPath,
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          slug: contentDir,
+          version,
+          resolvedAt: new Date().toISOString(),
+          scenes,
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
+    console.log(`   📄 Resolved scenes → ${relative(__dirname, resolvedScenesPath)}\n`);
   }
 
   // ── Step 2: Validate every scene received a TTS result ──

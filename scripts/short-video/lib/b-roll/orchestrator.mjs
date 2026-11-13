@@ -57,6 +57,7 @@ import {
 } from "./prompt-budget.mjs";
 import { familyForModelTier, getPromptTemplate } from "./prompt-templates.mjs";
 import { NEGATIVE_GROUPS, coversNegativeGroup } from "../scene-rules.mjs";
+import { overlayForVisualType } from "../media-overlay.mjs";
 
 export const SEED_BASE = 1024;
 const CANDIDATES_PER_SCENE = 2;
@@ -367,7 +368,10 @@ export function assignWinner(scene, winnerFile, isImage, winnerSource, opts = {}
     scene.media.backdrop = generated;
     return "backdrop";
   }
-  scene.media = { ...generated, overlay: 0.7 };
+  // #1305: same scrim table as the sourcing seams. A generated frame is the
+  // whole visual argument for its scene, so it gets the lighter default rather
+  // than the flat 0.7 that made it read as "dark background".
+  scene.media = { ...generated, overlay: overlayForVisualType(scene.visualType) };
   return "media";
 }
 

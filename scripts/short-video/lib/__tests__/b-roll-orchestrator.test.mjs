@@ -426,7 +426,9 @@ describe("runBrollStage", () => {
       path: "assets/b-roll/scene-6-seed1024.mp4",
       source: "AI-generated (FastVideo FastMetal-5B-QAD)",
       animation: "fade",
-      overlay: 0.7,
+      // #1305: the scrim comes from lib/media-overlay.mjs (narrative 0.55),
+      // not the flat 0.7 this seam used to hardcode.
+      overlay: 0.55,
       volume: 0,
       // Tier A output is 480×832, which checkResolution() flags as sub-720p.
       // Without this flag render-remotion.mjs would run per-frame Real-ESRGAN

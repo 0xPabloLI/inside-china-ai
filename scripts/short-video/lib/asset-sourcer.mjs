@@ -66,6 +66,7 @@ import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import { brollSectionSpec } from "./media-window.mjs";
 import { VALID_FITS } from "./media-bg.mjs";
+import { overlayForVisualType } from "./media-overlay.mjs";
 import { allowsContainFit, hasContainBand } from "./text-slots.mjs";
 import {
   getCachedSearchResults,
@@ -838,22 +839,24 @@ export function recommendScene(asset, scenes) {
     // hook composes to `contain`, and it re-runs the seam on the resolved fit.
     const animation = selectAnimationForAsset(asset);
 
+    // #1305: the scrim comes from the shared table, not a local copy — these
+    // two seams used to carry identical hardcoded numbers by coincidence.
     if (vt === "hook") {
-      return { sceneId: scene.id, animation, overlay: 0.5 };
+      return { sceneId: scene.id, animation, overlay: overlayForVisualType("hook") };
     }
     if (vt === "narrative") {
-      return { sceneId: scene.id, animation, overlay: 0.7 };
+      return { sceneId: scene.id, animation, overlay: overlayForVisualType("narrative") };
     }
     if (vt === "info-card") {
-      return { sceneId: scene.id, animation, overlay: 0.75 };
+      return { sceneId: scene.id, animation, overlay: overlayForVisualType("info-card") };
     }
     if (vt === "quote") {
-      return { sceneId: scene.id, animation, overlay: 0.8 };
+      return { sceneId: scene.id, animation, overlay: overlayForVisualType("quote") };
     }
     if (vt === "context" || vt === "contrast") {
       // #1030: these visualTypes are NOT in NO_MEDIA_TYPES, so the old
       // `return null` silently excluded them from recommendations.
-      return { sceneId: scene.id, animation, overlay: 0.7 };
+      return { sceneId: scene.id, animation, overlay: overlayForVisualType(vt) };
     }
     return null;
   }
@@ -1311,7 +1314,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         source: asset.source || asset.from || undefined,
         // #1030: animation is assigned below, once media.fit is resolved, so
         // a hook that composes to `contain` is seen by the content-aware seam.
-        overlay: vt === "hook" ? 0.5 : vt === "quote" ? 0.8 : vt === "info-card" ? 0.75 : 0.7,
+        // #1305: scrim from the shared table — a local ternary here drifted
+        // from `recommendScene` the moment either side changed.
+        overlay: overlayForVisualType(vt),
       };
       // Composition default (#963): a third-party landscape source is shown
       // whole (contain) where the renderer has the contain band. Cover into
