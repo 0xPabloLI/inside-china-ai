@@ -337,13 +337,20 @@ def extract_raw(stderr_lines):
     return (body if end < 0 else body[:end]).strip()
 
 
-def score_one(server, case, path, checks):
-    """First pass, then the #294 second pass when the score is borderline."""
+def score_one(server, case, path, crop_focus=None):
+    """First pass, then the #294 second pass when the score is borderline.
+
+    `crop_focus` reproduces the sourcing call shape: `asset-sourcer.mjs` passes
+    `cropFocus` (the saliency hint) so the VLM judges the framing the viewer
+    will see, not a centre crop. `b-roll/gate.mjs` omits it — that difference is
+    recorded in the research doc, not silently averaged away here.
+    """
+    request = {"action": "analyze_semantics", "path": path, "claim": case["claim"]}
+    if crop_focus:
+        request["cropFocus"] = crop_focus
     before = server.stderr_len()
     started = time.monotonic()
-    first = server.request(
-        {"action": "analyze_semantics", "path": path, "claim": case["claim"]}
-    )
+    first = server.request(request)
     elapsed = time.monotonic() - started
     raw = extract_raw(server.stderr_since(before))
     record = {
@@ -362,14 +369,7 @@ def score_one(server, case, path, checks):
     if isinstance(score, (int, float)) and BORDERLINE_FLOOR <= score < THRESHOLD:
         before = server.stderr_len()
         started = time.monotonic()
-        second = server.request(
-            {
-                "action": "analyze_semantics",
-                "path": path,
-                "claim": case["claim"],
-                "relevanceCheck": True,
-            }
-        )
+        second = server.request({**request, "relevanceCheck": True})
         elapsed = time.monotonic() - started
         record["secondPass"] = {
             "verdict": second.get("subjectMatch"),
@@ -378,7 +378,6 @@ def score_one(server, case, path, checks):
             "raw": extract_raw(server.stderr_since(before)),
             "ms": int(elapsed * 1000),
         }
-    checks.append(case["id"])
     return record
 
 
@@ -741,6 +740,24 @@ paint();
 # ─── score ───
 
 
+def load_crop_focus(out):
+    """asset -> cropFocus, read from `queue.json`.
+
+    `score` must judge the same pixels the previews show and the sourcing path
+    feeds the VLM; without the queue it falls back to the centre crop and says
+    so in `meta.framing`.
+    """
+    path = os.path.join(out, "queue.json")
+    if not os.path.isfile(path):
+        return {}
+    payload = read_json(path)
+    return {
+        key: asset["candidate"]["position"]
+        for key, asset in (payload.get("assets") or {}).items()
+        if (asset.get("candidate") or {}).get("position")
+    }
+
+
 def cmd_score(args):
     manifest = load_manifest(args.manifest)
     require_assets(args.assets_dir, manifest)
@@ -751,6 +768,7 @@ def cmd_score(args):
 
     cases = manifest["cases"][: args.max_cases] if args.max_cases else manifest["cases"]
     scores = read_json(scores_path) if (args.resume and os.path.isfile(scores_path)) else {}
+    focus = load_crop_focus(out)
     meta = {
         "issue": "#541",
         "engine": args.engine,
@@ -762,6 +780,7 @@ def cmd_score(args):
         "threshold": THRESHOLD,
         "borderlineFloor": BORDERLINE_FLOOR,
         "temperature": 0.0,
+        "framing": "saliency-crop" if focus else "center-crop",
         "repeats": args.repeats,
         "restarts": args.restarts,
         "startedAt": now_iso(),
@@ -798,7 +817,7 @@ def cmd_score(args):
                     if done("intra", repeat, case["id"]):
                         continue
                     path = asset_path(args.assets_dir, manifest, case["asset"])
-                    record("intra", repeat, case, score_one(server, case, path, []))
+                    record("intra", repeat, case, score_one(server, case, path, focus.get(case["asset"])))
                     print(f"  intra#{repeat} {case['id']} ok", file=sys.stderr)
         finally:
             server.close()
@@ -811,7 +830,7 @@ def cmd_score(args):
         try:
             for case in pending:
                 path = asset_path(args.assets_dir, manifest, case["asset"])
-                record("restart", repeat, case, score_one(server, case, path, []))
+                record("restart", repeat, case, score_one(server, case, path, focus.get(case["asset"])))
                 print(f"  restart#{repeat} {case['id']} ok", file=sys.stderr)
         finally:
             server.close()

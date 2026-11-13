@@ -76,6 +76,23 @@ def test_rect_inside_fraction():
     assert bench.rect_inside_fraction([0.1, 0.2, 0.2, 0.2], window) == pytest.approx(0.5)
 
 
+def test_load_crop_focus_reads_queue_positions(tmp_path):
+    """score must reuse the queue's framing, not invent a centre crop."""
+    (tmp_path / "queue.json").write_text(
+        json.dumps(
+            {
+                "assets": {
+                    "A": {"candidate": {"position": {"x": 0.4, "y": 0.5}}},
+                    "B": {"candidate": {}},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert bench.load_crop_focus(str(tmp_path)) == {"A": {"x": 0.4, "y": 0.5}}
+    assert bench.load_crop_focus(str(tmp_path / "missing")) == {}
+
+
 # ─── admission rule (mirror of lib/relevance-verdict.mjs) ───
 
 
