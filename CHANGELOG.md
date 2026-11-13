@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.67.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.66.0...tanstack_start_ts-v1.67.0) (2026-11-13)
+
+
+### Features
+
+* **short-video:** hook 机检按声明的族判执行，不再只认数字与强词 ([#1291](https://github.com/0xPabloLI/inside-china-ai/issues/1291)) ([93983f4](https://github.com/0xPabloLI/inside-china-ai/commit/93983f4c398c1e10f14b5b0ec96899e05c179759))
+
 ## [1.66.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.65.0...tanstack_start_ts-v1.66.0) (2026-11-13)
 
 
