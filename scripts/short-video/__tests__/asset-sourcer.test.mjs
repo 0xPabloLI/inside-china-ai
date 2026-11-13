@@ -17,6 +17,7 @@ import {
   parseYtdlpSearchOutput,
   scoreCandidate,
   preFilterCandidate,
+  shapeRejectReason,
   recommendScene,
   buildFilename,
   slugifyKeyword,
@@ -491,6 +492,73 @@ describe("preFilterCandidate", () => {
     // 0 + 18 + 14 + 0 = 32 → not low confidence
     expect(result.technicalScore).toBe(32);
     expect(result.lowConfidence).toBe(false);
+  });
+});
+
+// ─── #1304: shape gate, keyword-independent ───
+
+describe("shapeRejectReason", () => {
+  it("rejects the two measured decoration images", () => {
+    // Both reached the VLM on baidu-token-exchange: an app-promo leaderboard
+    // and a QR code, cached under the search-keyword name.
+    expect(shapeRejectReason({ type: "image", width: 304, height: 128 })).toContain("304px");
+    expect(shapeRejectReason({ type: "image", width: 258, height: 258 })).toContain("258px");
+  });
+
+  it("rejects a wide leaderboard by aspect even when it is wide enough", () => {
+    expect(shapeRejectReason({ type: "image", width: 1200, height: 90 })).toContain("aspect");
+  });
+
+  it("keeps a normal article figure", () => {
+    expect(shapeRejectReason({ type: "image", width: 1200, height: 800 })).toBeNull();
+    expect(shapeRejectReason({ type: "image", width: 600, height: 600 })).toBeNull();
+  });
+
+  it("does not judge an unprobed image", () => {
+    // Missing width is "not measured", not "not good enough" — rejecting here
+    // would drop every candidate the probe failed to read.
+    expect(shapeRejectReason({ type: "image" })).toBeNull();
+    expect(shapeRejectReason({ type: "image", width: 0, height: 0 })).toBeNull();
+    expect(shapeRejectReason({ type: "image", width: 1920 })).toBeNull();
+  });
+
+  it("does not apply the width floor to video", () => {
+    // Source clips are often 320–720px wide by design; the floor is an image
+    // rule (#1304 scoped it to pictures).
+    expect(shapeRejectReason({ type: "video", width: 320, height: 568 })).toBeNull();
+  });
+});
+
+describe("preFilterCandidate — shape gate", () => {
+  it("rejects a keyword-less banner that the score gate can never see", () => {
+    // The defect: `lowConfidence` needs judgedByMetadata, which needs the
+    // keyword in the title. A banner has neither, so it passed every time.
+    const result = preFilterCandidate(
+      { type: "image", width: 304, height: 128, title: "下载客户端" },
+      "百度世界大会",
+    );
+    expect(result.lowConfidence).toBe(true);
+    expect(result.rejectedBy).toBe("shape");
+    expect(result.rejectReason).toContain("304px");
+    expect(result.judgedByMetadata).toBe(false);
+  });
+
+  it("still names the score gate when the score gate is what fired", () => {
+    const result = preFilterCandidate(
+      { type: "video", title: "Random video", duration: 120, fileSize: 60000000 },
+      "Unitree",
+    );
+    expect(result.rejectedBy).toBe("score");
+    expect(result.rejectReason).toBeUndefined();
+  });
+
+  it("leaves an accepted candidate with no rejection reason", () => {
+    const result = preFilterCandidate(
+      { type: "image", width: 1600, height: 900, title: "百度世界大会 现场" },
+      "百度世界大会",
+    );
+    expect(result.lowConfidence).toBe(false);
+    expect(result.rejectedBy).toBeNull();
   });
 });
 

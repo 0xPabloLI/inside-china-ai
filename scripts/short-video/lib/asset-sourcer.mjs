@@ -731,9 +731,78 @@ function hasContentEvidence(candidate, keyword) {
 // pre-download metadata is sparser (no file size from API, resolution may be missing).
 export const PRE_DOWNLOAD_FILTER_THRESHOLD = 20;
 
+/**
+ * Minimum width a downloaded image needs before it can be a content picture.
+ * Same floor as `extract-media.mjs` (#1304) — the two seams must agree, or a
+ * figure one accepts is thrown away by the other.
+ */
+const MIN_CONTENT_IMAGE_WIDTH = 600;
+
+/** Wider than this and the shape is a leaderboard, not a photo (#1304). */
+const MAX_CONTENT_ASPECT = 3;
+
+/**
+ * Shape verdict that needs no keyword.
+ *
+ * `lowConfidence` in `preFilterCandidate` can only fire when
+ * `judgedByMetadata` is true, and that requires the keyword to appear in the
+ * title. A "download our app" banner carries no keyword at all, so it took the
+ * `judgedByMetadata: false` branch straight past the score gate and into the
+ * VLM — measured on `baidu-token-exchange`: 304×128 and 258×258 decoration
+ * images each burned a relevance call (#1304).
+ *
+ * Shape is the one signal that survives a keyword-less candidate. It is also
+ * the only one available here: the download layer has already probed
+ * width/height, so no extra I/O is spent.
+ *
+ * A candidate with no width is NOT rejected — an unprobed asset is "not
+ * measured yet", and guessing would drop legitimate pictures.
+ *
+ * @param {{type?: string, width?: number, height?: number}} candidate
+ * @returns {string|null} reason when the shape cannot be content, else null
+ */
+export function shapeRejectReason(candidate) {
+  if (!candidate || candidate.type !== "image") return null;
+  const width = Number(candidate.width);
+  const height = Number(candidate.height);
+  if (!Number.isFinite(width) || width <= 0) return null;
+  if (width < MIN_CONTENT_IMAGE_WIDTH) {
+    return `width ${width}px < ${MIN_CONTENT_IMAGE_WIDTH}px`;
+  }
+  if (Number.isFinite(height) && height > 0 && width / height > MAX_CONTENT_ASPECT) {
+    return `aspect ${(width / height).toFixed(1)}:1 > ${MAX_CONTENT_ASPECT}:1`;
+  }
+  return null;
+}
+
+/**
+ * Pre-filter a downloaded candidate before the expensive analysis phase.
+ *
+ * Runs two independent gates (#1304): shape first, because it needs no
+ * keyword, then the keyword-evidence score. `rejectedBy` names which one
+ * fired so the log and the artifact do not report a banner as a
+ * "low-confidence" candidate.
+ *
+ * @param {object} candidate
+ * @param {string} keyword
+ * @returns {{technicalScore: number, lowConfidence: boolean,
+ *   judgedByMetadata: boolean, rejectedBy: "shape"|"score"|null,
+ *   rejectReason?: string}}
+ */
 export function preFilterCandidate(candidate, keyword) {
   const { technicalScore } = computeTechnicalScore(candidate, keyword);
   const PREFILTER_THRESHOLD = 30;
+
+  const shapeReason = shapeRejectReason(candidate);
+  if (shapeReason) {
+    return {
+      technicalScore,
+      lowConfidence: true,
+      judgedByMetadata: false,
+      rejectedBy: "shape",
+      rejectReason: shapeReason,
+    };
+  }
 
   const judgedByMetadata = !!keyword && hasContentEvidence(candidate, keyword);
   const lowConfidence = judgedByMetadata && technicalScore < PREFILTER_THRESHOLD;
@@ -742,6 +811,7 @@ export function preFilterCandidate(candidate, keyword) {
     technicalScore,
     lowConfidence,
     judgedByMetadata,
+    rejectedBy: lowConfidence ? "score" : null,
   };
 }
 
@@ -1581,16 +1651,25 @@ export async function analyzeAssets(assets, opts = {}) {
   for (const asset of assets) {
     if (!asset.path) continue;
     const keyword = asset.searchKeyword || "";
-    const { technicalScore, lowConfidence, judgedByMetadata } = preFilterCandidate(asset, keyword);
+    const { technicalScore, lowConfidence, judgedByMetadata, rejectedBy, rejectReason } =
+      preFilterCandidate(asset, keyword);
     asset.technicalScore = technicalScore;
     asset.lowConfidence = lowConfidence;
     // #547: false means the metadata could not judge this asset, so the score is
     // uninformative and the VLM decides. The artifact keeps that verdict so a
     // reader does not mistake a sub-threshold score for "passed the gate".
     asset.judgedByMetadata = judgedByMetadata;
+    // #1304: name which gate fired — "low-confidence" and "decoration-shaped"
+    // are different findings and a reader triaging the artifact needs to know.
+    if (rejectedBy) {
+      asset.rejectedBy = rejectedBy;
+      if (rejectReason) asset.rejectReason = rejectReason;
+    }
     if (lowConfidence) {
       console.log(
-        `  ⏭️  Skipping low-confidence asset (pre-filter): ${asset.path} (score: ${technicalScore})`,
+        rejectedBy === "shape"
+          ? `  ⏭️  Skipping decoration-shaped asset (pre-filter): ${asset.path} (${rejectReason})`
+          : `  ⏭️  Skipping low-confidence asset (pre-filter): ${asset.path} (score: ${technicalScore})`,
       );
     } else {
       if (!judgedByMetadata && technicalScore < PRE_DOWNLOAD_FILTER_THRESHOLD) {
