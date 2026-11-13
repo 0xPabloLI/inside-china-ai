@@ -33,6 +33,7 @@ import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
 import { videoVolumeAt } from "../../../lib/audio-envelope.mjs";
+import { railVignetteGradient } from "../../../lib/safe-zones.mjs";
 import type { MediaField } from "../types";
 
 // Animation timing (seconds)
@@ -394,6 +395,38 @@ export const MediaBackground: React.FC<Props> = ({
           transition: "background 0.3s",
         }}
       />
+      {/* Action-rail vignette — the horizontal half of the same fix the bottom
+          stop above is the vertical half of.
+
+          #1305 dropped the flat scrim from 0.7 to 0.55 so the picture would
+          read again, which handed the TikTok action rail back its brightness:
+          measured on minimax-h3-image scene 2 the rail went to 607/3550 =
+          17.1% bright pixels against a 5% ceiling (`BRIGHT_RATIO_FAIL`) —
+          a hard frame-analysis failure — while the same frame had passed at
+          0.7. No single flat alpha serves both jobs, exactly as no single
+          bottom stop did.
+
+          Geometry lives in RAIL_VIGNETTE (lib/safe-zones.mjs) with the
+          measurements: a plateau from the rail's left edge, not MediaScrims'
+          smoothstep, because the smoothstep's ramp is spent inside the region
+          the gate samples.
+
+          Static alpha, gated on `overlay > 0`: the animated `overlayOpacity`
+          would let the exit fade brighten the rail back up, and `overlay: 0`
+          means "no dim layer" — a pure-colour fixture must stay untouched
+          (render contracts). */}
+      {overlay > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            // Full-frame element on purpose: the gradient's stops are
+            // canvas-relative, so a `left: rampStartX` element would scale the
+            // ramp into its own 230px width and land it at x≈1031.
+            background: railVignetteGradient(),
+          }}
+        />
+      )}
     </>
   );
 };

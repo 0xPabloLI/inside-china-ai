@@ -11,6 +11,8 @@ import {
   MEDIA_BAND,
   BRAND_BAR,
   scrimGradient,
+  RAIL_VIGNETTE,
+  railVignetteGradient,
 } from "../lib/safe-zones.mjs";
 
 /**
@@ -291,5 +293,54 @@ describe("scrimGradient", () => {
     expect(stops[3].alpha).toBeCloseTo(0.84375, 3);
     expect(stops[1].alpha).toBeLessThan(0.25);
     expect(stops[3].alpha).toBeGreaterThan(0.75);
+  });
+});
+
+/**
+ * The full-frame rail vignette is a plateau, not MediaScrims' smoothstep, and
+ * the geometry is what makes it work: the gate samples x 880-1080, so alpha has
+ * to be at full strength by the time the region starts. Measured on the frame
+ * that forced this (minimax-h3-image scene 2): smoothstep @ 0.85 still left
+ * 5.2% bright pixels in the rail, the plateau left 0.0%.
+ */
+describe("railVignetteGradient", () => {
+  /** Parse a `to right` gradient into (offset%, alpha) stops. */
+  const parseRight = (css) => {
+    expect(css.startsWith("linear-gradient(to right, ")).toBe(true);
+    return [...css.matchAll(/rgba\(10,10,20,([\d.]+)\) ([\d.]+)%/g)].map(([, a, offset]) => ({
+      alpha: Number(a),
+      offset: Number(offset),
+    }));
+  };
+
+  it("is fully transparent where the ramp starts and fully opaque by the rail edge", () => {
+    const stops = parseRight(railVignetteGradient());
+    const rampPct = (RAIL_VIGNETTE.rampStartX / CANVAS.width) * 100;
+    const holdPct = (RAIL_VIGNETTE.holdX / CANVAS.width) * 100;
+
+    expect(stops[0].offset).toBeCloseTo(rampPct, 1);
+    expect(stops[0].alpha).toBe(0);
+    // The stop that lands on the rail's left edge carries the peak alpha …
+    const atHold = stops.find((s) => Math.abs(s.offset - holdPct) < 0.05);
+    expect(atHold).toBeDefined();
+    expect(atHold.alpha).toBeCloseTo(RAIL_VIGNETTE.alpha, 3);
+    // … and the alpha holds there to the right edge (plateau, no re-ramp).
+    expect(stops[stops.length - 1].offset).toBeCloseTo(100, 1);
+    expect(stops[stops.length - 1].alpha).toBeCloseTo(RAIL_VIGNETTE.alpha, 3);
+  });
+
+  it("never decreases across the ramp and stays flat past the rail edge", () => {
+    const stops = parseRight(railVignetteGradient());
+    for (let i = 1; i < stops.length; i += 1) {
+      expect(stops[i].alpha).toBeGreaterThanOrEqual(stops[i - 1].alpha - 1e-9);
+    }
+    const past = stops.filter((s) => s.offset > (RAIL_VIGNETTE.holdX / CANVAS.width) * 100);
+    for (const s of past) expect(s.alpha).toBeCloseTo(RAIL_VIGNETTE.alpha, 3);
+  });
+
+  it("keeps the alpha configurable and defaults to the calibrated value", () => {
+    expect(RAIL_VIGNETTE.alpha).toBe(MEDIA_BAND.vignetteAlpha);
+    const custom = parseRight(railVignetteGradient(0.9));
+    expect(custom[custom.length - 1].alpha).toBeCloseTo(0.9, 3);
   });
 });
