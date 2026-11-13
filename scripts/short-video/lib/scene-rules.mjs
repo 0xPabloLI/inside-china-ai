@@ -26,7 +26,6 @@ import {
   DASH_PATTERN,
   DEAD_CLOSER_PATTERN,
   STRONG_WORD_PATTERN,
-  NUMBER_PATTERN,
   WRITTEN_OPENER_PATTERN,
   SOURCE_PATTERN,
   CTA_PATTERN,
@@ -37,6 +36,8 @@ import {
   HOOK_SENTENCE_FAMILIES,
   HOOK_INTENSITY_PATTERN,
   HOOK_CONCRETE_FACT_PATTERN,
+  HOOK_FAMILY_TESTS,
+  HOOK_FAMILY_IDS,
   TARGET_KEYWORDS,
   KNOWN_COMPANIES,
 } from "./tiktok-rules.mjs";
@@ -281,18 +282,86 @@ export function checkCTAActionContract(scenes) {
   ];
 }
 
-/** Hook must contain a number or strong word */
+const SENTENCE_FAMILY_BY_ID = new Map(HOOK_SENTENCE_FAMILIES.map((f) => [f.id, f]));
+
+/**
+ * Does `voiceover` execute `familyId`? Returns the label of the marker that
+ * matched, or null.
+ *
+ * This answers "did you write the shape you named", not "is the hook good".
+ * The markers are structural on purpose: a family whose only pass condition was
+ * a fixed word list would rebuild the problem it replaces — the old gate
+ * accepted a number or one of 13 words, so the writer optimised for those 13.
+ */
+export function matchHookFamily(familyId, voiceover) {
+  const family = HOOK_FAMILY_TESTS[familyId];
+  if (!family) return null;
+  const vo = voiceover || "";
+  for (const hintId of family.hints || []) {
+    const hint = SENTENCE_FAMILY_BY_ID.get(hintId);
+    if (hint && hint.pattern.test(vo)) return hint.label;
+  }
+  if (family.pattern && family.pattern.test(vo)) return family.label;
+  return null;
+}
+
+/**
+ * Hook must contain a compelling element.
+ *
+ * A declared `hookFamily` on the hook scene turns this into an execution check
+ * for that family. Undeclared hooks keep the old acceptance surface and gain
+ * the six family markers, so a legitimate non-number hook passes; only a hook
+ * that matches nothing (or a bare nameplate like `V4.1`) fails.
+ */
 export function checkHookCompellingElement(scenes) {
-  const hookVO = scenes[0]?.voiceover || "";
-  const hasNumber = NUMBER_PATTERN.test(hookVO);
-  const hasStrongWord = STRONG_WORD_PATTERN.test(hookVO);
-  if (hasNumber || hasStrongWord) {
+  const hook = scenes[0];
+  const hookVO = hook?.voiceover || "";
+  const declared = typeof hook?.hookFamily === "string" ? hook.hookFamily.trim() : "";
+  const check = "Hook has compelling element";
+
+  if (declared) {
+    const family = HOOK_FAMILY_TESTS[declared];
+    if (!family) {
+      return [
+        {
+          level: "fail",
+          category: "Hook",
+          check,
+          detail: `unknown hookFamily "${declared}"`,
+          fix: `Use one of: ${HOOK_FAMILY_IDS.join(", ")}`,
+        },
+      ];
+    }
+    const executed = matchHookFamily(declared, hookVO);
+    if (executed) {
+      return [
+        {
+          level: "pass",
+          category: "Hook",
+          check,
+          detail: `declared ${declared}, executed (${executed})`,
+        },
+      ];
+    }
+    return [
+      {
+        level: "fail",
+        category: "Hook",
+        check,
+        detail: `declared ${declared} (${family.label}) but the hook does not execute it`,
+        fix: `${family.missing} — rewrite the hook to execute ${family.label}, or set hookFamily to the family you actually wrote. Do not bolt on a keyword.`,
+      },
+    ];
+  }
+
+  const matched = HOOK_FAMILY_IDS.filter((id) => matchHookFamily(id, hookVO));
+  if (matched.length > 0 || STRONG_WORD_PATTERN.test(hookVO)) {
     return [
       {
         level: "pass",
         category: "Hook",
-        check: "Hook has compelling element (number/strong word)",
-        detail: hasNumber ? "has number" : "has strong word",
+        check,
+        detail: matched.length > 0 ? `matches ${matched.join(" / ")}` : "has strong word",
       },
     ];
   }
@@ -300,9 +369,9 @@ export function checkHookCompellingElement(scenes) {
     {
       level: "fail",
       category: "Hook",
-      check: "Hook has compelling element",
-      detail: "no number or strong word in hook VO",
-      fix: "Add a number or strong word to Scene 1 voiceover",
+      check,
+      detail: "no hook family marker in hook VO",
+      fix: `Write one of the six families and declare it as hookFamily (${HOOK_FAMILY_IDS.join(", ")}), or use a number or strong word`,
     },
   ];
 }
@@ -372,6 +441,22 @@ export function checkHookSentenceFamily(scenes) {
       },
     ];
   }
+  // A declared family that is actually executed is not second-guessed: the
+  // three priority families came from one corpus's opener distribution, and
+  // scoring every other shape down is what pushed 26/35 packs into the same
+  // number-led hook. The advisory now reports the declared shape instead.
+  const declaredFamily = typeof hook.hookFamily === "string" ? hook.hookFamily.trim() : "";
+  if (declaredFamily && matchHookFamily(declaredFamily, vo)) {
+    const family = HOOK_FAMILY_TESTS[declaredFamily];
+    return [
+      {
+        level: "pass",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `声明 ${declaredFamily}（${family.label}）并已执行`,
+      },
+    ];
+  }
   if (questionLed) {
     return [
       {
@@ -400,7 +485,7 @@ export function checkHookSentenceFamily(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail: "首句未命中先头三族（规模/最高级、数量锚点、just + 事件）",
-      fix: "把首句改成一个头族锚点：最大/最强/第一次、一个具体数字，或 [主体] just [事件]",
+      fix: `两条路：把首句改成头族锚点（最大/最强/第一次、一个具体数字、[主体] just [事件]），或者写出六族中的另一族并在 hook 场景声明 hookFamily（${HOOK_FAMILY_IDS.join(", ")}）——声明后本项改判该族的执行情况，不再比较首句族分布`,
     },
   ];
 }

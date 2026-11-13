@@ -361,6 +361,105 @@ describe("checkHookCompellingElement", () => {
   });
 });
 
+// ── checkHookCompellingElement: declared families ──
+//
+// The gate used to accept exactly two shapes — any digit, or one of 13 strong
+// words. Measured over the 35 packs on disk that produced one hook shape:
+// 26 number-led, and `V4.1` passed on the strength of its 4. These cases pin
+// the replacement contract: a declared family is checked for EXECUTION, not for
+// quality, so all six shapes can pass and a product name cannot.
+
+describe("checkHookCompellingElement — declared hook family", () => {
+  const hook = (voiceover, hookFamily) => [
+    { ...validScenes[0], voiceover, ...(hookFamily ? { hookFamily } : {}) },
+  ];
+  const level = (scenes) => checkHookCompellingElement(scenes)[0].level;
+  const detail = (scenes) => checkHookCompellingElement(scenes)[0].detail;
+
+  it("passes result-first when a real impact quantity is present", () => {
+    expect(level(hook("Zhipu is down 80 percent from its June peak.", "result-first"))).toBe(
+      "pass",
+    );
+  });
+
+  it("passes result-first on a just + event hook", () => {
+    // One of the three priority families the repo already recognises. Without
+    // it, four tracked packs (deepseek-v41-flash, didi-robotaxi-r2,
+    // kimi-sandbox, zhipu-glm6-self-training) regressed to fail.
+    expect(
+      level(hook("Didi's new Robotaxi R2 just launched driverless service.", "result-first")),
+    ).toBe("pass");
+  });
+
+  it("fails result-first when the only digit names the product", () => {
+    // V4.1 / GLM-6.0 / H100 are nameplates: 230px product names, which is the
+    // neutral-object opener axis 1 forbids. The old NUMBER_PATTERN could not
+    // tell them apart from a real measure.
+    const scenes = hook("DeepSeek V4.1 is now available.", "result-first");
+    expect(level(scenes)).toBe("fail");
+    expect(detail(scenes)).toMatch(/result-first/);
+  });
+
+  it("passes contrarian-claim", () => {
+    expect(
+      level(
+        hook("Hong Kong is pricing AI like software now. Zhipu proves it.", "contrarian-claim"),
+      ),
+    ).toBe("pass");
+  });
+
+  it("passes curiosity-gap", () => {
+    expect(
+      level(
+        hook("The funds kept buying while Zhipu fell. Here is what they saw.", "curiosity-gap"),
+      ),
+    ).toBe("pass");
+  });
+
+  it("passes pattern-interrupt", () => {
+    expect(
+      level(hook("Stop watching the price. Watch who is still buying.", "pattern-interrupt")),
+    ).toBe("pass");
+  });
+
+  it("passes authority-breakdown", () => {
+    expect(
+      level(
+        hook("I read all three Zhipu filings. The story is not the drop.", "authority-breakdown"),
+      ),
+    ).toBe("pass");
+  });
+
+  it("passes list-promise", () => {
+    expect(
+      level(hook("Three numbers explain why Zhipu fell eighty percent.", "list-promise")),
+    ).toBe("pass");
+  });
+
+  it("fails when the declared family is not executed", () => {
+    // Declaring a family you did not write is the new failure mode — the
+    // escape hatch is to re-declare what you actually wrote, never to bolt on
+    // a magic word.
+    expect(level(hook("The funds kept buying while Zhipu fell.", "result-first"))).toBe("fail");
+  });
+
+  it("fails an unknown hookFamily and lists the valid ids", () => {
+    const scenes = hook("Zhipu fell 80 percent.", "vibes");
+    expect(level(scenes)).toBe("fail");
+    expect(checkHookCompellingElement(scenes)[0].fix).toContain("result-first");
+  });
+
+  it("keeps accepting an undeclared hook that executes any family", () => {
+    // Declaring the family is how you get the stricter check; not declaring it
+    // must never turn a legitimate hook red, or the migration is a wall.
+    expect(level(hook("Stop watching the price. Watch who is still buying."))).toBe("pass");
+  });
+
+  it("fails an undeclared nameplate hook", () => {
+    expect(level(hook("DeepSeek V4.1 is now available."))).toBe("fail");
+  });
+});
+
 // ── checkNoEmDashes ──
 
 describe("checkNoEmDashes", () => {

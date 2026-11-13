@@ -210,6 +210,36 @@ describe("checkHookSentenceFamily — question and intensity handling", () => {
   });
 });
 
+describe("checkHookSentenceFamily — declared family is not second-guessed", () => {
+  // The advisory used to downgrade every opening that missed the three
+  // number-anchored head families. That is a scoreboard, not a gate, but the
+  // writer optimises against it — 26/35 packs came out number-led. A declared
+  // family that is actually executed must read as a pass.
+  const withFamily = (voiceover, hookFamily) => [{ ...hook(voiceover), hookFamily }, ...tail];
+
+  it("passes a declared curiosity-gap opener", () => {
+    const result = at(
+      checkHookSentenceFamily(
+        withFamily(
+          "The funds kept buying while Zhipu fell. Here is what they saw.",
+          "curiosity-gap",
+        ),
+      ),
+    );
+    expect(result.level).toBe("pass");
+    expect(result.detail).toContain("curiosity-gap");
+  });
+
+  it("still advises against a declared family that is not executed", () => {
+    const result = at(
+      checkHookSentenceFamily(
+        withFamily("DeepSeek open-sourced the code that runs its models.", "curiosity-gap"),
+      ),
+    );
+    expect(result.level).toBe("warn");
+  });
+});
+
 // ── duration band ───────────────────────────────────────────────────────────
 
 describe("checkHookDuration — real TTS durations", () => {
