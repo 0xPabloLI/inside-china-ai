@@ -36,6 +36,10 @@ vi.mock("../lib/visual-analyzer.mjs", () => ({
 
 vi.mock("../lib/media-probe.mjs", () => ({
   probeMedia: (...args) => mockProbeMedia(...args),
+  // #1304: the pre-filter probes image dimensions before the shape gate.
+  // These cases are all video, so the probe never fires — a null stub keeps
+  // the gate silent and the module shape complete.
+  probeImageDimensions: () => null,
   parseProbeOutput: vi.fn(),
 }));
 
