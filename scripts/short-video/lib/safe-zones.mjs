@@ -448,10 +448,15 @@ export const RAIL_VIGNETTE = {
 /**
  * CSS gradient for {@link RAIL_VIGNETTE}: ramp 850→880, flat alpha to the edge.
  *
+ * The stops are CANVAS-relative percentages, so the element this is painted on
+ * must span the full canvas width. Painting it on a `left: rampStartX` element
+ * instead re-interprets 78.7% against that element's own 230px width and the
+ * ramp lands at x≈1031 — measured that way, the rail only dropped from 17.1%
+ * to 14.7% because the picture's bright subject sits at x 880-1000.
+ *
  * @param {number} [alpha=RAIL_VIGNETTE.alpha] - peak alpha at the right edge
  * @returns {string} a CSS `linear-gradient(...)` value spanning the full canvas
- *   width, so callers can start the element at `RAIL_VIGNETTE.rampStartX` and
- *   still get the ramp in the right place
+ *   width; the left of the ramp is the first stop's colour (transparent)
  */
 export function railVignetteGradient(alpha = RAIL_VIGNETTE.alpha) {
   const { rampStartX, holdX } = RAIL_VIGNETTE;

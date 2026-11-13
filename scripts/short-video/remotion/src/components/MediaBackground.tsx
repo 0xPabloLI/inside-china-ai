@@ -33,7 +33,7 @@ import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
 import { videoVolumeAt } from "../../../lib/audio-envelope.mjs";
-import { RAIL_VIGNETTE, railVignetteGradient } from "../../../lib/safe-zones.mjs";
+import { railVignetteGradient } from "../../../lib/safe-zones.mjs";
 import type { MediaField } from "../types";
 
 // Animation timing (seconds)
@@ -419,10 +419,10 @@ export const MediaBackground: React.FC<Props> = ({
         <div
           style={{
             position: "absolute",
-            top: 0,
-            bottom: 0,
-            right: 0,
-            left: RAIL_VIGNETTE.rampStartX,
+            inset: 0,
+            // Full-frame element on purpose: the gradient's stops are
+            // canvas-relative, so a `left: rampStartX` element would scale the
+            // ramp into its own 230px width and land it at x≈1031.
             background: railVignetteGradient(),
           }}
         />
