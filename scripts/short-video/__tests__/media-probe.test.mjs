@@ -19,7 +19,7 @@ import { describe, it, expect, vi } from "vitest";
 import { existsSync, mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { parseProbeOutput, probeMedia } from "../lib/media-probe.mjs";
+import { parseProbeOutput, probeMedia, probeImageDimensions } from "../lib/media-probe.mjs";
 
 // ─── parseProbeOutput: pure function tests ───
 
@@ -255,5 +255,29 @@ describe("probe shell safety", () => {
     } finally {
       process.chdir(cwd);
     }
+  });
+});
+
+// ─── probeImageDimensions (#1304) ───
+
+describe("probeImageDimensions", () => {
+  it("returns null for a missing path instead of throwing", () => {
+    expect(probeImageDimensions("/tmp/definitely-not-here-1304.jpg")).toBeNull();
+  });
+
+  it("returns null for empty / non-string input", () => {
+    expect(probeImageDimensions("")).toBeNull();
+    expect(probeImageDimensions(null)).toBeNull();
+    expect(probeImageDimensions(undefined)).toBeNull();
+  });
+
+  it("returns null for a file that is not a decodable image", () => {
+    // The contract that matters to the caller: "not measured" must never look
+    // like "rejected". A text file with a .jpg name probes to null, so the
+    // shape gate stays silent and the asset keeps its chance.
+    const dir = mkdtempSync(join(tmpdir(), "probe-dims-"));
+    const fake = join(dir, "not-an-image.jpg");
+    writeFileSync(fake, "this is not a JPEG");
+    expect(probeImageDimensions(fake)).toBeNull();
   });
 });

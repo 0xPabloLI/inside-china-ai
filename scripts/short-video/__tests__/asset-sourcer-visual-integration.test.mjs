@@ -37,6 +37,11 @@ vi.mock("../lib/visual-analyzer.mjs", () => ({
 
 vi.mock("../lib/media-probe.mjs", () => ({
   probeMedia: (...args) => mockProbeMedia(...args),
+  // #1304: the pre-filter probes image dimensions before the shape gate. These
+  // tests feed assets that already carry width/height, so "not measured" is
+  // the honest stub — the shape gate then stays silent and does not change any
+  // assertion below.
+  probeImageDimensions: () => null,
   parseProbeOutput: vi.fn(), // not used in integration tests
 }));
 
