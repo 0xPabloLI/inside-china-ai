@@ -701,6 +701,14 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 发布步骤运行时，`manual-guide` 档在生成发布指南时写入 `output/pending-analysis.json`（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入。**`cdp` 草稿档不写**：草稿没有 `publishedAt`，按存草稿时刻起算 48h 会给一个可能永远不会公开的帖子启动 Analytics 提醒（#1181）。用户人工公开后，若要启用 48h 提醒，按 `manual-guide` 流程生成一次指南，或手工补记该文件。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
 
+> **真机农场研究的归属（#1186，2026-11-13 复核）**：来源 `Git-Agni/prod-FARM-IOS-Core`（Apache-2.0）与 `gethandler.ai/tiktok-iphone-farm`。
+>
+> **只承接幂等**：`resolveUploadPrepAction()` 把终止动作收敛为「存草稿 / 留给操作者」、`--publish` 在开浏览器前拒绝；草稿未确认时脚本要求先查 Studio Drafts 再重跑，**不给发布链加重试**。
+>
+> **其余两条属真机路径**：行为模型表服务于养号刷 feed，PC 等价实现已在 `lib/human-input.mjs`（#1013）；坐标点击 + 截图校验源于真机首页 feed 永不静止、XCTest quiescence 会挂死，Studio 上传页是静态表单，PC 用 `humanClickElement()` 的 DOM 可达性判据。
+>
+> **语境（#1181，2026-11-13）**：自动路径止于草稿、公开点击归人，原「发布点击 45s settle」与 `classifyPublishSettle` 已随该票退役；完整评估仍只在 #1183，解锁时重做。
+
 ---
 
 ## 检查点总结
