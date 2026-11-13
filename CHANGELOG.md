@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.69.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.0...tanstack_start_ts-v1.69.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **b-roll:** ask the subject question as a second gate pass ([#1301](https://github.com/0xPabloLI/inside-china-ai/issues/1301)) ([6cde7ee](https://github.com/0xPabloLI/inside-china-ai/commit/6cde7ee7cfaab938c78522eca8170118380bc5fd))
+
 ## [1.69.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.68.0...tanstack_start_ts-v1.69.0) (2026-11-13)
 
 
