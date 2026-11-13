@@ -57,16 +57,31 @@ function modules() {
 }
 
 /**
- * One bundle directory per entry, reused across runs.
+ * One bundle directory per (entry, worker pool), reused across runs.
+ *
+ * The pool dimension is #1208, not decoration: two suites may share a fixture
+ * entry (`scene-gate-fixture` backs contrast-media + scene-gate,
+ * `text-gate-fixture` backs official-fit + text-gate), and a key of entry alone
+ * made them bundle into the SAME directory. Each side `rmSync`es `public/` and
+ * re-symlinks it, so the loser of that race dies with `EEXIST ... public/assets`
+ * or renders a pseudo-404 (both reproduced 2026-11-13). `serveUrls` is
+ * per-process, so it cannot serialize them.
+ *
+ * `VITEST_POOL_ID` is bounded to 1..`maxWorkers` and each pool runs one file at
+ * a time, so every file gets its own directory while the count stays finite
+ * (maxWorkers × entries). Bare `vitest`/CI with `--no-file-parallelism` still
+ * sets a pool id; plain `node` falls back to the pid.
  *
  * Deliberately NOT deleted on exit: a recursive `rmSync` of a bundle is a bulk
- * delete that the local safe-delete shim counts, and these eight directories
- * were enough to trip it once per suite (`SAFE_DELETE_BULK_CONFIRM_REQUIRED`).
- * The directory is gitignored scratch space under `output/`; remotion rebuilds
- * into it, and CI throws the whole checkout away.
+ * delete that the local safe-delete shim counts, and these directories were
+ * enough to trip it once per suite (`SAFE_DELETE_BULK_CONFIRM_REQUIRED`). The
+ * directory is gitignored scratch space under `output/`; remotion rebuilds into
+ * it, and CI throws the whole checkout away.
  */
+const WORKER_KEY = process.env.VITEST_POOL_ID ?? String(process.pid);
+
 const bundleDirFor = (entry) =>
-  join(CACHE_ROOT, entry.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, ""));
+  join(CACHE_ROOT, `${entry.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "")}-w${WORKER_KEY}`);
 
 async function bundleFor(entry) {
   const cached = serveUrls.get(entry);

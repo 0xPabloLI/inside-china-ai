@@ -18,6 +18,12 @@
  *
  * Both rules are self-widening: a new suite is caught by Rule 1 the moment it
  * spawns the CLI, and by Rule 2 the moment it imports the driver.
+ *
+ * Rule 3 (#1208) — a fixture entry is exclusive to one suite unless the pair is
+ * registered in `SHARED_ENTRY_REASONS`. Sharing is safe now that bundle
+ * directories are keyed by worker pool, but it used to race (two processes
+ * `rmSync`ing each other's `public/`), so the next shared pair has to be a
+ * deliberate, recorded choice instead of a new accident.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "fs";
@@ -41,7 +47,42 @@ const SPAWNS_CLI = [/"remotion",\s*"still"/, /"still",\s*ENTRY/, /"npx"/];
 /** Suites that render at all — they are the ones the pixel job must run. */
 const RENDER_SUITES = TEST_FILES.filter((name) => source(name).includes("remotion-still.mjs"));
 
-describe("render-suite policy (#1097)", () => {
+/**
+ * Fixture entries are exclusive unless registered here (#1208).
+ *
+ * Two suites may share one `*-fixture.tsx`: the bundle directory is keyed by
+ * entry AND vitest worker pool, so the two files never write the same disk
+ * directory. That is still a deliberate cost (a second webpack build per
+ * worker), and it is exactly the shape that raced when the key was the entry
+ * alone, so a new shared pair must be registered with the reason it is safe.
+ */
+const SHARED_ENTRY_REASONS = new Map([
+  [
+    "src/scene-gate-fixture.tsx",
+    "contrast-media-render + scene-gate-render: two views of the same scene set; media routing and gate assertions share one fixture by design",
+  ],
+  [
+    "src/text-gate-fixture.tsx",
+    "official-fit-render + text-gate-render: one text-gate fixture; official-format and gate-failure assertions are separate angles",
+  ],
+]);
+
+const entryOf = (name) => {
+  const match = /const ENTRY = "([^"]+)"/.exec(source(name));
+  return match ? match[1] : null;
+};
+
+/** Shared entries with no registration: [entry, [suite, ...]]. */
+function unregisteredSharedEntries(suites, registered = SHARED_ENTRY_REASONS) {
+  const byEntry = new Map();
+  for (const { name, entry } of suites) {
+    if (!entry) continue;
+    byEntry.set(entry, [...(byEntry.get(entry) ?? []), name]);
+  }
+  return [...byEntry].filter(([entry, names]) => names.length > 1 && !registered.has(entry));
+}
+
+describe("render-suite policy (#1097, #1208)", () => {
   it("finds the suites it is supposed to police", () => {
     // A gate that scans nothing reports green — the exact failure mode this
     // file exists to avoid.
@@ -67,6 +108,39 @@ describe("render-suite policy (#1097)", () => {
       wired || excluded,
       `${path} is in neither .github/workflows/ci.yml nor vitest.config.ts — a suite nobody runs cannot fail`,
     ).toBe(true);
+  });
+
+  it("every render suite declares a fixture entry the rule below can read", () => {
+    for (const name of RENDER_SUITES) {
+      expect(
+        entryOf(name),
+        `${name} no longer declares const ENTRY = "src/*-fixture.tsx"`,
+      ).toBeTruthy();
+    }
+  });
+
+  it("keeps every fixture entry exclusive unless registered as shared", () => {
+    const suites = RENDER_SUITES.map((name) => ({ name, entry: entryOf(name) }));
+    const shared = unregisteredSharedEntries(suites);
+    expect(
+      shared.map(([entry, names]) => `${entry} ← ${names.join(" + ")}`),
+      "two suites share a fixture entry without registering why (#1208: bundle dirs are keyed per worker pool, but sharing must stay deliberate)",
+    ).toEqual([]);
+  });
+
+  it("flags a shared entry that is not registered", () => {
+    // Proves the gate can go red: this is what a future unregistered pair looks
+    // like, and an empty scan must not be mistaken for compliance.
+    const offending = unregisteredSharedEntries(
+      [
+        { name: "a-render.test.mjs", entry: "src/new-fixture.tsx" },
+        { name: "b-render.test.mjs", entry: "src/new-fixture.tsx" },
+      ],
+      new Map(),
+    );
+    expect(offending).toEqual([
+      ["src/new-fixture.tsx", ["a-render.test.mjs", "b-render.test.mjs"]],
+    ]);
   });
 
   it("wired suites actually reach the pixel job's run step", () => {
