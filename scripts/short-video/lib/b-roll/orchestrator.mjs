@@ -901,6 +901,13 @@ export async function runBrollStage(opts) {
           // judged against the same subject the generator received (#355).
           claim: buildClaim(scene, { prompt: rawPrompt }),
           threshold,
+          // Generated frames cannot pass the first question — it asks for the
+          // claim's specific entity, and every prompt forbids logos and text.
+          // Ask the narrower subject question instead, against the prompt only
+          // (the voiceover may name a person we must not draw), and ask it for
+          // every parseable score: a generated 0 means "no identifiable
+          // company", which is what the prompt asked for, not a miss.
+          secondPass: { claim: { assetNeed: rawPrompt }, floor: 0 },
         });
       }
 
@@ -911,6 +918,11 @@ export async function runBrollStage(opts) {
           file: basename(c.file),
           relevance: c.relevance,
           reason: c.reason,
+          // Why this candidate was admitted. "second-pass" means the subject
+          // question carried it; without that field a report showing
+          // relevance 0 next to status "won" reads as a gate bug.
+          ...(c.admission ? { admission: c.admission } : {}),
+          ...(c.secondPass ? { secondPass: c.secondPass } : {}),
         })),
         ...failedCandidates,
       ];
