@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.69.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.68.0...tanstack_start_ts-v1.69.0) (2026-11-13)
+
+
+### Features
+
+* **short-video:** 素材密度成为 preflight 门，生成兜底默认开启 ([#1298](https://github.com/0xPabloLI/inside-china-ai/issues/1298)) ([7b823aa](https://github.com/0xPabloLI/inside-china-ai/commit/7b823aa06f68e4b04de5170a77d34ccb68f26337))
+
 ## [1.68.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.67.0...tanstack_start_ts-v1.68.0) (2026-11-13)
 
 
