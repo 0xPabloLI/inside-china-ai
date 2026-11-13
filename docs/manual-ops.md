@@ -68,16 +68,23 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 | ---------- | -------------------------------------------------------------------------------------------------------- | ----------------- |
 | 鼠标轨迹   | 每次点击沿带侧向弯曲的 Bézier 移动，末段减速，冲过目标 0.4–2px 再回正                                    | —                 |
 | 逐字输入   | 可信 `insertText`，一次一个字符（含 emoji），间隔 30–120ms，句读处偶发 300–900ms 停顿；换行按真 Enter 键 | `--paste-caption` |
-| 等待抖动   | 全部走 `PUBLISH_PACING` / 具名常量带（`[base, spread]`，spread ≥ base 的 20%），无裸毫秒                 | —                 |
+| 等待抖动   | 全部走 `PUBLISH_PACING` / 具名常量带（`[base, spread]`，spread ≥ base 的 20%）；#1288 起带内取对数正态而非均匀，无裸毫秒 | —                 |
 | 发布前审阅 | 存草稿/交给操作者之前先播预览 5–15s、暂停、确认时钟走过再停，判定写进日志                              | `--skip-review`   |
-| 会话预热   | 先在 For You 滚动 2–4 次、每次停留 2.3–4.7s（合计约 5–19s），再打开上传页                                | `--no-warmup`     |
+| 会话预热   | 先在 For You 浏览 3–8 条 feed item、每条停留 5–20s；指针沿 Bézier 到位并悬停，滚动步长按 Gamma 采样、偶发回看，之后才进上传页 | `--no-warmup`     |
+| 运行节奏   | 同一 profile 每日 ≤3 次、间隔 ≥90min（135min 基线 ±45min 抖动），状态落 `~/chrome-tiktok-profile/publish-throttle.json` 跨进程生效 | `--no-throttle`   |
 
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
 
 **反检测姿态（#1181 追加，2026-11-13）**：原则是让**真实 Chrome** 保持真实，而不是往页面里打补丁。
-- **已加**：固定自动化 profile（`~/chrome-tiktok-profile`、端口 9229）+ 真实 Chrome（UA/语言/platform/时区天然一致）；human-like 输入（Bézier 移动、可信按下、逐字输入、抖动等待）；发布 session 不发 `Runtime.enable`/`Page.enable`；每步 1.5–4.5s 抖动；运行开始后用 `FINGERPRINT_PROBE` 读取 `navigator.webdriver`、UA/platform/语言/时区并写入 `publish-log.jsonl` 的 `fingerprint` 行。
-- **未加（原因）**：`navigator.webdriver` 的脚本抹除（无 `--enable-automation` 时本就是 `false`；注入 getter 本身是可检测补丁）；UA/时区覆盖（`Emulation.*` 是更明显的 CDP 痕迹，还会与 WebGL/platform 矛盾）；WebGL/canvas 伪造（重度且更容易露馅）；跨运行硬节流（会阻碍失败重跑）。
+- **已加**：固定自动化 profile（`~/chrome-tiktok-profile`、端口 9229）+ 真实 Chrome（UA/语言/platform/时区天然一致）；human-like 输入（Bézier 移动、可信按下、逐字输入、抖动等待）；发布 session 不发 `Runtime.enable`/`Page.enable`；每步 1.5–4.5s 抖动；运行开始后用 `FINGERPRINT_PROBE` 读取 `navigator.webdriver`、UA/platform/语言/时区并写入 `publish-log.jsonl` 的 `fingerprint` 行。**#1288 追加**：停留/滚动/打字的带内分布、进入路径预热、profile 级节奏节流（见下）。
+- **未加（原因）**：`navigator.webdriver` 的脚本抹除（无 `--enable-automation` 时本就是 `false`；注入 getter 本身是可检测补丁）；UA/时区覆盖（`Emulation.*` 是更明显的 CDP 痕迹，还会与 WebGL/platform 矛盾）；WebGL/canvas 伪造（重度且更容易露馅）。
 - **复验**：`grep '"step":"fingerprint"' output/*/publish/tiktok/publish-log.jsonl`，或按 `scripts/short-video/lib/cdp-fingerprint.mjs` 顶部的 curl 命令在页面内直接读。
+
+**行为分布与节奏节流（#1288 追加，2026-11-13）**：只加强「自动化把内容准备到位」这一段的行为形态，**不碰公开点击**（#1181 裁决保留）、不伪造指纹、不新增依赖、不改 `localhost:3456` 连接方式。
+- **分布**：`lib/behavior-sampling.mjs` 以对数正态（停留）、Gamma（滚动步长）、Beta（打字间隔）替换原来的均匀抖动；原有 `[base, spread]` 带与 spread ≥20% 契约不变，采样值钳在带内，每次取值写一行 `behavior.sample`。Bézier 不再只用于点击，悬停与滚动也走同一条曲线。
+- **节流**：`lib/publish-throttle.mjs` 把每日 ≤3 次、≥90min 间隔、135min±45min 抽样落到 profile 级状态文件（tmp+rename 原子写，跨进程可见）；下次可运行时间是**绝对时间戳**，抽样只在成功终端动作提交时发生一次。**失败重跑不计数**（#1181 当初反对硬节流的原因），失败落在 catch 分支、永不提交；`--no-throttle` 是显式退出口，且会在日志留 `bypassed: true`。
+- **日志判据**：`warmup.feed`（每条 `items` / `dwellMs[]` / `scrollCount`）出现在 `upload.navigate` 之前；`throttle.blocked` 带 `lastRunAt` 与 `remainingMs`；`throttle` / `throttle.commit` 行可见抽样间隔。
+- **离线复演**：`node scripts/short-video/publish-antidetection-evidence.mjs` 用注入的 CDP/时钟/睡眠跑**生产函数**，在 `output/antidetection-evidence/publish/tiktok/publish-log.jsonl` 生成同样的日志并输出 `summary.json`（三项判据逐条 PASS/FAIL）。这是无浏览器证据，不是真机上传记录；真机日志仍按上面的 `grep` 读。
 
 > 逐字输入之后要强制 Draft.js 从自己的 ContentState 重渲染一次（打一个空格再退格），否则 DOM 里看着有字、保存下来是空的（2026-10-24 那次丢了 708/1223 字符）。这一步原来是不管空格有没有落地都发退格，于是页面吞掉空格时退格删掉的是**最后一个真字符**，读回来像「打字丢了一个字」，白白回退成一次 paste。现在退格以「实测到文本变了」为前置条件，空格被吞就重发（最多 2 次），两次都没落地就**不发退格**。
 >

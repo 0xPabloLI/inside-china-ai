@@ -25,7 +25,12 @@ export const PUBLISH_PACING = Object.freeze({
   clipSelect: [2500, 700],
   volumeClick: [1500, 400],
   warmupPageLoad: [4500, 1500],
-  warmupDwell: [3500, 1200],
+  /**
+   * One feed item's dwell (#1288 widened from 2.3–4.7s to 5–20s). Kept in the
+   * same `[base, spread]` form as every other pacing value; `samplePacing`
+   * draws a log-normal value clamped into this band.
+   */
+  warmupDwell: [12_500, 7_500],
   uploadPageSettle: [8000, 2000],
   poll: [4000, 1200],
   reviewLeadIn: [1200, 400],
