@@ -624,7 +624,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
    **新默认路径**：HITL 用户确认「视频 OK」后，Agent 不停下来问配乐，直接：
    a. 用 `scripts/short-video/tiktok-upload-prep.mjs` 上传，**自动挂 Breaking News (Voxie)**，音量按下面红线设好并回读校验
    b. 同一次运行里打上 **AIGC 标记**（脚本第 5 步，fail-closed）
-   c. 点发布（`--publish`）
+   c. 存成 Studio 草稿（`--save-draft`），**不点发布**——公开那一下由用户人工点击（#1181 裁决 2026-11-13）
 
    **音量红线**：播报必须压过音乐，用默认的 `--volume-db -15`。滑杆读数与「相对播报的 dB」不是同一个量（实测滑杆 −20 dB = 音乐比播报低 22.2 dB，用户听感判定偏轻），设完必须**回读滑杆值**确认（脚本已 fail-closed），不能只看脚本报的 dB 数。推导、测量方法与出处见 `docs/research/music-under-voice-calibration-2026-10.md`。
 
@@ -632,9 +632,9 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > 备选音源（仅当用户点名要别的音乐）：CC-BY BGM 池 `lib/bgm.mjs` → `selectBGM`，混流用 `mix-bgm.mjs`；TikTok 曲库别的曲子改 `--sound` / `--sound-owner` 参数。
 
-   **发布前的输入形态（#1013，2026-10-30 起）**：脚本的每一步输入都按人类形态走——鼠标沿 Bézier 轨迹移动后才按下、Caption 逐字（30–120ms 间隔，句读处偶尔停顿）用可信 insertText 打字、所有等待带 ±20% 以上抖动、发布前先播 5–15s 再暂停、打开上传页前先在 For You 停留滚动。`--no-warmup` / `--paste-caption` / `--skip-review` 是显式退出口；每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`。见 `docs/manual-ops.md`「发布前的输入形态」。
+   **发布前的输入形态（#1013，2026-10-30 起）**：脚本的每一步输入都按人类形态走——鼠标沿 Bézier 轨迹移动后才按下、Caption 逐字（30–120ms 间隔，句读处偶尔停顿）用可信 insertText 打字、所有等待带 ±20% 以上抖动、终止动作（存草稿/交给操作者）前先播 5–15s 再暂停、打开上传页前先在 For You 停留滚动。`--no-warmup` / `--paste-caption` / `--skip-review` 是显式退出口；每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`。见 `docs/manual-ops.md`「发布前的输入形态」。
 
-9. **等待用户确认** — 用户说「视频 OK，发布」或类似确认语后才可执行发布。确认之后按第 8 步一条龙走完，不再二次确认配乐。
+9. **等待用户公开** — 草稿存好后，Agent 报告草稿位置并把「公开」这一步交给用户（#1181：自动路径只到草稿，公开点击由人做）。不要替用户点发布，也不要在 HITL 里二次确认配乐。
 
 > **视频/脚本修改时的自动更新规则**：如果用户在 HITL 阶段要求修改视频或 scene-data，Agent 修改完成并重新渲染视频后，必须自动重新运行 `generate-caption.mjs` 以更新 Caption 和 Pinned Comment，然后重新输出发步包。
 
@@ -655,22 +655,26 @@ node scripts/article/upload-attachments.mjs --post <slug> --files <path1> [<path
 
 公开发布使用与 Stage 2 相同的文章文件，但不带 `--draft`。文章公开完成后再发布 TikTok。
 
-#### 5b. TikTok 发布（HITL 后默认 `cdp` 一键直发；`manual-guide` 为人工回退档）
+#### 5b. TikTok 发布（HITL 后默认 `cdp` 准备草稿；公开由用户点击）
 
 ```bash
-# HITL 批准后的默认路径：Studio 网页 CDP 一次做完（挂 sound + 音量 + AIGC + 出口门禁 + 点发布）
-node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --publish
+# HITL 批准后的默认路径：Studio 网页 CDP 一次做完（挂 sound + 音量 + AIGC + 出口探测），存成草稿
+node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id> --save-draft
+# 需要在同一会话里保留已挂 music 的编辑器、由用户当场点发布时：不带 --save-draft（草稿会丢 music）
+node scripts/short-video/tiktok-upload-prep.mjs --video <mp4> --content <id>
 # 人工回退：生成 App 内发布指南（profile.publishMethod 仍是 manual-guide 安全档；这个入口不会自动走 cdp）
 node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipelineId> --slug <slug>
 ```
 
-> **出口地理硬门禁（#964）**：`--publish` 前脚本在自动化浏览器里探测出口国家，与 `--expect-region`（默认 `SG`）比对；不一致、探测超时或 `loc=XX` 直接阻断。2026-10-25 的首条 CDP 发布出口在东京（Zouter/AS205548），随后 0 播放——改节点后重跑，不要用 `--expect-region` 把错误出口签掉。发布点击前会再探测一次。
+> **公开点击归人（#1181 裁决 2026-11-13）**：CDP 网页路径降级为「仅存草稿」——自动路径只把成片存成 Studio 草稿，**公开那一下由用户人工点击**。`--publish` 会在打开浏览器前非零退出并指向 `--save-draft`；不做全退役（AIGC、挂 sound、音量、草稿全部保留）。依据是时序事实：两条 CDP 发布（10/25、11/1）0 播放发生在前，11/8 App 发布 438 播放发生在后，间隔 7 天，且 0 播放时账号已运行约 6 周——排除「新号冷启动」。裁决**不**宣称网页通道已被证明降权（11/12 评论指出的样本混杂仍成立），只是取可逆的一侧。
 >
-> **覆盖差（#964）**：脚本结束时按 profile 的 `manualGuide.steps` 打印 ✅ 自动完成 / 🔁 网页替代 / ⏳ 待执行 / ⚠️ 未覆盖。Location 记为「两条路都没做」（历史成功的手动发布也未填，用户 2026-11-01 确认），in-app editing 为 App 专有，置顶评论与首小时互动为发布后手机补做。
+> **出口地理探测（#964，降级后为警告）**：上传前脚本在自动化浏览器里探测出口国家，与 `--expect-region`（默认 `SG`）比对；不一致、探测超时或 `loc=XX` 现在只警告（不阻断，因为不再自动公开）。2026-10-25 的首条 CDP 发布出口在东京（Zouter/AS205548），随后 0 播放——警告会点名这个风险，因为用户就在同一标签页里点公开。
+>
+> **覆盖差（#964）**：脚本结束时按 profile 的 `manualGuide.steps` 打印 ✅ 自动完成 / 🔁 网页替代 / ⏳ 待执行 / ⚠️ 未覆盖。`publish` 现在固定记为「未覆盖——公开由人工完成」；草稿会丢掉已挂 music（`draft-lost`）。Location 记为「两条路都没做」（历史成功的手动发布也未填，用户 2026-11-01 确认），in-app editing 为 App 专有，置顶评论与首小时互动为发布后手机补做。
 
 > **文章链接 readiness 门（#429，2026-10-19 落地）**：发布脚本在生成指南前，对**最终实际出链**做一次可达性判定（`lib/article-url-readiness.mjs`，所有走链接的消费面——manual guide 的 `{slug}` URL 与 pinned comment——共用同一 seam；纯 Caption builder 不引入网络）。两段式契约：**制包期**（`generate-caption.mjs`）只校验 origin/语法/`/posts/<slug>` 形状（草稿文章合法 404，不在此拦截）；**终检期**（本步，文章已公开后）发真实请求，HEAD 405/501 用有限 GET 复核，跨站 redirect 不算过。失败政策（用户裁决 2026-10-19，分级处置）：**确定不可达**（404/410/错 origin）→ **阻断**（退出非零，附诊断；修根因——重发文章或修 slug——后重跑）；**unknown**（reset/超时/TLS/429/可疑 403/5xx/401，含站点自身报错——非内容 bug 不卡视频）→ **自动降级**：pinned comment 去掉「Full analysis」承诺、指南不再带 URL 行、包内文件同步改写保持一致，并大声警告。降级时若检测到内容 CTA 口播了「全文在置顶评论」承诺（音频已渲染无法改），额外 🚨 警告由人工临场决定（用户裁决 2026-10-19：警告后照发，不阻断）。`--slug` 缺失时指南**不再合成** `{entity}-news` 假 URL（无 slug 即无 URL 行）。
 
-> **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 启用 **`manual-guide`（人工回退档）与 `cdp`（HITL 后默认路径；#964 用户裁决 2026-11-01）**，`api` 仍关闭——`manual-guide` 由用户按 checklist 在 App 内人工执行（确认点=执行清单本身），`cdp` 由 `tiktok-upload-prep.mjs` 在 HITL 批准后一次做完（挂 sound + 音量 + AIGC + 点发布）。**声明与执行由 #951 接上**：驱动开工前调用 `resolvePublishMethod(tiktokProfile, { method: CDP_PUBLISH_METHOD })`，从 profile 删掉 `cdp` 就真的关掉该路径，不再是「注释写着 fail closed、代码照跑」；AIGC 标签同理读 `aiDisclosure.required`——`--publish` + `--no-aigc` 会被拒（需 `--confirm-unlabeled` 显式承担）。`tiktokProfile.publishMethod` 字段仍是 `manual-guide` 安全档（`resolvePublishMethod` 的默认值）；Agent 在 HITL 后的默认路径是 `tiktok-upload-prep.mjs` 的 `cdp` 驱动，`publish-tiktok.mjs` 保持人工指南入口。Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
+> **每平台独立发布 HITL（#219 T03）**：发布是外部不可逆动作，逐平台设确认门。TikTok 的 Profile 启用 **`manual-guide`（人工回退档）与 `cdp`（HITL 后默认路径；#964 用户裁决 2026-11-01）**，`api` 仍关闭——`manual-guide` 由用户按 checklist 在 App 内人工执行（确认点=执行清单本身），`cdp` 由 `tiktok-upload-prep.mjs` 在 HITL 批准后准备到草稿/编辑器（挂 sound + 音量 + AIGC），**公开点击由用户完成**（#1181）。**声明与执行由 #951 接上**：驱动开工前调用 `resolvePublishMethod(tiktokProfile, { method: CDP_PUBLISH_METHOD })`，从 profile 删掉 `cdp` 就真的关掉该路径，不再是「注释写着 fail closed、代码照跑」；AIGC 标签同理读 `aiDisclosure.required`——非 dry-run 的 `--no-aigc` 会被拒（需 `--confirm-unlabeled` 显式承担）。`tiktokProfile.publishMethod` 字段仍是 `manual-guide` 安全档（`resolvePublishMethod` 的默认值）；Agent 在 HITL 后的默认路径是 `tiktok-upload-prep.mjs` 的 `cdp` 驱动，`publish-tiktok.mjs` 保持人工指南入口。Publora `--auto` API 路径保留但默认关闭（`--auto` 会 fail-closed），启用需逐平台授权 + 沙盒验证。发布后手动回写 URL：
 >
 > ```bash
 > node scripts/article/set-tiktok-url.mjs --slug <slug> --url <tiktok-url>
@@ -682,9 +686,9 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 ### ⏸️ 用户手工操作检查点
 
-发布后需要用户在 TikTok App 中手动完成：pinned comment、回复评论。AIGC 标签与背景音乐已由 `tiktok-upload-prep.mjs` 自动完成；地理标签默认不做（历史成功的手动发布也未填，用户 2026-11-01 确认；网页路径没有该控件），需要时导出成片传到手机（AirDrop/云盘），在 App 内重新上传并补 Location——网页 Studio 草稿不会同步到 App。完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
+发布后需要用户在 TikTok App 中手动完成：pinned comment、回复评论。AIGC 标签由 `tiktok-upload-prep.mjs` 自动完成；背景音乐在准备到编辑器的那次运行里自动挂上（存成草稿会丢，公开前需重挂）；公开点击本身也由用户完成（#1181）。地理标签默认不做（历史成功的手动发布也未填，用户 2026-11-01 确认；网页路径没有该控件），需要时导出成片传到手机（AirDrop/云盘），在 App 内重新上传并补 Location——网页 Studio 草稿不会同步到 App。完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
 
-发布步骤运行时，脚本自动写入 `output/pending-analysis.json` 记录待分析状态——`cdp` 档在发布成功后写入（`publishedAt` 取真实发布时刻；`publishMethod: "cdp"`），`manual-guide` 档在生成发布指南时写入（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入。**未确认的发布不记账**：`--publish` 点击后 45 s 内没有拿到一个「已离开 `/upload` 且页面无报错横幅」的页面状态时不写该文件，并按三种结局分别说明——TikTok 自己的报错横幅、脚本读不到页面（带 tab 与最后一次可读 URL）、页面仍停在 `/upload`；三者都会明说记账被跳过，提示人工确认后再补记。照着「TikTok 报错」直接重跑可能发出重复帖。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
+发布步骤运行时，`manual-guide` 档在生成发布指南时写入 `output/pending-analysis.json`（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入。**`cdp` 草稿档不写**：草稿没有 `publishedAt`，按存草稿时刻起算 48h 会给一个可能永远不会公开的帖子启动 Analytics 提醒（#1181）。用户人工公开后，若要启用 48h 提醒，按 `manual-guide` 流程生成一次指南，或手工补记该文件。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
 
 ---
 

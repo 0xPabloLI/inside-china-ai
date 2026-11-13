@@ -339,31 +339,33 @@ After all automated checks pass, the agent generates a complete publishing packa
   Title: [agent writes title here, ≤60 chars]
   Hook pattern: P1a Result-First (goal: completion)
 
-👤 User executes in TikTok App (manual fallback — the default path is the
-   agent running `tiktok-upload-prep.mjs --publish`, which prints the exact
-   coverage diff for the run):
+👤 User executes in TikTok App or Studio (the default path is the agent
+   running `tiktok-upload-prep.mjs --save-draft`, which stops at a draft and
+   prints the exact coverage diff; the public click is the user's — #1181):
   [ ] Upload video file to TikTok
   [ ] Paste caption + hashtags into description
   [ ] Location tag: optional — the successful manual posts did not tag one (user-confirmed 2026-11-01); the web CDP path has no location control
   [ ] In-app editing: app-only; upload the exported mp4 in the phone app if you need it (a Studio draft does not sync there, and the web caption/sound/AIGC choices are redone; the "algorithm bonus" is unmeasured)
   [ ] AIGC label: the CDP driver toggles it and fails closed; toggle ON when publishing by hand
-  [ ] Audio: the CDP driver attaches the calibrated bed; attach it by hand only in the app
-  [ ] Publish
+  [ ] Audio: the CDP driver attaches the calibrated bed; a saved draft drops it, so re-attach it when publishing
+  [ ] Publish (manual — the automated path never clicks it)
   [ ] Pinned comment: the comment hook alone, with `metadata.articleUrl` left unset (see `docs/content-pipeline.md` HITL step 7)
   [ ] Reply to comments (first hour after posting)
 ```
 
 **The agent generates all text content. The user only executes mechanical steps in the TikTok App.**
 
-#### TikTok audio: attach the bed and publish, don't ask
+#### TikTok audio: attach the bed and stop at a draft, don't ask
 
-**Standing default (user, 2026-10-25): once the user has approved the video at HITL, publish it end to end — attach the music bed, set its level, disclose AIGC, and click publish. Do not come back with a BGM question.**
+**Standing default (user, 2026-10-25; revised by #1181, ruled 2026-11-13): once the user has approved the video at HITL, prepare it end to end — attach the music bed, set its level, disclose AIGC, save a Studio draft — and let the user click 发布. Do not come back with a BGM question, and do not click the public button.**
 
 ```bash
 node scripts/short-video/tiktok-upload-prep.mjs \
   --video output/{id}/{id}-v…-short.mp4 --content {id} \
-  --sound "Breaking News" --sound-owner Voxie --volume-db -15 --publish
+  --sound "Breaking News" --sound-owner Voxie --volume-db -15 --save-draft
 ```
+
+`--publish` is refused before the browser opens (`resolveUploadPrepAction()`): the web path's distribution weight is unresolved and the public click is irreversible. A saved draft drops the attached sound, so if the user wants to publish in the same session with the bed intact, run the same command **without** `--save-draft` — it leaves the prepared editor open for the user's click.
 
 (This replaces the 2026-10-24 flow that printed an A/B/C BGM menu and waited.)
 
@@ -381,7 +383,7 @@ Five things in that flow fail **silently** — all found the hard way on the fir
 
 **The web flow does credit the attached sound.** `player/v1/...?music_info=1` for live post 7700554811866909970 reports "Breaking News - Voxie" (2026-10-26 recheck). The earlier note that it still shows "原声 - Chinaainews" was wrong — it described the un-saved editor state. Whether a web attach gets the same distribution weighting as an in-app pick is unmeasured.
 
-**Egress gate (#964):** before the upload page the driver reads Chrome's exit country through Cloudflare's trace and compares it with `--expect-region` (default SG). `--publish` is blocked on a mismatch, a probe timeout, or `loc=XX`; the 2026-10-25 post that sat at 0 plays exited from Tokyo while the target route was Singapore. Prepare-only runs warn instead. The driver also prints the coverage diff against `manualGuide.steps`: Location is recorded as "neither path", in-app editing as app-only, and the phone-only post-publish steps separately.
+**Egress probe (#964, advisory since #1181):** before the upload page the driver reads Chrome's exit country through Cloudflare's trace and compares it with `--expect-region` (default SG). A mismatch, a probe timeout, or `loc=XX` now warns rather than blocks, because the automated path never publishes; the 2026-10-25 post that sat at 0 plays exited from Tokyo while the target route was Singapore, so the warning still names the risk before the user clicks. The driver also prints the coverage diff against `manualGuide.steps`: `publish` is not-covered (manual), Location is "neither path", in-app editing is app-only, and the phone-only post-publish steps are listed separately.
 
 ## Dimension Coverage Matrix
 
