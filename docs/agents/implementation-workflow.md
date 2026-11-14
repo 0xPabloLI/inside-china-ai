@@ -194,7 +194,7 @@ Review 报告不能只生成后忽略。
 
 1. 所有 ticket acceptance criteria 与 checklist 和实际验证结果一致。
 2. 运行最终 Verification Gate。
-3. 更新相关执行文档；S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
+3. 更新相关执行文档，并跑 roadmap ledger：`node scripts/roadmap-ledger.mjs --fetch` 的输出留到 step 8 一并写进本轮 PR body；换轮 PR 把每条处置写成台账或 `docs/archive/roadmap-inventory-history-*.md` 的 `PR #N` 行，并以 `--gate` 复跑到输出为空即完成。S2/S3 完成后归档已结束工作的 spec、tickets 和 review，并更新 `docs/DOCS-INDEX.md` 与 `docs/archive/README.md`。
 4. 为归档和文档同步创建 final documentation commit。
 5. push 自己的 `session/<id>` 分支并开 PR——交付请求即授权该交付链（`git-workflow.md` §5）；交付链之外的 push 仍需明确授权。
 6. PR 合并后运行 `npm run session:stop <worktree-path>` 收尾——stop 判定该 session 分支已交付时，这就是完整收尾，不需要第二条命令（机制与判据见 `git-workflow.md` §10）。
