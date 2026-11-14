@@ -5,9 +5,9 @@
  * The declaration is in RELATIVE frames. Absolute frame numbers are derived
  * from lib/timeline.mjs so a TTS retake cannot silently invalidate the plan
  * (the lesson of the SFX pinned-frame expressions in repo-survey-tracking.md).
- * No quantitative thresholds live here: those need a vertical-format
- * calibration on a real pack and were explicitly excluded by the 2026-11-09
- * HITL decision (option A).
+ * The quantitative thresholds live in lib/qa-mechanics.mjs since #1212: the
+ * builder measures them BEFORE the packet exists, and the packet carries the
+ * measured numbers so the reviewer sees them without re-measuring.
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -112,6 +112,42 @@ describe("renderReviewRequest", () => {
     expect(md).toContain("independent");
     expect(md).toContain("session-impl");
     expect(md).toContain("P0");
+  });
+
+  // #1212 — the packet carries the measured numbers, not a re-derivation.
+  it("renders the mechanical scan section when the packet carries mechanics", () => {
+    const plan = planAcceptanceFrames(DURATIONS);
+    const mechanics = {
+      status: "pass",
+      findings: [],
+      staticSegment: { worstFrames: 47, worstSceneId: 2, maxStaticFrames: 120 },
+      debris: { peakRatio: 0.038, laneRatioWarn: 0.15 },
+      calibration: { measuredAt: "2026-11-14", packs: 29 },
+    };
+    const md = renderReviewRequest(plan, {
+      contentId: "demo-pack",
+      videoPath: "/tmp/demo.mp4",
+      implementer: "session-impl",
+      mechanics,
+    });
+    expect(md).toContain("## Mechanical scan");
+    expect(md).toContain("**pass**");
+    expect(md).toContain("47f (scene 2, limit 120f)");
+    expect(md).toContain("3.8% over 1s (warn 15%)");
+    expect(md).toContain("2026-11-14 on 29 finished packs");
+    // The section precedes the review instructions: the reviewer reads the
+    // measured context before judging the stills.
+    expect(md.indexOf("## Mechanical scan")).toBeLessThan(md.indexOf("## How to review"));
+  });
+
+  it("omits the mechanical scan section for a packet built before #1212", () => {
+    const plan = planAcceptanceFrames(DURATIONS);
+    const md = renderReviewRequest(plan, {
+      contentId: "demo-pack",
+      videoPath: "/tmp/demo.mp4",
+      implementer: "session-impl",
+    });
+    expect(md).not.toContain("Mechanical scan");
   });
 });
 

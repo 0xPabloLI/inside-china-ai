@@ -200,7 +200,7 @@ export function planAcceptanceFrames(sceneDurations, { offsets = ACCEPTANCE_OFFS
  */
 export function renderReviewRequest(
   plan,
-  { contentId, videoPath, implementer, packetVersion = 1, round = 1 },
+  { contentId, videoPath, implementer, packetVersion = 1, round = 1, mechanics = null },
 ) {
   const lines = [
     `# QA final review — ${contentId}`,
@@ -211,6 +211,35 @@ export function renderReviewRequest(
     `Declaration: entry +${plan.declaration.entry} / exit -${plan.declaration.exit} ${plan.declaration.unit}.`,
     `Implementer: \`${implementer}\`.`,
     "",
+  ];
+
+  if (mechanics) {
+    lines.push("## Mechanical scan (measured, not judged)", "");
+    lines.push(
+      `Status: **${mechanics.status}**. Both metrics were measured on this encoded mp4; ` +
+        "a static-segment P1 never reaches a packet (the builder fails first), so `fail` here would mean the packet predates the gate.",
+    );
+    if (mechanics.findings.length > 0) {
+      lines.push("");
+      for (const f of mechanics.findings) lines.push(`- [${f.severity}] ${f.code}: ${f.detail}`);
+    } else {
+      lines.push("");
+      lines.push(
+        `- static worst run: ${mechanics.staticSegment.worstFrames}f (scene ${mechanics.staticSegment.worstSceneId}, limit ${mechanics.staticSegment.maxStaticFrames}f)`,
+      );
+      lines.push(
+        `- subtitle-lane debris peak: ${(mechanics.debris.peakRatio * 100).toFixed(1)}% over 1s (warn ${(mechanics.debris.laneRatioWarn * 100).toFixed(0)}%)`,
+      );
+    }
+    lines.push("");
+    lines.push(
+      `Thresholds and corpus: measured ${mechanics.calibration.measuredAt} on ${mechanics.calibration.packs} finished packs. ` +
+        "The scan can only block a pack; the independent review below stays the delivery subject.",
+    );
+    lines.push("");
+  }
+
+  lines.push(
     "## How to review",
     "",
     "You are an **independent** reviewer: your `reviewer` id must differ from the implementer above, which the packet records and the CLI checks — you cannot redefine it in the report.",
@@ -218,7 +247,7 @@ export function renderReviewRequest(
     "The sheets carry no burned-in labels; use the grid ledger below (r1c1 = top-left).",
     "Severity is P0 / P1 / P2. P0 or P1 requires a fix round; three rounds is the cap.",
     "",
-  ];
+  );
 
   for (const sheet of plan.sheets) {
     lines.push(`## ${sheet.name}`, "");

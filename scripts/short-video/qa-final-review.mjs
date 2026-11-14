@@ -43,6 +43,7 @@ import {
   validateLedgerShape,
   validateReviewReport,
 } from "./lib/qa-final-review.mjs";
+import { CALIBRATION, measureVideo } from "./lib/qa-mechanics.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -185,6 +186,13 @@ if (reproduceFrame !== null) {
 if (reportPath) {
   if (!previousManifest?.complete) {
     die("no complete QA packet for this content — run the full loop with --video first");
+  }
+  // Fail closed on packets built before #1212: their numbers were never
+  // measured, so "no findings" would mean "not looked at", not "clean".
+  if (!previousManifest.mechanics) {
+    die(
+      "QA packet predates the mechanical scan (#1212) — rebuild it with --video so the reviewer sees measured thresholds",
+    );
   }
   const savedFrames = previousManifest.frames.map((f) => f.frame).join(",");
   const currentFrames = plan.frames.map((f) => f.frame).join(",");
@@ -352,6 +360,36 @@ for (const sheet of plan.sheets) {
 }
 rmSync(blankPath, { force: true });
 
+// Mechanical scan (#1212): both metrics on the SAME encoded mp4 the stills
+// came from, so a reviewer's frame numbers and the scan's are one timeline.
+// Static segment is a hard gate (P1, like a reviewer finding); lane debris is
+// WARN only — it has never met a real positive sample (see CALIBRATION).
+console.log(`\nMechanical scan — encoded ${basename(videoPath)}:`);
+let mechanicsEvaluation;
+try {
+  mechanicsEvaluation = measureVideo({ videoPath, sceneDurations: durations }).evaluation;
+} catch (e) {
+  die(`mechanical scan failed: ${e.message}`);
+}
+for (const finding of mechanicsEvaluation.findings) {
+  console.log(`   [${finding.severity}] ${finding.code}: ${finding.detail}`);
+}
+if (mechanicsEvaluation.status === "fail") {
+  die(
+    `mechanical thresholds FAILED (${mechanicsEvaluation.findings.length} P1) — fix the render ` +
+      "before an independent review can start; no QA packet is written",
+  );
+}
+if (mechanicsEvaluation.status === "warn") {
+  console.log("   ⚠️ WARN only: the packet proceeds and the reviewer must weigh it");
+} else {
+  console.log(
+    `   static worst ${mechanicsEvaluation.staticSegment.worstFrames}f, lane peak ` +
+      `${(mechanicsEvaluation.debris.peakRatio * 100).toFixed(1)}% — within thresholds`,
+  );
+}
+const mechanics = { ...mechanicsEvaluation, calibration: CALIBRATION };
+
 // Only now is the packet complete: manifest and reviewer input are written
 // after the stills and sheets exist, so a failed run leaves no usable packet.
 const packetVersion = (previousManifest?.packetVersion ?? 0) + 1;
@@ -371,6 +409,7 @@ writeManifest({
   implementer: ledger.implementer,
   complete: true,
   packetVersion,
+  mechanics,
   ...plan,
 });
 writeFileSync(
@@ -381,6 +420,7 @@ writeFileSync(
     implementer: ledger.implementer,
     packetVersion,
     round,
+    mechanics,
   }),
 );
 console.log(`   declaration: ${manifestPath}`);
