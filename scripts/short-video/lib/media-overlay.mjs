@@ -31,10 +31,13 @@ export const MEDIA_OVERLAY = Object.freeze({
   context: 0.55,
   contrast: 0.55,
   "info-card": 0.65,
-  // Ambient-only background (media-density pass, 2026-11-14): the number is
-  // the protagonist and the label carries the focus, so the photo stays a
-  // texture behind them — same reasoning as info-card.
-  "stat-reveal": 0.65,
+  // Ambient background (media-density pass, 2026-11-14) — but the photo must
+  // stay perceivable: at 0.65 the sourced/generated image read as "no image
+  // at all" on the 2026-11-14 packs (user ruling). 0.5 keeps the number the
+  // protagonist while the picture reads as a picture; the rail safe zone is
+  // owned by MediaBackground's RAIL_VIGNETTE (#1315), not by this scrim, so
+  // lowering it does not re-light the rail.
+  "stat-reveal": 0.5,
   quote: 0.8,
 });
 

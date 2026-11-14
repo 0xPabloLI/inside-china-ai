@@ -76,13 +76,21 @@ describe("planScenes routing (scenarios #1, #6, #7, #8, #9, #10, #28)", () => {
     expect(shouldSourceStock(scene({ mediaStrategy: "source-only" }))).toBe(true);
   });
 
-  test("#355 chain eligibility mirrors sourcing eligibility (hook / NO_MEDIA_TYPES never auto-generate)", () => {
+  test("#355 chain eligibility mirrors sourcing eligibility (hook generates since 2026-11-14; NO_MEDIA_TYPES never does)", () => {
     const plans = planScenes([
       scene({ id: "1", visualType: "hook", aiVideo: undefined }),
       scene({ id: "3", visualType: "cta", aiVideo: undefined }),
       scene({ id: "4", visualType: "data", aiVideo: undefined }),
     ]);
-    expect(plans.every((p) => p.action === "skip" && p.reason === "not-media-eligible")).toBe(true);
+    const byId = Object.fromEntries(plans.map((p) => [p.scene.id, p]));
+    // The opening needs imagery — the hook is a chain scene now (2026-11-14
+    // ruling): stock first, generation as the fallback ("chain-fallback").
+    expect(byId["1"].action).toBe("generate");
+    expect(byId["1"].reason).toBe("chain-fallback");
+    for (const id of ["3", "4"]) {
+      expect(byId[id].action).toBe("skip");
+      expect(byId[id].reason).toBe("not-media-eligible");
+    }
   });
 
   test("media-density pass: a text-first layout without assetNeed still enters the chain", () => {

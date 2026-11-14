@@ -55,12 +55,14 @@ describe("hasStockIntent — what belongs in the ledger", () => {
     expect(hasStockIntent(scene(1, { assetNeed: undefined }))).toBe(false);
   });
 
-  it("skips the policy exclusions sourcing itself applies (#191/#299)", () => {
-    // A hook is hand-curated even when it declares assetNeed; `media: null` and
-    // `mediaOptOut` are explicit opt-outs. Sourcing never tries these, so a gap
-    // recorded here would never come true and never close: every replay would
-    // re-derive it after `--satisfy`, forever.
-    expect(hasStockIntent(scene(1, { visualType: "hook" }))).toBe(false);
+  it("skips the policy exclusions sourcing itself applies (#191)", () => {
+    // `media: null` and `mediaOptOut` are explicit opt-outs — sourcing never
+    // tries these, so a gap recorded here would never come true and never
+    // close: every replay would re-derive it after `--satisfy`, forever.
+    // Hooks carry stock intent now (2026-11-14: the opening needs imagery);
+    // only the explicit waiver still opts them out.
+    expect(hasStockIntent(scene(1, { visualType: "hook" }))).toBe(true);
+    expect(hasStockIntent(scene(1, { visualType: "hook", media: null }))).toBe(false);
     expect(hasStockIntent(scene(1, { media: null }))).toBe(false);
     expect(hasStockIntent(scene(1, { mediaOptOut: true }))).toBe(false);
   });

@@ -107,6 +107,37 @@ describe("normalizeSceneData", () => {
     expect(result[0].voiceover).toContain("$10 billion");
     expect(result[0].voiceover).toContain("80 billion HKD");
   });
+
+  // zhipu-valuation verification finding (2026-11-14): the on-screen texts use
+  // the prefix form and the voiceover spells the currency out — the suffix-only
+  // HKD_PATTERN matched neither, so those amounts shipped without USD.
+  it("converts 'HK$X' prefix form in texts to dual-annotation", () => {
+    const scenes = [
+      { id: 1, voiceover: "Look at the close.", texts: { bigNumber: "HK$454 CLOSE" } },
+    ];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].texts.bigNumber).toBe("$59 (HK$454) CLOSE");
+  });
+
+  it("converts 'X Hong Kong dollars' full-name form to dual-annotation", () => {
+    const scenes = [
+      { id: 1, voiceover: "From the peak, 2,526 Hong Kong dollars a share vanished." },
+    ];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toContain("$328 (2,526 Hong Kong dollars)");
+  });
+
+  it("converts 'X Hong Kong dollar' with magnitude", () => {
+    const scenes = [{ id: 1, voiceover: "It raised 12.4 billion Hong Kong dollars." }];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toContain("$2 billion (12.4 billion Hong Kong dollars)");
+  });
+
+  it("does not eat the space after a prefix amount without a magnitude word", () => {
+    const scenes = [{ id: 1, voiceover: "Trades at HK$454 today.", texts: {} }];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toBe("Trades at $59 (HK$454) today.");
+  });
 });
 
 describe("CNY_TO_USD_RATE", () => {

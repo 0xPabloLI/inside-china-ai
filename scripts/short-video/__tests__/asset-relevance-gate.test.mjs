@@ -61,6 +61,23 @@ describe("assignAssetsToScenes — relevance gate", () => {
     expect(result[0].reason).toMatch(/below threshold/i);
   });
 
+  it("drops text-only article references from the patch ledger (they are not media)", () => {
+    // News-vertical searches push article candidates with path:null /
+    // status:"text-only". Recording them as unassigned made the 2026-11-14
+    // zhipu ledger read "63 sourced, 0 assigned" when only 27 were pictures.
+    const result = assignAssetsToScenes(
+      [
+        { type: "text", status: "text-only", path: null, url: "https://example.com/article" },
+        img({ claimSceneId: 2, relevanceScore: 90 }),
+      ],
+      scenes,
+      THRESHOLD,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe("assigned");
+    expect(result[0].sceneId).toBe(2);
+  });
+
   it("keeps the claim binding on a rejection so the gap ledger can name the scene (#293)", () => {
     const result = assignAssetsToScenes(
       [img({ claimSceneId: 1, relevanceScore: 30 })],

@@ -516,12 +516,15 @@ describe("skipsMediaSourcing (#191)", () => {
     expect(skipsMediaSourcing({ ...base, visualType: "data" })).toBe(true);
   });
 
-  it("skips hooks even with an assetNeed (#299: manually curated)", () => {
-    expect(skipsMediaSourcing({ ...base, visualType: "hook" })).toBe(true);
+  it("sources hooks like any other scene (2026-11-14 ruling; #299 quality contract still applies at the gates)", () => {
+    expect(skipsMediaSourcing({ ...base, visualType: "hook" })).toBe(false);
     const claims = extractSceneClaims([
       { ...base, id: 1, visualType: "hook", assetNeed: "curated cover" },
     ]);
-    expect(claims).toEqual([]);
+    expect(claims).toHaveLength(1);
+    expect(claims[0].sceneId).toBe(1);
+    // An explicit media:null waiver still opts the opening out.
+    expect(skipsMediaSourcing({ ...base, visualType: "hook", media: null })).toBe(true);
   });
 
   it("skips explicit media:null — permanent no-media declaration", () => {
