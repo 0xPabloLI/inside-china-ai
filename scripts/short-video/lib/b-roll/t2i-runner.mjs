@@ -28,7 +28,7 @@
  * with 4-bit quantization.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -307,6 +307,16 @@ export function runImageGeneration(opts) {
 
   function runOne(job) {
     return new Promise((resolve) => {
+      // mflux versions existing outputs instead of overwriting (mflux/utils/
+      // image_util.py resolve_output_path appends _1, _2, ...) and the runner
+      // only ever checks the requested path below — a stale file from a
+      // previous round therefore shields the regenerated output: the spawn
+      // "succeeds", the freshness check sees the OLD bytes, and the gate
+      // analyzes an image the current prompt never produced (#1324: two
+      // regeneration rounds kept scoring the old echo-prompt image). A
+      // generation round means the cache declined reuse, so the stale
+      // artifact is by definition disposable — remove it before spawning.
+      rmSync(job.output_path, { force: true });
       const args = [
         ...(scriptPath ? [scriptPath] : []),
         ...buildImageArgs({

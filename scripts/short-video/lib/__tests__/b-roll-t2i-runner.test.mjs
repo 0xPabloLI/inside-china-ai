@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -228,6 +228,38 @@ describe("runImageGeneration (#155, same protocol as the video runner)", () => {
     expect(badResult.error).toMatch(/code 1/);
     expect(badResult.error).toContain("CUDA OOM");
     expect(goodResult.ok).toBe(true);
+  });
+
+  test("a stale output from a previous round is removed before the spawn (#1324)", async () => {
+    // mflux versions existing outputs (_1, _2) instead of overwriting, and
+    // the runner's freshness check only sees the requested path — without
+    // the pre-spawn removal, a stale file shields the regenerated output and
+    // the gate analyzes old bytes. The stub mimics mflux: it bumps to a
+    // suffixed name when the target exists, exactly like
+    // mflux/utils/image_util.py resolve_output_path.
+    const out = join(dir, "scene-2-seed1025.png");
+    writeFileSync(out, "STALE bytes from the echo-prompt round");
+    const stub = writeStub(
+      "stub-versioning.mjs",
+      `
+      import { writeFileSync, existsSync } from "node:fs";
+      const i = process.argv.indexOf("--output");
+      const target = process.argv[i + 1];
+      const dot = target.lastIndexOf(".");
+      const versioned = target.slice(0, dot) + "_1" + target.slice(dot);
+      writeFileSync(existsSync(target) ? versioned : target, "FRESH bytes");
+      `,
+    );
+    const result = await runImageGeneration({
+      bin: process.execPath,
+      scriptPath: stub,
+      workDir: dir,
+      jobs: [{ label: "scene-2-seed1025.png", prompt: "p", output_path: out, seed: 1025 }],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.results[0].ok).toBe(true);
+    // The requested path now holds the fresh output, not the stale shield.
+    expect(readFileSync(out, "utf8")).toBe("FRESH bytes");
   });
 
   test("a job that exits 0 without writing the output fails with 'output file missing'", async () => {
