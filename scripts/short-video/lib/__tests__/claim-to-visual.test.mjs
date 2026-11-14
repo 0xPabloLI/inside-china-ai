@@ -22,7 +22,9 @@ describe("claim-to-visual (#1324): voiceover echo → visual scene clause", () =
     expect(out).not.toMatch(/\d/);
     expect(out).not.toContain("yuan");
     expect(out).not.toContain("half");
-    expect(out).toContain("api");
+    // "api" is tech-meta that steers toward UI screens — excluded like the
+    // market nouns below.
+    expect(out).not.toContain("api");
     expect(out).toContain("image");
   });
 
@@ -31,7 +33,9 @@ describe("claim-to-visual (#1324): voiceover echo → visual scene clause", () =
       "MiniMax open sourced a 4K image model, at half the price of closed rivals.",
     );
     expect(out).not.toContain("4k");
-    expect(out).toContain("minimax");
+    // "MiniMax" is a brand token — never a visual subject (see the brand test
+    // below); only its content words survive.
+    expect(out).not.toContain("minimax");
     expect(out).toContain("model");
   });
 
@@ -55,6 +59,45 @@ describe("claim-to-visual (#1324): voiceover echo → visual scene clause", () =
     );
     const body = out.split(" scene,")[0].split(" ");
     expect(body.length).toBe(6);
+  });
+
+  test("market nouns and exchange names never become visual subjects", () => {
+    // Verified regression (#1324): "hkex listing scene" painted a giant "80%"
+    // quote board — exchange/market nouns steer the model to data displays,
+    // which are wall-to-wall numbers and lettering.
+    const out = deriveVisualScenePrompt(
+      "That is 80 percent gone in five months for China's most watched AI listing, according to HKEX closes.",
+    );
+    expect(out).not.toContain("hkex");
+    expect(out).not.toContain("listing");
+    expect(out).not.toContain("closes");
+    expect(out).not.toContain("ai");
+    const share = deriveVisualScenePrompt(
+      "From the peak, 2,526 Hong Kong dollars a share vanished. 85 percent of the value.",
+    );
+    expect(share).not.toContain("share");
+    const index = deriveVisualScenePrompt("Hang Seng tech fell; the index repriced Zhipu.");
+    expect(index).not.toContain("seng");
+    expect(index).not.toContain("index");
+  });
+
+  test("brand names and acronyms never become visual subjects", () => {
+    // Verified regression (#1324): "qbitai image scene" painted a giant — and
+    // misspelled — "qibitai" wordmark, and the gate rewarded it because the
+    // claim names the company. Attribution belongs to the injection layer's
+    // entity accent, not to lettering in the background.
+    const brand = deriveVisualScenePrompt(
+      "QbitAI reported the API at 0.2 yuan an image, with half off in week one.",
+    );
+    expect(brand).not.toContain("qbitai");
+    expect(brand).not.toContain("api");
+    expect(brand).toContain("image");
+    const camel = deriveVisualScenePrompt("MiniMax open sourced a 4K image model.");
+    expect(camel).not.toContain("minimax");
+    // A sentence-initial capital is not a brand cue — ordinary words survive
+    // lowercased.
+    const ordinary = deriveVisualScenePrompt("Zhipu peaked early, then it slid sideways.");
+    expect(ordinary).toContain("zhipu");
   });
 
   test("an empty or all-meta claim falls back to a generic scene with the visualType flavor", () => {

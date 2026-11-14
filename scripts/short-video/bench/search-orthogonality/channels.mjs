@@ -81,7 +81,13 @@ function searxngChannel(engine) {
       url.searchParams.set("q", query);
       url.searchParams.set("format", "json");
       url.searchParams.set("categories", "general");
-      url.searchParams.set("engines", engine);
+      // `aggregate` = no engines param: SearXNG's default engine set in one
+      // call. This is the realistic zero-quota breadth usage in
+      // docs/tools-catalog.md. NOTE (#1276 data correction): the 2026-10-10
+      // image has NO built-in tavily engine, so the pilot's `engines=tavily`
+      // channel actually measured this aggregate (unknown engine name makes
+      // SearXNG discard the whole engines param and run the default set).
+      if (engine !== "aggregate") url.searchParams.set("engines", engine);
       // Aggregated SearXNG queries take 15-20s per docs/tools-catalog.md —
       // a short timeout reads as "unreachable" when it is just slow.
       const response = await fetch(url, {
@@ -112,8 +118,8 @@ function verticalChannel(source, module) {
     id: `vertical:${source}`,
     kind: "vertical",
     allowanceShare: 0,
-    async run(query, { maxResults }) {
-      const result = await module.searchOne(source, query, maxResults);
+    async run(query, { maxResults, lang }) {
+      const result = await module.searchOne(source, query, maxResults, lang ? { lang } : {});
       if (result.error) {
         throw new Error(`${result.error}${result.hint ? ` (${result.hint})` : ""}`);
       }

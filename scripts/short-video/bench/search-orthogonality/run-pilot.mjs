@@ -24,8 +24,11 @@ import { join } from "path";
 import { fileURLToPath } from "url";
 
 import { PILOT_QUERIES } from "./queries.mjs";
+import { FULL_QUERIES } from "./queries-full.mjs";
 import { DEFAULT_CHANNELS, loadChannels } from "./channels.mjs";
 import { buildReport, renderMarkdown } from "./report.mjs";
+
+const QUERY_SETS = { pilot: PILOT_QUERIES, full: FULL_QUERIES };
 
 const BENCH_DIR = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -44,6 +47,7 @@ function runPath(...parts) {
 function parseArgs(argv) {
   const opts = {
     queries: null,
+    set: "pilot",
     channels: null,
     maxResults: 10,
     timeoutMs: 30000,
@@ -61,6 +65,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i];
     if (token === "--queries") opts.queries = pick(i++).split(",").filter(Boolean);
+    else if (token === "--set") opts.set = pick(i++);
     else if (token === "--channels") opts.channels = pick(i++).split(",").filter(Boolean);
     else if (token === "--max-results") opts.maxResults = Number(pick(i++));
     else if (token === "--timeout") opts.timeoutMs = Number(pick(i++));
@@ -75,6 +80,9 @@ function parseArgs(argv) {
     if (!Number.isInteger(opts[key]) || opts[key] <= 0) {
       throw new Error(`--${key} must be a positive integer`);
     }
+  }
+  if (!QUERY_SETS[opts.set]) {
+    throw new Error(`--set must be one of: ${Object.keys(QUERY_SETS).join(", ")}`);
   }
   // The run id becomes a directory name: keep it a plain name, never a path.
   if (
@@ -147,8 +155,8 @@ function describeChannel(channel) {
 async function runPilot(opts) {
   loadEnv();
   const queries = opts.queries
-    ? PILOT_QUERIES.filter((query) => opts.queries.includes(query.id))
-    : PILOT_QUERIES;
+    ? QUERY_SETS[opts.set].filter((query) => opts.queries.includes(query.id))
+    : QUERY_SETS[opts.set];
   if (queries.length === 0) throw new Error("no queries matched --queries");
 
   const channelIds = opts.channels ?? DEFAULT_CHANNELS;
@@ -174,9 +182,12 @@ async function runPilot(opts) {
       }
       const startedAt = Date.now();
       try {
+        // The zh band needs the wikipedia vertical on zh.wikipedia (pilot §5.4);
+        // other verticals ignore the lang option.
         const output = await channel.run(query.text, {
           maxResults: opts.maxResults,
           timeoutMs: opts.timeoutMs,
+          lang: query.intent === "zh" ? "zh" : "",
         });
         results.push({
           ...base,
