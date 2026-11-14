@@ -22,7 +22,9 @@ describe("claim-to-visual (#1324): voiceover echo → visual scene clause", () =
     expect(out).not.toMatch(/\d/);
     expect(out).not.toContain("yuan");
     expect(out).not.toContain("half");
-    expect(out).toContain("api");
+    // "api" is tech-meta that steers toward UI screens — excluded like the
+    // market nouns below.
+    expect(out).not.toContain("api");
     expect(out).toContain("image");
   });
 
@@ -55,6 +57,25 @@ describe("claim-to-visual (#1324): voiceover echo → visual scene clause", () =
     );
     const body = out.split(" scene,")[0].split(" ");
     expect(body.length).toBe(6);
+  });
+
+  test("market nouns and exchange names never become visual subjects", () => {
+    // Verified regression (#1324): "hkex listing scene" painted a giant "80%"
+    // quote board — exchange/market nouns steer the model to data displays,
+    // which are wall-to-wall numbers and lettering.
+    const out = deriveVisualScenePrompt(
+      "That is 80 percent gone in five months for China's most watched AI listing, according to HKEX closes.",
+    );
+    expect(out).not.toContain("hkex");
+    expect(out).not.toContain("listing");
+    expect(out).not.toContain("closes");
+    const share = deriveVisualScenePrompt(
+      "From the peak, 2,526 Hong Kong dollars a share vanished. 85 percent of the value.",
+    );
+    expect(share).not.toContain("share");
+    const index = deriveVisualScenePrompt("Hang Seng tech fell; the index repriced Zhipu.");
+    expect(index).not.toContain("seng");
+    expect(index).not.toContain("index");
   });
 
   test("an empty or all-meta claim falls back to a generic scene with the visualType flavor", () => {
