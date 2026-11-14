@@ -52,9 +52,12 @@ this repo as a single document.
    `docs/tools-catalog.md`, separated by an explicit **layering contract**
    and by section order: project layer first, general layer second.
 2. **The project layer is the single authority.** Execution constraints —
-   notably the Tavily hard rule — are only valid where they appear in the
-   project layer. The general layer is a reference reserve and does not
-   bind any workflow.
+   notably the Tavily fallback chain — are stated only there. The general
+   layer is a reference reserve and does not bind any workflow, with one
+   documented exception: the project layer's 条目准入 section adopts the
+   general layer's evaluation and security-audit process as a mandatory gate,
+   so the process text may live there while the binding force comes from the
+   project-layer sentence that cites it.
 3. **General-layer entries must not reference project-internal paths**
    (`scripts/…`, `docs/…`, `AGENTS.md`, `src/…`). A general entry has to
    read correctly outside this repo. Project-side attribution survives as a

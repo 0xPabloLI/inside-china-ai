@@ -13,13 +13,14 @@
 | 层 | 内容 | 权威性 | 谁改 |
 | --- | --- | --- | --- |
 | **项目层** | 场景→工具、已接线工具、任务决策表、Pipeline API、逐项吸收结论 | **唯一权威**：Tavily 硬规则等执行约束只认这一层 | 本项目 ticket |
-| **通用层** | 候选 skills、视频 skill 储备、评估流程、安全审计工具、条目模板 | 参考储备，不构成本项目的执行约束 | 任何引用方；新增条目只需工具画像 |
+| **通用层** | 候选 skills、视频 skill 储备、评估流程、安全审计工具、条目模板 | 参考储备，不构成本项目的执行约束（**例外**：「条目准入」把评估流程与安全审计采纳为强制门禁，见第一部分） | 任何引用方；新增条目只需工具画像 |
 
-三条硬规则：
+四条硬规则：
 
 1. **通用层条目不得引用项目内路径**（`scripts/…`、`docs/…`、`AGENTS.md`、`src/…`）。通用条目必须能脱离本仓读懂；项目侧的吸收结论与调研指路一律放项目层。
-2. 项目层可以按**章节名**引用通用层条目；不按行号引用。
+2. 跨层引用只写**章节名**（两个方向都适用），不写文件路径、不按行号定位。
 3. 下面的「总索引」跨两层，只用于定位，权威性在各层条目本身。
+4. **执行约束不因分层而失效**：任何强制门禁（条目准入 / 评估流程 / Tavily fallback 链）都在项目层有权威陈述；通用层可以承载流程正文，但约束力来自项目层那句话。
 
 ---
 
@@ -34,7 +35,7 @@
 | `web-deep-research`                          | 深度研究                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
 | `web_fetch` (内置)                           | 联网/抓取                 | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
 | Context7 MCP                                 | 技术文档查询              | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ 技术事实验证                                            |
-| Tavily MCP                                   | AI 搜索                   | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ fallback 链末位（硬规则见 Tavily 小节，本文件唯一权威） |
+| Tavily MCP                                   | AI 搜索                   | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ fallback 链末位（硬规则在项目层，本文件唯一权威）       |
 | mcp-search-bridge                            | 搜索（Grok）              | 按用量          | ✅ 已集成            | ⭐⭐ X/Twitter+全网                                            |
 | `search-sources.mjs`                         | 趋势发现（中文平台）      | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
 | SearXNG（自托管）                            | 搜索（metasearch）        | ✅ 自托管       | ✅ 已集成            | ⭐⭐⭐ 快速优先层，零限额                                      |
@@ -72,16 +73,28 @@
 
 > 这一层的结论只对 inside-china-ai 生效：接线状态、硬规则、票号归属都在这里。通用工具本身的画像在第二部分。
 
+## 条目准入（强制：引用通用层的评估流程）
+
+安装任何工具 / skill / 服务前，必须走第二部分的「评估流程」（安全审计 → 功能评估 → 试用验证 → 记录）与「安全审计工具参考」。那两节放在通用层是因为它们跨项目可复用，但**对本项目是强制执行规则**——这是「通用层不约束本项目」的例外，约束力由本句给出。
+
 ## 场景 → 工具决策表
 
 | 场景                | 工具                                                                                   |
 | ------------------- | -------------------------------------------------------------------------------------- |
 | 技术文档            | Context7 MCP                                                                           |
-| 事实查询 / URL 抓取 | 按 Tavily 小节硬规则执行（fallback 链，本文件唯一权威）                                |
+| 事实查询 / URL 抓取 | 按项目层「Tavily MCP — fallback 链硬规则」执行（本文件唯一权威）                      |
 | 深度研究            | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
 | 趋势发现            | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X）                     |
 
 ## 已集成工具（项目耦合）
+
+### Tavily MCP — fallback 链硬规则（唯一权威）
+
+**硬规则（本节是唯一权威）**：Tavily 是有限付费资源。已知 URL 一律 `web_fetch`（免费、无限制；GitHub 无反爬直接可读）。用 Tavily 前必须走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily；只有前两者失败或无法完成（如需多关键词并行搜索、AI 结构化摘要）时才可用。深度研究用 `web-deep-research` skill（触发词："deep research"、"调研"）。抓取用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
+
+- **工具画像**（分类 / 费用 / 配置 / credits 口径）：见第二部分「已集成工具（通用）→ Tavily MCP — AI 搜索」
+- **为什么这条只在项目层**：它会花掉有限付费额度，属执行约束而非工具属性；通用层的同一条目只保留画像，不重复规则
+- **额度节省的落点**：技术文档走 Context7、趋势发现走 `search-sources` / `last30days`、X 搜索走 `mcp-search-bridge`——三者都不消耗 Tavily 额度
 
 ### search-sources.mjs — 趋势发现（中文平台 + 西方源）
 
@@ -221,7 +234,7 @@
 ## 候选 Skills（项目耦合）
 
 > 以下 skills 与 inside-china-ai 的发布通道、中文平台、账号资产直接相关，价值判断以本项目为基准；均未安装，需要相关功能时先查这里。
-> 2026-09-06 自媒体十 skill 调研（Agent-Reach / Horizon / MediaCrawler / huashu-design / Auto-Redbook / Generative-Media-Skills / nuwa / guizang-social-card / social-auto-upload / linco-bridge）的源码级机制细节见 `docs/research/selfmedia-skills-survey-2026-09.md`（关联 issue #203-#210）；这十张票里纯工具画像的部分在第二部分「候选 Skills（通用）」，机制细节出自同一批调研。
+> 2026-09-06 自媒体十 skill 调研（Agent-Reach / Horizon / MediaCrawler / huashu-design / Auto-Redbook / Generative-Media-Skills / nuwa / guizang-social-card / social-auto-upload / linco-bridge）的源码级机制细节见 `docs/research/selfmedia-skills-survey-2026-09.md`（关联 issue #203-#210）。这十张里 6 张（Horizon / MediaCrawler / Auto-Redbook / nuwa / guizang-social-card / social-auto-upload）在本层，另外 4 张（Agent-Reach / huashu-design / Generative-Media-Skills / linco-bridge）的纯工具画像在第二部分；机制细节出自同一批调研。
 
 ### Horizon — AI 新闻雷达管线（机制参考，不安装）📖
 
@@ -310,7 +323,8 @@
 
 ## 自动视频生成（Auto Video Generation）
 
-> **本类目判据**：端到端"一句话/一篇文章 → 一条成片"的**引擎级**项目（自带文案、素材、配音、合成四段）。与下一节「视频 Skill 储备」的区别：那边是 agent 用的 `SKILL.md` 配方与组件片段，这边是可独立运行的成片系统——**竞品/形态对照**，不是依赖。
+> **本类目判据**：端到端"一句话/一篇文章 → 一条成片"的**引擎级**项目（自带文案、素材、配音、合成四段）。与第二部分「视频 Skill 储备」的区别：那边是 agent 用的 `SKILL.md` 配方与组件片段，这边是可独立运行的成片系统——**竞品/形态对照**，不是依赖。
+> **逐仓筛选与吸收结论**：`docs/research/agent-video-skills-180-screening-2026-09.md` §8（五问报告 + 取舍），落地跟踪见 issue #529；通用层的「视频 Skill 储备」只收工具画像。
 > **共同结论**：本类目目前**没有任何一个值得引入代码**。判据是三条硬事实——① 成片形态（多数是"素材 + 文字卡片 + 硬切"，动画层缺失）；② 后端绑定（招牌能力绑付费云或 NVIDIA）；③ 维护与许可（停更节奏 / NC 条款 / 云服务商条款禁商用）。
 
 ### Pixelle-Video — AI 全自动短视频引擎（只读参考，不采用）
@@ -334,7 +348,7 @@
 
 | 对象 | 判据落点 | 正文位置 |
 | --- | --- | --- |
-| AutoVio | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突） | 本文件「待评估 / 可选工具 → AutoVio」 |
+| AutoVio | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突） | 第一部分「待评估 / 可选（项目耦合）」→ AutoVio |
 | MoneyPrinterTurbo | 库存视频优先路线的**已吸收结论**（搜索方向/分辨率匹配、同源去重、sequential 选段） | `docs/research/repo-survey-tracking.md` §A |
 
 ---
@@ -423,7 +437,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **Skill 路径**：`~/.agents/skills/web-access/`
 - **版本**：v2.5.4（上游 https://github.com/eze-is/web-access，MIT）
 - **做什么**：通过 Chrome DevTools Protocol proxy（localhost:3456）连接本地 Chrome/Edge/Chromium，保留登录态和 session/cookie
-- **本项目用例**：中国平台（天眼查、小红书、微信公众号、微博等）反爬严格，本地 Chrome 有登录态穿透力最强；本项目把它定为默认联网工具（硬规则见第一部分「场景 → 工具决策表」）
+- **本项目用例**：中国平台（天眼查、小红书、微信公众号、微博等）反爬严格，本地 Chrome 有登录态穿透力最强，本项目因此以它作为需要登录态时的首选联网工具
 - **用法**：加载 web-access skill 并遵循其指引（check-deps → CDP proxy → HTTP API）
 - **新增能力**（v2.5.2+）：`browser-discovery.mjs` 自动发现 Chrome/Edge 调试端口；`find-url.mjs` 从本地浏览器书签/历史检索 URL；`/extract` 端点 DOM→Markdown 转换（本地优化，上游无）；闲置 Tab 自动清理（15min）
 - **Breaking change**（v2.5.3）：`/new` 和 `/navigate` 从 GET `?url=` 改为 POST body，避免 URL 含 query 时被切分
@@ -484,21 +498,21 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **配置**：全局 MCP 设置（HTTP 模式连 `https://mcp.context7.com/mcp`）
 - **做什么**：查询任意库/框架的最新文档（API 签名、参数、版本变更）
 - **何时用**：验证技术事实（某库 API 是否支持 X 参数、某版本是否已发布）
-- **何时不用**：通用事实验证（搜索类需求按 Tavily 小节 fallback 链对应工具）
-- **容错**：Context7 挂了 → 按抓取 fallback 链换源（`web_fetch` 官方文档等）；Tavily 何时可用由 Tavily 小节硬规则决定
+- **何时不用**：通用事实验证（搜索类需求按项目层 Tavily fallback 链选工具）
+- **容错**：Context7 挂了 → 按抓取 fallback 链换源（`web_fetch` 官方文档等）；Tavily 何时可用由项目层「Tavily MCP — fallback 链硬规则」决定
 
 ### Tavily MCP — AI 搜索
 
-**硬规则（本文件是唯一权威）**：Tavily 是有限付费资源。已知 URL 一律 `web_fetch`（免费、无限制；GitHub 无反爬直接可读）。用 Tavily 前必须走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily；只有前两者失败或无法完成（如需多关键词并行搜索、AI 结构化摘要）时才可用。深度研究用 `web-deep-research` skill（触发词："deep research"、"调研"）。抓取用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
+> 它什么时候可以用由项目层「Tavily MCP — fallback 链硬规则」决定；本层只写工具画像。
 
 - **分类**：联网/搜索
 - **费用**：免费 1,000 credits/月（无需信用卡；basic search 1 credit，advanced 2 credits）
-- **配置**：全局 MCP 设置（HTTP 远程 `https://mcp.tavily.com/mcp/?tavilyApiKey=...`）+ `.env.local` 存 key
+- **配置**：全局 MCP 设置（HTTP 远程 `https://mcp.tavily.com/mcp/?tavilyApiKey=...`）+ 项目环境变量存 key
 - **做什么**：AI 搜索引擎，返回结构化结果（title, url, content snippet），不需要 CDP 操作
-- **何时用**：按 Tavily 小节硬规则判定可用时的 AI 搜索
+- **何时用**：已按项目层 fallback 链判定需要 AI 搜索时
 - **何时不用**：需要登录态/JS 渲染/反爬穿透（用 web-access）；需要深度多源交叉验证（用 web-deep-research）
-- **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用 search-sources/last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
-- **容错**：Tavily 不可用时无替代升级——回退行为由 Tavily 小节硬规则约束
+- **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用中文平台趋势源 / last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
+- **容错**：Tavily 不可用时本身无升级替代——回退行为由项目层 fallback 链约束
 
 ### mcp-search-bridge — Grok 搜索
 
@@ -506,7 +520,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **费用**：按 API 用量（通过 bigsong.site 代理，Grok 模型）
 - **配置**：`.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`，安装在 `~/mcp-search-bridge/`
 - **做什么**：把 Grok 模型包装成 MCP `web_search` 工具，Grok 有全网搜索能力 + 原生 X/Twitter 数据访问
-- **何时用**：X/Twitter 搜索（Grok 原生数据）；search-sources 的西方源搜索 fallback；需要和 Google 不同的搜索视角时
+- **何时用**：X/Twitter 搜索（Grok 原生数据）；多源趋势采集里西文源的搜索 fallback；需要和 Google 不同的搜索视角时
 - **容错**：挂了 → CDP Google `site:x.com` 搜索
 
 ### pdf-parse (npm)
@@ -514,7 +528,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **分类**：文档解析
 - **费用**：免费、离线
 - **做什么**：本地 PDF 转文本
-- **何时用**：内容管线 Stage 1 读取 `docs/refs/source-materials/` 下的 PDF 源素材
+- **何时用**：内容管线里读取源素材 PDF 时（本机离线解析，不联网）
 - **局限**：仅支持 PDF；输出原始文本，丢失表格结构
 - **替代方案**：Firecrawl `parse`（支持 DOCX/XLSX，输出 clean markdown，但需联网 + API key）
 
@@ -525,8 +539,8 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **Skill 路径**：`~/.agents/skills/last30days/`
 - **配置文件**：`~/.config/last30days/.env`
 - **做什么**：并行搜索 11 个默认免费源（Reddit、Hacker News、X、YouTube、Polymarket、GitHub、Digg、arXiv、Techmeme、Threads、Grounding），按 engagement 评分排序
-- **独占源**：Reddit、Hacker News、Polymarket、Digg、Techmeme（5 源 search-sources 没有）
-- **与 search-sources 交叉**：X（API vs CDP DOM + mcp-search-bridge）、TikTok（hashtag vs Creator Center）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）——两边都保留。**小红书不启用**——由 search-sources 独占（CDP 登录态更适合）
+- **独占源**：Reddit、Hacker News、Polymarket、Digg、Techmeme（5 源中文平台趋势源没有）
+- **与其它趋势源的交叉**：X（API vs CDP DOM + mcp-search-bridge）、TikTok（hashtag vs Creator Center）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）——两边都保留。中文平台（小红书等）走 CDP 登录态源，不由本 skill 承担；具体路由见项目层
 - **与 RAG 的关系**：不重复。RAG 用本地 Ollama bge-m3 语义向量搜索已有内容（文章、scene-data、研究、源素材），零费用；last30days 搜索实时互联网讨论（最近 30 天外部讨论）
 - **关键发现（测试验证 2026-08-12，配置更新 2026-08-15）**：
   - ✅ **支持 JSON 输出**：`--emit=json --json-profile=agent`，输出 `{clusters: [{title, summary, engagement_total, sources}]}` 结构
@@ -544,7 +558,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
   LAST30DAYS_DEFAULT_SEARCH=reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding
   INCLUDE_SOURCES=threads,grounding  # opt-in 免费源
   FROM_BROWSER=chrome,firefox,safari  # X cookie 提取
-  # xiaohongshu 不在 INCLUDE_SOURCES 里——由 search-sources.mjs 独占
+  # xiaohongshu 不在 INCLUDE_SOURCES 里——中文平台由 CDP 登录态源独占
   ```
 - **用法**：
   ```bash
@@ -558,7 +572,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
   python3 ~/.agents/skills/last30days/scripts/last30days.py --emit=json --search reddit,hackernews,youtube,x,polymarket,github,digg,arxiv,techmeme,threads,grounding,tiktok,instagram "DeepSeek"
   ```
 - **何时用**：需要西方社媒趋势、学术信号（arXiv）、跨平台热度对比
-- **何时不用**：中文平台趋势（用 `search-sources.mjs`）
+- **何时不用**：中文平台趋势（用 CDP 登录态趋势源）
 - **与中文平台趋势源的协作**：跨源交叉比对的三步口径（同事件去重 / 0-10 评分 / 按类阈值）与留痕要求属项目侧集成决策，见第一部分「已集成工具（项目耦合）→ search-sources.mjs」
 - **安全审计**：⚠️ skills.sh Gen:Fail / Snyk:Fail / Socket:Warn（LAW 1-7 指令覆盖，Agent 语义审查通过——良性格式控制，非恶意行为）
 - **安装日期**：2026-08-12
@@ -621,7 +635,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 | 功能                               | 原因                                                    |
 | ---------------------------------- | ------------------------------------------------------- |
-| `firecrawl search`                 | 不如 `search-sources.mjs` + CDP，免费额度只有 250 次/月 |
+| `firecrawl search`                 | 不如 CDP 登录态趋势源，免费额度只有 250 次/月           |
 | `firecrawl interact`               | 云端浏览器无登录态，不如本地 CDP                        |
 | `firecrawl crawl/map`              | 免费额度 1000 页/月对整站抓取太少                       |
 | `firecrawl monitor`                | 持续消耗 credits，免费额度不够长期用                    |
@@ -640,7 +654,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 ## 候选 Skills（通用）
 
-> 以下 skills 来自 GitHub 搜索，只写工具画像（是什么 / 有什么 / 许可与付费依赖），与具体项目无关；所收录条目均未安装，需要相关功能时先查这里。
+> 以下 skills 来自 GitHub 搜索，只写工具画像（是什么 / 有什么 / 许可与付费依赖），与具体项目无关；已安装与未安装的都在本层（`last30days-skill` 属已安装）。
 > 安装前仍须走「评估流程」与安全审计；本层不记录任何项目的吸收结论。
 
 ### last30days-skill — 跨平台社交媒体搜索 ⭐⭐⭐
@@ -650,12 +664,12 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/mvanhorn/last30days-skill`
 - **Stars**：58k+
 - **做什么**：并行搜索 Reddit、X(Twitter)、YouTube、Hacker News、Polymarket、TikTok、arXiv、Techmeme，按 upvotes/likes/真实资金 评分，AI 合成简报
-- **本项目用例**：`search-sources.mjs` 覆盖中文平台，这个覆盖英文社交媒体，**互补性强**。做英文内容或需要全球 AI 话题热度时可互补
+- **本项目用例**：项目另有 CDP 登录态的中文平台趋势源，与本 skill 的西文社媒覆盖**互补性强**。做英文内容或需要全球 AI 话题热度时可补位
 - **用法**：`npx skills add mvanhorn/last30days-skill -g` → `/last30days <topic>`
 - **何时用**：需要英文社交媒体趋势（Reddit/HN/X/YouTube）时
-- **何时不用**：中文平台趋势（用 `search-sources.mjs`）
+- **何时不用**：中文平台趋势（用 CDP 登录态趋势源）
 - **注意**：Reddit/HN/Polymarket/GitHub 开箱即用；X/YouTube/TikTok/arXiv 需配置 API key
-- **安全审计**：⚠️ skills.sh 三家审计 Gen:Fail / Snyk:Fail / Socket:Warn（**含 LLM 语义分析**）。SkillSpector 本地静态扫描 0/100 SAFE（**LLM 分析未执行**，无 OPENAI_API_KEY）。按新流程进入 C 手动审查：SKILL.md 1400+ 行，包含 LAW 1-7 覆盖 agent 默认行为（禁止 Sources 模块、强制 badge 输出、禁止标题行等），但**均为输出格式控制，非恶意行为**。无数据泄露、无权限提升、无危险操作。**手动审查结论：风险可控**，但安装后其 LAW 规则可能与调用方的 AGENTS.md 约定冲突（如输出格式偏好）
+- **安全审计**：⚠️ skills.sh 三家审计 Gen:Fail / Snyk:Fail / Socket:Warn（**含 LLM 语义分析**）。SkillSpector 本地静态扫描 0/100 SAFE（**LLM 分析未执行**，无 OPENAI_API_KEY）。按新流程进入 C 手动审查：SKILL.md 1400+ 行，包含 LAW 1-7 覆盖 agent 默认行为（禁止 Sources 模块、强制 badge 输出、禁止标题行等），但**均为输出格式控制，非恶意行为**。无数据泄露、无权限提升、无危险操作。**手动审查结论：风险可控**，但安装后其 LAW 规则可能与调用方的 agent 约定文档冲突（如输出格式偏好）
 - **skills.sh 审计页**：`https://skills.sh/mvanhorn/last30days-skill/last30days`
 - **调查日期**：2026-08-11
 - **状态**：⚠️ 手动审查通过 — 可安装，但注意 LAW 规则可能与项目格式约定冲突
@@ -746,8 +760,8 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/public-apis/public-apis`
 - **Stars**：461k+（GitHub Top 5）
 - **做什么**：社区维护的 1400+ 免费 API 合集，覆盖 50+ 分类（Animals、AI/ML、News、Open Data、Science & Math、Finance、Geocoding、Photography、Video、Text Analysis、Social、Government 等）。每个条目标注 Auth 类型（No/apiKey/OAuth）、HTTPS 支持、CORS 状态
-- **本项目用例**：需要找免费 API 替代付费 SaaS 时先查这里。项目已用的 API 中 Pexels、arXiv、Reddit、Hacker News (HN Algolia) 均在此列表中。潜在补充方向：
-  - **News**：DataCube AI（每日 AI 行业新闻，8 语言，No auth）、Noozra（200+ RSS 源，apiKey）、GNews（新闻搜索，apiKey）→ 可补充 search-sources 的新闻源
+- **本项目用例**：需要找免费 API 替代付费 SaaS 时先查这里。项目已用的 API 中 Pexels、arXiv、Reddit、Hacker News (HN Algolia) 均在此列表中。潜在补充方向（以下按用途分类，具体接入见项目层）：
+  - **News**：DataCube AI（每日 AI 行业新闻，8 语言，No auth）、Noozra（200+ RSS 源，apiKey）、GNews（新闻搜索，apiKey）→ 可补充趋势发现链的新闻源
   - **Machine Learning**：Groq（免费 LLM 推理，Llama/Mixtral/Gemma）、Hugging Face（模型推理 API）、Jina AI（免费 embedding/rerank）、OpenVisionAPI（开源计算机视觉，No auth）→ 可补充 RAG embedding 或 VLM 分析
   - **Science & Math**：OpenAlex（学术作品开放目录，No auth）、CORE（开放获取论文，apiKey）→ 可补充 arXiv 之外的学术源
   - **Finance**：Alpha Vantage（实时/历史股票数据，apiKey）、Econdb（宏观经济数据，No auth）→ 中国 AI 公司 IPO/财务数据
@@ -756,7 +770,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
   - **Open Data**：Archive.org（No auth）、Kaggle API（apiKey，已集成）、Lowy Asia Power Index（亚洲国家实力排名，No auth）→ 地缘政治背景数据
 - **用法**：浏览 `https://github.com/public-apis/public-apis` README，按分类查找。或 `curl -sL https://raw.githubusercontent.com/public-apis/public-apis/master/README.md | grep -A 30 '### <Category>'`
 - **何时用**：需要找某领域的免费 API、想替代付费 SaaS、或需要补充搜索源/素材源时
-- **何时不用**：已有工具栈覆盖的场景（如中文平台趋势用 search-sources.mjs、西方社媒用 last30days）
+- **何时不用**：已有工具栈覆盖的场景（如中文平台趋势用 CDP 登录态源、西方社媒用 last30days）
 - **调查日期**：2026-08-17
 - **状态**：📖 参考
 
@@ -878,7 +892,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 ## 视频 Skill 储备（awesome-claude-video-skills）
 
 > 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（2026-09-27 开源）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
-> **收录口径**：本节是 **project-agnostic 的完整收录**——与 video generation 相关的候选 repo 按能力域全量入册（35 个：完整条目 + 简条），条目只写工具画像（是什么 / 有什么 / 许可与付费依赖 / 体量代价）。**针对特定产线的吸收结论不在本节**：逐仓五问报告与取舍属项目侧调研，按本文件「分层契约」留在项目层，不入本层。
+> **收录口径**：本节是 **project-agnostic 的完整收录**——与 video generation 相关的候选 repo 按能力域全量入册（35 个：完整条目 + 简条），条目只写工具画像（是什么 / 有什么 / 许可与付费依赖 / 体量代价）。**针对特定产线的吸收结论不在本节**：逐仓五问报告与取舍见第一部分「自动视频生成」节列出的项目侧调研文档，落地跟踪在项目票；下文条目里的「研究文档 §8」均指该文档。
 > **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 配方；Remotion 组件/模板类可直接复用，任何安装前仍须走「评估流程」。
 > ⚠️ **SAFE ≠ 许可证**：SAFE 是榜单对 README 的安全评级，不含许可证与付费 API 依赖维度——下文 ⚠️ 标注均来自一手实测。
 > **调查日期**：2026-09-28（初筛 + R1–R8 五问一手取证）· 2026-10-09 定稿
