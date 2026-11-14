@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.73.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.0...tanstack_start_ts-v1.73.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **media:** record which pre-filter gate dropped a candidate ([#1304](https://github.com/0xPabloLI/inside-china-ai/issues/1304)) ([#1339](https://github.com/0xPabloLI/inside-china-ai/issues/1339)) ([066caa4](https://github.com/0xPabloLI/inside-china-ai/commit/066caa4c73736b7ac96781a0ec3333af69f053ef))
+* **short-video:** hook imagery, HKD dual-annotation, patch ledger, stat-reveal scrim ([#1342](https://github.com/0xPabloLI/inside-china-ai/issues/1342)) ([009d36b](https://github.com/0xPabloLI/inside-china-ai/commit/009d36b0fb701fb30d83832ae5055bbea27b3a2d))
+
 ## [1.73.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.4...tanstack_start_ts-v1.73.0) (2026-11-14)
 
 
