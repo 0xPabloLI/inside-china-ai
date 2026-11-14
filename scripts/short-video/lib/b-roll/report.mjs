@@ -147,9 +147,10 @@ export function summarizeBrollReport(report, { fileExists = null } = {}) {
       const field = imageEntry ? "aiImage.prompt" : "aiVideo.prompt";
       const dimensions = imageEntry ? "6-dimension" : "8-dimension";
       // Chain entries have no declared prompt to rewrite by definition — their
-      // subject came from assetNeed/voiceover, so point at the real surface.
+      // subject came from assetNeed/voiceover (the voiceover converted into a
+      // #1324 visual clause), so point at the real surface.
       const fix = entry?.auto
-        ? `The chain derived this prompt from the scene's assetNeed/voiceover — add an explicit ${field} (${dimensions} template) or sharpen that text, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`
+        ? `The chain derived this prompt from the scene's assetNeed/voiceover (voiceover-derived prompts become a #1324 visual clause, never the narration itself) — add an explicit ${field} (${dimensions} template) or sharpen that text, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`
         : `Rewrite ${field} for scene ${id} with the ${dimensions} template, then rerun: node generate-broll.mjs --content ${report.content ?? "<dir>"} --scene ${id}. Rounds beyond ${MAX_ROUNDS} escalate.`;
       return {
         level: "warn",

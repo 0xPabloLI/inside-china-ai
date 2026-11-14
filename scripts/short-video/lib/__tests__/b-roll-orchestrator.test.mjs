@@ -18,6 +18,7 @@ import {
   composeGenerationPrompt,
   composeImagePrompt,
 } from "../b-roll/prompt-injection.mjs";
+import { deriveVisualScenePrompt } from "../b-roll/claim-to-visual.mjs";
 
 // ─── fixtures ───
 
@@ -219,7 +220,7 @@ describe("#355 chain budget, form selection and approval", () => {
     ).toBe(true);
   });
 
-  test("the chain derives its still prompt from assetNeed, then voiceover", () => {
+  test("the chain derives its still prompt from assetNeed, then voiceover (#1324: voiceover becomes a visual clause)", () => {
     const plan = buildGenerationPlan(
       [
         scene({ id: "1", aiVideo: undefined, assetNeed: "a robot arm on a factory line" }),
@@ -230,8 +231,11 @@ describe("#355 chain budget, form selection and approval", () => {
     const byId = Object.fromEntries(plan.entries.map((e) => [e.scene.id, e]));
     expect(byId["1"].prompt).toBe("a robot arm on a factory line");
     expect(byId["1"].promptSource).toBe("assetNeed");
-    expect(byId["2"].promptSource).toBe("voiceover");
-    expect(byId["2"].prompt).toBe("混合架构把记忆分三层");
+    // The narration is never sent verbatim: it is converted into a text-free
+    // visual scene clause so the background cannot paint the narration's
+    // literal words/numbers over the scene's own overlays.
+    expect(byId["2"].promptSource).toBe("voiceover-visual");
+    expect(byId["2"].prompt).toBe(deriveVisualScenePrompt("混合架构把记忆分三层"));
   });
 });
 
@@ -834,7 +838,9 @@ describe("runBrollStage #355 default chain", () => {
   });
 
   function cachedChainReport(scene, file = "scene-1-seed1024.png") {
-    const raw = scene.voiceover;
+    // Mirror the pipeline: the chain's raw prompt is the #1324 visual clause,
+    // so the stored hash matches what prepare() recomputes.
+    const raw = deriveVisualScenePrompt(scene.voiceover, scene);
     const generationPrompt = composeImagePrompt(scene, { declaredPrompt: raw });
     return {
       content: "demo",
@@ -845,13 +851,13 @@ describe("runBrollStage #355 default chain", () => {
           strategy: "auto",
           form: "image",
           auto: true,
-          promptSource: "voiceover",
+          promptSource: "voiceover-visual",
           prompt: raw,
           promptHash: promptHash(generationPrompt),
           injectionVersion: PROMPT_INJECTION_VERSION,
           round: 1,
           status: "won",
-          voiceover: raw,
+          voiceover: scene.voiceover,
           candidates: [{ seed: 1024, file, relevance: 90, reason: "ok" }],
           winner: { seed: 1024, file, source: "AI-generated (mflux Boogu Turbo)" },
         },
@@ -989,12 +995,16 @@ describe("runBrollStage #355 default chain", () => {
     );
     expect(result.counts.generated).toBe(1);
     expect(result.counts.approvalRequired).toBe(0);
-    // T2I is the default form; the chain derives the subject from voiceover.
+    // T2I is the default form; the chain derives the subject from voiceover
+    // and #1324 converts it into a visual clause — the narration sentence
+    // itself must never reach the generator or the gate claim.
     const jobs = calls[0];
+    const visualClause = deriveVisualScenePrompt(scene.voiceover, scene);
     expect(jobs).toHaveLength(2);
     expect(jobs[0].label).toMatch(/scene-2-seed\d+\.png$/);
-    expect(jobs[0].prompt).toContain("A humanoid robot stacks boxes in a warehouse");
-    for (const claim of claims) expect(claim).toBe("A humanoid robot stacks boxes in a warehouse.");
+    expect(jobs[0].prompt).toContain(visualClause);
+    expect(jobs[0].prompt).not.toContain("A humanoid robot stacks");
+    for (const claim of claims) expect(claim).toBe(visualClause);
     expect(scene.media).toMatchObject({
       type: "image",
       animation: "ken-burns",
@@ -1005,7 +1015,7 @@ describe("runBrollStage #355 default chain", () => {
       strategy: "auto",
       auto: true,
       form: "image",
-      promptSource: "voiceover",
+      promptSource: "voiceover-visual",
       status: "won",
     });
   });
