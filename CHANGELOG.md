@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.72.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.3...tanstack_start_ts-v1.72.4) (2026-11-14)
+
+
+### Bug Fixes
+
+* **b-roll:** never let brand tokens or acronyms into derived visual clauses ([#1324](https://github.com/0xPabloLI/inside-china-ai/issues/1324)) ([#1334](https://github.com/0xPabloLI/inside-china-ai/issues/1334)) ([50fcd64](https://github.com/0xPabloLI/inside-china-ai/commit/50fcd64d1a737443a77230ef9fbec0d84592a7fd))
+
 ## [1.72.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.2...tanstack_start_ts-v1.72.3) (2026-11-14)
 
 
