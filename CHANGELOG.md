@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.72.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.71.0...tanstack_start_ts-v1.72.0) (2026-11-14)
+
+
+### Features
+
+* **media:** let every drawable scene carry a picture ([#1322](https://github.com/0xPabloLI/inside-china-ai/issues/1322)) ([7b5ec3f](https://github.com/0xPabloLI/inside-china-ai/commit/7b5ec3f64310dfcd21f892bc2897e8e21418efa4))
+
 ## [1.71.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.70.0...tanstack_start_ts-v1.71.0) (2026-11-14)
 
 
