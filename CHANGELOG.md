@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.71.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.70.0...tanstack_start_ts-v1.71.0) (2026-11-14)
+
+
+### Features
+
+* **qa:** mechanical thresholds for the finished-video scan ([#1212](https://github.com/0xPabloLI/inside-china-ai/issues/1212)) ([#1319](https://github.com/0xPabloLI/inside-china-ai/issues/1319)) ([5089b1b](https://github.com/0xPabloLI/inside-china-ai/commit/5089b1b228b556f62e4b77aa392dabc368c456e0))
+
 ## [1.70.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.69.4...tanstack_start_ts-v1.70.0) (2026-11-13)
 
 
