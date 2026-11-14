@@ -27,6 +27,11 @@
 /** The prompt-source label the orchestrator persists for transformed prompts. */
 export const DERIVED_VOICEOVER_SOURCE = "voiceover-visual";
 
+import { KNOWN_COMPANIES } from "../tiktok-rules.mjs";
+
+/** Lowercase lookup set over the shared company vocabulary (see isBrandToken). */
+const KNOWN_COMPANY_SET = new Set(KNOWN_COMPANIES);
+
 /**
  * Narration words that must never become visual subjects. Grouped by why each
  * word is excluded:
@@ -36,11 +41,6 @@ export const DERIVED_VOICEOVER_SOURCE = "voiceover-visual";
  * - relative time — dates render as text, never as imagery.
  * - small numbers spelled out — same quantity argument as digits.
  */
-import { KNOWN_COMPANIES } from "../tiktok-rules.mjs";
-
-/** Lowercase lookup set over the shared company vocabulary (see isBrandToken). */
-const KNOWN_COMPANY_SET = new Set(KNOWN_COMPANIES);
-
 const VISUAL_META_STOPWORDS = new Set([
   // quantity / currency
   "percent",
