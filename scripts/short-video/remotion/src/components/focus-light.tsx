@@ -1,7 +1,7 @@
 /**
  * Protagonist light renderer (#738) — the React edge over `lib/focus-light.mjs`.
  *
- * Everything that can be checked without a frame lives in the lib: the three
+ * Everything that can be checked without a frame lives in the lib: the two
  * tiers, the per-template protagonist declaration, the beat budget (one focus
  * per frame, 8-frame extinguish, 3–6 frame flash) and the CSS strings. This
  * file only asks Remotion for the frame and hands the result back.
