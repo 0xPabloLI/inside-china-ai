@@ -235,12 +235,12 @@ const GENERIC_CLAUSE = "abstract cinematic tech scene, ambient atmosphere";
 
 /**
  * Normalize a claim the way the sourcing tokenizer does (#635): contractions
- * expand, possessives merge, punctuation becomes space. Returns tokens
- * lowercase.
+ * expand, possessives merge, punctuation becomes space. Returns tokens with
+ * their casing intact — brand detection needs the original capitals, and
+ * `isVisualWord` lowercases the survivors.
  */
 function tokenize(text) {
   return (text ?? "")
-    .toLowerCase()
     .replace(/\b(can|won)['’]t\b/gu, (_, stem) => (stem === "can" ? "can not" : "will not"))
     .replace(/\b(\p{L}+)n['’]t\b/gu, "$1 not")
     .replace(/['’](?:s|d|ll|re|ve|m)\b/gu, "")
@@ -250,16 +250,34 @@ function tokenize(text) {
 }
 
 /**
+ * Brand-style / acronym tokens must never become visual subjects: the T2I
+ * model renders them as giant wordmarks (verified: "qbitai image scene"
+ * painted a huge — and misspelled — "qibitai", #1324). Attribution belongs
+ * to the injection layer's entity accent (a colored glow, not lettering), so
+ * the clause carries none of the naming.
+ *
+ * Detection is casing-based on the original token: any uppercase beyond the
+ * first letter marks a brand ("QbitAI", "MiniMax") or an acronym ("HKEX",
+ * "API") — sentence-initial capitals are exempt, so ordinary words like
+ * "Zhipu" survive as lowercase content words.
+ */
+function isBrandToken(token) {
+  return /[\p{Lu}]/u.test(token.slice(1));
+}
+
+/**
  * Whether a token may become part of a visual scene clause. A digit-led token
  * ("16", "4k", "h3", "0.2" fragments) is a spec or quantity, not imagery —
  * rendering it is exactly the #1324 text-in-background failure, so digit-led
  * tokens drop even when they name a model.
  */
 function isVisualWord(token) {
-  if (token.length <= 1) return false;
+  const lower = token.toLowerCase();
+  if (lower.length <= 1) return false;
   if (/^\d/u.test(token)) return false;
-  if (VISUAL_META_STOPWORDS.has(token)) return false;
-  if (VISUAL_FUNCTION_WORDS.has(token)) return false;
+  if (isBrandToken(token)) return false;
+  if (VISUAL_META_STOPWORDS.has(lower)) return false;
+  if (VISUAL_FUNCTION_WORDS.has(lower)) return false;
   return true;
 }
 
@@ -280,9 +298,10 @@ export function deriveVisualScenePrompt(claimText, scene) {
   const seen = new Set();
   const words = [];
   for (const token of tokenize(claimText)) {
-    if (!isVisualWord(token) || seen.has(token)) continue;
-    seen.add(token);
-    words.push(token);
+    const lower = token.toLowerCase();
+    if (!isVisualWord(token) || seen.has(lower)) continue;
+    seen.add(lower);
+    words.push(lower);
     if (words.length === 6) break;
   }
   if (words.length === 0) {
