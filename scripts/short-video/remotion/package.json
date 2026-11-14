@@ -10,16 +10,16 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@remotion/cli": "4.0.539",
-    "@remotion/effects": "4.0.539",
-    "@remotion/layout-utils": "4.0.539",
-    "@remotion/media": "4.0.539",
-    "@remotion/renderer": "4.0.539",
-    "@remotion/rough-notation": "4.0.539",
-    "@remotion/transitions": "4.0.539",
+    "@remotion/cli": "4.0.541",
+    "@remotion/effects": "4.0.541",
+    "@remotion/layout-utils": "4.0.541",
+    "@remotion/media": "4.0.541",
+    "@remotion/renderer": "4.0.541",
+    "@remotion/rough-notation": "4.0.541",
+    "@remotion/transitions": "4.0.541",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "remotion": "4.0.539"
+    "remotion": "4.0.541"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

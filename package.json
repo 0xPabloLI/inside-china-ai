@@ -158,9 +158,9 @@
     "@hono/node-server": "2.1.8",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@modelcontextprotocol/server": "2.4.0",
-    "hono": "4.13.16",
+    "hono": "4.13.17",
     "launch-editor": "2.14.2",
-    "minimatch": "11.0.3"
+    "minimatch": "11.0.5"
   },
   "version": "1.73.3"
 }
