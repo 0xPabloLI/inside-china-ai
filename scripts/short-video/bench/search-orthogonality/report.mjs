@@ -209,6 +209,43 @@ function overlapStability(run, keyOf) {
     .sort((a, b) => b.median - a.median);
 }
 
+/**
+ * Per-intent-band summary (#1276): the ticket's deliverable is a per-intent
+ * recommended channel set, so each band gets its own pooled greedy order and
+ * its own marginal-gain-over-families row — band-level numbers, not
+ * cross-band means (the pilot showed per-query swing swamps means).
+ */
+function intentBandSummary(run, intent) {
+  const queries = run.queries.filter((query) => query.intent === intent);
+  const pooled = (channelId) => ({
+    id: channelId,
+    articles: queries.flatMap((q) => resultFor(run, q.id, channelId)?.articles ?? []),
+    cost: run.channelMeta?.[channelId]?.allowanceShare ?? 0,
+  });
+  const groups = run.channels.map(pooled);
+  const greedyDomain = greedySelection(groups, { keyOf: byDomain }).order;
+  const familyArticles = CURRENT_FAMILIES.flatMap((id) => pooled(id).articles);
+  const familyDomains = new Set(familyArticles.map(byDomain).filter(Boolean));
+  const familyUrls = new Set(familyArticles.map(byUrl).filter(Boolean));
+  const marginal = run.channels
+    .filter((id) => !CURRENT_FAMILIES.includes(id))
+    .map((id) => {
+      const articles = pooled(id).articles;
+      return {
+        channel: id,
+        domains: uniqueCount(articles, byDomain, familyDomains),
+        urls: uniqueCount(articles, byUrl, familyUrls),
+      };
+    });
+  return { intent, queries: queries.length, greedyDomain, marginal };
+}
+
+function perIntentSummary(run) {
+  return [...new Set(run.queries.map((query) => query.intent))].map((intent) =>
+    intentBandSummary(run, intent),
+  );
+}
+
 export function buildReport(run) {
   const perQuery = run.queries.map((query) => ({
     queryId: query.id,
@@ -262,6 +299,7 @@ export function buildReport(run) {
       greedyUrlTally: tallyGreedy(perQuery, "greedyUrl"),
       overlapDomainStability: overlapStability(run, byDomain),
       overlapUrlStability: overlapStability(run, byUrl),
+      perIntent: perIntentSummary(run),
       familiesCheck: {
         current: CURRENT_FAMILIES,
         perQuery: perQuery.map((query) => ({
@@ -352,6 +390,38 @@ export function renderMarkdown(report) {
     ),
     "",
   );
+
+  lines.push("## Per-intent band summary (#1276)", "");
+  lines.push(
+    "Pooled per band: unique domains across all of the band's queries " +
+      "(top-10 per channel per query). Greedy = free channels first, then " +
+      "paid by `new domains / share of monthly allowance`.",
+    "",
+  );
+  for (const band of report.summary.perIntent) {
+    lines.push(`### ${band.intent} (${band.queries} queries)`, "");
+    lines.push(
+      table(
+        ["channel", "pooled unique domains", "marginal vs trio (d/u)"],
+        report.channels.map((id) => {
+          const greedyRow = band.greedyDomain.find((step) => step.id === id);
+          const marginalRow = band.marginal.find((row) => row.channel === id);
+          return [
+            id,
+            greedyRow ? String(greedyRow.totalUnique) : "—",
+            marginalRow ? `${marginalRow.domains}d / ${marginalRow.urls}u` : "in trio",
+          ];
+        }),
+      ),
+    );
+    lines.push(
+      "",
+      `greedy order: ${band.greedyDomain
+        .map((step) => `${step.id} (+${step.uniqueAdded})`)
+        .join(" → ")}`,
+      "",
+    );
+  }
 
   lines.push("## Pairwise containment stability (domain level)", "");
   lines.push(
