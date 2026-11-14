@@ -284,8 +284,61 @@ describe("analyzeAssets — VLM semantic merge integration", () => {
     expect(written.assets[0].subjects).toEqual(["robot", "kitchen", "product"]);
     // #990: the artifact no longer carries the retired `reason` key.
     expect("reason" in written.assets[0]).toBe(false);
+    // #1304: a survivor has no gate verdict to record.
+    expect(written.assets[0].rejectedBy).toBe(null);
+    expect(written.assets[0].rejectReason).toBe(null);
 
     // Cleanup
+    const { rmSync: rm } = await import("fs");
+    try {
+      rm(tmpDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  // #1304: the artifact is the audit trail an operator reads after a sourcing
+  // run. Both pre-filter gates write `lowConfidence: true`, so the verdict and
+  // its reason have to survive into the file — otherwise a 304×128 banner reads
+  // as "low confidence", which points the next reader at the scoring model
+  // instead of the download layer.
+  it("records which pre-filter gate dropped a candidate (#1304)", async () => {
+    const tmpDir = join(process.cwd(), "tmp-test-output-" + Date.now());
+    const assets = [
+      // Real measured dimensions from the 2026-11-13 batch: a 新华网 download
+      // banner and a QR block, both pulled into `baidu-token-exchange`.
+      {
+        path: "/abs/banner.jpg",
+        type: "image",
+        searchKeyword: "Baidu World stage",
+        width: 304,
+        height: 128,
+      },
+      {
+        path: "/abs/stage.jpg",
+        type: "image",
+        searchKeyword: "Baidu World stage",
+        width: 1200,
+        height: 800,
+      },
+    ];
+
+    await analyzeAssets(assets, { outputDir: tmpDir });
+
+    const { readFileSync: readFile } = await import("fs");
+    const written = JSON.parse(readFile(join(tmpDir, "asset-analysis.json"), "utf8"));
+    const banner = written.assets.find((a) => a.path === "/abs/banner.jpg");
+    const stage = written.assets.find((a) => a.path === "/abs/stage.jpg");
+
+    expect(banner.rejectedBy).toBe("shape");
+    expect(banner.rejectReason).toContain("304px");
+    // The gate still reports it as skipped, so the existing counters keep working.
+    expect(banner.lowConfidence).toBe(true);
+    // A survivor stays silent: no verdict, no reason.
+    expect(stage.rejectedBy).toBe(null);
+    expect(stage.rejectReason).toBe(null);
+    // The banner never reaches the VLM, so only the stage is described.
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/stage.jpg");
+
     const { rmSync: rm } = await import("fs");
     try {
       rm(tmpDir, { recursive: true, force: true });
