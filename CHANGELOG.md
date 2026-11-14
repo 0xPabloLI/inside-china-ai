@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.72.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.0...tanstack_start_ts-v1.72.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **b-roll:** derive voiceover prompts as visual scene clauses ([#1324](https://github.com/0xPabloLI/inside-china-ai/issues/1324)) ([#1325](https://github.com/0xPabloLI/inside-china-ai/issues/1325)) ([fd9da55](https://github.com/0xPabloLI/inside-china-ai/commit/fd9da55575eaf5fdc7682c4d1263b9549a4573b3))
+
 ## [1.72.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.71.0...tanstack_start_ts-v1.72.0) (2026-11-14)
 
 
