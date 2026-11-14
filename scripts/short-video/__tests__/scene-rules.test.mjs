@@ -1592,9 +1592,19 @@ describe("narrative scene media coverage warning (#760)", () => {
     expect(coverageWarn([scene({ assetNeed: "official benchmark table" })])).toBeUndefined();
   });
 
-  it("does not warn for CSS-only layouts without assetNeed", () => {
-    expect(coverageWarn([scene({ layout: "stacked-cards" })])).toBeUndefined();
-    expect(coverageWarn([scene({ layout: "hero-center" })])).toBeUndefined();
+  it("text-first layouts are sourcing-eligible now — warn only when the claim is unusable", () => {
+    // media-density pass (2026-11-14): eligibility follows the component, not
+    // the layout, so a stacked-cards scene with a searchable voiceover is fine…
+    expect(
+      coverageWarn([
+        scene({
+          layout: "stacked-cards",
+          voiceover: "A humanoid robot walks across a factory floor.",
+        }),
+      ]),
+    ).toBeUndefined();
+    // …but an unsearchable voiceover is exactly the gap the rule exists for.
+    expect(coverageWarn([scene({ layout: "hero-center", voiceover: "test" })])).toBeDefined();
   });
 
   for (const strategy of ["b-roll", "asset-then-broll", "ai-image", "asset-then-ai-image"]) {
@@ -1672,8 +1682,14 @@ describe("searchHints schema (#354)", () => {
       scene({ visualType: "hook", searchHints: ["humanoid robot factory"] }),
     ]);
     expect(hookFail.check).toContain("Scene 2 has a claim path");
+    // media-density pass: a stacked-cards scene has a voiceover-derived claim
+    // path now, so declared hints are usable instead of dead weight.
+    expect(
+      hintFails([scene({ layout: "stacked-cards", searchHints: ["humanoid robot factory"] })]),
+    ).toEqual([]);
+    // NO_MEDIA_TYPES scenes are still claim-less.
     const [cssFail] = hintFails([
-      scene({ layout: "stacked-cards", searchHints: ["humanoid robot factory"] }),
+      scene({ visualType: "cta", searchHints: ["humanoid robot factory"] }),
     ]);
     expect(cssFail.check).toContain("Scene 2 has a claim path");
     const [boundFail] = hintFails([

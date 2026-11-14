@@ -31,6 +31,10 @@ export const MEDIA_OVERLAY = Object.freeze({
   context: 0.55,
   contrast: 0.55,
   "info-card": 0.65,
+  // Ambient-only background (media-density pass, 2026-11-14): the number is
+  // the protagonist and the label carries the focus, so the photo stays a
+  // texture behind them — same reasoning as info-card.
+  "stat-reveal": 0.65,
   quote: 0.8,
 });
 

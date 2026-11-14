@@ -75,13 +75,23 @@ describe("planScenes routing (scenarios #1, #6, #7, #8, #9, #10, #28)", () => {
     expect(shouldSourceStock(scene({ mediaStrategy: "source-only" }))).toBe(true);
   });
 
-  test("#355 chain eligibility mirrors sourcing eligibility (hook / CSS-only never auto-generate)", () => {
+  test("#355 chain eligibility mirrors sourcing eligibility (hook / NO_MEDIA_TYPES never auto-generate)", () => {
     const plans = planScenes([
       scene({ id: "1", visualType: "hook", aiVideo: undefined }),
-      scene({ id: "2", layout: "stacked-cards", aiVideo: undefined }),
       scene({ id: "3", visualType: "cta", aiVideo: undefined }),
+      scene({ id: "4", visualType: "data", aiVideo: undefined }),
     ]);
     expect(plans.every((p) => p.action === "skip" && p.reason === "not-media-eligible")).toBe(true);
+  });
+
+  test("media-density pass: a text-first layout without assetNeed still enters the chain", () => {
+    // Eligibility follows the component now — a stacked-cards narrative
+    // renders an ambient MediaBackground, so it is a legitimate chain scene
+    // even without a hand-written assetNeed (its claim derives from the
+    // voiceover).
+    const plans = planScenes([scene({ id: "2", layout: "stacked-cards", aiVideo: undefined })]);
+    expect(plans[0].action).toBe("generate");
+    expect(plans[0].reason).toBe("chain-fallback");
   });
 
   test("#355 explicit b-roll is not auto and does not need approval", () => {

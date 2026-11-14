@@ -2069,9 +2069,11 @@ export function checkEmptyField(scenes, opts = {}) {
     // split or bottom band — every media layout gives it a large field). The
     // rule exists to catch "small copy + small chip", not a shot carried by
     // footage; media absence is the final-media-gate's job, not this rule's.
-    // Only count a layer the run will actually draw: `data`/`stat-reveal` never
-    // render media (#831 NO_MEDIA_TYPES), and an empty `media: {}` draws the CSS
-    // fallback — exempting either would silence the rule without a hero.
+    // Only count a layer the run will actually draw: `data`/`cta` never
+    // render media (`cta`/`data` are the remaining NO_MEDIA_TYPES), and an
+    // empty `media: {}` draws the CSS fallback — exempting either would
+    // silence the rule without a hero. `stat-reveal` renders an ambient
+    // background since the media-density pass (2026-11-14).
     const drawsMedia =
       (scene.media?.mode === "fullscreen" || !NO_MEDIA_TYPES.has(scene.visualType)) &&
       typeof scene.media?.path === "string" &&
@@ -2143,8 +2145,8 @@ export function checkEmptyField(scenes, opts = {}) {
 // ─── media density (#1296) ───
 
 /** Media scenes a pack must carry before it can render, capped by what it can
- *  physically draw: `data` / `stat-reveal` / `cta` never render media and the
- *  hook is manually curated, so a pack made only of those is legitimate. */
+ *  physically draw: `data` / `cta` never render media and the hook is manually
+ *  curated, so a pack made only of those is legitimate. */
 const MEDIA_DENSITY_FLOOR = 2;
 
 /**
@@ -2177,7 +2179,7 @@ export function checkMediaDensity(scenes, opts = {}) {
         level: "pass",
         category: CATEGORY,
         check: CHECK,
-        detail: "无可承载画面的场次（全部为 data / stat-reveal / cta / hook）",
+        detail: "无可承载画面的场次（全部为 data / cta / hook）",
       },
     ];
   }

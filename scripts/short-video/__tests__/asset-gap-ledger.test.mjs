@@ -48,7 +48,9 @@ describe("hasStockIntent — what belongs in the ledger", () => {
     expect(hasStockIntent(scene(1, { mediaStrategy: "b-roll" }))).toBe(false);
     expect(hasStockIntent(scene(1, { mediaStrategy: "ai-image" }))).toBe(false);
     expect(hasStockIntent(scene(1, { visualType: "cta" }))).toBe(false);
-    expect(hasStockIntent(scene(1, { visualType: "stat-reveal" }))).toBe(false);
+    // stat-reveal is media-eligible since the media-density pass (2026-11-14),
+    // so a stat-reveal asking for stock belongs in the ledger like any scene.
+    expect(hasStockIntent(scene(1, { visualType: "stat-reveal" }))).toBe(true);
     expect(hasStockIntent(scene(1, { assetNeed: "   " }))).toBe(false);
     expect(hasStockIntent(scene(1, { assetNeed: undefined }))).toBe(false);
   });

@@ -14,12 +14,14 @@ import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR, ANNOTATION } from "../components/shared";
 import { Camera } from "../components/Camera";
+import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
 
-export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> = ({
-  scene,
-  duration,
-}) => {
+export const StatRevealScene: React.FC<{
+  scene: SceneData;
+  duration: number;
+  contentDir: string;
+}> = ({ scene, duration, contentDir }) => {
   const txt = scene.texts || {};
   const sceneId = `stat-reveal-${scene.id}`;
   const frame = useCurrentFrame();
@@ -32,7 +34,14 @@ export const StatRevealScene: React.FC<{ scene: SceneData; duration: number }> =
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <GridBg />
+      {/* Ambient media layer (media-density pass, 2026-11-14): the number
+          stays the protagonist — the background is dimmed by the stat-reveal
+          entry in lib/media-overlay.mjs (0.65, same as info-card) and the
+          focus light + white flash on the number read on top of it. */}
+      {scene.media && (
+        <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+      )}
+      {!scene.media && <GridBg />}
       <Scanlines />
       <BrandBar />
       <FrameGlow variant="amber" />
