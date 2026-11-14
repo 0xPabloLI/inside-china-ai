@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.72.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.2...tanstack_start_ts-v1.72.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **b-roll:** remove stale T2I output before the spawn ([#1324](https://github.com/0xPabloLI/inside-china-ai/issues/1324)) ([#1330](https://github.com/0xPabloLI/inside-china-ai/issues/1330)) ([6cfa94d](https://github.com/0xPabloLI/inside-china-ai/commit/6cfa94d73c0017269fc6b86e9e0e39bdb13fdaa6))
+
 ## [1.72.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.1...tanstack_start_ts-v1.72.2) (2026-11-14)
 
 
