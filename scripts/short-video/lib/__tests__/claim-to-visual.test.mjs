@@ -96,8 +96,15 @@ describe("claim-to-visual (#1324): voiceover echo → visual scene clause", () =
     expect(camel).not.toContain("minimax");
     // A sentence-initial capital is not a brand cue — ordinary words survive
     // lowercased.
-    const ordinary = deriveVisualScenePrompt("Zhipu peaked early, then it slid sideways.");
-    expect(ordinary).toContain("zhipu");
+    const ordinary = deriveVisualScenePrompt("Vault peaked early, then it slid sideways.");
+    expect(ordinary).toContain("vault");
+    // Company names cannot rely on casing ("Zhipu" is sentence-initial): they
+    // come from the shared KNOWN_COMPANIES vocabulary. Verified regression:
+    // the hook clause "zhipu peaked hong kong scene" painted a glowing
+    // app-icon wordmark (2026-11-14).
+    const company = deriveVisualScenePrompt("Zhipu peaked early, then it slid sideways.");
+    expect(company).not.toContain("zhipu");
+    expect(company).toContain("peaked");
   });
 
   test("an empty or all-meta claim falls back to a generic scene with the visualType flavor", () => {

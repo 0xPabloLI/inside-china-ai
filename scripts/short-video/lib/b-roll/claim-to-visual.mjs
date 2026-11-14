@@ -36,6 +36,11 @@ export const DERIVED_VOICEOVER_SOURCE = "voiceover-visual";
  * - relative time — dates render as text, never as imagery.
  * - small numbers spelled out — same quantity argument as digits.
  */
+import { KNOWN_COMPANIES } from "../tiktok-rules.mjs";
+
+/** Lowercase lookup set over the shared company vocabulary (see isBrandToken). */
+const KNOWN_COMPANY_SET = new Set(KNOWN_COMPANIES);
+
 const VISUAL_META_STOPWORDS = new Set([
   // quantity / currency
   "percent",
@@ -258,11 +263,16 @@ function tokenize(text) {
  *
  * Detection is casing-based on the original token: any uppercase beyond the
  * first letter marks a brand ("QbitAI", "MiniMax") or an acronym ("HKEX",
- * "API") — sentence-initial capitals are exempt, so ordinary words like
- * "Zhipu" survive as lowercase content words.
+ * "API") — sentence-initial capitals are exempt, so ordinary words survive as
+ * lowercase content words. Company names cannot rely on casing ("Zhipu" is
+ * sentence-initial) and are instead matched against the shared
+ * KNOWN_COMPANIES vocabulary from tiktok-rules.mjs — verified regression: the
+ * hook clause "zhipu peaked hong kong scene" painted a glowing app-icon
+ * wordmark (2026-11-14).
  */
 function isBrandToken(token) {
-  return /[\p{Lu}]/u.test(token.slice(1));
+  if (/[\p{Lu}]/u.test(token.slice(1))) return true;
+  return KNOWN_COMPANY_SET.has(token.toLowerCase());
 }
 
 /**
