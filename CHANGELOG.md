@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.72.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.1...tanstack_start_ts-v1.72.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **b-roll:** exclude market/screen nouns from derived visual clauses ([#1324](https://github.com/0xPabloLI/inside-china-ai/issues/1324)) ([#1327](https://github.com/0xPabloLI/inside-china-ai/issues/1327)) ([a462a87](https://github.com/0xPabloLI/inside-china-ai/commit/a462a87d1ffb0f73b0deac8ef84a57adc5c0c202))
+
 ## [1.72.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.0...tanstack_start_ts-v1.72.1) (2026-11-14)
 
 
