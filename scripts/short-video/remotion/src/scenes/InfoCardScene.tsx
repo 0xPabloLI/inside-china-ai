@@ -7,7 +7,7 @@
  * frame and gains the focus as its bullets start landing.
  */
 import { type SceneData } from "../types";
-import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { GridBg, Glow, Scanlines, BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StaggerLines } from "../components/animations/entrance";
 import { SPACING, MOTION, COLOR } from "../components/shared";
@@ -34,7 +34,6 @@ export const InfoCardScene: React.FC<{
       <Glow color="blue" />
       <Scanlines />
       <BrandBar />
-      <FrameGlow variant="blue" />
 
       <Camera visualType="info-card" duration={duration}>
         <Slot variant="kicker">

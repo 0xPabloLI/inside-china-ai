@@ -30,15 +30,12 @@ import { COLOR } from "../remotion/src/tokens.ts";
 /** "#f59e0b" → [245, 158, 11] */
 const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
-describe("three tiers", () => {
-  it("is exactly bloom < soft < flash, and nothing else", () => {
-    expect(Object.keys(LIGHT_TIERS)).toEqual(["bloom", "soft", "flash"]);
-    // Ordered by brightness: structure line < focus < white flash.
-    expect(LIGHT_TIERS.bloom.borderAlpha).toBeLessThan(LIGHT_TIERS.soft.focus.farAlpha);
+describe("two tiers", () => {
+  it("is exactly soft < flash, and nothing else", () => {
+    expect(Object.keys(LIGHT_TIERS)).toEqual(["soft", "flash"]);
+    // Ordered by brightness: outer halo < focus < white flash.
     expect(LIGHT_TIERS.soft.focus.farAlpha).toBeLessThan(LIGHT_TIERS.soft.focus.alpha);
     expect(LIGHT_TIERS.soft.focus.alpha).toBeLessThan(LIGHT_TIERS.flash.alpha);
-    // The bloom has no level: it is constant, so nothing can brighten it.
-    expect(LIGHT_TIERS.bloom).not.toHaveProperty("level");
   });
 
   it("keeps the protagonist lit but below the current focus", () => {

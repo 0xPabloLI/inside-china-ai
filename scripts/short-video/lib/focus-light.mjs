@@ -1,5 +1,5 @@
 /**
- * Protagonist light — three tiers, one focus per frame, 8-frame extinguish
+ * Protagonist light — two tiers, one focus per frame, 8-frame extinguish
  * (#738).
  *
  * Source: anything2explainer `reference/composition-and-light.md` §2, read
@@ -17,12 +17,15 @@
  *   重点转移时前一处 8 帧灭灯
  *   光只有三层：白 bloom（结构线条常驻）< 柔光（主角常亮 + 当前重点）< 白闪（3–6 帧事件）
  *
- * Before this module every scene drew `<FrameGlow variant>` — a full-frame
- * border plus a 40px inset wash. That is ambient bloom with no subject: it has
- * no tiers, no budget and no transfer, so the frame's brightest coloured area
- * was the same in a close-up and in a wide shot. The wash is gone (the 3px
- * structure line stays) and the light now lands on the object the shot is
- * about.
+ * Every scene used to draw `<FrameGlow variant>` — a full-frame border plus a
+ * 40px inset wash: ambient colour with no subject, no tiers, no budget and no
+ * transfer, so the brightest coloured area was the same in a close-up and in a
+ * wide shot. #738 removed the wash, leaving the 3px structure line as the
+ * `bloom` tier; #1215 PR-A retired that line too (real-frame sampling found it
+ * invisible at phone width). `LIGHT_TIERS` now holds the two tiers that land
+ * on an object: `soft` and `flash`. The quoted three-tier source rule is
+ * provenance — a frame-wide decorative glow is ambient colour, not a subject
+ * light.
  *
  * ## Where the light lives
  *
@@ -94,13 +97,7 @@ export const LIGHT_TONES = {
 };
 
 /**
- * The three tiers, in layer order. Nothing else is allowed to glow.
- *
- * `bloom` is the structure line — the frame edge that is always on in every
- * scene. It is deliberately part of the tier table: the previous
- * `FrameGlow` wash was the same idea at the wrong altitude (a whole-frame
- * wash), and naming the tier is what keeps the next decorative glow from
- * being added "because the frame feels empty".
+ * The two tiers, in layer order. Nothing else is allowed to glow.
  *
  * `soft` has two levels: `focus` (the target of the current beat, full) and
  * `protagonist` (the shot's subject at rest, a fraction of focus). The ratio is
@@ -112,20 +109,6 @@ export const LIGHT_TONES = {
  * that window. It is the only tier that is not tone-coloured.
  */
 export const LIGHT_TIERS = {
-  bloom: {
-    /**
-     * Structure-line border width, px (unchanged from the retired wash).
-     *
-     * The source calls this tier "白 bloom" because its own design is white
-     * line-art on black. Ours is not: the frame line is brand chrome, and the
-     * palette deviation is the same one that refuses its purple key colour.
-     * What the tier MEANS — always on, no subject, the lowest of the three —
-     * is what is copied, and `borderAlpha` is what keeps it lowest.
-     */
-    borderPx: 3,
-    /** Border alpha per tone — visible in every shot, never an emphasis. */
-    borderAlpha: 0.2,
-  },
   soft: {
     focus: {
       /** Inner soft-light blur radius, px. */

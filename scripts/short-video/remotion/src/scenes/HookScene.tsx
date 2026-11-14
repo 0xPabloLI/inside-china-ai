@@ -19,7 +19,6 @@ import {
   BadgePill,
   StatCard,
   Slot,
-  FrameGlow,
 } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
@@ -198,7 +197,6 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
         <Scanlines />
         <ScanSweep duration={duration} />
         <BrandBar />
-        <FrameGlow variant="amber" />
 
         {/* Kicker slot — optional badge pill (NOT breaking badge) */}
         {txt.badge && (

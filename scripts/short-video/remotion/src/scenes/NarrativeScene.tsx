@@ -15,7 +15,7 @@
  */
 import { Interactive, useCurrentFrame, interpolate } from "remotion";
 import type { SceneData } from "../types";
-import { GridBg, Glow, Scanlines, BrandBar, FrameGlow } from "../components/visuals";
+import { GridBg, Glow, Scanlines, BrandBar } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import {
   SlideUp,
@@ -566,7 +566,6 @@ export const NarrativeScene: React.FC<{
       <Glow color={glowColor} />
       <Scanlines />
       <BrandBar />
-      <FrameGlow variant="amber" />
     </div>
   );
 };

@@ -11,7 +11,7 @@
 import { Interactive, useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
-import { GridBg, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { GridBg, Scanlines, BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR, ANNOTATION } from "../components/shared";
@@ -37,7 +37,6 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
       <GridBg />
       <Scanlines />
       <BrandBar />
-      <FrameGlow variant="amber" />
 
       <Camera visualType="data" duration={duration}>
         <Slot variant="hero">
