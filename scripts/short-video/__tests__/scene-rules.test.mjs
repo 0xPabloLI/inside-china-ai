@@ -1400,24 +1400,24 @@ describe("checkHookMediaContract", () => {
     expect(result[0].check).toContain("media");
   });
 
-  it("FAILS when the hook has no media and no mediaStrategy (default asset)", () => {
+  it("WARNS when the hook has no media and no mediaStrategy (default asset) — the chain can fill it (#1342 follow-up)", () => {
     const result = checkHookMediaContract([hook()]);
     expect(result).toHaveLength(1);
-    expect(result[0].level).toBe("fail");
+    expect(result[0].level).toBe("warn");
     expect(result[0].category).toBe("Hook");
     expect(result[0].check).toContain("media");
     expect(result[0].fix).toContain("media: null");
     // 2026-11-14: sourcing/generation covers hooks, so the fix points at the
-    // mechanisms that can actually fill the gap — the detail no longer claims
-    // manual curation is the only path.
+    // mechanisms that can actually fill the gap, and an unbound opening is a
+    // fillable gap (warn), not a structural one (fail).
     expect(result[0].fix).toContain("assetNeed");
-    expect(result[0].detail).not.toContain("manual curation");
+    expect(result[0].detail).toContain("final media gate");
   });
 
-  it("FAILS when the hook declares mediaStrategy asset and no media", () => {
+  it("WARNS when the hook declares mediaStrategy asset and no media — same fillable gap", () => {
     const result = checkHookMediaContract([hook({ mediaStrategy: "asset" })]);
     expect(result).toHaveLength(1);
-    expect(result[0].level).toBe("fail");
+    expect(result[0].level).toBe("warn");
   });
 
   it("WARNS for explicit media:null (deliberate CSS-only hook)", () => {
@@ -1432,7 +1432,7 @@ describe("checkHookMediaContract", () => {
     const waived = checkHookMediaContract([hook({ media: null })])[0];
     const absent = checkHookMediaContract([hook()])[0];
     expect(waived.level).toBe("warn");
-    expect(absent.level).toBe("fail");
+    expect(absent.level).toBe("warn");
   });
 
   for (const strategy of ["b-roll", "asset-then-broll", "ai-image", "asset-then-ai-image"]) {
@@ -1517,11 +1517,11 @@ describe("checkHookMediaContract", () => {
     expect(warns[0].check).toContain("source");
   });
 
-  it("is included in runAllSceneDataChecks results (fail bucket for an unbound hook)", () => {
+  it("is included in runAllSceneDataChecks results (warn bucket for an unbound hook)", () => {
     const scenes = [hook()];
     const results = runAllSceneDataChecks(scenes, null);
-    const mediaFail = results.fail.find((f) => f.check.includes("Hook media"));
-    expect(mediaFail).toBeDefined();
+    const mediaWarn = results.warn.find((f) => f.check.includes("Hook media"));
+    expect(mediaWarn).toBeDefined();
   });
 
   it("owns hook media warnings: no narrative-coverage double warning for scene 1", () => {
@@ -1532,7 +1532,7 @@ describe("checkHookMediaContract", () => {
       media: { type: "image", path: "assets/x.jpg" },
     };
     const results = runAllSceneDataChecks([hook(), coveredNarrative], null);
-    expect(results.fail.find((f) => f.check === "Hook media background")).toBeDefined();
+    expect(results.warn.find((w) => w.check === "Hook media background")).toBeDefined();
     expect(results.warn.find((w) => w.check === "Narrative scene media coverage")).toBeUndefined();
 
     // A media-less narrative still reports, but the hook is not listed.
