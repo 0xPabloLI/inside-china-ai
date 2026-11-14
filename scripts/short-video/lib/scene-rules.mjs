@@ -1383,8 +1383,11 @@ export function checkLoopClose(scenes, meta) {
  *        asset-then-broll / ai-image / asset-then-ai-image) — preflight warns,
  *        the final media gate enforces the landed file.
  *
- *  Anything else (`mediaStrategy` = "asset" or absent, no media) fails
- *  preflight: the author must bind from the curated library or waive it.
+ *  Anything else (`mediaStrategy` = "asset" or absent, no media) used to fail
+ *  preflight — right while sourcing skipped hooks, because that gap could
+ *  never fill. Since 2026-11-14 (#1342) sourcing/generation covers the
+ *  opening, so it warns exactly like branch (c) and the final media gate
+ *  enforces the landed file.
  */
 export function checkHookMediaContract(scenes) {
   const CATEGORY = "Hook";
@@ -1476,11 +1479,16 @@ export function checkHookMediaContract(scenes) {
 
   return [
     {
-      level: "fail",
+      // WARN since 2026-11-14 (#1342 follow-up): sourcing/generation now
+      // covers hooks, so an unbound default-strategy opening is a gap the
+      // pipeline can fill — same treatment as the GENERATING_STRATEGIES
+      // branch below. The final media gate still enforces the landed file at
+      // render time, so a hook that stays empty is blocked there, not here.
+      level: "warn",
       category: CATEGORY,
       check: CHECK,
       detail:
-        "Hook scene has no media and no waiver — the opening would render CSS-only (sourcing/generation now covers hooks, 2026-11-14)",
+        "Hook scene has no media and no waiver — sourcing/generation covers the opening now (2026-11-14); the final media gate enforces the landed file",
       fix: 'Bind scene.media (media: { type, path: "assets/<file>", source, fit: "cover" }), declare an assetNeed for sourcing, or set media: null deliberately for a CSS-only hook',
     },
   ];
