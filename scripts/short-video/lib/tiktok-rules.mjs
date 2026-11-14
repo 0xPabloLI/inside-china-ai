@@ -298,7 +298,14 @@ export const TARGET_KEYWORDS = ["china", "ai"];
  * Known China AI companies for subject visibility check (#199 2.7).
  * Lowercase display names matched against rendered copy — distinct from
  * asset-sourcer.mjs's private KNOWN_COMPANIES (mixed-case search keywords
- * extracted from voiceover). Intentionally not unified.
+ * extracted from voiceover). Intentionally not unified with that one.
+ *
+ * Second consumer since 2026-11-14 (#1324 follow-up): b-roll/claim-to-visual
+ * excludes these tokens from derived visual clauses — casing cannot catch a
+ * sentence-initial "Zhipu", and a company name rendered by the T2I model
+ * becomes a wordmark background (the exact #1324 failure). Same list, inverse
+ * use: here it names what MUST be visible on screen, there it names what must
+ * NOT be painted into imagery.
  */
 export const KNOWN_COMPANIES = [
   "deepseek",

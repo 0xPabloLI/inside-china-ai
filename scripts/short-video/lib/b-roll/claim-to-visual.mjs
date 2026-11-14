@@ -24,10 +24,10 @@
  * promptHash must stay reproducible across runs for the cache rules.
  */
 
+import { KNOWN_COMPANIES } from "../tiktok-rules.mjs";
+
 /** The prompt-source label the orchestrator persists for transformed prompts. */
 export const DERIVED_VOICEOVER_SOURCE = "voiceover-visual";
-
-import { KNOWN_COMPANIES } from "../tiktok-rules.mjs";
 
 /** Lowercase lookup set over the shared company vocabulary (see isBrandToken). */
 const KNOWN_COMPANY_SET = new Set(KNOWN_COMPANIES);
