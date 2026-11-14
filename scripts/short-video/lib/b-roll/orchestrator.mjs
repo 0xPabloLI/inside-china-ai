@@ -20,6 +20,7 @@ import {
   shouldRefuse,
 } from "./report.mjs";
 import { skipsMediaSourcing } from "../claim-keywords.mjs";
+import { deriveVisualScenePrompt, DERIVED_VOICEOVER_SOURCE } from "./claim-to-visual.mjs";
 import {
   DEFAULT_AUTO_SCENE_BUDGET,
   DEFAULT_AUTO_VIDEO_BUDGET,
@@ -67,6 +68,26 @@ export function hasMedia(scene) {
 }
 
 /**
+ * The prompt the chain generation path uses, with #1324's derivation rule
+ * applied: a voiceover-derived still prompt is a narration echo, not art
+ * direction, so claim-to-visual turns it into a text-free visual scene clause
+ * (source "voiceover-visual"). Declared prompts (aiImage.prompt / assetNeed)
+ * and video prompts pass through unchanged.
+ *
+ * Every derived-allowed resolveGenerationPrompt call site routes through this
+ * so the plan preview, the report entry and the generator all see the same
+ * string — the report's promptHash and the gate claim depend on it.
+ */
+function chainPromptInfo(scene, form, opts = {}) {
+  const promptInfo = resolveGenerationPrompt(scene, form, opts);
+  if (promptInfo?.source !== "voiceover") return promptInfo;
+  return {
+    prompt: deriveVisualScenePrompt(promptInfo.prompt, scene),
+    source: DERIVED_VOICEOVER_SOURCE,
+  };
+}
+
+/**
  * Pure routing pass. Returns one plan per scene; never mutates inputs.
  * plan = { scene, action: 'skip' | 'generate', reason, warn?, plan? }
  *
@@ -101,7 +122,7 @@ export function planScenes(scenes) {
       }
       // The chain can always derive a still prompt from the claim; a video
       // rung exists only when the writer declared motion semantics.
-      const imagePrompt = resolveGenerationPrompt(scene, "image", { allowDerived: true });
+      const imagePrompt = chainPromptInfo(scene, "image", { allowDerived: true });
       const videoPrompt = resolveGenerationPrompt(scene, "video");
       if (!imagePrompt && !videoPrompt) {
         return { scene, action: "skip", reason: "no-generation-prompt", plan };
@@ -171,7 +192,7 @@ export function buildGenerationPlan(scenes, opts = {}) {
           ? selectAutoForm(scene, videoBudget - previewVideos)
           : routed.plan.form;
       if (previewForm === "video") previewVideos += 1;
-      const previewPrompt = resolveGenerationPrompt(scene, previewForm, { allowDerived: true });
+      const previewPrompt = chainPromptInfo(scene, previewForm, { allowDerived: true });
       entries.push({
         ...base,
         action: "approval-required",
@@ -188,7 +209,7 @@ export function buildGenerationPlan(scenes, opts = {}) {
       if (autoSelected >= autoBudget) {
         budgetSkipped += 1;
         const skippedForm = form === "auto" ? selectAutoForm(scene, videoBudget) : form;
-        const skippedPrompt = resolveGenerationPrompt(scene, skippedForm, { allowDerived: true });
+        const skippedPrompt = chainPromptInfo(scene, skippedForm, { allowDerived: true });
         entries.push({
           ...base,
           action: "budget-skipped",
@@ -201,7 +222,7 @@ export function buildGenerationPlan(scenes, opts = {}) {
       }
       form = form === "auto" ? selectAutoForm(scene, videoBudget - autoVideosSelected) : form;
       if (form === "video" && autoVideosSelected >= videoBudget) form = "image";
-      promptInfo = resolveGenerationPrompt(scene, form, { allowDerived: true });
+      promptInfo = chainPromptInfo(scene, form, { allowDerived: true });
       if (!promptInfo) {
         entries.push({ ...base, action: "skip", reason: "no-generation-prompt", form });
         continue;
@@ -532,7 +553,7 @@ export async function runBrollStage(opts) {
     const scene = candidate.scene;
     const sceneId = String(scene.id);
     const isImage = form === "image";
-    const promptInfo = resolveGenerationPrompt(scene, isImage ? "image" : "video", {
+    const promptInfo = chainPromptInfo(scene, isImage ? "image" : "video", {
       allowDerived: Boolean(candidate.auto),
     });
     // Preserve the declared string verbatim for cache hashing; the composition
@@ -625,7 +646,7 @@ export async function runBrollStage(opts) {
     }
     const form = hasDeclaredVideoPrompt(entry.scene) && videoSlots > 0 ? "video" : "image";
     if (form === "video") videoSlots -= 1;
-    const promptInfo = resolveGenerationPrompt(entry.scene, form, { allowDerived: true });
+    const promptInfo = chainPromptInfo(entry.scene, form, { allowDerived: true });
     if (!promptInfo) {
       entry.action = "skip";
       entry.reason = "no-generation-prompt";
@@ -656,7 +677,7 @@ export async function runBrollStage(opts) {
     let form =
       entry.form === "auto" ? selectAutoForm(entry.scene, videoBudget - autoVideos) : entry.form;
     if (form === "video" && autoVideos >= videoBudget) form = "image";
-    const promptInfo = resolveGenerationPrompt(entry.scene, form, { allowDerived: true });
+    const promptInfo = chainPromptInfo(entry.scene, form, { allowDerived: true });
     if (!promptInfo) continue;
     entry.action = "generate";
     entry.form = form;
