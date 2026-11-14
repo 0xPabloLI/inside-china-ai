@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.73.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.1...tanstack_start_ts-v1.73.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **short-video:** unbound default-strategy hook is a fillable gap — warn, not fail ([#1344](https://github.com/0xPabloLI/inside-china-ai/issues/1344)) ([de25dc1](https://github.com/0xPabloLI/inside-china-ai/commit/de25dc1b25d000186c253608c3bdd75b14403002))
+
 ## [1.73.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.0...tanstack_start_ts-v1.73.1) (2026-11-14)
 
 
