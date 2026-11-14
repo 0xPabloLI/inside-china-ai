@@ -60,18 +60,26 @@ describe("extractSceneClaims", () => {
     const scenes = [
       { id: 5, visualType: "cta", voiceover: "Follow!", assetNeed: "logo wall" },
       { id: 6, visualType: "data", voiceover: "Numbers.", assetNeed: "chart" },
-      { id: 7, visualType: "stat-reveal", voiceover: "62.5 percent.", assetNeed: "graph" },
     ];
     expect(extractSceneClaims(scenes)).toEqual([]);
+  });
+
+  it("stat-reveal derives a claim now (media-density pass, 2026-11-14)", () => {
+    expect(
+      extractSceneClaims([
+        { id: 7, visualType: "stat-reveal", voiceover: "On SWE-bench Pro it scores 62.5." },
+      ]),
+    ).toHaveLength(1);
   });
 
   it("handles null/undefined scenes array and real qwen4-preview scene-data", () => {
     expect(extractSceneClaims(null)).toEqual([]);
     expect(extractSceneClaims([])).toEqual([]);
-    // Real content smoke: qwen4-preview has no assetNeed, and its only
-    // sourcing-eligible scenes (6, 8) already carry bound media — derived
-    // supply has nothing to search for, so there are still zero claims.
-    expect(extractSceneClaims(qwen4Scenes)).toEqual([]);
+    // Real content smoke (media-density pass, 2026-11-14): qwen4-preview has
+    // no assetNeed. Scenes 6 and 8 carry bound media; the other eligible
+    // scenes derive claims from their voiceovers (2/3/4/7/9 — 5's voiceover
+    // has no searchable content words).
+    expect(extractSceneClaims(qwen4Scenes).map((c) => c.sceneId)).toEqual([2, 3, 4, 7, 9]);
   });
 
   it("derives a claim from the voiceover for a sourcing-eligible scene without media (#354)", () => {
@@ -503,9 +511,9 @@ describe("buildQueryGroups", () => {
 describe("skipsMediaSourcing (#191)", () => {
   const base = { id: 1, visualType: "narrative", layout: "media-overlay" };
 
-  it("skips NO_MEDIA_TYPES (cta/data/stat-reveal)", () => {
+  it("skips NO_MEDIA_TYPES (cta/data — stat-reveal became media-eligible, 2026-11-14)", () => {
     expect(skipsMediaSourcing({ ...base, visualType: "cta" })).toBe(true);
-    expect(skipsMediaSourcing({ ...base, visualType: "stat-reveal" })).toBe(true);
+    expect(skipsMediaSourcing({ ...base, visualType: "data" })).toBe(true);
   });
 
   it("skips hooks even with an assetNeed (#299: manually curated)", () => {
@@ -524,9 +532,18 @@ describe("skipsMediaSourcing (#191)", () => {
     expect(skipsMediaSourcing({ ...base, mediaOptOut: true })).toBe(true);
   });
 
-  it("skips CSS-only layouts (hero-center / stacked-cards)", () => {
-    expect(skipsMediaSourcing({ ...base, layout: "hero-center" })).toBe(true);
-    expect(skipsMediaSourcing({ ...base, layout: "stacked-cards" })).toBe(true);
+  it("no longer skips text-first layouts — components render ambient media (media-density pass)", () => {
+    // The 2026-11-13 batch measured 2-3 of 8 scenes with media and traced it
+    // here: hero-center / stacked-cards scenes without assetNeed never entered
+    // sourcing although their components draw MediaBackground. Eligibility
+    // follows the component now, not the author's declaration.
+    expect(skipsMediaSourcing({ ...base, layout: "hero-center" })).toBe(false);
+    expect(skipsMediaSourcing({ ...base, layout: "stacked-cards" })).toBe(false);
+  });
+
+  it("stat-reveal is sourcing-eligible now, still overridable", () => {
+    expect(skipsMediaSourcing({ ...base, visualType: "stat-reveal" })).toBe(false);
+    expect(skipsMediaSourcing({ ...base, visualType: "stat-reveal", media: null })).toBe(true);
   });
 
   it("does not skip scenes that need sourcing", () => {

@@ -20,27 +20,34 @@ import { shouldSourceStock } from "./media-strategies.mjs";
 /**
  * Scene types that must never receive media — single source of truth.
  * asset-sourcer imports this; do not mirror the set elsewhere.
+ *
+ * `cta` closes the video (text contract owns the frame) and `data` draws a
+ * chart that needs every pixel it can get. `stat-reveal` was here until the
+ * media-density pass (2026-11-14): its component renders an ambient
+ * `MediaBackground` behind the number, dimmed by the `stat-reveal` entry in
+ * `media-overlay.mjs`, so it is an eligible — not required — media scene now.
  */
-export const NO_MEDIA_TYPES = new Set(["cta", "data", "stat-reveal"]);
-
-/**
- * Layouts that are skipped when the scene declares no media intent (#191).
- * `hero-center` covers the text-only templates, but context / info-card / hook
- * also render media behind it — so "CSS-only" here means "no media unless the
- * scene asks for it". `stacked-cards` is the narrative text-first layout
- * (ambient background only; evidence is rejected at preflight by #761).
- */
-const CSS_ONLY_LAYOUTS = new Set(["hero-center", "stacked-cards"]);
+export const NO_MEDIA_TYPES = new Set(["cta", "data"]);
 
 /**
  * Whether a scene is excluded from media sourcing (#191).
  *
  * Precedence: NO_MEDIA_TYPES → hook (#299: manually curated, never
  * auto-sourced) → explicit `media: null` ("permanently no media", survives
- * reruns) → deprecated `mediaOptOut` (legacy content, still honored) →
- * CSS-only layouts. Strategy gating is separate (`shouldSourceStock`) — the
- * gap ledger needs `skipsMediaSourcing` to stay a pure policy predicate so it
- * can still record a stock miss on a scene later switched to generation.
+ * reruns) → deprecated `mediaOptOut` (legacy content, still honored).
+ *
+ * Layout is deliberately NOT a criterion anymore. The 2026-11-13 batch
+ * measured 2–3 of 8 scenes carrying media on every pack and traced it here:
+ * `hero-center` / `stacked-cards` scenes without a hand-written `assetNeed`
+ * never entered sourcing, even though their components (context, contrast,
+ * narrative, info-card) all render an ambient `MediaBackground`. #354 already
+ * derives a claim from the voiceover for any eligible scene, and #761 still
+ * rejects evidence needs on text-first layouts at preflight, so eligibility
+ * can safely follow the component, not the author's declaration.
+ *
+ * Strategy gating is separate (`shouldSourceStock`) — the gap ledger needs
+ * `skipsMediaSourcing` to stay a pure policy predicate so it can still record
+ * a stock miss on a scene later switched to generation.
  */
 export function skipsMediaSourcing(scene) {
   if (!scene) return true;
@@ -50,12 +57,6 @@ export function skipsMediaSourcing(scene) {
   if (scene.visualType === "hook") return true;
   if (scene.media === null) return true;
   if (scene.mediaOptOut === true) return true; // deprecated (#191)
-  // A scene that explicitly declares assetNeed is asking for media regardless
-  // of layout. hero-center renders it for context / info-card / hook; the two
-  // text-first layouts (stacked-cards, contrast) only show it as a background,
-  // and #761 fails evidence needs there at preflight — sourcing itself stays
-  // layout-agnostic.
-  if (CSS_ONLY_LAYOUTS.has(scene.layout) && !scene.assetNeed) return true;
   return false;
 }
 

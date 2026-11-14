@@ -59,15 +59,18 @@ describe("checkMediaDensity", () => {
   });
 
   it("does not demand media from a pack that cannot draw any", () => {
-    const scenes = [
-      scene(1, "hook", { media: null }),
-      scene(2, "data"),
-      scene(3, "stat-reveal"),
-      scene(4, "cta"),
-    ];
+    const scenes = [scene(1, "hook", { media: null }), scene(2, "data"), scene(3, "cta")];
     const [result] = checkMediaDensity(scenes);
     expect(result.level).toBe("pass");
     expect(result.detail).toContain("无可承载画面");
+  });
+
+  it("stat-reveal counts as capable since it renders ambient media (2026-11-14)", () => {
+    // A pack made only of hook + stat-reveal now has a drawable scene, so the
+    // floor applies to it instead of passing as "nothing capable".
+    const scenes = [scene(1, "hook", { media: null }), scene(2, "stat-reveal")];
+    expect(level(scenes)).toBe("fail");
+    expect(level([scenes[0], withMedia(2, "stat-reveal")])).toBe("pass");
   });
 
   it("never counts the hook as capable — it is manually curated", () => {

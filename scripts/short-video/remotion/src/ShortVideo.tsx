@@ -70,7 +70,7 @@ function renderScene(scene: SceneData, duration: number, contentDir: string) {
     case "contrast":
       return <ContrastScene {...common} contentDir={contentDir} />;
     case "stat-reveal":
-      return <StatRevealScene {...common} />;
+      return <StatRevealScene {...common} contentDir={contentDir} />;
     default:
       // Unknown visualType is a scene-data bug: fail the render instead of
       // silently re-interpreting the scene as a narrative (spec decision 45).

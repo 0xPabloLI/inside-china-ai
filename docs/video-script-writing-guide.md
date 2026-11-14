@@ -277,7 +277,7 @@ media: {
 
 预绑定的 `media` 优先，且不会被自动补位覆盖。
 
-**可读性**：hook 模板自带 bigNumber + numberLabel，媒体要退到背景层。`overlay` 建议 0.45–0.7（显式值超出 0.4–0.9 时 preflight WARN；缺省由渲染器取 0.7）；流水线自动分配的默认值来自 `scripts/short-video/lib/media-overlay.mjs`——`context` / `contrast` / `narrative` 0.55、`info-card` 0.65、`hook` 0.5、`quote` 0.8（#1305：此前三处各写一份 0.7，图在成片里被压到几乎看不见）；`fit` 只接受 `cover`（缺省）与 `contain`（`fill`/`none`/拼错值 preflight FAIL）。hook 与正文同构：正文声明多数为 contain 的 pack，hook 也用 contain；未声明正文 `fit` 的 pack，hook 按自身源宽高比取 contain/cover（#963，口径见 `docs/media-asset-management.md` → 第三方横屏素材的默认构图）。不要设置 `mode: "fullscreen"`：渲染端在该模式下把 overlay 归零，满屏素材会直接压住大字。
+**可读性**：hook 模板自带 bigNumber + numberLabel，媒体要退到背景层。`overlay` 建议 0.45–0.7（显式值超出 0.4–0.9 时 preflight WARN；缺省由渲染器取 0.7）；流水线自动分配的默认值来自 `scripts/short-video/lib/media-overlay.mjs`——`context` / `contrast` / `narrative` 0.55、`info-card` 0.65、`stat-reveal` 0.65（2026-11-14 起 stat-reveal 也接受环境背景，数字仍是主角）、`hook` 0.5、`quote` 0.8（#1305：此前三处各写一份 0.7，图在成片里被压到几乎看不见）；`fit` 只接受 `cover`（缺省）与 `contain`（`fill`/`none`/拼错值 preflight FAIL）。hook 与正文同构：正文声明多数为 contain 的 pack，hook 也用 contain；未声明正文 `fit` 的 pack，hook 按自身源宽高比取 contain/cover（#963，口径见 `docs/media-asset-management.md` → 第三方横屏素材的默认构图）。不要设置 `mode: "fullscreen"`：渲染端在该模式下把 overlay 归零，满屏素材会直接压住大字。
 
 **素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 目前只有 7 条、RAG 只能搜到这 7 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
 

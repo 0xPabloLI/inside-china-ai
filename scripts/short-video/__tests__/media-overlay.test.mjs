@@ -31,6 +31,10 @@ describe("MEDIA_OVERLAY", () => {
   it("quote stays heavy — a long pull quote has to read over any source", () => {
     expect(MEDIA_OVERLAY.quote).toBeGreaterThanOrEqual(0.75);
   });
+
+  it("stat-reveal stays ambient — the number is the protagonist (media-density pass)", () => {
+    expect(MEDIA_OVERLAY["stat-reveal"]).toBe(0.65);
+  });
 });
 
 describe("overlayForVisualType", () => {
@@ -41,7 +45,6 @@ describe("overlayForVisualType", () => {
   });
 
   it("falls back for an unknown type", () => {
-    expect(overlayForVisualType("stat-reveal")).toBe(DEFAULT_MEDIA_OVERLAY);
     expect(overlayForVisualType("brand-new-layout")).toBe(DEFAULT_MEDIA_OVERLAY);
   });
 
