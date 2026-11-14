@@ -1281,6 +1281,13 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
   };
 
   for (const asset of sorted) {
+    // Article references from the news-vertical search (Google news etc.) are
+    // pushed into allAssets with path:null / status:"text-only" by design —
+    // they are citation candidates, not media. Emitting them as unassigned
+    // patch entries made the 2026-11-14 zhipu ledger read "63 sourced, 0
+    // assigned" when only 27 were ever pictures; drop them here so the patch
+    // counts media outcomes only.
+    if (!asset.path && asset.status === "text-only") continue;
     // Skip assets without a path (can't assign without knowing file location)
     if (!asset.path) {
       result.push(unassignedEntry(asset));

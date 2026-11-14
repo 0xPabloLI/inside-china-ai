@@ -1480,8 +1480,8 @@ export function checkHookMediaContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail:
-        "Hook scene has no media (manual curation — asset-sourcer skips hooks) — the opening hook would render CSS-only",
-      fix: 'Bind scene.media from the curated library (media: { type, path: "assets/<file>", source, fit: "cover" }), or set media: null deliberately for a CSS-only hook',
+        "Hook scene has no media and no waiver — the opening would render CSS-only (sourcing/generation now covers hooks, 2026-11-14)",
+      fix: 'Bind scene.media (media: { type, path: "assets/<file>", source, fit: "cover" }), declare an assetNeed for sourcing, or set media: null deliberately for a CSS-only hook',
     },
   ];
 }
@@ -1498,8 +1498,11 @@ export function checkHookMediaContract(scenes) {
  *
  *  #760: shares `skipsMediaSourcing` with asset-sourcer. The two modules must
  *  agree on what counts as "intentionally no media" (media: null, CSS-only
- *  layouts, hooks, NO_MEDIA_TYPES, and the deprecated `mediaOptOut` waiver),
- *  otherwise this warning scolds scenes the sourcer skips by design. An
+ *  layouts, NO_MEDIA_TYPES, and the deprecated `mediaOptOut` waiver),
+ *  otherwise this warning scolds scenes the sourcer skips by design. Hooks
+ *  stay excluded here even though sourcing now covers them (2026-11-14):
+ *  their media plan is owned by the dedicated `checkHookMediaContract`, and
+ *  listing the hook here would double-warn every unbound opening. An
  *  `mediaOptOut` on a media-dependent layout is still a hard failure in
  *  final-media-gate, so realignment here does not soften the render gate.
  *  Preflight runs before Step 1.5, so a usable claim or generating strategy is
@@ -1507,7 +1510,10 @@ export function checkHookMediaContract(scenes) {
  *  time. */
 function checkNarrativeMediaWarning(scenes, phrases = sceneClaimPhrases(scenes)) {
   const mediaScenes = scenes.filter(
-    (s) => !skipsMediaSourcing(s) && !GENERATING_STRATEGIES.has(s.mediaStrategy),
+    (s) =>
+      !skipsMediaSourcing(s) &&
+      s.visualType !== "hook" &&
+      !GENERATING_STRATEGIES.has(s.mediaStrategy),
   );
   const missing = mediaScenes.filter(
     (s) => !s.media?.path && (phrases.get(s.id) ?? []).length === 0,
@@ -2170,9 +2176,15 @@ export function checkMediaDensity(scenes, opts = {}) {
   const CATEGORY = "Media";
   const CHECK = "Media density";
   const rows = Array.isArray(scenes) ? scenes : [];
-  const capable = rows.filter(
-    (scene) => scene && !NO_MEDIA_TYPES.has(scene.visualType) && scene.visualType !== "hook",
-  );
+  const capable = rows.filter((scene) => {
+    if (!scene) return false;
+    if (NO_MEDIA_TYPES.has(scene.visualType)) return false;
+    // Hook carries media now (2026-11-14: auto-sourcing covers the opening),
+    // but an explicit `media: null` waiver is still a deliberate CSS-only
+    // opening — honoring it here mirrors skipsMediaSourcing.
+    if (scene.visualType === "hook") return scene.media !== null;
+    return true;
+  });
   if (capable.length === 0) {
     return [
       {

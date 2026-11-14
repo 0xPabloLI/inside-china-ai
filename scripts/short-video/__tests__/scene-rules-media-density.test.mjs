@@ -5,9 +5,10 @@
  * choice — it is the failure mode that shipped three all-text videos on
  * 2026-11-13: 17 of 37 packs carried zero media and nothing stopped them.
  *
- * The gate is deliberately narrow: `data` / `stat-reveal` / `cta` can never
- * draw media (NO_MEDIA_TYPES) and `hook` is manually curated, so those scenes
- * are not "capable" and an all-text pack made of them is legitimate.
+ * The gate is deliberately narrow: `data` / `cta` can never draw media
+ * (NO_MEDIA_TYPES) and a hook with an explicit `media: null` waiver opted out,
+ * so an all-text pack made of those is legitimate. Hooks without a waiver
+ * count as capable since 2026-11-14 (auto-sourcing covers the opening).
  */
 import { describe, it, expect } from "vitest";
 import { checkMediaDensity, checkMediaDensityPreflight } from "../lib/scene-rules.mjs";
@@ -73,9 +74,12 @@ describe("checkMediaDensity", () => {
     expect(level([scenes[0], withMedia(2, "stat-reveal")])).toBe("pass");
   });
 
-  it("never counts the hook as capable — it is manually curated", () => {
-    const scenes = [scene(1, "hook", { media: null }), scene(2, "cta")];
-    expect(level(scenes)).toBe("pass");
+  it("counts an unwaived hook as capable; a media:null waiver still opts the opening out", () => {
+    // 2026-11-14: hooks enter auto-sourcing, so an opening without a waiver
+    // must carry media like any other capable scene; `media: null` remains the
+    // deliberate CSS-only opening.
+    expect(level([scene(1, "hook"), scene(2, "cta")])).toBe("fail");
+    expect(level([scene(1, "hook", { media: null }), scene(2, "cta")])).toBe("pass");
   });
 
   it("honours meta.mediaDensityExempt with the reason on the row", () => {

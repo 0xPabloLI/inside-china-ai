@@ -32,9 +32,8 @@ export const NO_MEDIA_TYPES = new Set(["cta", "data"]);
 /**
  * Whether a scene is excluded from media sourcing (#191).
  *
- * Precedence: NO_MEDIA_TYPES → hook (#299: manually curated, never
- * auto-sourced) → explicit `media: null` ("permanently no media", survives
- * reruns) → deprecated `mediaOptOut` (legacy content, still honored).
+ * Precedence: NO_MEDIA_TYPES → explicit `media: null` ("permanently no media",
+ * survives reruns) → deprecated `mediaOptOut` (legacy content, still honored).
  *
  * Layout is deliberately NOT a criterion anymore. The 2026-11-13 batch
  * measured 2–3 of 8 scenes carrying media on every pack and traced it here:
@@ -45,6 +44,14 @@ export const NO_MEDIA_TYPES = new Set(["cta", "data"]);
  * rejects evidence needs on text-first layouts at preflight, so eligibility
  * can safely follow the component, not the author's declaration.
  *
+ * Hooks joined the eligible set on 2026-11-14 (user ruling: the opening needs
+ * imagery to hook anyone): the #299 carve-out made the hook the only
+ * component-backed scene that structurally never carried media unless the
+ * author hand-bound a file. The #299 *quality* contract (fit/overlay/source,
+ * `hook-media.mjs`) still applies to whatever the hook binds — sourced,
+ * generated, or hand-curated — and `media: null` on a hook remains the
+ * deliberate CSS-only waiver.
+ *
  * Strategy gating is separate (`shouldSourceStock`) — the gap ledger needs
  * `skipsMediaSourcing` to stay a pure policy predicate so it can still record
  * a stock miss on a scene later switched to generation.
@@ -52,9 +59,6 @@ export const NO_MEDIA_TYPES = new Set(["cta", "data"]);
 export function skipsMediaSourcing(scene) {
   if (!scene) return true;
   if (NO_MEDIA_TYPES.has(scene.visualType)) return true;
-  // #299: hooks are manually curated — even an assetNeed must not trigger
-  // auto-sourcing (the curated hook cover is a per-package authoring decision).
-  if (scene.visualType === "hook") return true;
   if (scene.media === null) return true;
   if (scene.mediaOptOut === true) return true; // deprecated (#191)
   return false;

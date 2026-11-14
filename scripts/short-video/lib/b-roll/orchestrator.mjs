@@ -94,8 +94,9 @@ function chainPromptInfo(scene, form, opts = {}) {
  * #355: a scene that omits `mediaStrategy` (or keeps the legacy `asset`
  * default) is a chain scene — it sources stock, then generates when sourcing
  * left it empty. The chain's eligibility mirrors sourcing eligibility, so a
- * hook / NO_MEDIA_TYPES / CSS-only / waived scene never becomes an implicit
- * GPU job. Explicit overrides keep their own contracts.
+ * NO_MEDIA_TYPES / CSS-only / waived scene never becomes an implicit GPU job.
+ * Hooks are eligible since 2026-11-14 (the opening needs imagery). Explicit
+ * overrides keep their own contracts.
  */
 export function planScenes(scenes) {
   return scenes.map((scene) => {

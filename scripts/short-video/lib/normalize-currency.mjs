@@ -31,6 +31,20 @@ const RMB_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand|B|M|K)\s*RMB/gi;
 /** Matches "<number> (billion|million|thousand) HKD" or "<number> (B|M) HKD" patterns */
 const HKD_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand|B|M)?\s*HKD/gi;
 
+/**
+ * Matches "HK$<number>" prefix patterns, e.g. "HK$454" or "HK$2,526".
+ * (#1324 verification finding: zhipu-valuation's on-screen texts use the
+ * prefix form, which the suffix-only HKD_PATTERN never saw.)
+ */
+const HK_DOLLAR_PREFIX_PATTERN = /HK\$\s*([\d,.]+)(?:\s*(billion|million|thousand|B|M|K)\b)?/gi;
+
+/**
+ * Matches "<number> (magnitude)? Hong Kong dollars" full-name patterns,
+ * e.g. "2,526 Hong Kong dollars a share vanished". Voiceovers spell the
+ * currency out for TTS clarity; the suffix-only HKD_PATTERN never matched.
+ */
+const HK_DOLLAR_NAME_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand)?\s*Hong Kong dollars?/gi;
+
 // ─── Helpers ───
 
 /**
@@ -123,6 +137,25 @@ function normalizeString(str) {
 
   // Process "<number> HKD" patterns (e.g. "80B HKD", "12.4 billion HKD")
   str = str.replace(HKD_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
+    if (hasNearbyUsd(fullStr, offset)) return match;
+    const hkdAmount = parseAmount(numStr, magnitude);
+    const usdAmount = hkdAmount * HKD_TO_USD_RATE;
+    const usdStr = formatUsd(usdAmount, magnitude);
+    return `${usdStr} (${match})`;
+  });
+
+  // Process "HK$<number>" prefix patterns (e.g. "HK$454 CLOSE")
+  str = str.replace(HK_DOLLAR_PREFIX_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
+    if (hasNearbyUsd(fullStr, offset)) return match;
+    const hkdAmount = parseAmount(numStr, magnitude);
+    const usdAmount = hkdAmount * HKD_TO_USD_RATE;
+    const usdStr = formatUsd(usdAmount, magnitude);
+    return `${usdStr} (${match})`;
+  });
+
+  // Process "<number> Hong Kong dollars" full-name patterns
+  // (e.g. "2,526 Hong Kong dollars a share vanished")
+  str = str.replace(HK_DOLLAR_NAME_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
     if (hasNearbyUsd(fullStr, offset)) return match;
     const hkdAmount = parseAmount(numStr, magnitude);
     const usdAmount = hkdAmount * HKD_TO_USD_RATE;

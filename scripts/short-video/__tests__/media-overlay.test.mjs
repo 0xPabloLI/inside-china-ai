@@ -32,8 +32,8 @@ describe("MEDIA_OVERLAY", () => {
     expect(MEDIA_OVERLAY.quote).toBeGreaterThanOrEqual(0.75);
   });
 
-  it("stat-reveal stays ambient — the number is the protagonist (media-density pass)", () => {
-    expect(MEDIA_OVERLAY["stat-reveal"]).toBe(0.65);
+  it("stat-reveal stays ambient but perceivable — the rail is the vignette's job, not the scrim's", () => {
+    expect(MEDIA_OVERLAY["stat-reveal"]).toBe(0.5);
   });
 });
 

@@ -1407,10 +1407,11 @@ describe("checkHookMediaContract", () => {
     expect(result[0].category).toBe("Hook");
     expect(result[0].check).toContain("media");
     expect(result[0].fix).toContain("media: null");
-    // Hooks are structurally skipped by sourcing — the old fix pointed at a
-    // mechanism that can never fill this gap.
-    expect(result[0].fix).not.toContain("asset-sourcer");
-    expect(result[0].detail).toContain("manual curation");
+    // 2026-11-14: sourcing/generation covers hooks, so the fix points at the
+    // mechanisms that can actually fill the gap — the detail no longer claims
+    // manual curation is the only path.
+    expect(result[0].fix).toContain("assetNeed");
+    expect(result[0].detail).not.toContain("manual curation");
   });
 
   it("FAILS when the hook declares mediaStrategy asset and no media", () => {
@@ -1678,10 +1679,11 @@ describe("searchHints schema (#354)", () => {
   });
 
   it("fails searchHints on a scene without a claim path (declared but no effect)", () => {
-    const [hookFail] = hintFails([
-      scene({ visualType: "hook", searchHints: ["humanoid robot factory"] }),
-    ]);
-    expect(hookFail.check).toContain("Scene 2 has a claim path");
+    // Hooks have a claim path now (2026-11-14: sourcing covers the opening),
+    // so declared hints are usable there instead of dead weight.
+    expect(
+      hintFails([scene({ visualType: "hook", searchHints: ["humanoid robot factory"] })]),
+    ).toEqual([]);
     // media-density pass: a stacked-cards scene has a voiceover-derived claim
     // path now, so declared hints are usable instead of dead weight.
     expect(
