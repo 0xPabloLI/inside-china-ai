@@ -1,23 +1,31 @@
 # Tools & API 目录
 
-> **用途**：收录对本项目有用的 tools / services / APIs / skills，供 Agent 和用户参考。发现新的好用工具时，按格式追加到本文档。
+> **用途**：收录 tools / services / APIs / skills。项目层写本项目怎么用（唯一权威），通用层写工具本身（跨项目储备）。发现新的好用工具时，按格式追加到对应层。
 > **创建日期**：2026-08-11
-> **维护规则**：新条目加到对应分类末尾，更新速览表。已不用的条目标记 `[已弃用]` 并注明原因，不删除（保留历史）。
+> **维护规则**：新条目加到对应分类末尾，更新「总索引」速览表。已不用的条目标记 `[已弃用]` 并注明原因，不删除（保留历史）。
 > **索引说明**：本文件不在 RAG 索引范围内（RAG 用于新闻/文章素材索引）。此为内部工具储备文档，Agent 直接读取即可。
 > **安全审计说明**：所有候选工具在安装前必须通过安全审计（见「评估流程」章节）。
 
+## 分层契约
+
+本文件分两层：**项目层在前（唯一权威），通用层在后（跨项目储备）**。ADR-0021 于 2026-11-14 修订为「不新建同级 `tool-catalog` 仓」，两层因此同处本文件、靠顺序与小节标题区分。
+
+| 层 | 内容 | 权威性 | 谁改 |
+| --- | --- | --- | --- |
+| **项目层** | 场景→工具、已接线工具、任务决策表、Pipeline API、逐项吸收结论 | **唯一权威**：Tavily 硬规则等执行约束只认这一层 | 本项目 ticket |
+| **通用层** | 候选 skills、视频 skill 储备、评估流程、安全审计工具、条目模板 | 参考储备，不构成本项目的执行约束 | 任何引用方；新增条目只需工具画像 |
+
+三条硬规则：
+
+1. **通用层条目不得引用项目内路径**（`scripts/…`、`docs/…`、`AGENTS.md`、`src/…`）。通用条目必须能脱离本仓读懂；项目侧的吸收结论与调研指路一律放项目层。
+2. 项目层可以按**章节名**引用通用层条目；不按行号引用。
+3. 下面的「总索引」跨两层，只用于定位，权威性在各层条目本身。
+
 ---
 
-## 场景 → 工具决策表
+## 总索引：速览表（跨两层）
 
-| 场景                | 工具                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| 技术文档            | Context7 MCP                                                                           |
-| 事实查询 / URL 抓取 | 按 Tavily 小节硬规则执行（fallback 链，本文件唯一权威）                                |
-| 深度研究            | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
-| 趋势发现            | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X）                     |
-
-## 速览表
+> 本表覆盖两层，仅作定位索引；「对本项目价值」列是项目侧视角，通用层行写的是本项目怎么用它，不改变其通用属性。
 
 | 工具                                         | 分类                      | 免费            | 状态                 | 对本项目价值                                                   |
 | -------------------------------------------- | ------------------------- | --------------- | -------------------- | -------------------------------------------------------------- |
@@ -58,100 +66,22 @@
 
 ---
 
-## 已集成工具
+---
 
-### web-access — Chrome CDP 联网
+# 第一部分 · 项目层（唯一权威）
 
-- **分类**：联网/抓取
-- **费用**：免费
-- **Skill 路径**：`~/.agents/skills/web-access/`
-- **版本**：v2.5.4（上游 https://github.com/eze-is/web-access，MIT）
-- **做什么**：通过 Chrome DevTools Protocol proxy（localhost:3456）连接本地 Chrome/Edge/Chromium，保留登录态和 session/cookie
-- **为什么对本项目重要**：中国平台（天眼查、小红书、微信公众号、微博等）反爬严格，本地 Chrome 有登录态穿透力最强。AGENTS.md 明确规定默认联网工具
-- **用法**：加载 web-access skill 并遵循其指引（check-deps → CDP proxy → HTTP API）
-- **新增能力**（v2.5.2+）：`browser-discovery.mjs` 自动发现 Chrome/Edge 调试端口；`find-url.mjs` 从本地浏览器书签/历史检索 URL；`/extract` 端点 DOM→Markdown 转换（本地优化，上游无）；闲置 Tab 自动清理（15min）
-- **Breaking change**（v2.5.3）：`/new` 和 `/navigate` 从 GET `?url=` 改为 POST body，避免 URL 含 query 时被切分
-- **何时用**：任何需要登录态或中国平台的联网操作
-- **替代方案**：无（这是本项目的核心联网工具）
+> 这一层的结论只对 inside-china-ai 生效：接线状态、硬规则、票号归属都在这里。通用工具本身的画像在第二部分。
 
-### Cloudflare trace — 出口国家诊断
+## 场景 → 工具决策表
 
-- **分类**：诊断/网络
-- **费用**：免费（无 key、无配额）
-- **端点**：`https://www.cloudflare.com/cdn-cgi/trace`
-- **做什么**：通过自动化浏览器返回 `ip=` / `loc=` / `colo=`，用于 `tiktok-upload-prep.mjs` 的上传前出口国家探测（#964）
-- **为什么对本项目重要**：2026-10-25 的 CDP 发布在东京出口下发出后 0 播放；探测在与目标区（默认 SG）不一致或无法判定时警告。自 #1181（2026-11-13）起自动路径只存草稿，所以是警告而非阻断
-- **何时用**：只由发布门禁与竞品采集的出口门调用；不是内容抓取源
-- **替代方案**：无（必须在同一浏览器里测量，shell 代理与 Chrome 出口不一定是同一条路）
-- **调查/验证日期**：2026-11-01（#964）
-- **安全审计**：✅ 只读 GET；无 key、无凭据、无请求体；响应仅 `ip/loc/colo`；不引入依赖；不落盘（发布日志是本地 gitignored）。真实 smoke：自动化 profile 返回 `loc/colo`。
-- **准入结论**：作为发布前诊断端点集成；不作为内容抓取源。
+| 场景                | 工具                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| 技术文档            | Context7 MCP                                                                           |
+| 事实查询 / URL 抓取 | 按 Tavily 小节硬规则执行（fallback 链，本文件唯一权威）                                |
+| 深度研究            | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
+| 趋势发现            | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X）                     |
 
-### web-deep-research — 8 阶段深度研究
-
-- **分类**：深度研究
-- **费用**：免费
-- **Skill 路径**：`~/.agents/skills/web-deep-research/`
-- **做什么**：8 阶段研究管线（SCOPE → PLAN → RETRIEVE → TRIANGULATE → SYNTHESIZE → CRITIQUE → REFINE → PACKAGE），用 web-access CDP 做抓取，产出带引用的研究报告
-- **为什么对本项目重要**：项目已有多篇研究文档在 `docs/research/` 下，均用此 skill 产出
-- **用法**：触发词 "deep research"、"调研"、"comprehensive analysis"、"research report"
-- **何时用**：需要多源交叉验证 + 引用的研究任务
-- **替代方案**：Firecrawl `deep-research` workflow（方法论更浅，不推荐）
-
-### web_fetch (内置工具)
-
-- **分类**：联网/抓取
-- **费用**：免费
-- **做什么**：已知 URL 的静态内容提取，HTML 转 Markdown
-- **何时用**：已知 URL、不需要登录、不需要 JS 渲染的简单抓取
-- **何时不用**：需要登录态、中国平台反爬、需要 JS 交互 → 用 `web-access` CDP
-
-### Jina Reader API — URL→Markdown 转换
-
-- **分类**：联网/抓取
-- **费用**：免费 1M tokens/月（每月更新），无 key 20 RPM
-- **配置**：MCP 已配置（`jina-mcp-tools@latest`，`JINA_API_KEY` 在 `.env.local`）
-- **做什么**：把任意 URL 转成干净 Markdown（`r.jina.ai/{url}`），或关键词搜索返回 top 5 结果（`s.jina.ai/{query}`）。双引擎：headless Chrome（JS 渲染）+ curl-impersonate（轻量级）自动选择
-- **核心技术**：Node.js + Puppeteer + curl-impersonate + PDF.js + LibreOffice（Office 文档）+ Turndown（HTML→Markdown）
-- **本地部署**：Docker `ghcr.io/jina-ai/reader:oss`（Apache-2.0），CPU 2-4 核，RAM 2-4GB，无状态模式无限调用
-- **输出格式**：默认纯文本 Markdown；JSON 模式（`Accept: application/json`）返回 `{title, description, url, content, publishedTime}`
-- **何时用**：已知 URL、需要 JS 渲染、但不需要登录态的公开页面（英文新闻、博客、文档、PDF）。比 `web_fetch` 强（能 JS 渲染），比 CDP 轻（不占用浏览器 tab）
-- **何时不用**：需要登录态的页面（中国平台）→ 用 `web-access` CDP；已知静态页面 → 用 `web_fetch`（更轻）
-- **与 /extract 的关系**：都是 HTML→Markdown，但 Jina 在云端（无登录态，Turndown 库成熟），/extract 在本地浏览器（有登录态，自写 EXTRACT_FN）。公开页面 Jina 质量更好，需登录页面 /extract 不可替代
-- **Pipeline 集成状态**：当前 Pipeline 代码不直接调用 Jina（`scripts/short-video/` 无 Jina 引用）。通过 MCP 供 Agent 调用。Issue #65（Search API Pool）实施后通过 Pool 调用；本地部署后 Pipeline 可直接 `fetch("http://localhost:3000/" + url)`
-- **Jina Embedding**（不同产品）：文本→向量，用于 RAG 语义搜索。与 Reader API 无关，消费同一 API key 额度但独立计费
-
-### Context7 MCP — 技术文档查询
-
-- **分类**：技术文档查询
-- **费用**：免费 1,000 API calls/月（MCP 端点免费，不需 API key；Pro $10/seat/月 5,000 calls）
-- **配置**：全局 MCP 设置（HTTP 模式连 `https://mcp.context7.com/mcp`）
-- **做什么**：查询任意库/框架的最新文档（API 签名、参数、版本变更）
-- **何时用**：验证技术事实（某库 API 是否支持 X 参数、某版本是否已发布）
-- **何时不用**：通用事实验证（搜索类需求按 Tavily 小节 fallback 链对应工具）
-- **容错**：Context7 挂了 → 按抓取 fallback 链换源（`web_fetch` 官方文档等）；Tavily 何时可用由 Tavily 小节硬规则决定
-
-### Tavily MCP — AI 搜索
-
-**硬规则（本文件是唯一权威）**：Tavily 是有限付费资源。已知 URL 一律 `web_fetch`（免费、无限制；GitHub 无反爬直接可读）。用 Tavily 前必须走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily；只有前两者失败或无法完成（如需多关键词并行搜索、AI 结构化摘要）时才可用。深度研究用 `web-deep-research` skill（触发词："deep research"、"调研"）。抓取用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
-
-- **分类**：联网/搜索
-- **费用**：免费 1,000 credits/月（无需信用卡；basic search 1 credit，advanced 2 credits）
-- **配置**：全局 MCP 设置（HTTP 远程 `https://mcp.tavily.com/mcp/?tavilyApiKey=...`）+ `.env.local` 存 key
-- **做什么**：AI 搜索引擎，返回结构化结果（title, url, content snippet），不需要 CDP 操作
-- **何时用**：按 Tavily 小节硬规则判定可用时的 AI 搜索
-- **何时不用**：需要登录态/JS 渲染/反爬穿透（用 web-access）；需要深度多源交叉验证（用 web-deep-research）
-- **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用 search-sources/last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
-- **容错**：Tavily 不可用时无替代升级——回退行为由 Tavily 小节硬规则约束
-
-### mcp-search-bridge — Grok 搜索
-
-- **分类**：联网/搜索
-- **费用**：按 API 用量（通过 bigsong.site 代理，Grok 模型）
-- **配置**：`.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`，安装在 `~/mcp-search-bridge/`
-- **做什么**：把 Grok 模型包装成 MCP `web_search` 工具，Grok 有全网搜索能力 + 原生 X/Twitter 数据访问
-- **何时用**：X/Twitter 搜索（Grok 原生数据）；search-sources 的西方源搜索 fallback；需要和 Google 不同的搜索视角时
-- **容错**：挂了 → CDP Google `site:x.com` 搜索
+## 已集成工具（项目耦合）
 
 ### search-sources.mjs — 趋势发现（中文平台 + 西方源）
 
@@ -162,6 +92,13 @@
 - **源列表**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、知乎、抖音、TikTok Creator、X(Twitter)、YouTube、arXiv、GitHub、Threads、Web Search、动察Beating
 - **独占源**：量子位、机器之心、36氪、TechCrunch、Bloomberg、观察者网、IT之家、小红书、搜狗微信、微博、B站、抖音、知乎（13 源 last30days 没有）
 - **与 last30days 交叉**：X（CDP DOM + mcp-search-bridge vs API）、TikTok（Creator Center vs hashtag）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）
+- **与 last30days 的协作与交叉比对口径**（本节权威，通用层只留工具画像）：
+  ```
+  search-sources.mjs → trending-topics.json（中文平台，CDP 登录态）
+  last30days --emit=json → JSON（西方社媒 + 学术，API）
+  Agent 读两个 JSON → 交叉比对 → 选 topic → 写文章 → 做视频
+  ```
+  交叉比对执行固定的三步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）。产物须为每条留痕：去重组归属 + 分数 + 理由。
 - **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据访问），也是 5 个西方源的主要搜索方式。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`
 - **Fallback 链**：CDP → googleSiteFallback (Google site: 搜索) → mcpFallback (mcp-search-bridge/Grok)
 - **何时用**：做视频前找话题，或文章前找中文平台趋势
@@ -198,6 +135,380 @@
     另注：关掉低质引擎**不会**把延迟拉下来（14.8s → 17.7s 同一量级），墙钟由当时最慢的参与引擎决定，不是引擎数。
 - **何时用**：管线自动使用（trend/research 的 general 源之一）；人工调试用 `curl 'http://localhost:8888/search?q=<kw>&format=json'`
 
+### we-mp-rss — 自建公众号 → RSS（微信读书通道）
+
+- **分类**：微信 RSS / 数据源
+- **费用**：免费（自托管）
+- **版本**：v1.5.3（`ghcr.io/rachelos/we-mp-rss:latest`，镜像 label 标 MIT；仓库 license 文件未标准化标注）
+- **做什么**：把微信公众号文章转成 RSS。当前实例通过微信读书会话采集，公众号以 `MP_WXS_<biz>` 为 feed id；本仓库的 `wechat_dongchabeating_rss` 源读取 `http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml`。
+- **为什么对本项目有用**：动察Beating 没有公开 feed；这是把它从 Google 转载搜索（滞后、易漏）换成结构化 RSS 的唯一直连路径。12 个 `wechat2rss_*` 公开 feed 仍是主轨，本实例只补这一个账号。
+- **部署**：本机 Docker 容器 `wechat-rss`，端口 `127.0.0.1:8001`，数据目录 `~/wechat-rss/data`（SQLite `db.db` + 微信读书会话 `wx.lic`）。UI 登录凭据在容器环境变量 `USERNAME`/`PASSWORD`；**不要把凭据写入仓库或日志**。
+- **维护**：唯一必须人工的步骤是微信读书扫码续期（手机确认）。会话失效时 UI 要求重新扫码；扫码后跑 `POST /api/v1/wx/weread/collect` 拉最新一篇。其余由 source-health 的零结果/失败 streak 触发告警。
+- **自动更新**：定时任务对 `MP_WXS_*` feed 会自动切到 `weread_mp` 采集器（`jobs/mps.py`），无需改 `gather.model`；但当前实例还没有建 cron 任务，所以 feed 只在手动 collect 后更新。建议在 UI 建一条 1–2h 的定时任务。
+- **边界**：只读路径；不注入微信客户端、不发消息。微信读书模式只返回**最新一篇**，不提供历史文章；feed 的 `pubDate` 是采集时间，不是原文发布时间。轮询保持低频（1–2 小时一次足够），日请求量上限 <200。
+- **何时用**：`wechat_dongchabeating_rss` 源自动读取；人工验证用 `curl http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml`。
+- **安全审计**：开源自托管，MIT（镜像 label）；无第三方 API key；本地端口只绑 `127.0.0.1`。
+- **状态**：✅ 已部署（2026-11-09；`#320`）
+
+---
+
+## 待评估 / 可选（项目耦合）
+
+### 搜索 MCP 配置参考（公开模板）
+
+> 以下记录本项目搜索管线依赖的 MCP 工具配置结构。敏感 token 已替换为 `<PLACEHOLDER>`，实际值在 `.env.local` 或全局 `mcopilot_mcp_settings.json` 中。仅列非通用、专门为 source-registry 搜索配的 MCP。
+
+#### CatPaw 全局 MCP（`mcopilot_mcp_settings.json` 中搜索相关）
+
+```json
+{
+  "mcpServers": {
+    "mcp-search-bridge": {
+      "command": "node",
+      "args": ["~/mcp-search-bridge/server.js"],
+      "env": {
+        "SEARCH_BASE_URL": "<SEARCH_BASE_URL>",
+        "SEARCH_API_KEY": "<SEARCH_API_KEY>",
+        "SEARCH_MODEL": "grok-chat-fast"
+      }
+    },
+    "brave-search": {
+      "command": "npx",
+      "args": ["-y", "@brave/brave-search-mcp-server"],
+      "env": { "BRAVE_API_KEY": "<BRAVE_API_KEY>" }
+    },
+    "jina": {
+      "command": "npx",
+      "args": ["-y", "jina-mcp-tools@latest"],
+      "env": { "JINA_API_KEY": "<JINA_API_KEY>" }
+    },
+    "tavily": {
+      "type": "http",
+      "url": "https://mcp.tavily.com/mcp/?tavilyApiKey=<TAVILY_API_KEY>"
+    }
+  }
+}
+```
+
+#### source-registry MCP fallback（独立安装，不在全局 MCP settings 中）
+
+| 工具                | 安装命令                                               | source-registry 用途                                                  | 安装状态  |
+| ------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- | --------- |
+| `rednote-mcp`       | `npm install -g rednote-mcp`                           | 小红书 `search_notes`（source-registry `xiaohongshu` 源 mcpFallback） | ✅ 已安装 |
+| `douyin_mcp`        | `pip install douyin_mcp`（待确认包名）                 | 抖音 `search_videos`（source-registry `douyin` 源 mcpFallback）       | ❌ 未安装 |
+| `mcp-search-bridge` | 自建 Node.js server（`~/mcp-search-bridge/server.js`） | X/Twitter + 5 个西方源 mcpFallback                                    | ✅ 已安装 |
+
+**确认**：这些 MCP 工具是 source-registry 中 `mcpFallback` 字段指向的抓取方案。`rednote-mcp` 和 `douyin_mcp` 分别用于小红书和抖音的视频搜索；`mcp-search-bridge` 用于 X/Twitter 等西方源的搜索 fallback。
+
+### AutoVio — 开源生成式视频管线（参考项目，不采用）
+
+- **分类**：视频生成管线（参考）
+- **费用**：免费自托管（需 Bun + MongoDB + FFmpeg；生成模型 BYO API key：Gemini/DALL-E/Veo/Runway/Kling/Luma）
+- **仓库**：`https://github.com/Auto-Vio/autovio`（Stars ~27）
+- **许可**：⚠️ **PolyForm Noncommercial** — 仅限非商用。本项目内容对外发布，**禁止复用其代码**
+- **做什么**：Text prompt → LLM 分镜（scenario）→ AI 生图 → 图生视频 → 时间线编辑器 → MP4。Express + MongoDB + React 架构；provider 接口抽象（`packages/backend/src/providers/interfaces.ts` + `registry.ts`）；REST API + OpenAPI；独立 MCP server（`autovio-mcp`）
+- **为什么对本项目有用**：仅两点参考价值——(1) `packages/backend/src/prompts/scenario.ts` 的分镜 prompt 结构（LLM 如何把每段叙事映射到逐场景的视觉设计/转场），与「场景-内容匹配」研究相关；(2) 生成式管线全流程演示。**路线不同**：AutoVio 是生成式虚构画面，本项目是事实性新闻的确定性模板渲染
+- **用法**：不安装。只读仓库源码参考（`gh api` 读取或 clone 到仓库外目录）
+- **何时用**：研究 scenario→visual 映射的 prompt 设计、或想看生成式管线 demo 时
+- **何时不用**：任何生产场景——NC 许可禁止；生成式画面有幻觉风险，与品牌一致性/事实准确性要求冲突
+- **维护状态**：⚠️ 2026-03-05 创建，main 分支最后实质提交 2026-03-22（其后提交多为 README 翻译），趋近 AGENTS.md 6 个月维护红线
+- **安全审计**：未审计（不安装、不进管线；如本地跑 demo，需先审查其后端对 API key 的使用范围）
+- **调查日期**：2026-08-30
+- **状态**：❌ 不推荐（NC 许可 + 维护趋停滞 + 问题域不匹配），仅作分镜 prompt 结构参考
+
+---
+
+## 候选 Skills（项目耦合）
+
+> 以下 skills 与 inside-china-ai 的发布通道、中文平台、账号资产直接相关，价值判断以本项目为基准；均未安装，需要相关功能时先查这里。
+> 2026-09-06 自媒体十 skill 调研（Agent-Reach / Horizon / MediaCrawler / huashu-design / Auto-Redbook / Generative-Media-Skills / nuwa / guizang-social-card / social-auto-upload / linco-bridge）的源码级机制细节见 `docs/research/selfmedia-skills-survey-2026-09.md`（关联 issue #203-#210）；这十张票里纯工具画像的部分在第二部分「候选 Skills（通用）」，机制细节出自同一批调研。
+
+### Horizon — AI 新闻雷达管线（机制参考，不安装）📖
+
+- **分类**：趋势发现
+- **费用**：免费开源（MIT）；AI 打分/去重按条目消耗 LLM token
+- **仓库**：`https://github.com/Thysrael/Horizon`（9,260 stars，2026-09-06 当天仍有 push，活跃未归档，Python）
+- **做什么**：RSS/HN/Reddit/Telegram/X/GitHub/OpenBB → 抓取 → 去重 → AI 打分过滤 → 背景补充 → 中英双语 Markdown 日报，分发到 Pages/邮件/webhook/MCP
+- **对本项目有用的机制**（调研深挖结论，源码级）：
+  - **双层去重**：URL 归一化 key（`src/scrapers` 上层 orchestrator）+ LLM"同事件判定"prompt（源码 https://github.com/Thysrael/Horizon/blob/main/src/ai/prompting/deduplication.py ，规则：同一现实事件才算重复，"发布"vs"越狱"算不同，不确定时保留，fail-open）——可直接移植到 search-sources.mjs → Agent 交叉比对环节
+  - **profile 阈值打分**：每条 0-10 分，rubric 见 https://github.com/Thysrael/Horizon/blob/main/docs/scoring.md （9-10 范式级/7-8 重要/5-6 增量/0-2 噪音），阈值按 profile 配置——可替代我们"Agent 当场目测"的筛选
+  - **Reddit 三级 fallback**：old.reddit HTML → JSON listing（Chrome UA）→ RSS，`RedditBlockedError` 专门处理
+  - **Telegram 公开频道抓取**：`t.me/s/` web 预览页解析，免 token——潜在免费新增源（AI 新闻 Telegram 频道多）
+  - X 抓取双模：Apify actor（$49/月起）或 Playwright + 多账号 cookie 轮询（风控风险）
+- **何时用**：不安装、不引入定时任务（用户决策 2026-09-06）；改进 trends 去重/打分时读上述源码文件
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：📖 机制参考（去重 prompt + 评分 rubric 待吸收进选题流程）
+
+### MediaCrawler — 中文多平台爬虫框架 ❌
+
+- **分类**：联网/抓取
+- **费用**：免费
+- **仓库**：`https://github.com/NanmiCoder/MediaCrawler`（64,492 stars，push 2026-08-14，Python）
+- **许可**：**非标准许可证（NON-COMMERCIAL LEARNING LICENSE 1.1）——仅限学习，禁商用，禁大规模爬取**
+- **做什么**：小红书/抖音/快手/B站/微博/贴吧/知乎的关键词搜索、帖子详情、二级评论、创作者主页采集
+- **机制**：Playwright CDP 模式复用真实 Chrome 登录态 + 在登录态页面内执行 JS 拿签名参数（不逆向算法）；扫码登录
+- **为什么对本项目有用**：❌ 不引入——许可证禁商用（内容生产属灰色地带）、README 自挂爬虫违法案例合集；机制上与我们 search-sources.mjs 的 CDP 登录态路线等价
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：❌ 不推荐（许可证 + 合规风险；机制与自建等价）
+
+### guizang-social-card-skill — 小红书图文卡片/公众号封面生成 ⭐⭐
+
+- **分类**：其他（图文设计）
+- **费用**：免费开源
+- **仓库**：`https://github.com/op7418/guizang-social-card-skill`（6,862 stars，push 2026-07-01，作者"歸藏"）
+- **许可**：**AGPL-3.0**——原样使用做内容生产无碍；改编进闭源管线会触发开源义务
+- **做什么**：单文件 HTML/CSS 渲染 → Playwright 截图 PNG。2 套视觉系统、28 个版式、3 个画板（小红书 1080×1440、公众号 2100×900+1080×1080 封面对）；附 `validate-social-deck.mjs` 用 Playwright 做 DOM 测量校验溢出/字号
+- **为什么对本项目有用**：若启用小红书/公众号频道，封面与图文卡片可用它生成（HTML 排版而非 AI 生图，版权干净）；与 Remotion 视频管线互补不重叠
+- **何时不用**：当前 TikTok 视频管线
+- **安全审计**：未审计（未安装）
+- **调查日期**：2026-09-06
+- **状态**：📋 待评估（启用小红书/公众号频道时评估；注意 AGPL）
+
+### Auto-Redbook-Skills — 小红书文案+配图+发布 ⚠️
+
+- **分类**：其他（小红书管线）
+- **费用**：免费
+- **仓库**：`https://github.com/comeonzhj/Auto-Redbook-Skills`（2,251 stars，push 2026-08-13，Python + Node.js）
+- **许可**：**无 license 文件**（默认版权保留，不可合规复用代码）
+- **做什么**：三段式——agent 写笔记文案 → Playwright 渲 HTML 模板出 1080×1440 卡片（8 主题 + 自动分页）→ 纯 HTTP 发布
+- **独特机制**：发布不走浏览器自动化，而是 `vendor/` 内置逆向的小红书 Creator 签名 JS 链路 + 手工导出的 `XHS_CREATOR_COOKIE`，支持 `--dry-run`、默认仅自己可见
+- **红旗**：README 顶部自挂小红书官方 2026-03《打击 AI 托管运营账号治理公告》——使用方式正处平台打击范围；逆向签名随时失效；账号 Cookie 交脚本有风险
+- **为什么对本项目有用**：❌ 不采用发布部分；卡片渲染思路与 huashu-design 同类
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：📋 待评估（2026-09-06 用户决策：接受平台治理风险，先安全审计 + 小号 dry-run 试点，主账号不触达；每次真实发布仍走 HITL 硬门。见 issue #206）
+
+### social-auto-upload — 多平台自动发布 ⚠️
+
+- **分类**：其他（发布自动化）
+- **费用**：免费开源（MIT）
+- **仓库**：`https://github.com/dreammis/social-auto-upload`（14,793 stars，push 2026-09-02，Python）
+- **做什么**：Playwright 复放各平台创作者中心上传页，覆盖抖音/B站/小红书/快手/视频号/TikTok/YouTube 等，支持定时发布；已 CLI 化（`sau`）并带 Claude Code/Codex skills
+- **红旗**：作者自认方案可被平台检测（在"降低检测风险"路线上迭代）；需持各平台真实账号 cookie；2026 年初疏于维护后正密集重构、接口不稳；TikTok/YouTube 有官方 Content Posting API 却仍走浏览器模拟
+- **为什么对本项目有用**：❌ 不采用——与 content-pipeline 的发布 HITL 硬门直接冲突
+- **何时用**：不采用。若未来扩分发平台，优先研究官方 API 路线（如 TikTok Content Posting API）
+- **安全审计**：未审计（不安装）
+- **调查日期**：2026-09-06
+- **状态**：⚠️ 不采用（HITL 冲突 + 封号风险）
+
+### nuwa-skill — 账号文风/心智模型提炼 ⭐⭐⭐
+
+- **分类**：其他（内容方法论）
+- **费用**：免费开源（MIT）
+- **仓库**：`https://github.com/alchaincyf/nuwa-skill`（32,107 stars，push 2026-08-25，作者 AI 博主"AJ 胡钦"）
+- **做什么**：纯提示词四步管线：六路并行采集语料（著作/播客/社媒/批评者/决策/时间线）→ 三重验证提炼（跨 2+ 领域出现、有预测力、有排他性）→ 生成 SKILL.md（心智模型 + 决策启发式 + 表达 DNA + 反模式）→ 质量验证（答过的题测一致性，没答过的题测"适度不确定"）。零 API key，产出本地 SKILL.md
+- **为什么对本项目有用**：⭐ 理念已采纳——对本账号**已发布**的文章与视频脚本跑同构提炼，产出账号文风档案进 brand-system 体系，解决"每次产出风格漂移"。与外部工具无依赖关系
+- **何时用**：产出风格漂移需要收敛时（英文侧已于 2026-09-07 落地 `docs/brand-voice-profile.md`，裁剪为四件套）；**中文内容频道立项后重启全量方法论**——nuwa 原生为中文圈人物/账号提炼设计，做中文内容时心智模型/决策启发式两件的收益远高于英文侧，届时可对中文语料全量五件套重跑
+- **何时不用**：语料不足时（新账号初期产出太少，提炼会过拟合）
+- **安全审计**：未审计（不安装本体；方法论移植）
+- **调查日期**：2026-09-06
+- **状态**：✅ 已采用（英文侧 #205 落地为四件套文风档案；中文频道立项时全量方法论备用）
+
+---
+
+## 自动视频生成（Auto Video Generation）
+
+> **本类目判据**：端到端"一句话/一篇文章 → 一条成片"的**引擎级**项目（自带文案、素材、配音、合成四段）。与下一节「视频 Skill 储备」的区别：那边是 agent 用的 `SKILL.md` 配方与组件片段，这边是可独立运行的成片系统——**竞品/形态对照**，不是依赖。
+> **共同结论**：本类目目前**没有任何一个值得引入代码**。判据是三条硬事实——① 成片形态（多数是"素材 + 文字卡片 + 硬切"，动画层缺失）；② 后端绑定（招牌能力绑付费云或 NVIDIA）；③ 维护与许可（停更节奏 / NC 条款 / 云服务商条款禁商用）。
+
+### Pixelle-Video — AI 全自动短视频引擎（只读参考，不采用）
+
+- **分类**：自动视频生成（端到端成片引擎）
+- **仓库**：`https://github.com/ATH-MaaS/Pixelle-Video`（阿里 ATH-MaaS，原 org 名 `AIDC-AI`；28.6k★ / 4.2k fork，2025-11-07 建仓）
+- **许可**：✅ Apache-2.0（可商用）。⚠️ **但能力边界绑在第三方云上**：其主推后端 RunningHub 的《付费服务协议》第 二.2.2 条限定「只能出于个人、非商业目的使用服务」——对商用 / 对外发布用途是**条款级阻断**，不是价格问题
+- **做什么**：话题 → LLM 写旁白（默认 5 分镜）→ 按模板类型决定是否出 AI 图/短片 → TTS 配音（音频时长即分镜时长）→ `templates/**/*.html` 经 **Playwright 截屏出帧** → `ffmpeg` 拼接。素材后端三选一：本地 ComfyUI / RunningHub 云 / 直连 DashScope·OpenAI·火山 ARK·可灵
+- **成片形态（实测，非观感）**：同分镜内相邻帧平均像素差 0.000–0.008，仅分镜切换点跳到 2.0–3.1 → **卡片硬切**。三条代码判据：静图用 `loop=1` 循环成段（无运镜滤镜）、文字层是一张透明 PNG 叠在短片上（背景会动字不动）、`concat` 无 `xfade` 且 fade 只作用 BGM
+- **接口形态价值**：唯一"同输入同产出"的公开同类，价值全在接口形态——5 条可学习项（模板声明素材依赖 / 原子 REST 端点 / run 级隔离 + manifest / `template_params` 受控定制 / 带语义步骤名的进度事件）
+- **本项目吸收结论**（指路，非本节内容）：已逐条对账，落点 #462 #463 与 #355 #291 #228 #310 票评
+- **用法**：**不安装**。只读源码用 `gh api` 或 clone 到仓库外目录（`/private/tmp`）。若要真跑：Python ≥3.11 + `uv` + `ffmpeg` + **`playwright install chromium`（其文档未列此步，缺失会在出帧阶段才炸）**；最低成本档 0 元可跑通（本地 Ollama + edge-tts + `static_*` 模板，2026-10-02 实测 41 秒出 27 秒成片）
+- **何时用**：讨论"管线该长成什么接口形状"、需要竞品形态对照、或要一份现成竖屏版式清单（25 个 `1080x1920` 模板，Apache-2.0 可改写）时
+- **何时不用**：任何生产路径。停更项目 + 招牌功能绑付费云 + 零测试零 CI + 文件服务路径校验为词法级（点段序列可绕，未修）
+- **维护状态**：⚠️ main 最后提交 2026-06-14；官方 release 停在 v0.1.15（2026-01-27）；文档站部署停在 2026-01-08；issue open 146 / closed 41（关闭率 22%）；无 SECURITY.md，安全修复 PR 无人合并
+- **安全审计**：未审计（不安装、不进管线）。已知缺陷见上，若未来参考其 API 形态，路径校验必须 `resolve()` 后再比对，不能用 `startswith`
+- **调查日期**：2026-10-01（实跑验证 2026-10-02）· 详见 `docs/research/pixelle-video-research-2026-10-01.md`
+- **状态**：📖 只读参考（Tier B），不引入代码
+
+### 同类目其他条目（正文各自留原位，此处只做索引）
+
+| 对象 | 判据落点 | 正文位置 |
+| --- | --- | --- |
+| AutoVio | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突） | 本文件「待评估 / 可选工具 → AutoVio」 |
+| MoneyPrinterTurbo | 库存视频优先路线的**已吸收结论**（搜索方向/分辨率匹配、同源去重、sequential 选段） | `docs/research/repo-survey-tracking.md` §A |
+
+---
+
+## 任务→工具决策表
+
+```
+任务类型                       → 推荐工具
+──────────────────────────────────────────────────
+本地 PDF 转 Markdown            → pdf-parse（离线够用）
+本地 DOCX/XLSX 转 Markdown      → firecrawl parse（需注册）
+已知 URL 英文网页提取           → web_fetch 或 firecrawl scrape
+中国平台搜索/抓取（需登录）      → web-access CDP
+趋势发现（中文 AI 话题）         → search-sources.mjs
+趋势发现（英文社媒热度）         → last30days-skill --emit=json "topic"
+深度研究（多源交叉验证 + 引用）  → web-deep-research
+已知 URL 原始 HTML/meta         → curl
+Vercel 成本/性能审计            → vercel-labs/agent-skills（待安装）
+React 前端性能审查              → vercel-labs/agent-skills（待安装）
+网站 UI 动画打磨               → emilkowalski/skills（待安装）
+演示文稿/PPT 生成              → guizang-ppt-skill（待安装）
+找特定功能的 skill             → VoltAgent/awesome-agent-skills 目录
+找免费 API（任意领域）          → public-apis/public-apis README 按分类查
+分镜/场景-内容匹配 prompt 参考  → AutoVio `prompts/scenario.ts`（仅参考，不安装）
+自动成片引擎形态/接口对照        → Pixelle-Video（只读；同类目索引见「自动视频生成」节）
+```
+
+---
+
+## Pipeline API 补充候选
+
+> 从 public-apis 筛选的免费 API。分两类：A 类直接集成到管线代码（每次搜索自动调用），B 类按需使用（Agent 研究时手动调用，不常驻代码）。
+> 状态：📋 待集成｜🔧 集成中｜✅ 已集成｜❌ 评估后不采用
+
+### A 类：直接集成（→ source-registry.mjs / asset-sourcer.mjs）
+
+这些 API 有固定搜索结构，加进去后每次搜索自动调用，值得写进代码。
+
+| API          | Auth   | 集成到                                 | 端点                                            | 补充什么                                     | 状态      |
+| ------------ | ------ | -------------------------------------- | ----------------------------------------------- | -------------------------------------------- | --------- |
+| DataCube AI  | No     | source-registry WESTERN_SOURCES        | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言                     | ✅ 已集成 |
+| Noozra       | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条，100 req/天（`NOOZRA_API_KEY`） | ✅ 已集成 |
+| GNews        | apiKey | source-registry WESTERN_SOURCES        | `https://gnews.io/api/v4/search`                | 新闻搜索，多语言，100 req/天                 | ✅ 已集成 |
+| Currents     | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search`    | 实时全球新闻，200 req/天                     | ✅ 已集成 |
+| OpenAlex     | No     | source-registry WESTERN_SOURCES        | `https://api.openalex.org/works`                | 学术作品开放目录（2.4 亿作品）               | ✅ 已集成 |
+| CORE         | No     | source-registry WESTERN_SOURCES        | `https://api.core.ac.uk/v3/search/works/`       | 开放获取论文（2.6 亿+），5 req/10s，无需注册 | ✅ 已集成 |
+| Lorem Picsum | No     | asset-sourcer API_SOURCES              | `https://picsum.photos/`                        | Unsplash 随机图，fallback 占位图             | ✅ 已集成 |
+
+### B 类：按需使用（Agent 研究时手动调用，不常驻代码）
+
+这些 API 在写文章/做研究时偶尔用到，写死在管线里反而浪费。Agent 需要时直接 fetch 调用。
+
+| API                   | Auth   | 端点                                            | 何时用                                             | 状态    |
+| --------------------- | ------ | ----------------------------------------------- | -------------------------------------------------- | ------- |
+| Alpha Vantage         | apiKey | `https://www.alphavantage.co/`                  | 写 IPO/财务文章时查股价（25 req/天）               | 📋 按需 |
+| Econdb                | No     | `https://www.econdb.com/api/`                   | 需要宏观经济数据（GDP/CPI/PMI）时                  | 📋 按需 |
+| Flickr                | OAuth  | `https://www.flickr.com/services/api/`          | Pexels/Unsplash 找不到合适图时（尤其中国城市场景） | 📋 按需 |
+| LibreTranslate        | No     | `https://libretranslate.com/docs`               | 偶尔需要中英互译 fallback 时                       | 📋 按需 |
+| Groq                  | apiKey | `https://console.groq.com/docs/quickstart`      | 评估是否替代本地 Ollama 做 RAG embedding           | 📋 按需 |
+| Jina AI               | apiKey | `https://jina.ai`                               | 评估是否替代 bge-m3 做云端 embedding               | 📋 按需 |
+| OpenVisionAPI         | No     | `https://openvisionapi.com`                     | Qwen3-VL 不可用时做 image tagging fallback         | 📋 按需 |
+| Lowy Asia Power Index | No     | `https://github.com/0x0is1/lowy-index-api-docs` | 写地缘政治文章时的背景数据                         | 📋 按需 |
+| Archive.org           | No     | `https://archive.readme.io/docs`                | 需要新闻/网页历史快照时                            | 📋 按需 |
+
+---
+
+## Design Decisions & References
+
+| Topic                    | Reference             | Content                                                      |
+| ------------------------ | --------------------- | ------------------------------------------------------------ |
+| Skill evaluation process | `docs/agents/` (L1)   | Issue tracker, triage labels, domain docs setup              |
+| Web scraping strategy    | `docs/research/` (L2) | Source-specific research (media assets, voice cloning, etc.) |
+
+---
+
+# 第二部分 · 通用层（跨项目复用）
+
+## 已集成工具（通用）
+
+> 这些工具是跨项目能力层，条目只写工具本身与用法；新增条目只需工具画像 + 外部 URL，不需要项目上下文。它们在本项目里的接线状态与硬规则见第一部分的「已集成工具（项目耦合）」。
+
+### web-access — Chrome CDP 联网
+
+- **分类**：联网/抓取
+- **费用**：免费
+- **Skill 路径**：`~/.agents/skills/web-access/`
+- **版本**：v2.5.4（上游 https://github.com/eze-is/web-access，MIT）
+- **做什么**：通过 Chrome DevTools Protocol proxy（localhost:3456）连接本地 Chrome/Edge/Chromium，保留登录态和 session/cookie
+- **本项目用例**：中国平台（天眼查、小红书、微信公众号、微博等）反爬严格，本地 Chrome 有登录态穿透力最强；本项目把它定为默认联网工具（硬规则见第一部分「场景 → 工具决策表」）
+- **用法**：加载 web-access skill 并遵循其指引（check-deps → CDP proxy → HTTP API）
+- **新增能力**（v2.5.2+）：`browser-discovery.mjs` 自动发现 Chrome/Edge 调试端口；`find-url.mjs` 从本地浏览器书签/历史检索 URL；`/extract` 端点 DOM→Markdown 转换（本地优化，上游无）；闲置 Tab 自动清理（15min）
+- **Breaking change**（v2.5.3）：`/new` 和 `/navigate` 从 GET `?url=` 改为 POST body，避免 URL 含 query 时被切分
+- **何时用**：任何需要登录态或中国平台的联网操作
+- **替代方案**：无（需要登录态的平台只能在同一浏览器里读）
+
+### Cloudflare trace — 出口国家诊断
+
+- **分类**：诊断/网络
+- **费用**：免费（无 key、无配额）
+- **端点**：`https://www.cloudflare.com/cdn-cgi/trace`
+- **做什么**：通过自动化浏览器返回 `ip=` / `loc=` / `colo=`，用于「上传前出口国家探测」——发布链先测出口 IP，再与目标区比对
+- **本项目用例**：实测某次 CDP 发布在东京出口下发出后 0 播放；探测在与目标区（默认 SG）不一致或无法判定时告警。项目侧自动路径只存草稿，所以是告警而非阻断
+- **何时用**：只由发布门禁与竞品采集的出口门调用；不是内容抓取源
+- **替代方案**：无（必须在同一浏览器里测量，shell 代理与 Chrome 出口不一定是同一条路）
+- **调查/验证日期**：2026-11-01（#964）
+- **安全审计**：✅ 只读 GET；无 key、无凭据、无请求体；响应仅 `ip/loc/colo`；不引入依赖；不落盘（发布日志是本地 gitignored）。真实 smoke：自动化 profile 返回 `loc/colo`。
+- **准入结论**：作为发布前诊断端点集成；不作为内容抓取源。
+
+### web-deep-research — 8 阶段深度研究
+
+- **分类**：深度研究
+- **费用**：免费
+- **Skill 路径**：`~/.agents/skills/web-deep-research/`
+- **做什么**：8 阶段研究管线（SCOPE → PLAN → RETRIEVE → TRIANGULATE → SYNTHESIZE → CRITIQUE → REFINE → PACKAGE），用 web-access CDP 做抓取，产出带引用的研究报告
+- **本项目用例**：本项目的多篇调研报告均用它产出，是标准研究入口
+- **用法**：触发词 "deep research"、"调研"、"comprehensive analysis"、"research report"
+- **何时用**：需要多源交叉验证 + 引用的研究任务
+- **替代方案**：Firecrawl `deep-research` workflow（方法论更浅，不推荐）
+
+### web_fetch (内置工具)
+
+- **分类**：联网/抓取
+- **费用**：免费
+- **做什么**：已知 URL 的静态内容提取，HTML 转 Markdown
+- **何时用**：已知 URL、不需要登录、不需要 JS 渲染的简单抓取
+- **何时不用**：需要登录态、中国平台反爬、需要 JS 交互 → 用 `web-access` CDP
+
+### Jina Reader API — URL→Markdown 转换
+
+- **分类**：联网/抓取
+- **费用**：免费 1M tokens/月（每月更新），无 key 20 RPM
+- **配置**：MCP 已配置（`jina-mcp-tools@latest`，`JINA_API_KEY` 在 `.env.local`）
+- **做什么**：把任意 URL 转成干净 Markdown（`r.jina.ai/{url}`），或关键词搜索返回 top 5 结果（`s.jina.ai/{query}`）。双引擎：headless Chrome（JS 渲染）+ curl-impersonate（轻量级）自动选择
+- **核心技术**：Node.js + Puppeteer + curl-impersonate + PDF.js + LibreOffice（Office 文档）+ Turndown（HTML→Markdown）
+- **本地部署**：Docker `ghcr.io/jina-ai/reader:oss`（Apache-2.0），CPU 2-4 核，RAM 2-4GB，无状态模式无限调用
+- **输出格式**：默认纯文本 Markdown；JSON 模式（`Accept: application/json`）返回 `{title, description, url, content, publishedTime}`
+- **何时用**：已知 URL、需要 JS 渲染、但不需要登录态的公开页面（英文新闻、博客、文档、PDF）。比 `web_fetch` 强（能 JS 渲染），比 CDP 轻（不占用浏览器 tab）
+- **何时不用**：需要登录态的页面（中国平台）→ 用 `web-access` CDP；已知静态页面 → 用 `web_fetch`（更轻）
+- **与 /extract 的关系**：都是 HTML→Markdown，但 Jina 在云端（无登录态，Turndown 库成熟），/extract 在本地浏览器（有登录态，自写 EXTRACT_FN）。公开页面 Jina 质量更好，需登录页面 /extract 不可替代
+- **集成状态**：暂无代码级调用，通过 MCP 供 Agent 使用；若自建实例，可改为直连 `fetch`
+- **Jina Embedding**（不同产品）：文本→向量，用于 RAG 语义搜索。与 Reader API 无关，消费同一 API key 额度但独立计费
+
+### Context7 MCP — 技术文档查询
+
+- **分类**：技术文档查询
+- **费用**：免费 1,000 API calls/月（MCP 端点免费，不需 API key；Pro $10/seat/月 5,000 calls）
+- **配置**：全局 MCP 设置（HTTP 模式连 `https://mcp.context7.com/mcp`）
+- **做什么**：查询任意库/框架的最新文档（API 签名、参数、版本变更）
+- **何时用**：验证技术事实（某库 API 是否支持 X 参数、某版本是否已发布）
+- **何时不用**：通用事实验证（搜索类需求按 Tavily 小节 fallback 链对应工具）
+- **容错**：Context7 挂了 → 按抓取 fallback 链换源（`web_fetch` 官方文档等）；Tavily 何时可用由 Tavily 小节硬规则决定
+
+### Tavily MCP — AI 搜索
+
+**硬规则（本文件是唯一权威）**：Tavily 是有限付费资源。已知 URL 一律 `web_fetch`（免费、无限制；GitHub 无反爬直接可读）。用 Tavily 前必须走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily；只有前两者失败或无法完成（如需多关键词并行搜索、AI 结构化摘要）时才可用。深度研究用 `web-deep-research` skill（触发词："deep research"、"调研"）。抓取用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
+
+- **分类**：联网/搜索
+- **费用**：免费 1,000 credits/月（无需信用卡；basic search 1 credit，advanced 2 credits）
+- **配置**：全局 MCP 设置（HTTP 远程 `https://mcp.tavily.com/mcp/?tavilyApiKey=...`）+ `.env.local` 存 key
+- **做什么**：AI 搜索引擎，返回结构化结果（title, url, content snippet），不需要 CDP 操作
+- **何时用**：按 Tavily 小节硬规则判定可用时的 AI 搜索
+- **何时不用**：需要登录态/JS 渲染/反爬穿透（用 web-access）；需要深度多源交叉验证（用 web-deep-research）
+- **credits 节省**：技术文档用 Context7（不消耗 Tavily）；趋势发现用 search-sources/last30days（不消耗 Tavily）；X 搜索用 mcp-search-bridge（不消耗 Tavily）
+- **容错**：Tavily 不可用时无替代升级——回退行为由 Tavily 小节硬规则约束
+
+### mcp-search-bridge — Grok 搜索
+
+- **分类**：联网/搜索
+- **费用**：按 API 用量（通过 bigsong.site 代理，Grok 模型）
+- **配置**：`.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`，安装在 `~/mcp-search-bridge/`
+- **做什么**：把 Grok 模型包装成 MCP `web_search` 工具，Grok 有全网搜索能力 + 原生 X/Twitter 数据访问
+- **何时用**：X/Twitter 搜索（Grok 原生数据）；search-sources 的西方源搜索 fallback；需要和 Google 不同的搜索视角时
+- **容错**：挂了 → CDP Google `site:x.com` 搜索
+
 ### pdf-parse (npm)
 
 - **分类**：文档解析
@@ -216,7 +527,7 @@
 - **做什么**：并行搜索 11 个默认免费源（Reddit、Hacker News、X、YouTube、Polymarket、GitHub、Digg、arXiv、Techmeme、Threads、Grounding），按 engagement 评分排序
 - **独占源**：Reddit、Hacker News、Polymarket、Digg、Techmeme（5 源 search-sources 没有）
 - **与 search-sources 交叉**：X（API vs CDP DOM + mcp-search-bridge）、TikTok（hashtag vs Creator Center）、YouTube、arXiv、GitHub、Threads、Grounding（7 源两边都有，机制不同）——两边都保留。**小红书不启用**——由 search-sources 独占（CDP 登录态更适合）
-- **与 RAG 的关系**：不重复。RAG（`scripts/rag/`）用本地 Ollama bge-m3 语义向量搜索项目已有内容（文章、scene-data、研究、源素材），零费用。last30days 搜索实时互联网讨论（最近 30 天外部讨论）
+- **与 RAG 的关系**：不重复。RAG 用本地 Ollama bge-m3 语义向量搜索已有内容（文章、scene-data、研究、源素材），零费用；last30days 搜索实时互联网讨论（最近 30 天外部讨论）
 - **关键发现（测试验证 2026-08-12，配置更新 2026-08-15）**：
   - ✅ **支持 JSON 输出**：`--emit=json --json-profile=agent`，输出 `{clusters: [{title, summary, engagement_total, sources}]}` 结构
   - ✅ **Reddit + HN 无需 API key**：开箱即用
@@ -248,34 +559,11 @@
   ```
 - **何时用**：需要西方社媒趋势、学术信号（arXiv）、跨平台热度对比
 - **何时不用**：中文平台趋势（用 `search-sources.mjs`）
-- **与 search-sources.mjs 的协作**：
-  ```
-  search-sources.mjs → trending-topics.json（中文平台，CDP 登录态）
-  last30days --emit=json → JSON（西方社媒 + 学术，API）
-  Agent 读两个 JSON → 交叉比对 → 选 topic → 写文章 → 做视频
-  ```
-  交叉比对执行固定的三步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）。产物须为每条留痕：去重组归属 + 分数 + 理由。
+- **与中文平台趋势源的协作**：跨源交叉比对的三步口径（同事件去重 / 0-10 评分 / 按类阈值）与留痕要求属项目侧集成决策，见第一部分「已集成工具（项目耦合）→ search-sources.mjs」
 - **安全审计**：⚠️ skills.sh Gen:Fail / Snyk:Fail / Socket:Warn（LAW 1-7 指令覆盖，Agent 语义审查通过——良性格式控制，非恶意行为）
 - **安装日期**：2026-08-12
 
-### we-mp-rss — 自建公众号 → RSS（微信读书通道）
-
-- **分类**：微信 RSS / 数据源
-- **费用**：免费（自托管）
-- **版本**：v1.5.3（`ghcr.io/rachelos/we-mp-rss:latest`，镜像 label 标 MIT；仓库 license 文件未标准化标注）
-- **做什么**：把微信公众号文章转成 RSS。当前实例通过微信读书会话采集，公众号以 `MP_WXS_<biz>` 为 feed id；本仓库的 `wechat_dongchabeating_rss` 源读取 `http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml`。
-- **为什么对本项目有用**：动察Beating 没有公开 feed；这是把它从 Google 转载搜索（滞后、易漏）换成结构化 RSS 的唯一直连路径。12 个 `wechat2rss_*` 公开 feed 仍是主轨，本实例只补这一个账号。
-- **部署**：本机 Docker 容器 `wechat-rss`，端口 `127.0.0.1:8001`，数据目录 `~/wechat-rss/data`（SQLite `db.db` + 微信读书会话 `wx.lic`）。UI 登录凭据在容器环境变量 `USERNAME`/`PASSWORD`；**不要把凭据写入仓库或日志**。
-- **维护**：唯一必须人工的步骤是微信读书扫码续期（手机确认）。会话失效时 UI 要求重新扫码；扫码后跑 `POST /api/v1/wx/weread/collect` 拉最新一篇。其余由 source-health 的零结果/失败 streak 触发告警。
-- **自动更新**：定时任务对 `MP_WXS_*` feed 会自动切到 `weread_mp` 采集器（`jobs/mps.py`），无需改 `gather.model`；但当前实例还没有建 cron 任务，所以 feed 只在手动 collect 后更新。建议在 UI 建一条 1–2h 的定时任务。
-- **边界**：只读路径；不注入微信客户端、不发消息。微信读书模式只返回**最新一篇**，不提供历史文章；feed 的 `pubDate` 是采集时间，不是原文发布时间。轮询保持低频（1–2 小时一次足够），日请求量上限 <200。
-- **何时用**：`wechat_dongchabeating_rss` 源自动读取；人工验证用 `curl http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml`。
-- **安全审计**：开源自托管，MIT（镜像 label）；无第三方 API key；本地端口只绑 `127.0.0.1`。
-- **状态**：✅ 已部署（2026-11-09；`#320`）
-
----
-
-## 待评估 / 可选工具
+## 待评估 / 可选（通用）
 
 ### Firecrawl — 网页数据平台
 
@@ -350,74 +638,10 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 }
 ```
 
-### 搜索 MCP 配置参考（公开模板）
+## 候选 Skills（通用）
 
-> 以下记录本项目搜索管线依赖的 MCP 工具配置结构。敏感 token 已替换为 `<PLACEHOLDER>`，实际值在 `.env.local` 或全局 `mcopilot_mcp_settings.json` 中。仅列非通用、专门为 source-registry 搜索配的 MCP。
-
-#### CatPaw 全局 MCP（`mcopilot_mcp_settings.json` 中搜索相关）
-
-```json
-{
-  "mcpServers": {
-    "mcp-search-bridge": {
-      "command": "node",
-      "args": ["~/mcp-search-bridge/server.js"],
-      "env": {
-        "SEARCH_BASE_URL": "<SEARCH_BASE_URL>",
-        "SEARCH_API_KEY": "<SEARCH_API_KEY>",
-        "SEARCH_MODEL": "grok-chat-fast"
-      }
-    },
-    "brave-search": {
-      "command": "npx",
-      "args": ["-y", "@brave/brave-search-mcp-server"],
-      "env": { "BRAVE_API_KEY": "<BRAVE_API_KEY>" }
-    },
-    "jina": {
-      "command": "npx",
-      "args": ["-y", "jina-mcp-tools@latest"],
-      "env": { "JINA_API_KEY": "<JINA_API_KEY>" }
-    },
-    "tavily": {
-      "type": "http",
-      "url": "https://mcp.tavily.com/mcp/?tavilyApiKey=<TAVILY_API_KEY>"
-    }
-  }
-}
-```
-
-#### source-registry MCP fallback（独立安装，不在全局 MCP settings 中）
-
-| 工具                | 安装命令                                               | source-registry 用途                                                  | 安装状态  |
-| ------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- | --------- |
-| `rednote-mcp`       | `npm install -g rednote-mcp`                           | 小红书 `search_notes`（source-registry `xiaohongshu` 源 mcpFallback） | ✅ 已安装 |
-| `douyin_mcp`        | `pip install douyin_mcp`（待确认包名）                 | 抖音 `search_videos`（source-registry `douyin` 源 mcpFallback）       | ❌ 未安装 |
-| `mcp-search-bridge` | 自建 Node.js server（`~/mcp-search-bridge/server.js`） | X/Twitter + 5 个西方源 mcpFallback                                    | ✅ 已安装 |
-
-**确认**：这些 MCP 工具是 source-registry 中 `mcpFallback` 字段指向的抓取方案。`rednote-mcp` 和 `douyin_mcp` 分别用于小红书和抖音的视频搜索；`mcp-search-bridge` 用于 X/Twitter 等西方源的搜索 fallback。
-
-### AutoVio — 开源生成式视频管线（参考项目，不采用）
-
-- **分类**：视频生成管线（参考）
-- **费用**：免费自托管（需 Bun + MongoDB + FFmpeg；生成模型 BYO API key：Gemini/DALL-E/Veo/Runway/Kling/Luma）
-- **仓库**：`https://github.com/Auto-Vio/autovio`（Stars ~27）
-- **许可**：⚠️ **PolyForm Noncommercial** — 仅限非商用。本项目内容对外发布，**禁止复用其代码**
-- **做什么**：Text prompt → LLM 分镜（scenario）→ AI 生图 → 图生视频 → 时间线编辑器 → MP4。Express + MongoDB + React 架构；provider 接口抽象（`packages/backend/src/providers/interfaces.ts` + `registry.ts`）；REST API + OpenAPI；独立 MCP server（`autovio-mcp`）
-- **为什么对本项目有用**：仅两点参考价值——(1) `packages/backend/src/prompts/scenario.ts` 的分镜 prompt 结构（LLM 如何把每段叙事映射到逐场景的视觉设计/转场），与「场景-内容匹配」研究相关；(2) 生成式管线全流程演示。**路线不同**：AutoVio 是生成式虚构画面，本项目是事实性新闻的确定性模板渲染
-- **用法**：不安装。只读仓库源码参考（`gh api` 读取或 clone 到仓库外目录）
-- **何时用**：研究 scenario→visual 映射的 prompt 设计、或想看生成式管线 demo 时
-- **何时不用**：任何生产场景——NC 许可禁止；生成式画面有幻觉风险，与品牌一致性/事实准确性要求冲突
-- **维护状态**：⚠️ 2026-03-05 创建，main 分支最后实质提交 2026-03-22（其后提交多为 README 翻译），趋近 AGENTS.md 6 个月维护红线
-- **安全审计**：未审计（不安装、不进管线；如本地跑 demo，需先审查其后端对 API key 的使用范围）
-- **调查日期**：2026-08-30
-- **状态**：❌ 不推荐（NC 许可 + 维护趋停滞 + 问题域不匹配），仅作分镜 prompt 结构参考
-
----
-
-## 待评估 / GitHub 候选 Skills
-
-> 以下 skills 来自 GitHub 搜索，已评估对项目价值但尚未安装。需要相关功能时先查这里。
-> 2026-09-06 自媒体十 skill 调研（Agent-Reach / Horizon / MediaCrawler / huashu-design / Auto-Redbook / Generative-Media-Skills / nuwa / guizang-social-card / social-auto-upload / linco-bridge）的源码级机制细节，见 `docs/research/selfmedia-skills-survey-2026-09.md`（关联 issue #203-#210）。
+> 以下 skills 来自 GitHub 搜索，只写工具画像（是什么 / 有什么 / 许可与付费依赖），与具体项目无关；所收录条目均未安装，需要相关功能时先查这里。
+> 安装前仍须走「评估流程」与安全审计；本层不记录任何项目的吸收结论。
 
 ### last30days-skill — 跨平台社交媒体搜索 ⭐⭐⭐
 
@@ -426,12 +650,12 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/mvanhorn/last30days-skill`
 - **Stars**：58k+
 - **做什么**：并行搜索 Reddit、X(Twitter)、YouTube、Hacker News、Polymarket、TikTok、arXiv、Techmeme，按 upvotes/likes/真实资金 评分，AI 合成简报
-- **为什么对本项目有用**：`search-sources.mjs` 覆盖中文平台，这个覆盖英文社交媒体，**互补性强**。做英文内容或需要全球 AI 话题热度时可互补
+- **本项目用例**：`search-sources.mjs` 覆盖中文平台，这个覆盖英文社交媒体，**互补性强**。做英文内容或需要全球 AI 话题热度时可互补
 - **用法**：`npx skills add mvanhorn/last30days-skill -g` → `/last30days <topic>`
 - **何时用**：需要英文社交媒体趋势（Reddit/HN/X/YouTube）时
 - **何时不用**：中文平台趋势（用 `search-sources.mjs`）
 - **注意**：Reddit/HN/Polymarket/GitHub 开箱即用；X/YouTube/TikTok/arXiv 需配置 API key
-- **安全审计**：⚠️ skills.sh 三家审计 Gen:Fail / Snyk:Fail / Socket:Warn（**含 LLM 语义分析**）。SkillSpector 本地静态扫描 0/100 SAFE（**LLM 分析未执行**，无 OPENAI_API_KEY）。按新流程进入 C 手动审查：SKILL.md 1400+ 行，包含 LAW 1-7 覆盖 agent 默认行为（禁止 Sources 模块、强制 badge 输出、禁止标题行等），但**均为输出格式控制，非恶意行为**。无数据泄露、无权限提升、无危险操作。**手动审查结论：风险可控**，但安装后其 LAW 规则可能与项目 AGENTS.md 约定冲突（如输出格式偏好）
+- **安全审计**：⚠️ skills.sh 三家审计 Gen:Fail / Snyk:Fail / Socket:Warn（**含 LLM 语义分析**）。SkillSpector 本地静态扫描 0/100 SAFE（**LLM 分析未执行**，无 OPENAI_API_KEY）。按新流程进入 C 手动审查：SKILL.md 1400+ 行，包含 LAW 1-7 覆盖 agent 默认行为（禁止 Sources 模块、强制 badge 输出、禁止标题行等），但**均为输出格式控制，非恶意行为**。无数据泄露、无权限提升、无危险操作。**手动审查结论：风险可控**，但安装后其 LAW 规则可能与调用方的 AGENTS.md 约定冲突（如输出格式偏好）
 - **skills.sh 审计页**：`https://skills.sh/mvanhorn/last30days-skill/last30days`
 - **调查日期**：2026-08-11
 - **状态**：⚠️ 手动审查通过 — 可安装，但注意 LAW 规则可能与项目格式约定冲突
@@ -448,7 +672,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
   1. `vercel-optimize` — 审计 Vercel 项目的成本、性能、缓存、函数用量
   2. `react-best-practices` — 40+ React/Next.js 性能规则（8 类，按影响排序）
   3. `web-design-guidelines` — 100+ UI 审查规则（无障碍、性能、UX）
-- **为什么对本项目有用**：项目部署在 Vercel + React 19 + TanStack Start。vercel-optimize 能查部署成本和性能瓶颈；react-best-practices 能审前端代码质量；web-design-guidelines 补 UI 审查
+- **本项目用例**：项目部署在 Vercel + React 19 + TanStack Start。vercel-optimize 能查部署成本和性能瓶颈；react-best-practices 能审前端代码质量；web-design-guidelines 补 UI 审查
 - **用法**：`npx skills add vercel-labs/agent-skills`
 - **何时用**：优化 Vercel 部署成本、审查 React 性能、UI 代码审查时
 - **何时不用**：非 Vercel 项目（但 react-best-practices 和 web-design-guidelines 通用）
@@ -464,7 +688,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/emilkowalski/skills`
 - **Stars**：28k+
 - **做什么**：7 个 skills：动画构建（选正确曲线/时长/属性）、动画审查、动画改进建议、动画机会发现、动画词汇表、Apple 设计原则、综合设计工程
-- **为什么对本项目有用**：项目用 TailwindCSS + shadcn/ui，网站 UI 动画质量可提升。作者来自 Vercel/Linear，经验可靠
+- **本项目用例**：项目用 TailwindCSS + shadcn/ui，网站 UI 动画质量可提升。作者来自 Vercel/Linear，经验可靠
 - **用法**：`npx skills add emilkowalski/skills`
 - **何时用**：网站 UI 动画打磨、审查动画质量时
 - **何时不用**：视频制作中的动画（这是 web 动画，不是视频动画）
@@ -482,7 +706,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/op7418/guizang-ppt-skill`
 - **Stars**：24k+
 - **做什么**：生成单文件 HTML 横向翻页 PPT，两套视觉系统（杂志风/瑞士国际风），内置演讲者模式和排练功能
-- **为什么对本项目有用**：如果以后需要做分享/演示文稿，可以快速生成高质量 HTML 幻灯片。当前非刚需
+- **本项目用例**：如果以后需要做分享/演示文稿，可以快速生成高质量 HTML 幻灯片。当前非刚需
 - **用法**：`npx skills add op7418/guizang-ppt-skill`
 - **何时用**：需要生成演示文稿/幻灯片时
 - **何时不用**：日常内容制作（文章/视频）
@@ -498,7 +722,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/VoltAgent/awesome-agent-skills`
 - **Stars**：30k+
 - **做什么**：1497+ hand-picked skills 目录，含 Anthropic、Google、Vercel、Stripe、Cloudflare、Supabase、Sentry、Expo、Hugging Face、Figma 等官方 skills + 社区 skills
-- **为什么对本项目有用**：**以后需要什么功能，先去这里搜**。是最大的高质量 skills 目录
+- **本项目用例**：**以后需要什么功能，先去这里搜**。是最大的高质量 skills 目录
 - **用法**：浏览 `https://github.com/VoltAgent/awesome-agent-skills` 按需查找
 - **调查日期**：2026-08-11
 - **状态**：📖 参考
@@ -510,7 +734,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/ComposioHQ/awesome-claude-skills`
 - **Stars**：72k+
 - **做什么**：另一个 curated Claude Skills 列表，资源/工具/教程
-- **为什么对本项目有用**：VoltAgent 目录的补充，两处都搜确保不遗漏
+- **本项目用例**：VoltAgent 目录的补充，两处都搜确保不遗漏
 - **用法**：浏览 `https://github.com/ComposioHQ/awesome-claude-skills` 按需查找
 - **调查日期**：2026-08-11
 - **状态**：📖 参考
@@ -522,7 +746,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/public-apis/public-apis`
 - **Stars**：461k+（GitHub Top 5）
 - **做什么**：社区维护的 1400+ 免费 API 合集，覆盖 50+ 分类（Animals、AI/ML、News、Open Data、Science & Math、Finance、Geocoding、Photography、Video、Text Analysis、Social、Government 等）。每个条目标注 Auth 类型（No/apiKey/OAuth）、HTTPS 支持、CORS 状态
-- **为什么对本项目有用**：需要找免费 API 替代付费 SaaS 时先查这里。项目已用的 API 中 Pexels、arXiv、Reddit、Hacker News (HN Algolia) 均在此列表中。潜在补充方向：
+- **本项目用例**：需要找免费 API 替代付费 SaaS 时先查这里。项目已用的 API 中 Pexels、arXiv、Reddit、Hacker News (HN Algolia) 均在此列表中。潜在补充方向：
   - **News**：DataCube AI（每日 AI 行业新闻，8 语言，No auth）、Noozra（200+ RSS 源，apiKey）、GNews（新闻搜索，apiKey）→ 可补充 search-sources 的新闻源
   - **Machine Learning**：Groq（免费 LLM 推理，Llama/Mixtral/Gemma）、Hugging Face（模型推理 API）、Jina AI（免费 embedding/rerank）、OpenVisionAPI（开源计算机视觉，No auth）→ 可补充 RAG embedding 或 VLM 分析
   - **Science & Math**：OpenAlex（学术作品开放目录，No auth）、CORE（开放获取论文，apiKey）→ 可补充 arXiv 之外的学术源
@@ -543,7 +767,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/vercel-labs/agent-browser`
 - **Stars**：30k+（skills.sh 排名 #6，653k 安装）
 - **做什么**：Rust 原生 CLI，用 Chrome for Testing 做浏览器自动化。比 Puppeteer/Playwright 轻量，不需要 Node.js daemon
-- **为什么对本项目有用**：可能比现有 CDP proxy（localhost:3456）更快、更稳定。但**缺少登录态保持**（用独立的 Chrome for Testing，非用户 Chrome），这是关键劣势
+- **本项目用例**：可能比现有 CDP proxy（localhost:3456）更快、更稳定。但**缺少登录态保持**（用独立的 Chrome for Testing，非用户 Chrome），这是关键劣势
 - **用法**：`npm install -g agent-browser && agent-browser install` → CLI 调用
 - **何时用**：需要无登录态的快速浏览器自动化（如英文网页截图、表单提交）
 - **何时不用**：需要登录态或中国平台（用 `web-access` CDP）
@@ -558,7 +782,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/anthropics/skills`（frontend-design 是其中一个 skill）
 - **Stars**：168k+（skills.sh 排名 #3，763k 安装）
 - **做什么**：Anthropic 官方前端设计 skill，指导 distinctive visual design — 色彩、排版、布局选择，避免模板化外观
-- **为什么对本项目有用**：项目用 TailwindCSS + shadcn/ui，容易长得像模板。这个 skill 帮助做出有辨识度的设计
+- **本项目用例**：项目用 TailwindCSS + shadcn/ui，容易长得像模板。这个 skill 帮助做出有辨识度的设计
 - **用法**：`npx skills add anthropics/skills --skill frontend-design`
 - **何时用**：设计新页面或重塑现有页面视觉风格时
 - **何时不用**：已有 `impeccable` skill 处理 UI/UX 时可能重叠
@@ -574,7 +798,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/prime-skills/runcomfy-agent-skills`
 - **Stars**：32（skills.sh 排名 #79，400k 安装）
 - **做什么**：30 个 RunComfy 云平台 skills：video-edit、image-to-video、ai-avatar-video、lipsync、face-swap、kling-3-0、wan-2-7、seedance-v2 等。通过 `runcomfy run <model>` CLI 调用云端 GPU 模型
-- **为什么对本项目有用**：数字人播报（ai-avatar-video + lipsync）、AI 生成 B-roll。是本地模型（Hallo2/LivePortrait）MPS 显存不足时的云端替代方案
+- **本项目用例**：数字人播报（ai-avatar-video + lipsync）、AI 生成 B-roll。是本地模型（Hallo2/LivePortrait）MPS 显存不足时的云端替代方案
 - **前提**：需要 RunComfy 账号 + token（`runcomfy login`）。不需要本地装 ComfyUI
 - **用法**：`npx skills add prime-skills/runcomfy-agent-skills --skill <skill-name>`
 - **何时用**：需要云端数字人/AI 视频生成时
@@ -592,32 +816,15 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/debpalash/VoiceStudio`（14,623 stars，近期 +834/周，Trendshift 周榜；前身 OmniVoice-Studio）
 - **许可**：应用 AGPL-3.0（本地使用/生成音频无碍；网络服务提供修改版才触发开源义务）；**底层模型各有条款**——默认 OmniVoice 权重 CC-BY-NC（非商用），IndexTTS 2.5 为 Bilibili 自有许可
 - **做什么**：Python + Tauri 桌面应用，封装 16 个 TTS 引擎（OmniVoice/CosyVoice 3/VoxCPM2/IndexTTS 2.5/GPT-SoVITS 等）+ 11 个 ASR 引擎，提供语音克隆（3-15s 参考）、语音设计、视频配音（转录→翻译→时间轴对齐→重合成）、有声书、听写、人声分离。646 语言，macOS 13.3+ 支持 MPS/MLX，可离线
-- **为什么对本项目有用**：❌ 基本无用——它不产生引擎层新知识（所有底层引擎已在 `docs/research/voice-cloning-solutions-m2-pro.md` 独立评估），配音对齐链路管线已有对应实现，且不提供管线所需的 `TTSEngine` 接口
+- **本项目用例**：❌ 基本无用——它不产生引擎层新知识（底层引擎项目侧已单独评估过），配音对齐链路已有对应实现，且不提供管线所需的 `TTSEngine` 接口
 - **为何走红**：X 病毒式传播"免费 ElevenLabs 替代品"叙事（ElevenLabs $5-330/月 vs 本地免费），用户为内容创作者/有声书作者/自托管人群。工程上是壳，营销上是平替
 - **用法**：不安装
 - **何时用**：仅在想用 GUI 快速试听某引擎的情感效果、不想写测试脚本时，可临时装一个
 - **安全审计**：未审计（不安装）
 - **调查日期**：2026-09-03
-- **状态**：📖 参考（聚合器壳，不进测试列表、不进管线；详见 `docs/research/voice-cloning-solutions-m2-pro.md` §3.12）
+- **状态**：📖 参考（聚合器壳，不进测试列表、不进管线）
 
 ---
-
-### Horizon — AI 新闻雷达管线（机制参考，不安装）📖
-
-- **分类**：趋势发现
-- **费用**：免费开源（MIT）；AI 打分/去重按条目消耗 LLM token
-- **仓库**：`https://github.com/Thysrael/Horizon`（9,260 stars，2026-09-06 当天仍有 push，活跃未归档，Python）
-- **做什么**：RSS/HN/Reddit/Telegram/X/GitHub/OpenBB → 抓取 → 去重 → AI 打分过滤 → 背景补充 → 中英双语 Markdown 日报，分发到 Pages/邮件/webhook/MCP
-- **对本项目有用的机制**（调研深挖结论，源码级）：
-  - **双层去重**：URL 归一化 key（`src/scrapers` 上层 orchestrator）+ LLM"同事件判定"prompt（源码 https://github.com/Thysrael/Horizon/blob/main/src/ai/prompting/deduplication.py ，规则：同一现实事件才算重复，"发布"vs"越狱"算不同，不确定时保留，fail-open）——可直接移植到 search-sources.mjs → Agent 交叉比对环节
-  - **profile 阈值打分**：每条 0-10 分，rubric 见 https://github.com/Thysrael/Horizon/blob/main/docs/scoring.md （9-10 范式级/7-8 重要/5-6 增量/0-2 噪音），阈值按 profile 配置——可替代我们"Agent 当场目测"的筛选
-  - **Reddit 三级 fallback**：old.reddit HTML → JSON listing（Chrome UA）→ RSS，`RedditBlockedError` 专门处理
-  - **Telegram 公开频道抓取**：`t.me/s/` web 预览页解析，免 token——潜在免费新增源（AI 新闻 Telegram 频道多）
-  - X 抓取双模：Apify actor（$49/月起）或 Playwright + 多账号 cookie 轮询（风控风险）
-- **何时用**：不安装、不引入定时任务（用户决策 2026-09-06）；改进 trends 去重/打分时读上述源码文件
-- **安全审计**：未审计（不安装）
-- **调查日期**：2026-09-06
-- **状态**：📖 机制参考（去重 prompt + 评分 rubric 待吸收进选题流程）
 
 ### Agent-Reach — 多平台读取路由 CLI ⭐⭐
 
@@ -626,24 +833,11 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/Panniantong/Agent-Reach`（78,294 stars，push 2026-09-01，Python）
 - **做什么**：13+ 平台的"免 API 费读取"路由层——每平台一个 channel 模块，底层直接调 yt-dlp/bili-cli/Jina Reader/gh 等，不包一层
 - **独特机制**：首选+备选多后端路由（某平台接入被封自动切换，如 yt-dlp 被 B 站风控封死→切 bili-cli）+ `agent-reach doctor` 自检各通道健康度
-- **为什么对本项目有用**：多后端 fallback 路由思路可借鉴到中文平台抓取（风控失效自动降级）；本身与 last30days/web-access 重叠，不安装
+- **本项目用例**：多后端 fallback 路由思路可借鉴到中文平台抓取（风控失效自动降级）；本身与 last30days/web-access 重叠，不安装
 - **红旗**：安装方式是"Agent 拉远程 install.md 并执行其中指令"（prompt 注入式供应链）；依赖平台登录态，ToS 风险
 - **安全审计**：未审计（不安装）
 - **调查日期**：2026-09-06
 - **状态**：📖 机制参考（fallback 路由 + doctor 自检思路）
-
-### MediaCrawler — 中文多平台爬虫框架 ❌
-
-- **分类**：联网/抓取
-- **费用**：免费
-- **仓库**：`https://github.com/NanmiCoder/MediaCrawler`（64,492 stars，push 2026-08-14，Python）
-- **许可**：**非标准许可证（NON-COMMERCIAL LEARNING LICENSE 1.1）——仅限学习，禁商用，禁大规模爬取**
-- **做什么**：小红书/抖音/快手/B站/微博/贴吧/知乎的关键词搜索、帖子详情、二级评论、创作者主页采集
-- **机制**：Playwright CDP 模式复用真实 Chrome 登录态 + 在登录态页面内执行 JS 拿签名参数（不逆向算法）；扫码登录
-- **为什么对本项目有用**：❌ 不引入——许可证禁商用（内容生产属灰色地带）、README 自挂爬虫违法案例合集；机制上与我们 search-sources.mjs 的 CDP 登录态路线等价
-- **安全审计**：未审计（不安装）
-- **调查日期**：2026-09-06
-- **状态**：❌ 不推荐（许可证 + 合规风险；机制与自建等价）
 
 ### huashu-design — HTML 设计物生成（原型/信息图/演示）⭐⭐
 
@@ -652,51 +846,11 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/alchaincyf/huashu-design`（23,906 stars，push 2026-08-25，作者"花叔"）
 - **做什么**：单文件 HTML 交付物——交互原型（Playwright 自动点击验证）、HTML deck、信息图；核心资产是 60 种纯 CSS 风格库 + 设计哲学 prompt 库，零 API、零生图
 - **独特机制**：`html2pptx.js` 读 DOM computedStyle 逐元素翻译成 PowerPoint 真文本框（导出可编辑 PPTX）；自研动画引擎导出 MP4/GIF
-- **为什么对本项目有用**：当前视频管线非刚需；未来做其他频道（公众号图文、演示、信息图）时可用。与已收录的 guizang-ppt-skill 同作者生态
+- **本项目用例**：当前视频管线非刚需；未来做其他频道（公众号图文、演示、信息图）时可用。与已收录的 guizang-ppt-skill 同作者生态
 - **何时不用**：视频/Remotion 相关工作
 - **安全审计**：未审计（未安装）
 - **调查日期**：2026-09-06
 - **状态**：📋 待评估（启用图文类频道时再评估）
-
-### guizang-social-card-skill — 小红书图文卡片/公众号封面生成 ⭐⭐
-
-- **分类**：其他（图文设计）
-- **费用**：免费开源
-- **仓库**：`https://github.com/op7418/guizang-social-card-skill`（6,862 stars，push 2026-07-01，作者"歸藏"）
-- **许可**：**AGPL-3.0**——原样使用做内容生产无碍；改编进闭源管线会触发开源义务
-- **做什么**：单文件 HTML/CSS 渲染 → Playwright 截图 PNG。2 套视觉系统、28 个版式、3 个画板（小红书 1080×1440、公众号 2100×900+1080×1080 封面对）；附 `validate-social-deck.mjs` 用 Playwright 做 DOM 测量校验溢出/字号
-- **为什么对本项目有用**：若启用小红书/公众号频道，封面与图文卡片可用它生成（HTML 排版而非 AI 生图，版权干净）；与 Remotion 视频管线互补不重叠
-- **何时不用**：当前 TikTok 视频管线
-- **安全审计**：未审计（未安装）
-- **调查日期**：2026-09-06
-- **状态**：📋 待评估（启用小红书/公众号频道时评估；注意 AGPL）
-
-### Auto-Redbook-Skills — 小红书文案+配图+发布 ⚠️
-
-- **分类**：其他（小红书管线）
-- **费用**：免费
-- **仓库**：`https://github.com/comeonzhj/Auto-Redbook-Skills`（2,251 stars，push 2026-08-13，Python + Node.js）
-- **许可**：**无 license 文件**（默认版权保留，不可合规复用代码）
-- **做什么**：三段式——agent 写笔记文案 → Playwright 渲 HTML 模板出 1080×1440 卡片（8 主题 + 自动分页）→ 纯 HTTP 发布
-- **独特机制**：发布不走浏览器自动化，而是 `vendor/` 内置逆向的小红书 Creator 签名 JS 链路 + 手工导出的 `XHS_CREATOR_COOKIE`，支持 `--dry-run`、默认仅自己可见
-- **红旗**：README 顶部自挂小红书官方 2026-03《打击 AI 托管运营账号治理公告》——使用方式正处平台打击范围；逆向签名随时失效；账号 Cookie 交脚本有风险
-- **为什么对本项目有用**：❌ 不采用发布部分；卡片渲染思路与 huashu-design 同类
-- **安全审计**：未审计（不安装）
-- **调查日期**：2026-09-06
-- **状态**：📋 待评估（2026-09-06 用户决策：接受平台治理风险，先安全审计 + 小号 dry-run 试点，主账号不触达；每次真实发布仍走 HITL 硬门。见 issue #206）
-
-### social-auto-upload — 多平台自动发布 ⚠️
-
-- **分类**：其他（发布自动化）
-- **费用**：免费开源（MIT）
-- **仓库**：`https://github.com/dreammis/social-auto-upload`（14,793 stars，push 2026-09-02，Python）
-- **做什么**：Playwright 复放各平台创作者中心上传页，覆盖抖音/B站/小红书/快手/视频号/TikTok/YouTube 等，支持定时发布；已 CLI 化（`sau`）并带 Claude Code/Codex skills
-- **红旗**：作者自认方案可被平台检测（在"降低检测风险"路线上迭代）；需持各平台真实账号 cookie；2026 年初疏于维护后正密集重构、接口不稳；TikTok/YouTube 有官方 Content Posting API 却仍走浏览器模拟
-- **为什么对本项目有用**：❌ 不采用——与 content-pipeline 的发布 HITL 硬门直接冲突
-- **何时用**：不采用。若未来扩分发平台，优先研究官方 API 路线（如 TikTok Content Posting API）
-- **安全审计**：未审计（不安装）
-- **调查日期**：2026-09-06
-- **状态**：⚠️ 不采用（HITL 冲突 + 封号风险）
 
 ### Generative-Media-Skills — 云端生成 API 配方集 ❌
 
@@ -704,7 +858,7 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **费用**：**付费**（全部委托 muapi.ai 中转，按量计费）
 - **仓库**：`https://github.com/SamurAIGPT/Generative-Media-Skills`（4,224 stars，push 2026-08-27，Shell/MD）
 - **做什么**：约 50 个 SKILL.md 配方（Cinema Director、Nano-Banana、Seedance 视频等），编排 muapi-cli 调用 MuAPI 聚合 API（Midjourney v7/Flux/Kling/Veo 等云端模型）
-- **为什么对本项目有用**：❌ 不引入——本质是 MuAPI 的营销渠道（README 带 utm 追踪、关联仓库互链）；生成素材自动上传第三方 CDN；与本地 imagegen/speech + Remotion 管线重叠且引入付费依赖
+- **本项目用例**：❌ 不引入——本质是 MuAPI 的营销渠道（README 带 utm 追踪、关联仓库互链）；生成素材自动上传第三方 CDN；与本地 imagegen/speech + Remotion 管线重叠且引入付费依赖
 - **安全审计**：未审计（不安装）
 - **调查日期**：2026-09-06
 - **状态**：❌ 不推荐（付费中转依赖 + 营销性质）
@@ -716,61 +870,15 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 - **仓库**：`https://github.com/lincotalk/linco-bridge`（90 stars，Alpha 阶段，push 2026-09-04，JavaScript）
 - **做什么**：本机 connector 读取 Codex/Claude Code 会话文件与权限请求 → 认证 WebSocket 中继 → 手机 App/H5/微信小程序远程查看、审批、传文件
 - **红旗**：官方云频道非端到端加密（README 自声明），会话与文件过第三方服务器——对本项目含未发布稿件与 Supabase 凭证的工作目录不可接受；App 与官方云闭源；90 stars 极早期，bus factor 低
-- **为什么对本项目有用**：❌ 无场景（本机跑 agent，无远程值守需求）
+- **本项目用例**：❌ 无场景（本机跑 agent，无远程值守需求）
 - **安全审计**：未审计（不安装）
 - **调查日期**：2026-09-06
 - **状态**：❌ 不推荐（信任面 + 成熟度）
 
-### nuwa-skill — 账号文风/心智模型提炼 ⭐⭐⭐
-
-- **分类**：其他（内容方法论）
-- **费用**：免费开源（MIT）
-- **仓库**：`https://github.com/alchaincyf/nuwa-skill`（32,107 stars，push 2026-08-25，作者 AI 博主"AJ 胡钦"）
-- **做什么**：纯提示词四步管线：六路并行采集语料（著作/播客/社媒/批评者/决策/时间线）→ 三重验证提炼（跨 2+ 领域出现、有预测力、有排他性）→ 生成 SKILL.md（心智模型 + 决策启发式 + 表达 DNA + 反模式）→ 质量验证（答过的题测一致性，没答过的题测"适度不确定"）。零 API key，产出本地 SKILL.md
-- **为什么对本项目有用**：⭐ 理念已采纳——对本账号**已发布**的文章与视频脚本跑同构提炼，产出账号文风档案进 brand-system 体系，解决"每次产出风格漂移"。与外部工具无依赖关系
-- **何时用**：产出风格漂移需要收敛时（英文侧已于 2026-09-07 落地 `docs/brand-voice-profile.md`，裁剪为四件套）；**中文内容频道立项后重启全量方法论**——nuwa 原生为中文圈人物/账号提炼设计，做中文内容时心智模型/决策启发式两件的收益远高于英文侧，届时可对中文语料全量五件套重跑
-- **何时不用**：语料不足时（新账号初期产出太少，提炼会过拟合）
-- **安全审计**：未审计（不安装本体；方法论移植）
-- **调查日期**：2026-09-06
-- **状态**：✅ 已采用（英文侧 #205 落地为四件套文风档案；中文频道立项时全量方法论备用）
-
----
-
-## 自动视频生成（Auto Video Generation）
-
-> **本类目判据**：端到端"一句话/一篇文章 → 一条成片"的**引擎级**项目（自带文案、素材、配音、合成四段）。与下一节「视频 Skill 储备」的区别：那边是 agent 用的 `SKILL.md` 配方与组件片段，这边是可独立运行的成片系统——**竞品/形态对照**，不是依赖。
-> **共同结论**：本类目目前**没有任何一个值得引入代码**。判据是三条硬事实——① 成片形态（多数是"素材 + 文字卡片 + 硬切"，动画层缺失）；② 后端绑定（招牌能力绑付费云或 NVIDIA）；③ 维护与许可（停更节奏 / NC 条款 / 云服务商条款禁商用）。
-
-### Pixelle-Video — AI 全自动短视频引擎（只读参考，不采用）
-
-- **分类**：自动视频生成（端到端成片引擎）
-- **仓库**：`https://github.com/ATH-MaaS/Pixelle-Video`（阿里 ATH-MaaS，原 org 名 `AIDC-AI`；28.6k★ / 4.2k fork，2025-11-07 建仓）
-- **许可**：✅ Apache-2.0（可商用）。⚠️ **但能力边界绑在第三方云上**：其主推后端 RunningHub 的《付费服务协议》第 二.2.2 条限定「只能出于个人、非商业目的使用服务」——对商用 / 对外发布用途是**条款级阻断**，不是价格问题
-- **做什么**：话题 → LLM 写旁白（默认 5 分镜）→ 按模板类型决定是否出 AI 图/短片 → TTS 配音（音频时长即分镜时长）→ `templates/**/*.html` 经 **Playwright 截屏出帧** → `ffmpeg` 拼接。素材后端三选一：本地 ComfyUI / RunningHub 云 / 直连 DashScope·OpenAI·火山 ARK·可灵
-- **成片形态（实测，非观感）**：同分镜内相邻帧平均像素差 0.000–0.008，仅分镜切换点跳到 2.0–3.1 → **卡片硬切**。三条代码判据：静图用 `loop=1` 循环成段（无运镜滤镜）、文字层是一张透明 PNG 叠在短片上（背景会动字不动）、`concat` 无 `xfade` 且 fade 只作用 BGM
-- **接口形态价值**：唯一"同输入同产出"的公开同类，价值全在接口形态——5 条可学习项（模板声明素材依赖 / 原子 REST 端点 / run 级隔离 + manifest / `template_params` 受控定制 / 带语义步骤名的进度事件）
-- **本项目吸收结论**（指路，非本节内容）：已逐条对账，落点 #462 #463 与 #355 #291 #228 #310 票评
-- **用法**：**不安装**。只读源码用 `gh api` 或 clone 到仓库外目录（`/private/tmp`）。若要真跑：Python ≥3.11 + `uv` + `ffmpeg` + **`playwright install chromium`（其文档未列此步，缺失会在出帧阶段才炸）**；最低成本档 0 元可跑通（本地 Ollama + edge-tts + `static_*` 模板，2026-10-02 实测 41 秒出 27 秒成片）
-- **何时用**：讨论"管线该长成什么接口形状"、需要竞品形态对照、或要一份现成竖屏版式清单（25 个 `1080x1920` 模板，Apache-2.0 可改写）时
-- **何时不用**：任何生产路径。停更项目 + 招牌功能绑付费云 + 零测试零 CI + 文件服务路径校验为词法级（点段序列可绕，未修）
-- **维护状态**：⚠️ main 最后提交 2026-06-14；官方 release 停在 v0.1.15（2026-01-27）；文档站部署停在 2026-01-08；issue open 146 / closed 41（关闭率 22%）；无 SECURITY.md，安全修复 PR 无人合并
-- **安全审计**：未审计（不安装、不进管线）。已知缺陷见上，若未来参考其 API 形态，路径校验必须 `resolve()` 后再比对，不能用 `startswith`
-- **调查日期**：2026-10-01（实跑验证 2026-10-02）· 详见 `docs/research/pixelle-video-research-2026-10-01.md`
-- **状态**：📖 只读参考（Tier B），不引入代码
-
-### 同类目其他条目（正文各自留原位，此处只做索引）
-
-| 对象 | 判据落点 | 正文位置 |
-| --- | --- | --- |
-| AutoVio | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突） | 本文件「待评估 / 可选工具 → AutoVio」 |
-| MoneyPrinterTurbo | 库存视频优先路线的**已吸收结论**（搜索方向/分辨率匹配、同源去重、sequential 选段） | `docs/research/repo-survey-tracking.md` §A |
-
----
-
 ## 视频 Skill 储备（awesome-claude-video-skills）
 
 > 来源：`https://github.com/zhuyansen/awesome-claude-video-skills`（2026-09-27 开源）· 在线筛选页 https://agentskillshub.top/best/claude-video-skills/ （每 8h 刷新）· 180 个 repo / 10 分类 / 178 SAFE / 2 CAUTION
-> **收录口径**：本节是 **project-agnostic 的完整收录**——与 video generation 相关的候选 repo 按能力域全量入册（35 个：完整条目 + 简条），条目只写工具画像（是什么 / 有什么 / 许可与付费依赖 / 体量代价）。**针对特定产线的吸收结论不在本节**：逐仓五问报告与取舍见 `docs/research/agent-video-skills-180-screening-2026-09.md` §8，落地跟踪见 issue #529。
+> **收录口径**：本节是 **project-agnostic 的完整收录**——与 video generation 相关的候选 repo 按能力域全量入册（35 个：完整条目 + 简条），条目只写工具画像（是什么 / 有什么 / 许可与付费依赖 / 体量代价）。**针对特定产线的吸收结论不在本节**：逐仓五问报告与取舍属项目侧调研，按本文件「分层契约」留在项目层，不入本层。
 > **收录说明**：这批 skill 多为 Claude Code/Codex 的 `SKILL.md` 配方；Remotion 组件/模板类可直接复用，任何安装前仍须走「评估流程」。
 > ⚠️ **SAFE ≠ 许可证**：SAFE 是榜单对 README 的安全评级，不含许可证与付费 API 依赖维度——下文 ⚠️ 标注均来自一手实测。
 > **调查日期**：2026-09-28（初筛 + R1–R8 五问一手取证）· 2026-10-09 定稿
@@ -1147,71 +1255,9 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 ---
 
-## 任务→工具决策表
-
-```
-任务类型                       → 推荐工具
-──────────────────────────────────────────────────
-本地 PDF 转 Markdown            → pdf-parse（离线够用）
-本地 DOCX/XLSX 转 Markdown      → firecrawl parse（需注册）
-已知 URL 英文网页提取           → web_fetch 或 firecrawl scrape
-中国平台搜索/抓取（需登录）      → web-access CDP
-趋势发现（中文 AI 话题）         → search-sources.mjs
-趋势发现（英文社媒热度）         → last30days-skill --emit=json "topic"
-深度研究（多源交叉验证 + 引用）  → web-deep-research
-已知 URL 原始 HTML/meta         → curl
-Vercel 成本/性能审计            → vercel-labs/agent-skills（待安装）
-React 前端性能审查              → vercel-labs/agent-skills（待安装）
-网站 UI 动画打磨               → emilkowalski/skills（待安装）
-演示文稿/PPT 生成              → guizang-ppt-skill（待安装）
-找特定功能的 skill             → VoltAgent/awesome-agent-skills 目录
-找免费 API（任意领域）          → public-apis/public-apis README 按分类查
-分镜/场景-内容匹配 prompt 参考  → AutoVio `prompts/scenario.ts`（仅参考，不安装）
-自动成片引擎形态/接口对照        → Pixelle-Video（只读；同类目索引见「自动视频生成」节）
-```
-
----
-
-## Pipeline API 补充候选
-
-> 从 public-apis 筛选的免费 API。分两类：A 类直接集成到管线代码（每次搜索自动调用），B 类按需使用（Agent 研究时手动调用，不常驻代码）。
-> 状态：📋 待集成｜🔧 集成中｜✅ 已集成｜❌ 评估后不采用
-
-### A 类：直接集成（→ source-registry.mjs / asset-sourcer.mjs）
-
-这些 API 有固定搜索结构，加进去后每次搜索自动调用，值得写进代码。
-
-| API          | Auth   | 集成到                                 | 端点                                            | 补充什么                                     | 状态      |
-| ------------ | ------ | -------------------------------------- | ----------------------------------------------- | -------------------------------------------- | --------- |
-| DataCube AI  | No     | source-registry WESTERN_SOURCES        | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言                     | ✅ 已集成 |
-| Noozra       | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条，100 req/天（`NOOZRA_API_KEY`） | ✅ 已集成 |
-| GNews        | apiKey | source-registry WESTERN_SOURCES        | `https://gnews.io/api/v4/search`                | 新闻搜索，多语言，100 req/天                 | ✅ 已集成 |
-| Currents     | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search`    | 实时全球新闻，200 req/天                     | ✅ 已集成 |
-| OpenAlex     | No     | source-registry WESTERN_SOURCES        | `https://api.openalex.org/works`                | 学术作品开放目录（2.4 亿作品）               | ✅ 已集成 |
-| CORE         | No     | source-registry WESTERN_SOURCES        | `https://api.core.ac.uk/v3/search/works/`       | 开放获取论文（2.6 亿+），5 req/10s，无需注册 | ✅ 已集成 |
-| Lorem Picsum | No     | asset-sourcer API_SOURCES              | `https://picsum.photos/`                        | Unsplash 随机图，fallback 占位图             | ✅ 已集成 |
-
-### B 类：按需使用（Agent 研究时手动调用，不常驻代码）
-
-这些 API 在写文章/做研究时偶尔用到，写死在管线里反而浪费。Agent 需要时直接 fetch 调用。
-
-| API                   | Auth   | 端点                                            | 何时用                                             | 状态    |
-| --------------------- | ------ | ----------------------------------------------- | -------------------------------------------------- | ------- |
-| Alpha Vantage         | apiKey | `https://www.alphavantage.co/`                  | 写 IPO/财务文章时查股价（25 req/天）               | 📋 按需 |
-| Econdb                | No     | `https://www.econdb.com/api/`                   | 需要宏观经济数据（GDP/CPI/PMI）时                  | 📋 按需 |
-| Flickr                | OAuth  | `https://www.flickr.com/services/api/`          | Pexels/Unsplash 找不到合适图时（尤其中国城市场景） | 📋 按需 |
-| LibreTranslate        | No     | `https://libretranslate.com/docs`               | 偶尔需要中英互译 fallback 时                       | 📋 按需 |
-| Groq                  | apiKey | `https://console.groq.com/docs/quickstart`      | 评估是否替代本地 Ollama 做 RAG embedding           | 📋 按需 |
-| Jina AI               | apiKey | `https://jina.ai`                               | 评估是否替代 bge-m3 做云端 embedding               | 📋 按需 |
-| OpenVisionAPI         | No     | `https://openvisionapi.com`                     | Qwen3-VL 不可用时做 image tagging fallback         | 📋 按需 |
-| Lowy Asia Power Index | No     | `https://github.com/0x0is1/lowy-index-api-docs` | 写地缘政治文章时的背景数据                         | 📋 按需 |
-| Archive.org           | No     | `https://archive.readme.io/docs`                | 需要新闻/网页历史快照时                            | 📋 按需 |
-
----
-
 ## 新增条目模板
 
-发现新的好用工具时，复制以下模板添加到对应分类：
+发现新的好用工具时，先判层再复制模板：条目只在某一层需要——通用层写工具画像，项目层写接线状态与吸收结论。落在通用层的条目**不得出现项目内路径**（`scripts/…`、`docs/…`、`AGENTS.md`、`src/…`），`本项目用例` 一栏只写散文描述。
 
 ```markdown
 ### [工具名] — [一句话描述]
@@ -1220,7 +1266,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **费用**：[免费 | 免费(需注册) | 付费 | 免费(有限额度)]
 - **Skill/工具路径**：[路径或 URL]
 - **做什么**：[核心功能描述]
-- **为什么对本项目有用**：[与项目场景的关联]
+- **本项目用例**：[与项目场景的关联；通用层条目只写散文，不带项目内路径]
 - **用法**：[关键命令或调用方式]
 - **何时用**：[触发条件]
 - **何时不用**：[不适用场景或替代方案]
@@ -1228,10 +1274,3 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **调查日期**：[YYYY-MM-DD]
 - **状态**：[📋 待评估 | ✅ 已采用 | ❌ 不推荐 | ⚠️ 安全未过 | [已弃用]]
 ```
-
-## Design Decisions & References
-
-| Topic                    | Reference             | Content                                                      |
-| ------------------------ | --------------------- | ------------------------------------------------------------ |
-| Skill evaluation process | `docs/agents/` (L1)   | Issue tracker, triage labels, domain docs setup              |
-| Web scraping strategy    | `docs/research/` (L2) | Source-specific research (media assets, voice cloning, etc.) |
