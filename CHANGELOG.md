@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.73.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.4...tanstack_start_ts-v1.73.0) (2026-11-14)
+
+
+### Features
+
+* **short-video:** pairwise relevance arm + result ([#541](https://github.com/0xPabloLI/inside-china-ai/issues/541)) ([#1336](https://github.com/0xPabloLI/inside-china-ai/issues/1336)) ([dbfdd05](https://github.com/0xPabloLI/inside-china-ai/commit/dbfdd058ec2c31c5409662edb0126c32949c7d04))
+
 ## [1.72.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.72.3...tanstack_start_ts-v1.72.4) (2026-11-14)
 
 
