@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.73.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.2...tanstack_start_ts-v1.73.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **b-roll:** company names from the shared vocab never enter derived clauses ([#1349](https://github.com/0xPabloLI/inside-china-ai/issues/1349)) ([b11ae7e](https://github.com/0xPabloLI/inside-china-ai/commit/b11ae7e1820b60e1a8b566e69a90a3240cd152e7))
+
 ## [1.73.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.1...tanstack_start_ts-v1.73.2) (2026-11-14)
 
 
