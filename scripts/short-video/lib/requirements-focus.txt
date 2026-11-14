@@ -11,4 +11,4 @@
 # pins a different module set and re-splits the runtime from production.
 opencv-python==5.0.0.93
 numpy==2.5.3
-Pillow==12.3.0
+Pillow==13.0.0
