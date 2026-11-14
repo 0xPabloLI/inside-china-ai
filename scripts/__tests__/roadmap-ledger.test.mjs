@@ -9,7 +9,12 @@
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { collectCandidates, DEFAULT_WINDOW_DAYS, extractRecorded } from "../roadmap-ledger.mjs";
+import {
+  collectCandidates,
+  DEFAULT_WINDOW_DAYS,
+  extractRecorded,
+  trackerFiles,
+} from "../roadmap-ledger.mjs";
 
 const NOW = Date.parse("2026-11-14T20:00:00Z");
 const RECENT = "2026-11-13T10:00:00Z";
@@ -33,11 +38,19 @@ function recorded(partial = {}) {
 }
 
 describe("extractRecorded", () => {
-  it("reads PR numbers from a PR phrase, including slash-separated pairs", () => {
-    const text = "第三笔半程（PR #1336/#1338，squash `dbfdd058`）与 PR #1343 已落地";
+  it("reads PR numbers to the end of the line, including slash-separated pairs", () => {
+    const text =
+      "第三笔半程（PR #1336/#1338，squash `dbfdd058`）与 PR #1343 已落地；媒体链 PR：#1306 `8e91d0e7`、#1309 `6c80625f`、#1312 `bf59cf3d`";
     const found = extractRecorded(text);
-    expect([...found.prNumbers].sort((a, b) => a - b)).toEqual([1336, 1338, 1343]);
+    expect([...found.prNumbers].sort((a, b) => a - b)).toEqual([
+      1306, 1309, 1312, 1336, 1338, 1343,
+    ]);
     expect([...found.shas]).toContain("dbfdd058");
+  });
+
+  it("keeps digits sliced out of video ids and test counts out of the PR set", () => {
+    const found = extractRecorded("PR #1306 见 /7599711388 与 5209 passed");
+    expect([...found.prNumbers]).toEqual([1306]);
   });
 
   it("keeps bare ticket numbers out of the PR set", () => {
@@ -121,6 +134,13 @@ describe("collectCandidates", () => {
     expect(result.examined).toBe(2);
     expect(DEFAULT_WINDOW_DAYS).toBeGreaterThan(0);
   });
+
+  it("discovers every dated inventory archive, not a hardcoded pair", () => {
+    const names = trackerFiles().map((file) => file.split("/").pop());
+    expect(names).toContain("roadmap-inventory-history-2026-09-23.md");
+    expect(names).toContain("roadmap-inventory-history-2026-10-22.md");
+    expect(names).toContain("issue-roadmap.md");
+  });
 });
 
 describe("CLI", () => {
@@ -129,7 +149,11 @@ describe("CLI", () => {
   it("prints help and actually runs when invoked directly", () => {
     const run = spawnSync("node", [script, "--help"], {
       encoding: "utf8",
-      env: { ...process.env },
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([key]) => !key.startsWith("GITHUB_") && !key.startsWith("PR_") && key !== "GH_BIN",
+        ),
+      ),
     });
     expect(run.status).toBe(0);
     expect(run.stdout).toContain("Roadmap ledger");

@@ -30,17 +30,31 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROJECT_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
-/** Durable carriers of recorded deliveries. The archive is where old rounds live. */
-export const TRACKER_FILES = [
-  join(PROJECT_ROOT, "docs", "issue-roadmap.md"),
-  join(PROJECT_ROOT, "docs", "archive", "roadmap-inventory-history-2026-10-22.md"),
-];
+/** Durable carriers of recorded deliveries. Old rounds live in dated archives. */
+export const TRACKER_FILE = join(PROJECT_ROOT, "docs", "issue-roadmap.md");
+export const ARCHIVE_DIR = join(PROJECT_ROOT, "docs", "archive");
+export const ARCHIVE_NAME = /^roadmap-inventory-history-.*\.md$/;
+
+/**
+ * Rotation creates a new dated archive, so a hardcoded pair goes stale on the
+ * first rotation. Discover every inventory history file instead.
+ * @returns {string[]}
+ */
+export function trackerFiles() {
+  return [
+    TRACKER_FILE,
+    ...readdirSync(ARCHIVE_DIR)
+      .filter((name) => ARCHIVE_NAME.test(name))
+      .sort()
+      .map((name) => join(ARCHIVE_DIR, name)),
+  ];
+}
 
 /** Bots and rotation/release PRs are ledger mechanics, not deliveries to record. */
 export const BOT_AUTHOR = /(?:\[bot\]$|bot$|release-please|dependabot|github-actions)/i;
@@ -54,10 +68,17 @@ const GH_PR_FIELDS = "number,title,body,mergedAt,mergeCommit,author";
 /**
  * Numbers and shas the tracker already accounts for.
  *
- * Only numbers inside a `PR …` phrase count: a bare `#541` is a ticket, and
- * treating ticket numbers as PR numbers would hide a real delivery behind an
- * unrelated row. The word boundaries also keep dates, two-digit metrics and
- * the numeric tail of a sha (`dbfdd058` → `058`) out of the set.
+ * A `PR` opens a phrase that runs to the end of its line. A fixed 80-character
+ * window used to cut `、#1312` in half (losing a recorded delivery) and slice
+ * the tail off `/7599711388` (leaving a bare `7599` that looked like a PR
+ * number). Requiring a `#` or `/` separator before every number fixes both
+ * directions: the lookahead still rejects a long digit run, and the `/` keeps
+ * the tracker's `PR #1336/#1338` pairs intact. The leading `PR 1336` shape is
+ * picked up separately.
+ *
+ * Issue and PR numbers share GitHub's number space, so a bare `#N` inside a
+ * PR phrase cannot collide with a different live PR: either N is that PR, or
+ * no PR with that number exists.
  *
  * @param {string} text
  * @returns {{prNumbers: Set<number>, shas: Set<string>}}
@@ -65,8 +86,10 @@ const GH_PR_FIELDS = "number,title,body,mergedAt,mergeCommit,author";
 export function extractRecorded(text) {
   const prNumbers = new Set();
   const shas = new Set();
-  for (const phrase of text.matchAll(/\bPR\b([^\n]{0,80})/gi)) {
-    for (const n of phrase[0].matchAll(/(?<![\w-])#?(\d{3,5})(?![\w-])/g)) {
+  for (const phrase of text.matchAll(/\bPR\b([^\n]*)/gi)) {
+    const leading = phrase[1].match(/^\s*(\d{3,5})(?![\w-])/);
+    if (leading) prNumbers.add(Number(leading[1]));
+    for (const n of phrase[0].matchAll(/(?<![\w-])[#/](\d{3,5})(?![\w-])/g)) {
       prNumbers.add(Number(n[1]));
     }
   }
@@ -79,7 +102,7 @@ export function extractRecorded(text) {
  * @param {string[]} files
  * @returns {{prNumbers: Set<number>, shas: Set<string>}}
  */
-export function readRecorded(files = TRACKER_FILES) {
+export function readRecorded(files = trackerFiles()) {
   const prNumbers = new Set();
   const shas = new Set();
   for (const file of files) {
