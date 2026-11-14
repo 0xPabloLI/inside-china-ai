@@ -2214,6 +2214,12 @@ export async function analyzeAssets(assets, opts = {}) {
           // #547: false = the metadata could not judge this asset (no keyword, or
           // no descriptive title); the score is uninformative and the VLM decides.
           judgedByMetadata: a.judgedByMetadata ?? null,
+          // #1304: which pre-filter gate dropped this candidate, and why. Both
+          // rejections write `lowConfidence: true`, so without this pair the
+          // artifact reads "low confidence" for a 304×128 banner — a different
+          // finding with a different fix. null = survived the pre-filter.
+          rejectedBy: a.rejectedBy ?? null,
+          rejectReason: a.rejectReason ?? null,
           description: a.description || "",
           subjects: a.subjects || [],
           contentKind: a.contentKind || null,
