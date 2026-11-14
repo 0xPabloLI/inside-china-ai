@@ -16,7 +16,7 @@
  */
 import { Interactive } from "remotion";
 import { type SceneData } from "../types";
-import { GridBg, Glow, Scanlines, BrandBar, FrameGlow, Slot } from "../components/visuals";
+import { GridBg, Glow, Scanlines, BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StampIn, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
@@ -76,7 +76,6 @@ export const ContrastScene: React.FC<{
       <Glow color="blue" />
       <Scanlines />
       <BrandBar />
-      <FrameGlow variant="amber" />
 
       {/* #688: the shared hero band (400-950) was sized for 22px chips. At the
           48px copy floor this scene's own content — title, vs chip, two chip
