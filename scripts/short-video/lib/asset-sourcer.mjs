@@ -1056,10 +1056,14 @@ export function normalizePathForPatch(assetPath, contentDir) {
 
 /**
  * Canonical relevance source recorded in assigned entries. #297: VLM is the
- * only admission judgment — the token-overlap fallback path is retired.
+ * admission judgment for scored candidates — the token-overlap fallback path
+ * is retired. "chart-pin" (#1353 follow-up) is the deterministic exception:
+ * a curated-map chart asset is admitted without a VLM judgment, so its patch
+ * record must not claim the VLM as its source.
  */
 export const RELEVANCE_SOURCE = {
   VLM: "vlm",
+  CHART_PIN: "chart-pin",
 };
 
 /**
@@ -1386,6 +1390,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // container behind the text block, so the verdict degrades to cover.
       const containAllowed = allowsContainFit(target);
       const containDowngraded = asset.fit === "contain" && !containAllowed;
+      const admittedBy = admissionSource(asset, { threshold });
       const media = {
         type: asset.type,
         path: asset.path,
@@ -1443,11 +1448,13 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         ...(containDowngraded ? { fitDowngraded: true } : {}),
         ...makeRelevance({
           score: asset.relevanceScore,
-          source: RELEVANCE_SOURCE.VLM,
+          // A chart-pin asset carries no VLM judgment; recording source "vlm"
+          // next to admittedBy "chart-pin" would contradict the audit trail.
+          source: admittedBy === "chart-pin" ? RELEVANCE_SOURCE.CHART_PIN : RELEVANCE_SOURCE.VLM,
           reason: asset.relevanceReason,
           reused,
           band,
-          admittedBy: admissionSource(asset, { threshold }),
+          admittedBy,
         }),
         ...(asset.relevanceCheck ? { relevanceCheck: asset.relevanceCheck } : {}),
       });
@@ -3462,7 +3469,7 @@ export async function main(args = process.argv.slice(2)) {
       const { assets: chartAssets, failures: chartFailures } = await buildChartAssets(scenes, {
         assetsDir,
         apiKey: chartApiKey,
-        mapPath: join(__dirname, "config", "chart-symbols.json"),
+        mapPath: join(__dirname, "..", "config", "chart-symbols.json"),
       });
       if (chartAssets.length > 0) {
         allAssets.push(...chartAssets);

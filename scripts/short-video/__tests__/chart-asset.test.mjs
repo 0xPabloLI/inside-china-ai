@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -23,15 +23,20 @@ const symbolMap = (over = {}) => ({
       symbol: "HKEX:2513",
       label: "Zhipu (Z. AI Co., Ltd.)",
       exchange: "HKEX",
-      kind: "stock",
       aliases: ["zhipu", "智谱"],
+    },
+    {
+      key: "minimax",
+      symbol: "HKEX:100",
+      label: "MiniMax Group",
+      exchange: "HKEX",
+      aliases: ["minimax", "稀宇科技"],
     },
     {
       key: "hang-seng-tech",
       symbol: "HSI:HSTECH",
       label: "Hang Seng TECH Index",
       exchange: "HSI",
-      kind: "index",
       aliases: ["hang seng tech", "恒生科技", "hstech"],
     },
     ...(over.entities ?? []),
@@ -135,6 +140,7 @@ describe("fetchChartAsset", () => {
     expect(sentBody).toEqual({ symbol: "HKEX:2513", interval: "1D", range: "6M", theme: "light" });
 
     expect(asset.chartPin).toBe(true);
+    expect(asset.contentKind).toBe("chart");
     expect(asset.claimSceneId).toBe(3);
     expect(asset.source).toBe("chart-img");
     expect(asset.type).toBe("image");
@@ -143,7 +149,37 @@ describe("fetchChartAsset", () => {
     expect(asset.chart.delayed).toBe(true); // HKEX is Delayed on v2
     expect(asset.chart.label).toBe("Zhipu (Z. AI Co., Ltd.)");
     expect(existsSync(asset.path)).toBe(true);
-    expect(readFileSync(asset.path).subarray(0, 4)).toEqual(PNG_BYTES.subarray(0, 4));
+    expect(readFileSync(asset.path).subarray(0, 8)).toEqual(PNG_BYTES.subarray(0, 8));
+  });
+
+  it("honors map defaults for omitted chart fields (single source of truth)", async () => {
+    globalThis.fetch = mockFetch(200, PNG_BYTES);
+    const asset = await fetchChartAsset({
+      entity,
+      sceneId: 5,
+      chart: { entity: "zhipu" }, // nothing set — defaults must fill in
+      assetsDir: dir,
+      apiKey: "test-key",
+      defaults: { interval: "1W", range: "1Y", theme: "dark" },
+    });
+    const sentBody = JSON.parse(fetchCalls[0].init.body);
+    expect(sentBody).toEqual({ symbol: "HKEX:2513", interval: "1W", range: "1Y", theme: "dark" });
+    expect(asset.path).toContain("chart-img-zhipu-s5-1W-1Y.png");
+  });
+
+  it("serializes an object range ({from,to}) verbatim into the request body", async () => {
+    globalThis.fetch = mockFetch(200, PNG_BYTES);
+    const range = { from: "2026-06-01T00:00:00.000Z", to: "2026-11-14T00:00:00.000Z" };
+    await fetchChartAsset({
+      entity,
+      sceneId: 6,
+      chart: { entity: "zhipu", range },
+      assetsDir: dir,
+      apiKey: "test-key",
+    });
+    const sentBody = JSON.parse(fetchCalls[0].init.body);
+    expect(sentBody.range).toEqual(range); // peak-to-now precision window
+    expect(sentBody.range.from).toBe("2026-06-01T00:00:00.000Z");
   });
 
   it("throws with the API status for a non-200 (config/quota errors are loud)", async () => {
@@ -151,7 +187,7 @@ describe("fetchChartAsset", () => {
     await expect(
       fetchChartAsset({ entity, sceneId: 1, assetsDir: dir, apiKey: "k" }),
     ).rejects.toThrow(/422.*Invalid Symbol/);
-    expect(existsSync(join(dir, `chart-img-${entity.key}-1D-6M.png`))).toBe(false);
+    expect(existsSync(join(dir, `chart-img-${entity.key}-s1-1D-6M.png`))).toBe(false);
   });
 
   it("throws when the body is not a PNG (error JSON behind a 200)", async () => {
@@ -223,7 +259,7 @@ describe("buildChartAssets", () => {
       };
     };
     try {
-      const scenes = [scene(1, { entity: "zhipu" }), scene(2, { entity: "智谱" })];
+      const scenes = [scene(1, { entity: "zhipu" }), scene(2, { entity: "minimax" })];
       const { assets, failures } = await buildChartAssets(scenes, {
         assetsDir: dir,
         apiKey: "k",
@@ -232,6 +268,45 @@ describe("buildChartAssets", () => {
       });
       expect(assets).toHaveLength(1);
       expect(failures).toEqual([{ sceneId: 1, error: expect.stringMatching(/422/) }]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      globalThis.fetch = undefined;
+    }
+  });
+
+  it("two scenes with the same entity fetch ONCE and each get their own pinned file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "chart-dedup-"));
+    const mapPath = join(dir, "map.json");
+    writeTemp(mapPath, symbolMap());
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return {
+        ok: true,
+        status: 200,
+        text: async () => "",
+        arrayBuffer: async () => new Uint8Array(PNG_BYTES).buffer,
+      };
+    };
+    try {
+      const scenes = [
+        scene(1, { entity: "zhipu" }),
+        scene(2, { entity: "智谱" }), // alias of the same entity
+      ];
+      const { assets, failures } = await buildChartAssets(scenes, {
+        assetsDir: dir,
+        apiKey: "k",
+        mapPath,
+        logger: { log: () => {}, warn: () => {} },
+      });
+      expect(calls).toBe(1); // shared 50/day free-tier quota
+      expect(failures).toEqual([]);
+      expect(assets).toHaveLength(2);
+      expect(assets.map((a) => a.claimSceneId).sort()).toEqual([1, 2]);
+      const paths = new Set(assets.map((a) => a.path));
+      expect(paths.size).toBe(2); // distinct paths — the assignment seam's
+      // duplicate-path rule must never silently drop the second scene
+      for (const p of paths) expect(existsSync(p)).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
       globalThis.fetch = undefined;
@@ -271,9 +346,10 @@ describe("chart-pin admission through the relevance gate", () => {
     const result = assignAssetsToScenes([chartAsset], scenes, { relevanceThreshold: 60 });
     expect(result[0].status).toBe("assigned");
     expect(result[0].sceneId).toBe(2);
-    expect(result[0].relevance?.relevanceAdmittedBy ?? result[0].relevanceAdmittedBy).toBe(
-      "chart-pin",
-    );
+    const rel = result[0].relevance ?? {};
+    expect(rel.relevanceAdmittedBy ?? result[0].relevanceAdmittedBy).toBe("chart-pin");
+    // The audit trail must not claim the VLM ran on a deterministic asset.
+    expect(rel.relevanceSource ?? result[0].relevanceSource).toBe("chart-pin");
   });
 
   it("an ordinary asset without a score stays fail-closed (chart-pin is opt-in)", () => {
@@ -286,6 +362,5 @@ describe("chart-pin admission through the relevance gate", () => {
 // ── helpers ──
 
 function writeTemp(path, obj) {
-  const { writeFileSync } = require("node:fs");
   writeFileSync(path, JSON.stringify(obj, null, 2));
 }

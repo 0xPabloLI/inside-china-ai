@@ -88,6 +88,18 @@
 
 ## 已集成工具（项目耦合）
 
+### CHART-IMG — TradingView 行情图表截图 API（chart 资产）
+
+- **分类**：行情图表截图（sourcing Phase 0a，chart 资产唯一来源）
+- **费用**：BASIC 免费档（$0）——50 次/日、800×600、居中 CHART-IMG.COM 水印、个股行情延迟 ~15min；Pro $7/月 = 500 次/日、1920×1080、无水印（升级待用户裁决，见 #1353）
+- **准入验证**（2026-11-15 实测，全部留痕于 #1353 评论）：
+  - 安全审计：出站单向 POST `api.chart-img.com`，key 走 `CHART_IMG_API_KEY`（`.env.local`，不入仓）；返回体强校验 PNG signature（复用 `media-integrity.mjs` 的 `PNG_SIGNATURE`）；scene-data 只接受精选映射表实体名、不接受自由文本 symbol（裸数字 symbol 实测解析到错误标的：2513 → FOREX.com CFD「Z AI Co Ltd」）
+  - 功能评估：v2 `POST /v2/tradingview/advanced-chart`，JSON body 传参（GET 有 3 参数限制，POST body 不受限）；`range` 支持预设字符串与 `{from,to}` 自定义日期对象（≤1000 根 K 线）；`drawings` 支持水平线/趋势线标注（BASIC：studies+drawings ≤3）；`override.priceRange` 可钉 y 轴
+  - 试用验证：`HKEX:2513` 智谱 / `HKEX:100` MiniMax / `HSI:HSTECH` 恒生科技全部 200 PNG；6M 区间 + 1D 蜡烛布满全画面；峰值 2,980 精确区间图 + 水平线标注实测通过
+  - 记录：本条目 + `scripts/short-video/config/chart-symbols.json`（映射表）+ `lib/chart-asset.mjs`（模块 docblock 含免费档实测事实）
+- **许可注意**：TradingView 条款要求站外使用带 attribution（内置水印即归档标注；画面 credit 机制已带 delayed quote 标注——延迟行情不得用于「此刻价格」叙事）
+- **消费点**：`scripts/short-video/lib/chart-asset.mjs` / `asset-sourcer.mjs` Phase 0a / `config/chart-symbols.json`（实体→symbol 唯一权威）
+
 ### Tavily MCP — fallback 链硬规则（唯一权威）
 
 **硬规则（本节是唯一权威）**：Tavily 是有限付费资源。已知 URL 一律 `web_fetch`（免费、无限制；GitHub 无反爬直接可读）。用 Tavily 前必须走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily；只有前两者失败或无法完成（如需多关键词并行搜索、AI 结构化摘要）时才可用。深度研究用 `web-deep-research` skill（触发词："deep research"、"调研"）。抓取用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。
