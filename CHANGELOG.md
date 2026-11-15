@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.75.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.3...tanstack_start_ts-v1.75.0) (2026-11-15)
+
+
+### Features
+
+* **video:** hook media-led 布局——素材为主角、文字不挡焦点 ([#1375](https://github.com/0xPabloLI/inside-china-ai/issues/1375)) ([4614063](https://github.com/0xPabloLI/inside-china-ai/commit/4614063b612dcdff28308504879e7bd1998dc617))
+
 ## [1.74.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.2...tanstack_start_ts-v1.74.3) (2026-11-15)
 
 
