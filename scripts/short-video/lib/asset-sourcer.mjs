@@ -2033,19 +2033,24 @@ export async function analyzeAssets(assets, opts = {}) {
       }
     }
 
-    // ── Phase 3a-2: second-pass subject check (#294) ──
+    // ── Phase 3a-2: second-pass subject check (#294, #1360) ──
     // A 40-59 first-pass score is not a verdict: the claim prompt asks whether
     // the asset depicts the claim's specific event, which a topically correct
     // stock image cannot do. Ask the narrower, answerable question once —
     // "is the visible subject the thing the scene is about?" — and record the
     // answer. Only an explicit `match` can admit the asset downstream; a
     // failed or unparseable check is recorded as a null verdict (closed).
-    // Images only: a video's first-pass score is already a whole-clip
-    // judgment, and the check has no per-window answer.
+    // #1360: videos take the same path. "A video's score is already a
+    // whole-clip judgment" was true and irrelevant — a whole-clip judgment is
+    // exactly what lands a topically-right clip at 40-59, so the exclusion
+    // turned the borderline band into a dead end for every video candidate.
+    // The check stays ONE verdict over the whole asset (the video prompt in
+    // vlm_analyzer.py answers per asset, not per window), so the first pass's
+    // window plan is deliberately not forwarded below.
     let relevanceCheck = null;
     if (
       claimInfo &&
-      asset.type === "image" &&
+      (asset.type === "image" || asset.type === "video") &&
       needsSecondPass({ relevanceScore: semantics.relevance })
     ) {
       let checkSemantics = null;

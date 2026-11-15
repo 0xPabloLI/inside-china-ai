@@ -1575,16 +1575,91 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
     expect(patch.status).toBe("unassigned");
   });
 
-  it("does not run the check for a borderline video (image-only second pass)", async () => {
-    mockAnalyzeAssetSemantics.mockResolvedValue({
-      ...FULL_SEMANTICS,
-      relevance: 50,
-    });
+  // #1360: the second pass is not image-only. A video's first-pass score is a
+  // whole-clip judgment too, so the same 40-59 dead zone applies; the check is
+  // still ONE verdict over the asset (vlm_analyzer.py's video prompt).
+  const VIDEO_PROBE = {
+    durationMs: 30000,
+    fps: 30,
+    hasAudio: true,
+    width: 1920,
+    height: 1080,
+    rotation: 0,
+  };
 
-    const assets = [{ path: "/abs/clip.mp4", type: "video", claimSceneId: 2 }];
+  it("runs the subject check once for a borderline video and records the match", async () => {
+    mockProbeMedia.mockReturnValue({ ...VIDEO_PROBE });
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
+      Promise.resolve(
+        opts?.relevanceCheck
+          ? {
+              subjectMatch: "match",
+              subjectMatchReason: "the clip shows the exchange the scene names",
+            }
+          : { ...borderline },
+      ),
+    );
+
+    const assets = [{ path: "/abs/clip-hkex.mp4", type: "video", claimSceneId: 2 }];
     await analyzeAssets(assets, { claims: [claim] });
 
-    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(1);
-    expect(assets[0].relevanceCheck).toBeUndefined();
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(2);
+    const checkCall = mockAnalyzeAssetSemantics.mock.calls[1];
+    expect(checkCall[0]).toBe("/abs/clip-hkex.mp4");
+    expect(checkCall[1].relevanceCheck).toBe(true);
+    expect(checkCall[1].claim).toEqual(claim);
+    // One whole-asset verdict: the first pass's window plan is not forwarded.
+    expect(checkCall[1].startMs).toBeUndefined();
+    expect(checkCall[1].windows).toBeUndefined();
+    expect(assets[0].relevanceCheck).toEqual({
+      verdict: "match",
+      reason: "the clip shows the exchange the scene names",
+    });
+    expect(assets[0].relevanceScore).toBe(50);
+  });
+
+  it("admits a borderline video through the second-pass path", async () => {
+    mockProbeMedia.mockReturnValue({ ...VIDEO_PROBE });
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
+      Promise.resolve(
+        opts?.relevanceCheck
+          ? { subjectMatch: "match", subjectMatchReason: "exchange building in frame" }
+          : { ...borderline },
+      ),
+    );
+
+    const assets = [{ path: "/abs/clip-hkex.mp4", type: "video", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    const [entry] = assignAssetsToScenes(assets, [{ id: 2, visualType: "narrative" }]);
+    expect(entry.status).toBe("assigned");
+    expect(entry.relevanceAdmittedBy).toBe("second-pass");
+    expect(entry.relevanceCheck).toEqual({
+      verdict: "match",
+      reason: "exchange building in frame",
+    });
+  });
+
+  it("keeps a borderline video closed when the check returns no_match", async () => {
+    mockProbeMedia.mockReturnValue({ ...VIDEO_PROBE });
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
+      Promise.resolve(
+        opts?.relevanceCheck
+          ? { subjectMatch: "no_match", subjectMatchReason: "different venue" }
+          : { ...borderline },
+      ),
+    );
+
+    const assets = [{ path: "/abs/clip-other.mp4", type: "video", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(assets[0].relevanceCheck.verdict).toBe("no_match");
+
+    const [patch] = assignAssetsToScenes(assets, [{ id: 2, visualType: "narrative" }]);
+    expect(patch.status).toBe("unassigned");
+    // #1360 acceptance: the old "no second-pass subject check" wording can no
+    // longer reach a video whose check ran and answered.
+    expect(patch.reason).not.toMatch(/no second-pass subject check/);
+    expect(patch.reason).toMatch(/second-pass subject check: no_match/);
   });
 });
