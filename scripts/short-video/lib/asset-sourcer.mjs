@@ -84,6 +84,7 @@ import {
 } from "./progressive-search.mjs";
 import { downloadCandidate } from "./download-candidate.mjs";
 import { RateLimitedSkipError } from "./cdp-client.mjs";
+import { buildChartAssets } from "./chart-asset.mjs";
 import {
   YIELD_HISTORY_FILE,
   YIELD_REPORT_FILE,
@@ -1055,10 +1056,14 @@ export function normalizePathForPatch(assetPath, contentDir) {
 
 /**
  * Canonical relevance source recorded in assigned entries. #297: VLM is the
- * only admission judgment — the token-overlap fallback path is retired.
+ * admission judgment for scored candidates — the token-overlap fallback path
+ * is retired. "chart-pin" (#1353 follow-up) is the deterministic exception:
+ * a curated-map chart asset is admitted without a VLM judgment, so its patch
+ * record must not claim the VLM as its source.
  */
 export const RELEVANCE_SOURCE = {
   VLM: "vlm",
+  CHART_PIN: "chart-pin",
 };
 
 /**
@@ -1385,6 +1390,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // container behind the text block, so the verdict degrades to cover.
       const containAllowed = allowsContainFit(target);
       const containDowngraded = asset.fit === "contain" && !containAllowed;
+      const admittedBy = admissionSource(asset, { threshold });
       const media = {
         type: asset.type,
         path: asset.path,
@@ -1442,11 +1448,13 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         ...(containDowngraded ? { fitDowngraded: true } : {}),
         ...makeRelevance({
           score: asset.relevanceScore,
-          source: RELEVANCE_SOURCE.VLM,
+          // A chart-pin asset carries no VLM judgment; recording source "vlm"
+          // next to admittedBy "chart-pin" would contradict the audit trail.
+          source: admittedBy === "chart-pin" ? RELEVANCE_SOURCE.CHART_PIN : RELEVANCE_SOURCE.VLM,
           reason: asset.relevanceReason,
           reused,
           band,
-          admittedBy: admissionSource(asset, { threshold }),
+          admittedBy,
         }),
         ...(asset.relevanceCheck ? { relevanceCheck: asset.relevanceCheck } : {}),
       });
@@ -3446,6 +3454,40 @@ export async function main(args = process.argv.slice(2)) {
   // phases return overlapping results (Single Visit Extraction principle).
   const downloadedUrls = new Set();
 
+  // ── Phase 0a: chart-img assets (#1353 follow-up) ──
+  // Scenes may declare `chart: { entity: "zhipu", range?: "6M", ... }` — the
+  // curated symbol map resolves the entity and the deterministic PNG is
+  // fetched BEFORE web search, pinned to its scene (claimSceneId) and admitted
+  // past the VLM gate via relevance-verdict "chart-pin". One scene's failure
+  // falls through to normal web sourcing; a missing CHART_IMG_API_KEY skips
+  // the phase entirely.
+  const chartApiKey = getApiKey(env, "CHART_IMG_API_KEY");
+  if (!chartApiKey) {
+    console.log("  Chart assets: no CHART_IMG_API_KEY — phase skipped");
+  } else {
+    try {
+      const { assets: chartAssets, failures: chartFailures } = await buildChartAssets(scenes, {
+        assetsDir,
+        apiKey: chartApiKey,
+        mapPath: join(__dirname, "..", "config", "chart-symbols.json"),
+      });
+      if (chartAssets.length > 0) {
+        allAssets.push(...chartAssets);
+        console.log(`\n📈 Chart assets: ${chartAssets.length} fetched (scenes pinned)`);
+      }
+      for (const failure of chartFailures) {
+        skipped.push({ source: "chart-img", sceneId: failure.sceneId, reason: failure.error });
+      }
+    } catch (err) {
+      // Map malformed / fetch layer unusable — the phase is optional, web
+      // sourcing still runs for those scenes.
+      console.warn(
+        `⚠️  Chart asset phase failed (falling through to web sourcing): ${err.message}`,
+      );
+      skipped.push({ source: "chart-img", reason: err.message });
+    }
+  }
+
   // ── Phase 0b: Cached media from detail pages (SVE #114) ──
   // NOTE: the prior Phase 0 (cached trend images from trending-topics.json,
   // claimSceneId:null) was retired by #356 — #297 fail-closed assignment on
@@ -3989,19 +4031,23 @@ export async function main(args = process.argv.slice(2)) {
 
   // ── AI Analysis (after download, before assignment) ──
   let aiAnalysis = [];
-  if (allAssets.length > 0) {
+  // Chart-pinned assets carry no VLM score by design (relevance-verdict
+  // "chart-pin"); feeding them through the analyzer would burn a VLM call and
+  // could attach a spurious low score next to an admission rule that ignores it.
+  const vlmAssets = allAssets.filter((a) => a.chartPin !== true);
+  if (vlmAssets.length > 0) {
     console.log("\n🤖 AI Analysis:");
     // P0-1 fix: pass contentDir to analyzeAssets instead of mutating asset.path
     // asset.path stays relative; analyzeAssets resolves to absolute internally
     try {
-      aiAnalysis = await analyzeAssets(allAssets, {
+      aiAnalysis = await analyzeAssets(vlmAssets, {
         outputDir: join(__dirname, "..", "output"),
         contentDir,
         contentSlug,
         claims: sceneClaims,
       });
       // Re-score assets with VLM description (Phase 2c: semantic scoring)
-      for (const asset of allAssets) {
+      for (const asset of vlmAssets) {
         if (asset.description) {
           const kw = asset.searchKeyword || primaryKeyword;
           asset.score = scoreCandidate(asset, kw, {

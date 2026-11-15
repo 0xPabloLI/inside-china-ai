@@ -3426,6 +3426,16 @@ export const SUPPORTED_YTDLP_PLATFORMS = new Set(["bilibili", "youtube"]);
 // (trend discovery and asset sourcer) share the same source of truth.
 
 export const SOURCE_ATTRIBUTIONS = {
+  // Chart assets (#1353 follow-up): the PNG carries a baked-in CHART-IMG.COM
+  // watermark on the free tier — that IS the attribution; the credit line
+  // names the data provider too. Free-tier quotes are Delayed (~15min) — the
+  // text says so so a stale price on screen is not read as live data.
+  "chart-img": {
+    text: (a) =>
+      `Chart via CHART-IMG (TradingView data)${a?.chart?.delayed ? ", delayed quote" : ""}`,
+    license: "CHART-IMG Basic License (watermark)",
+    logoRequired: false,
+  },
   pexels: {
     text: (a) => `Photo by ${a.author || "Unknown"} from Pexels`,
     license: "Pexels License",

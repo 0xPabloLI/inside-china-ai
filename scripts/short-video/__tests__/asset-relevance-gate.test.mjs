@@ -308,8 +308,11 @@ describe("makeRelevance — relevance field group factory", () => {
     ).toBe("x");
   });
 
-  it("exposes the single canonical relevance source (overlap retired by #297)", () => {
-    expect(RELEVANCE_SOURCE).toEqual({ VLM: "vlm" });
+  it("exposes the canonical relevance sources (VLM + deterministic chart-pin)", () => {
+    // #297 retired the token-overlap source; #1353 follow-up adds exactly one
+    // deterministic exception — a curated-map chart asset carries no VLM
+    // judgment and must not claim "vlm" as its source in the patch record.
+    expect(RELEVANCE_SOURCE).toEqual({ VLM: "vlm", CHART_PIN: "chart-pin" });
   });
 });
 

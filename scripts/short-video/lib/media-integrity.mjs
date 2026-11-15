@@ -46,7 +46,7 @@ export function isPlainObject(value) {
 }
 
 /** The eight-byte PNG signature (RFC 2083 / PNG spec clause 5.1). */
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+export const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** Float slack for the clip ⊇ rect comparison, in page CSS px. */
 const PROVENANCE_TOLERANCE_PX = 0.01;
