@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.74.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.1...tanstack_start_ts-v1.74.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* **sourcing:** trigger Tier 3 on the relevance gate's verdict, not the downloaded count ([#1361](https://github.com/0xPabloLI/inside-china-ai/issues/1361)) ([#1370](https://github.com/0xPabloLI/inside-china-ai/issues/1370)) ([c4c4e70](https://github.com/0xPabloLI/inside-china-ai/commit/c4c4e70bb21de48b3acbcaf0d1df34c7d390eff2))
+
 ## [1.74.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.0...tanstack_start_ts-v1.74.1) (2026-11-15)
 
 
