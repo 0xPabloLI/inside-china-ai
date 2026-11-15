@@ -383,6 +383,38 @@ export const MEDIA_BAND = {
 export const CONTAIN_MEDIA_BOTTOM = mediaBottomBarTopFor({ company: 1, action: 1, result: 1 }) - 8;
 
 /**
+ * Media-led hook geometry (2026-11-15): the PICTURE is the protagonist and the
+ * text yields. The hook's hero-center layout draws the number over the media —
+ * right for a composed cover shot, wrong for a deterministic K-line whose June
+ * peak is exactly what the number covered (user ruling: "背后的图片视频更加
+ * 重要一些"). Media-led instead gives the picture its own band and pushes every
+ * text row into the zones the picture does not own:
+ *
+ *   y 220-298   kicker badge pill
+ *   y 306-402   subject row (64px name, optional 96px logo)
+ *   y 410-1029  MEDIA BAND (contain) — 820 wide (x 60-880), 619 tall. A 4:3
+ *               chart source (800x600) contains to 820x615 — essentially the
+ *               full band; a 16:9 source letterboxes 79px top/bottom inside it.
+ *               Cover renders full-frame instead and only the text rows sit on
+ *               the picture, over scrims.
+ *   y 1037-1298 text strip — number (locked 112px), numberLabel, source.
+ *               Bottom edge = the content safe-zone bottom (1920-622).
+ *
+ * Budget audit (worst case, all rows present): badge 78 + subject 96 + gap 8 +
+ * media 619 + gap 8 + strip 261 = 1070 of the 1078 content band — 8px slack.
+ * The strip's worst case at the locked number size: 134 (112 × 1.2 line) +
+ * 8 + 48 (numberLabel 48 × 1.0…) + 8 + 40 (source) = 238 of 261.
+ */
+export const MEDIA_LED = Object.freeze({
+  kicker: Object.freeze({ top: 220, height: 78 }),
+  subject: Object.freeze({ top: 306, height: 96 }),
+  mediaTop: 410,
+  strip: Object.freeze({ top: 1037, height: 261 }),
+  /** The locked bigNumber size in the strip (bypasses the 150px floor). */
+  numberSize: 112,
+});
+
+/**
  * Normalised stops approximating smoothstep(t) = t²(3-2t).
  *
  * CSS gradients interpolate linearly between stops, so a two-stop gradient

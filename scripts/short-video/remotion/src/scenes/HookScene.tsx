@@ -25,6 +25,7 @@ import { HOOK_SUBJECT_ROW, hookSubjectTextWidth } from "../../../lib/text-slots.
 import { CONTAIN_MEDIA_BOTTOM, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
 import { SplitHighlight } from "../components/substring-highlight";
+import { HookMediaLed } from "./HookMediaLed";
 
 /**
  * The hook's media band: `{ top, height, scrimBottom }` in canvas px.
@@ -149,6 +150,17 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   const numberLight = useFocusLight("hook", "bigNumber", duration);
   const hookTextLight = useFocusLight("hook", "hookText", duration);
   const revealLight = useFocusLight("hook", "revealText", duration);
+
+  // Media-led dispatch (2026-11-15): the picture is the protagonist and the
+  // text yields — the whole hero path below assumes the opposite hierarchy.
+  // Falls through to hero-center when the scene has no media: preflight fails
+  // that scene anyway (media-led REQUIRES media), and hero-center renders the
+  // same texts sanely instead of an empty frame if the gate is bypassed.
+  // AFTER the hooks above: an early return before a Hook call would make
+  // every subsequent Hook conditional (rules-of-hooks).
+  if (scene.layout === "media-led" && scene.media) {
+    return <HookMediaLed scene={scene} duration={duration} contentDir={contentDir} />;
+  }
 
   return (
     <Camera visualType="hook" duration={duration}>

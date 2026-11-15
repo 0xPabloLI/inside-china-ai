@@ -241,6 +241,14 @@ export const MEASURED_MAX_WIDTH = {
   "hook.hero-center.badge": 820,
   "hook.hero-center.subtitle": 820,
   "hook.hero-center.subtitleHighlight": 820,
+  // media-led hook: same 820 safe band; the text rows live in the letterbox
+  // zones above/below the contained picture or on the cover scrim, never over
+  // the picture's focal content.
+  "hook.media-led.badge": 820,
+  "hook.media-led.subject": 820,
+  "hook.media-led.bigNumber": 820,
+  "hook.media-led.numberLabel": 820,
+  "hook.media-led.source": 820,
   // One stat card's content box (three flex:1 cards in the 820 support band,
   // each with its own border+padding) — measured 200.
   "hook.hero-center.statCard": 200,
@@ -349,14 +357,19 @@ export function getGroup(groupId, overrides = {}) {
 /** Layout the Remotion narrative template has always fallen back to. */
 export const DEFAULT_NARRATIVE_LAYOUT = "media-bottom-bar";
 
+/** The hook layout where the MEDIA is the protagonist and text yields. */
+export const HOOK_MEDIA_LED_LAYOUT = "media-led";
+
 /**
  * The layout the render layer actually uses for `scene` — the resolution
  * ShortVideo.tsx's renderScene performs before assertKnownTextFields.
  *
- * Narrative is the only type that consumes scene.layout; fullscreen always
- * renders "media"; every other template renders "hero-center" regardless of
- * what scene-data says. Contract validation (preflight and render) must
- * resolve through this function so both sides judge the same contract (#190).
+ * Narrative consumes scene.layout; hook consumes it ONLY for the media-led
+ * variant (media-led hook, 2026-11-15: the picture is the protagonist and the
+ * number yields — see HookMediaLed). Every other template renders
+ * "hero-center" regardless of what scene-data says. Contract validation
+ * (preflight and render) must resolve through this function so both sides
+ * judge the same contract (#190).
  *
  * @param {{visualType: string, layout?: string}} scene
  * @returns {string}
@@ -366,6 +379,9 @@ export function resolveRenderLayout(scene) {
     return scene.layout ?? DEFAULT_NARRATIVE_LAYOUT;
   }
   if (scene.visualType === "fullscreen") return "media";
+  if (scene.visualType === "hook" && scene.layout === HOOK_MEDIA_LED_LAYOUT) {
+    return HOOK_MEDIA_LED_LAYOUT;
+  }
   return "hero-center";
 }
 
@@ -486,6 +502,16 @@ export const REMOTION_SLOT_MAP = {
         "badge",
         "statCard",
       ],
+      intentionallyOmitted: [],
+    },
+    // Media-led hook (2026-11-15): the picture is the protagonist. Number-led
+    // only — the claim-led focal (hookText/revealText) has no registered slot
+    // here, so a claim hook in media-led fails the contract instead of
+    // silently rendering an ungated claim over the picture.
+    "media-led": {
+      rendered: [],
+      control: ["numberHighlight", "color"],
+      optional: ["subject", "bigNumber", "numberLabel", "source", "badge"],
       intentionallyOmitted: [],
     },
   },
@@ -634,7 +660,10 @@ export function assertKnownTextFields(visualType, layout, texts) {
   for (const key of Object.keys(t)) {
     const field = aliases[key] ?? key;
     if (known.has(field)) continue;
-    // Throws "Unknown text field …" when the field is not registered at all.
+    // Throws for a SLOT_FIELDS entry without a measured width for THIS layout
+    // ("Slot <id> has no measured maxWidth" — the slot id in the message is
+    // the kimi-ipo incident's replay contract), and "Unknown text field …"
+    // when the field is not registered at all. Either way the render fails.
     getSlot(slotId({ visualType, layout, field }));
     throw new Error(
       `Unknown text field "${key}" for visualType "${visualType}" (layout "${layout}") — ` +

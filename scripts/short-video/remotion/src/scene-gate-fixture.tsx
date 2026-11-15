@@ -166,6 +166,34 @@ const CONTRAST_MEDIA_SCENE: SceneData = {
   },
 };
 
+/**
+ * Media-led contain scene, declared BEFORE the BASELINE_SCENES literal so the
+ * cover variant can spread it (a self-reference inside the literal is a TDZ
+ * error). See the baseline-hook-media-led entries below.
+ */
+const MEDIA_LED_CONTAIN_SCENE: SceneData = {
+  id: 30,
+  visualType: "hook",
+  layout: "media-led",
+  voiceover: "hook",
+  media: {
+    type: "image",
+    path: SCENE_GATE_PHOTO,
+    fit: "contain",
+    animation: "none",
+    source: "FIXTURE",
+    overlay: 0.15,
+  },
+  texts: {
+    badge: "BREAKING ANALYSIS",
+    subject: "QWEN3.8 FLASH",
+    color: "amber",
+    bigNumber: "-80%",
+    numberLabel: "SINCE JUNE PEAK",
+    source: "HKEX CLOSE, NOV 12",
+  },
+};
+
 /** Legal-copy baselines, one scene per template (#35). */
 const BASELINE_SCENES: Record<string, SceneData> = {
   "baseline-hook": {
@@ -188,6 +216,21 @@ const BASELINE_SCENES: Record<string, SceneData> = {
     },
   },
   "baseline-narrative": S9_SCENE,
+  // Media-led hook (2026-11-15): the picture is the protagonist and the text
+  // rows render in the zones the picture does not own. The contain case binds
+  // the generated testsrc2 photo at the 16:9 shape a third-party chart source
+  // arrives in; the scene-gate pixel probe below samples the strip corner to
+  // prove the text strip is NOT drawn over the picture. The cover case is the
+  // full-bleed variant (robot-demo footage) — render-OK baseline like the
+  // other media baselines. (Both spread MEDIA_LED_CONTAIN_SCENE, declared
+  // below the literal — a self-reference inside an object literal is a TDZ
+  // error, which this comment exists to keep out.)
+  "baseline-hook-media-led": MEDIA_LED_CONTAIN_SCENE,
+  "baseline-hook-media-led-cover": {
+    ...MEDIA_LED_CONTAIN_SCENE,
+    id: 31,
+    media: { ...MEDIA_LED_CONTAIN_SCENE.media, fit: undefined },
+  },
   // #255 incident replay: deepseek-v41-flash-report's real hook shape —
   // two stat cards + a source line with lowercase DESCENDERS ("p" in
   // "DeepSeek"). The support band's bottom edge coincides with the content

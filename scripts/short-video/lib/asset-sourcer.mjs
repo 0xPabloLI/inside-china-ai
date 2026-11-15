@@ -66,7 +66,7 @@ import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import { brollSectionSpec } from "./media-window.mjs";
 import { VALID_FITS } from "./media-bg.mjs";
-import { overlayForVisualType } from "./media-overlay.mjs";
+import { overlayForScene, overlayForVisualType } from "./media-overlay.mjs";
 import { allowsContainFit, hasContainBand } from "./text-slots.mjs";
 import {
   getCachedSearchResults,
@@ -920,8 +920,10 @@ export function recommendScene(asset, scenes) {
 
     // #1305: the scrim comes from the shared table, not a local copy — these
     // two seams used to carry identical hardcoded numbers by coincidence.
+    // overlayForScene (not overlayForVisualType) so a media-led hook gets the
+    // text-free 0.15 instead of the text-over-picture 0.5.
     if (vt === "hook") {
-      return { sceneId: scene.id, animation, overlay: overlayForVisualType("hook") };
+      return { sceneId: scene.id, animation, overlay: overlayForScene(scene) };
     }
     if (vt === "narrative") {
       return { sceneId: scene.id, animation, overlay: overlayForVisualType("narrative") };
@@ -1408,8 +1410,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         // #1030: animation is assigned below, once media.fit is resolved, so
         // a hook that composes to `contain` is seen by the content-aware seam.
         // #1305: scrim from the shared table — a local ternary here drifted
-        // from `recommendScene` the moment either side changed.
-        overlay: overlayForVisualType(vt),
+        // from `recommendScene` the moment either side changed. Scene-level
+        // (not type-level) so a media-led hook writes its text-free 0.15.
+        overlay: overlayForScene(target),
       };
       // Composition default (#963): a third-party landscape source is shown
       // whole (contain) where the renderer has the contain band. Cover into

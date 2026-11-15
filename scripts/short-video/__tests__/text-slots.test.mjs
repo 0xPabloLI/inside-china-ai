@@ -17,6 +17,8 @@ import {
   assertKnownTextFields,
   slotCharBudget,
   hookSubjectTextWidth,
+  resolveRenderLayout,
+  HOOK_MEDIA_LED_LAYOUT,
   HOOK_SUBJECT_ROW,
   MEASURED_MAX_WIDTH,
   SLOT_FIELDS,
@@ -573,5 +575,54 @@ describe("hookSubjectTextWidth (#422: the logo shares the subject row)", () => {
     // The component imports these numbers; a redesign (#291's logo ≥120px) has
     // to change them HERE, where the contract test can see the consequence.
     expect(HOOK_SUBJECT_ROW).toEqual({ logoSize: 96, gap: 24 });
+  });
+});
+
+describe("hook media-led layout contract (2026-11-15)", () => {
+  it("resolveRenderLayout passes a declared media-led through for hook scenes only", () => {
+    expect(HOOK_MEDIA_LED_LAYOUT).toBe("media-led");
+    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led" })).toBe("media-led");
+    // Undeclared hook layout values still resolve to hero-center (dead data).
+    expect(resolveRenderLayout({ visualType: "hook", layout: "something-else" })).toBe(
+      "hero-center",
+    );
+    // Narrative keeps its own resolution — media-led is NOT a narrative layout.
+    expect(resolveRenderLayout({ visualType: "narrative", layout: "media-led" })).toBe(
+      "media-led",
+    );
+    // But the narrative slot map has no media-led entry, so the contract
+    // rejects it rather than silently rendering hero-center fields.
+    expect(() => remotionSlotsFor("narrative", "media-led")).toThrow(
+      /No Remotion slot mapping for layout "media-led" of visualType "narrative"/,
+    );
+  });
+
+  it("registers every media-led field with the 820 band width", () => {
+    for (const field of ["badge", "subject", "bigNumber", "numberLabel", "source"]) {
+      const id = `hook.media-led.${field}`;
+      expect(MEASURED_MAX_WIDTH[id], id).toBe(820);
+      expect(() => getSlot(id)).not.toThrow();
+    }
+  });
+
+  it("media-led is number-led only: claim focals fail the contract", () => {
+    const groups = remotionSlotsFor("hook", "media-led");
+    expect(groups.rendered).toEqual([]);
+    expect(groups.optional).toEqual(["subject", "bigNumber", "numberLabel", "source", "badge"]);
+    expect(() =>
+      assertKnownTextFields("hook", "media-led", {
+        hookText: "SOME CLAIM",
+        subject: "X",
+      }),
+    ).toThrow(/hook\.media-led\.hookText has no measured maxWidth/);
+    // stats has no SLOT_FIELDS entry at all — the plain "Unknown text field"
+    // registration error, not the width one.
+    expect(() =>
+      assertKnownTextFields("hook", "media-led", {
+        subject: "X",
+        bigNumber: "-80%",
+        stats: [{ num: "1", unit: "", label: "L" }],
+      }),
+    ).toThrow(/Unknown text field "stats"/);
   });
 });

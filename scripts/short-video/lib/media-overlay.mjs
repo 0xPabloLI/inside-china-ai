@@ -45,6 +45,22 @@ export const MEDIA_OVERLAY = Object.freeze({
 export const DEFAULT_MEDIA_OVERLAY = 0.55;
 
 /**
+ * Resolve the scrim opacity for a SCENE, layout-aware.
+ *
+ * The media-led hook (2026-11-15) draws NO text over the picture — every text
+ * row sits in the zones the picture does not own — so the readability scrim
+ * that justifies hook's 0.5 has no job there. 0.15 keeps the picture at
+ * near-full strength (a hair of protection for the contain band's edges).
+ *
+ * @param {{visualType?: string, layout?: string}} [scene]
+ * @returns {number} 0–1
+ */
+export function overlayForScene(scene) {
+  if (scene?.visualType === "hook" && scene?.layout === "media-led") return 0.15;
+  return overlayForVisualType(scene?.visualType);
+}
+
+/**
  * Resolve the scrim opacity for a scene's visual type.
  *
  * An own-key check rather than `MEDIA_OVERLAY[visualType] ?? default`: a

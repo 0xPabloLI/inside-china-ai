@@ -1397,6 +1397,23 @@ export function checkHookMediaContract(scenes) {
     return [{ level: "pass", category: CATEGORY, check: CHECK, detail: "No hook scene" }];
   }
 
+  // Media-led is the layout where the picture IS the scene (2026-11-15): the
+  // renderer falls back to hero-center when media is absent, so a media-less
+  // media-led hook would silently decay into the layout the author asked to
+  // move away from. Fail here, at preflight, where fixing it costs nothing.
+  if (hook.layout === "media-led" && !hook.media) {
+    return [
+      {
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail:
+          'layout:"media-led" hook has no media — the layout renders the picture as the protagonist, so there is nothing to lead with',
+        fix: 'Bind scene.media (e.g. a chart: { entity } pin or curated asset) or remove layout:"media-led" to render hero-center',
+      },
+    ];
+  }
+
   if (hook.media) {
     const media = hook.media;
     // The binding itself passes (media exists); quality issues are reported as
@@ -2608,9 +2625,10 @@ export function checkLayoutMediaRouting(scenes) {
   const CATEGORY = "Media";
   // Single source of truth for the layouts that DO carry their own media
   // window (final-media-gate.MEDIA_DEPENDENT_LAYOUTS) — a new one cannot leave
-  // this fix text stale.
+  // this fix text stale. media-led is a HOOK layout, so it labels differently
+  // from the narrative media layouts.
   const MEDIA_WINDOW_LAYOUTS = [...MEDIA_DEPENDENT_LAYOUTS]
-    .map((layout) => `narrative ${layout}`)
+    .map((layout) => (layout === "media-led" ? `hook ${layout}` : `narrative ${layout}`))
     .join(" / ");
   const needOnTextFirst = [];
   const evidenceOnTextFirst = [];

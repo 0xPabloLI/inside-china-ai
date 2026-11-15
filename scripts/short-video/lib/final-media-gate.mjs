@@ -47,6 +47,9 @@ export const MEDIA_DEPENDENT_LAYOUTS = new Set([
   "media-overlay",
   "media-bottom-bar",
   "media-split",
+  // Media-led hook (2026-11-15): the picture IS the scene — media:null on it
+  // is the same contradiction it is on the narrative media layouts.
+  "media-led",
 ]);
 
 /** Resolve the layout a scene will actually render with. */
