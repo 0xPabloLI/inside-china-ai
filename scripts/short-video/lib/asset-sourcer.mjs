@@ -224,6 +224,14 @@ const COMPANY_NAME_ZH = {
  */
 export const NO_MEDIA_TYPES = SHARED_NO_MEDIA_TYPES;
 
+/**
+ * Asset types that can carry the #294 second-pass subject check (#1360).
+ * A 40-59 first-pass score is a band, not a verdict, for both kinds — a video
+ * lands there for the same reason a stock image does: it is topically right
+ * and not the specific thing the scene names.
+ */
+const SECOND_PASS_TYPES = new Set(["image", "video"]);
+
 /** Minimum score for hook scene auto-assignment (spec D1). */
 const HOOK_MIN_SCORE = 60;
 
@@ -1351,10 +1359,12 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         } else {
           reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold} (${band})`;
           if (band === RELEVANCE_BAND.BORDERLINE) {
-            reason +=
-              asset.relevanceCheck?.verdict === "no_match"
-                ? "; second-pass subject check: no_match"
-                : "; no second-pass subject check";
+            // #1360: once a check ran, its outcome is the fact to report —
+            // including a failed check (null verdict), which is "unavailable",
+            // not "never attempted".
+            reason += asset.relevanceCheck
+              ? `; second-pass subject check: ${asset.relevanceCheck.verdict ?? "unavailable"}`
+              : "; no second-pass subject check";
           }
           if (pool.verdict === POOL_VERDICT.UNSATISFIABLE) {
             reason += `; scene pool ceiling ${pool.ceiling} — unsatisfiable, escalate to B-roll/human`;
@@ -2044,13 +2054,25 @@ export async function analyzeAssets(assets, opts = {}) {
     // whole-clip judgment" was true and irrelevant — a whole-clip judgment is
     // exactly what lands a topically-right clip at 40-59, so the exclusion
     // turned the borderline band into a dead end for every video candidate.
-    // The check stays ONE verdict over the whole asset (the video prompt in
-    // vlm_analyzer.py answers per asset, not per window), so the first pass's
-    // window plan is deliberately not forwarded below.
+    // What the check looks at: the native engine reads the whole clip (its own
+    // fps/frame cap is the bound), so no window is forwarded there — a windowed
+    // native call drops to frame stills (#542 L2). The frames engine cannot see
+    // past MAX_VIDEO_SECONDS (8 s), where a windowless call judges the opening
+    // frames; a long clip's head is usually the title card, so the frames
+    // engine gets the middle 8 s instead. Either way it is ONE verdict over the
+    // asset, never one per window.
+    const checkWindow =
+      asset.type === "video" && framesMode && asset.durationMs > 0
+        ? {
+            startMs: Math.max(0, Math.round(asset.durationMs / 2) - 4000),
+            endMs: Math.min(asset.durationMs, Math.round(asset.durationMs / 2) + 4000),
+            sampleFps: 1.0,
+          }
+        : null;
     let relevanceCheck = null;
     if (
       claimInfo &&
-      (asset.type === "image" || asset.type === "video") &&
+      SECOND_PASS_TYPES.has(asset.type) &&
       needsSecondPass({ relevanceScore: semantics.relevance })
     ) {
       let checkSemantics = null;
@@ -2062,6 +2084,7 @@ export async function analyzeAssets(assets, opts = {}) {
             filePath: absPath,
             model: modelId,
             claim: claimInfo,
+            ...(checkWindow ? { window: checkWindow } : {}),
             cropFocus: cropHint ?? null,
             relevanceCheck: true,
           });
@@ -2079,6 +2102,7 @@ export async function analyzeAssets(assets, opts = {}) {
           checkSemantics = await analyzeAssetSemantics(absPath, {
             claim: claimInfo,
             relevanceCheck: true,
+            ...(checkWindow ? checkWindow : {}),
             ...(cropHint ? { cropFocus: cropHint } : {}),
           });
           // Only a committed verdict is cacheable — a degraded response is a

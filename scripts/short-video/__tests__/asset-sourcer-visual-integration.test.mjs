@@ -1577,7 +1577,8 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
 
   // #1360: the second pass is not image-only. A video's first-pass score is a
   // whole-clip judgment too, so the same 40-59 dead zone applies; the check is
-  // still ONE verdict over the asset (vlm_analyzer.py's video prompt).
+  // still ONE verdict over the asset (vlm_analyzer.py's video prompt). This
+  // suite pins the frames engine, whose check window is the middle 8 s.
   const VIDEO_PROBE = {
     durationMs: 30000,
     fps: 30,
@@ -1587,18 +1588,19 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
     rotation: 0,
   };
 
-  it("runs the subject check once for a borderline video and records the match", async () => {
+  /** First pass = borderline; the subject check answers with `verdict`. */
+  const mockBorderlineVideo = (answer) => {
     mockProbeMedia.mockReturnValue({ ...VIDEO_PROBE });
     mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
-      Promise.resolve(
-        opts?.relevanceCheck
-          ? {
-              subjectMatch: "match",
-              subjectMatchReason: "the clip shows the exchange the scene names",
-            }
-          : { ...borderline },
-      ),
+      Promise.resolve(opts?.relevanceCheck ? answer() : { ...borderline }),
     );
+  };
+
+  it("runs the subject check once for a borderline video and records the match", async () => {
+    mockBorderlineVideo(() => ({
+      subjectMatch: "match",
+      subjectMatchReason: "the clip shows the exchange the scene names",
+    }));
 
     const assets = [{ path: "/abs/clip-hkex.mp4", type: "video", claimSceneId: 2 }];
     await analyzeAssets(assets, { claims: [claim] });
@@ -1608,8 +1610,9 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
     expect(checkCall[0]).toBe("/abs/clip-hkex.mp4");
     expect(checkCall[1].relevanceCheck).toBe(true);
     expect(checkCall[1].claim).toEqual(claim);
-    // One whole-asset verdict: the first pass's window plan is not forwarded.
-    expect(checkCall[1].startMs).toBeUndefined();
+    // One whole-asset verdict, but not from the opening seconds: the frames
+    // engine sees at most 8 s, so the check gets the middle of a 30 s clip.
+    expect(checkCall[1]).toMatchObject({ startMs: 11000, endMs: 19000 });
     expect(checkCall[1].windows).toBeUndefined();
     expect(assets[0].relevanceCheck).toEqual({
       verdict: "match",
@@ -1619,14 +1622,10 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
   });
 
   it("admits a borderline video through the second-pass path", async () => {
-    mockProbeMedia.mockReturnValue({ ...VIDEO_PROBE });
-    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
-      Promise.resolve(
-        opts?.relevanceCheck
-          ? { subjectMatch: "match", subjectMatchReason: "exchange building in frame" }
-          : { ...borderline },
-      ),
-    );
+    mockBorderlineVideo(() => ({
+      subjectMatch: "match",
+      subjectMatchReason: "exchange building in frame",
+    }));
 
     const assets = [{ path: "/abs/clip-hkex.mp4", type: "video", claimSceneId: 2 }];
     await analyzeAssets(assets, { claims: [claim] });
@@ -1641,14 +1640,10 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
   });
 
   it("keeps a borderline video closed when the check returns no_match", async () => {
-    mockProbeMedia.mockReturnValue({ ...VIDEO_PROBE });
-    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
-      Promise.resolve(
-        opts?.relevanceCheck
-          ? { subjectMatch: "no_match", subjectMatchReason: "different venue" }
-          : { ...borderline },
-      ),
-    );
+    mockBorderlineVideo(() => ({
+      subjectMatch: "no_match",
+      subjectMatchReason: "different venue",
+    }));
 
     const assets = [{ path: "/abs/clip-other.mp4", type: "video", claimSceneId: 2 }];
     await analyzeAssets(assets, { claims: [claim] });
@@ -1661,5 +1656,23 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
     // longer reach a video whose check ran and answered.
     expect(patch.reason).not.toMatch(/no second-pass subject check/);
     expect(patch.reason).toMatch(/second-pass subject check: no_match/);
+  });
+
+  it("reports a failed video check as unavailable, not as never attempted", async () => {
+    mockProbeMedia.mockReturnValue({ ...VIDEO_PROBE });
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) => {
+      if (opts?.relevanceCheck) return Promise.reject(new Error("worker timeout"));
+      return Promise.resolve({ ...borderline });
+    });
+
+    const assets = [{ path: "/abs/clip-broken.mp4", type: "video", claimSceneId: 2 }];
+    await analyzeAssets(assets, { claims: [claim] });
+
+    expect(assets[0].relevanceCheck.verdict).toBe(null);
+
+    const [patch] = assignAssetsToScenes(assets, [{ id: 2, visualType: "narrative" }]);
+    expect(patch.status).toBe("unassigned");
+    expect(patch.reason).toMatch(/second-pass subject check: unavailable/);
+    expect(patch.reason).not.toMatch(/no second-pass subject check/);
   });
 });
