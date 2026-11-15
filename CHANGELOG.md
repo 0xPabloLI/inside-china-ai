@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.74.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.0...tanstack_start_ts-v1.74.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **sourcing:** run the [#294](https://github.com/0xPabloLI/inside-china-ai/issues/294) second-pass subject check on borderline videos ([#1360](https://github.com/0xPabloLI/inside-china-ai/issues/1360)) ([9265322](https://github.com/0xPabloLI/inside-china-ai/commit/92653227d6293387417815ec018ef4e5ab784708))
+
 ## [1.74.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.3...tanstack_start_ts-v1.74.0) (2026-11-15)
 
 
