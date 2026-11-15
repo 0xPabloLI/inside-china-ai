@@ -16,6 +16,8 @@
  */
 
 import { shouldSourceStock } from "./media-strategies.mjs";
+import { isEvergreenClaim } from "./claim-kind.mjs";
+import { archetypeForText, composeArchetypePhrase } from "./visual-archetypes.mjs";
 
 /**
  * Scene types that must never receive media — single source of truth.
@@ -466,6 +468,220 @@ function normalizeSearchHints(hints) {
 }
 
 /**
+ * Words that open a capitalised run without belonging to the name. Sentence
+ * position capitalises everything, so without this "The Hang Seng TECH" would
+ * be searched — and "The" is the least useful token in any index.
+ */
+const ENTITY_LEADING = new Set([
+  "the",
+  "a",
+  "an",
+  "in",
+  "on",
+  "at",
+  "for",
+  "and",
+  "but",
+  "or",
+  "so",
+  "no",
+  "not",
+  "nor",
+  "never",
+  "none",
+  "this",
+  "that",
+  "these",
+  "those",
+  "its",
+  "his",
+  "her",
+  "their",
+  "our",
+  "what",
+  "when",
+  "why",
+  "how",
+  "if",
+  "as",
+  "by",
+  "with",
+  "from",
+  "to",
+  "meanwhile",
+  "then",
+  "still",
+  "inside",
+  "amid",
+  "after",
+  "before",
+  "against",
+  "without",
+  "over",
+  "under",
+  "into",
+  "upon",
+  "about",
+  "during",
+  "while",
+  "versus",
+  "who",
+  "where",
+]);
+
+/** A name longer than this is a sentence fragment, not an entity. */
+const ENTITY_MAX_WORDS = 4;
+
+/**
+ * Nouns that name the picture rather than the entity. They are stripped from
+ * the end of a run because the archetype word is appended separately: keeping
+ * both would search "Hang Seng TECH index chart".
+ */
+const ENTITY_TRAILING = new Set([
+  "index",
+  "indices",
+  "chart",
+  "graph",
+  "stock",
+  "stocks",
+  "share",
+  "shares",
+  "price",
+  "market",
+  "sector",
+]);
+
+/**
+ * Whether a token reads as part of a proper name: a capitalised word
+ * ("Hang"), a camel-case brand ("DeepSeek"), or an acronym ("UBTECH", "TECH").
+ */
+function isNameToken(token) {
+  return /^\p{Lu}/u.test(token) || /[a-z]\p{Lu}/u.test(token) || /\p{Lu}{2,}/u.test(token);
+}
+
+/** Brand-shaped: the capitalisation carries information the shape proves. */
+function isBrandToken(token) {
+  return /\p{Lu}{2,}/u.test(token) || /[a-z]\p{Lu}/u.test(token);
+}
+
+/**
+ * Whether the surrounding text reads as a title-case headline.
+ *
+ * In a headline every word is capitalised, so an initial capital proves
+ * nothing about being a name — the signal entityPhraseFor is built on. A run
+ * extracted from such text with no brand-shaped token is a headline fragment,
+ * not an entity ("Inside Huawei's Ascend Chip" was sourced as one).
+ */
+function isTitleCaseText(text) {
+  const alphabetic = String(text)
+    .split(/[^\p{L}]+/u)
+    .filter(Boolean);
+  if (alphabetic.length < 3) return false;
+  const capitalised = alphabetic.filter((word) => /^\p{Lu}/u.test(word)).length;
+  return capitalised / alphabetic.length >= 0.6;
+}
+
+/**
+ * The proper-noun run a text names, or "".
+ *
+ * English only, and that is a deliberate limit: Chinese has no capitalisation
+ * cue, so an entity there would have to come from a dictionary this module
+ * does not own. A Chinese evergreen claim therefore yields no phrase and keeps
+ * the tokenizer's output — the status quo, never a worse query.
+ *
+ * A one-word run is accepted only when the word is brand-shaped (acronym or
+ * internal capital). "Robot up close" capitalises "Robot" because it starts
+ * the sentence; searching `Robot chart` would be noise. The cost is honest:
+ * a single-camel-less name ("Zhipu", "Unitree") is indistinguishable from a
+ * sentence-initial noun, so it yields "" and the claim falls back to the
+ * tokenizer — the status quo, never a worse query.
+ *
+ * The cap keeps the first four name tokens: a run that opens a claim ("The
+ * Hang Seng TECH Index…") carries the entity in its head, and truncating the
+ * tail is what stops a whole clause from becoming a query.
+ *
+ * @param {string|null|undefined} text
+ * @returns {string}
+ */
+export function entityPhraseFor(text) {
+  const raw = String(text ?? "");
+  if (!raw.trim()) return "";
+  const tokens = raw
+    .split(/\s+/u)
+    .map((token) =>
+      token
+        .replace(/^[^\p{L}\p{N}]+/u, "")
+        .replace(/[\u2019']s$/u, "")
+        .replace(/[^\p{L}\p{N}]+$/u, ""),
+    )
+    .filter(Boolean);
+
+  let best = [];
+  let run = [];
+  const flush = () => {
+    while (run.length > 0 && ENTITY_LEADING.has(run[0].toLowerCase())) run.shift();
+    if (run.length > best.length) best = run.slice();
+    run = [];
+  };
+  for (const token of tokens) {
+    if (!isNameToken(token)) {
+      flush();
+      continue;
+    }
+    if (run.length < ENTITY_MAX_WORDS) run.push(token);
+  }
+  flush();
+
+  while (best.length > 1 && ENTITY_TRAILING.has(best[best.length - 1].toLowerCase())) {
+    best.pop();
+  }
+  if (best.length === 0) return "";
+  // A run whose only name evidence is initial capitals is untrustworthy in
+  // title-case text (see isTitleCaseText) and, per the single-word rule
+  // below, in sentence-case text too — so require a brand-shaped token
+  // whenever the surrounding text does not vouch for the capitals.
+  const hasBrand = best.some((token) => isBrandToken(token));
+  if (!hasBrand && isTitleCaseText(raw)) return "";
+  const brandShaped = isBrandToken(best[0]);
+  if (best.length === 1 && !brandShaped) return "";
+  return best.join(" ");
+}
+
+/**
+ * The `entity + archetype` search phrase an evergreen claim should be sourced
+ * with, or [] when the claim is not evergreen or the pair cannot be found.
+ *
+ * #1353: this is the phrase the writer would have typed by hand. It replaces
+ * the tokenized phrases rather than joining them — "hang seng tech" and
+ * "Hang Seng TECH chart" retrieve different pictures, and paying for both is
+ * exactly the wasted-network path #356 spent a ticket retiring.
+ *
+ * Entity and archetype must come from the **same field** (preference order:
+ * assetNeed, voiceover, source title). Pairing across fields sourced a
+ * self-contradictory query — the assetNeed declared an index chart while a
+ * passing mention of data centers in the narration decided the archetype and
+ * the query asked for "Hang Seng TECH data center".
+ *
+ * @param {{assetNeed?: string, voiceover?: string, searchHints?: string[], sourceRef?: object}|null|undefined} claim
+ * @returns {string[]} 0 or 1 phrase
+ */
+export function evergreenQueryPhrases(claim) {
+  if (!claim || !isEvergreenClaim(claim)) return [];
+  const fields = [claim.assetNeed, claim.voiceover, claim.sourceRef?.title].filter(
+    (part) => typeof part === "string" && part.trim(),
+  );
+  for (const field of fields) {
+    const entity = entityPhraseFor(field);
+    if (!entity) continue;
+    const archetype = archetypeForText(field);
+    if (!archetype) continue;
+    const phrase = composeArchetypePhrase(entity, archetype);
+    if (phrase) return [phrase];
+  }
+  return [];
+}
+
+/**
  * The search phrases a claim contributes to sourcing.
  *
  * A writer-supplied `searchHints` list replaces the deterministic tokenization
@@ -474,12 +690,19 @@ function normalizeSearchHints(hints) {
  * the scene's voiceover — is tokenized by claimToKeywords, so the #635 rules
  * still keep a style phrase like "cinematic close-up" from becoming a query.
  *
- * @param {{assetNeed?: string, voiceover?: string, searchHints?: string[]}|null|undefined} claim
+ * #1353 inserts one branch above that fallback: an evergreen claim with an
+ * identifiable archetype is searched by `entity + archetype`, because
+ * tokenizing a standing fact yields the event-shaped phrase that retrieves the
+ * wrong pictures. Writer hints still outrank it.
+ *
+ * @param {{assetNeed?: string, voiceover?: string, searchHints?: string[], sourceRef?: object}|null|undefined} claim
  * @returns {string[]}
  */
 export function claimQueryPhrases(claim) {
   if (!claim) return [];
   if (Array.isArray(claim.searchHints) && claim.searchHints.length > 0) return claim.searchHints;
+  const evergreen = evergreenQueryPhrases(claim);
+  if (evergreen.length > 0) return evergreen;
   return claimToKeywords(claim.assetNeed || claim.voiceover || "");
 }
 

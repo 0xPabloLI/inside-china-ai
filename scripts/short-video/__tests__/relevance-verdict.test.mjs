@@ -151,3 +151,124 @@ describe("admissionSource — patch-entry provenance", () => {
     expect(admissionSource({ relevanceScore: null })).toBe(null);
   });
 });
+
+describe("needsSecondPass — #1353 evergreen widening", () => {
+  it("asks the subject question at every scored band below a pass for an evergreen claim", () => {
+    expect(needsSecondPass({ relevanceScore: 17 }, { claimKind: "evergreen" })).toBe(true);
+    expect(needsSecondPass({ relevanceScore: 0 }, { claimKind: "evergreen" })).toBe(true);
+    expect(needsSecondPass({ relevanceScore: 50 }, { claimKind: "evergreen" })).toBe(true);
+  });
+
+  it("keeps the unavailable band closed — a tool outcome, not the wrong question", () => {
+    // CONTEXT.md Relevance Gate contract: an unparsed score says nothing
+    // about the image; re-running the analyzer on a failed analysis is
+    // escalation, not rescue. Widening must not re-open it.
+    expect(needsSecondPass({ relevanceScore: null }, { claimKind: "evergreen" })).toBe(false);
+  });
+
+  it("still does not re-ask a pass, or a check that already ran", () => {
+    expect(needsSecondPass({ relevanceScore: 80 }, { claimKind: "evergreen" })).toBe(false);
+    expect(
+      needsSecondPass(
+        { relevanceScore: 17, relevanceCheck: { verdict: "no_match" } },
+        { claimKind: "evergreen" },
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps the news trigger at borderline only — the status quo", () => {
+    expect(needsSecondPass({ relevanceScore: 17 }, { claimKind: "news" })).toBe(false);
+    expect(needsSecondPass({ relevanceScore: 17 })).toBe(false);
+  });
+});
+
+describe("admissionSource — #1353 evergreen-subject provenance", () => {
+  it("admits a low score rescued by an explicit subject match on an evergreen claim", () => {
+    expect(
+      admissionSource(
+        { relevanceScore: 17, relevanceCheck: { verdict: "match" } },
+        { claimKind: "evergreen" },
+      ),
+    ).toBe("evergreen-subject");
+  });
+
+  it("keeps an unavailable score closed whatever the kind — tool outcome", () => {
+    // CONTEXT.md Relevance Gate contract: an unparsed score stays closed even
+    // when a subject check somehow returned a match.
+    expect(
+      admissionSource(
+        { relevanceScore: null, relevanceCheck: { verdict: "match" } },
+        { claimKind: "evergreen" },
+      ),
+    ).toBe(null);
+  });
+
+  it("keeps second-pass naming for the borderline band regardless of kind", () => {
+    expect(
+      admissionSource(
+        { relevanceScore: 50, relevanceCheck: { verdict: "match" } },
+        { claimKind: "evergreen" },
+      ),
+    ).toBe("second-pass");
+  });
+
+  it("stays closed for news claims and for a failed/absent second pass", () => {
+    expect(
+      admissionSource(
+        { relevanceScore: 17, relevanceCheck: { verdict: "match" } },
+        { claimKind: "news" },
+      ),
+    ).toBe(null);
+    expect(
+      admissionSource(
+        { relevanceScore: 17, relevanceCheck: { verdict: "no_match" } },
+        { claimKind: "evergreen" },
+      ),
+    ).toBe(null);
+    expect(admissionSource({ relevanceScore: 17 }, { claimKind: "evergreen" })).toBe(null);
+  });
+
+  it("admits through isRelevanceAdmitted under the same rule", () => {
+    expect(
+      isRelevanceAdmitted(
+        { relevanceScore: 17, relevanceCheck: { verdict: "match" } },
+        { claimKind: "evergreen" },
+      ),
+    ).toBe(true);
+    expect(isRelevanceAdmitted({ relevanceScore: 17, relevanceCheck: { verdict: "match" } })).toBe(
+      false,
+    );
+  });
+});
+
+describe("classifyPool — #1353 kind-aware satisfiability", () => {
+  it("reports an evergreen pool with only a subject-match rescue as satisfiable", () => {
+    const pool = classifyPool([{ relevanceScore: 17, relevanceCheck: { verdict: "match" } }], {
+      claimKind: "evergreen",
+    });
+    expect(pool.verdict).toBe(POOL_VERDICT.SATISFIABLE);
+    expect(pool.admitted).toBe(1);
+  });
+
+  it("keeps the news pool verdict fail-closed for the same pool shape", () => {
+    const pool = classifyPool([{ relevanceScore: 17, relevanceCheck: { verdict: "match" } }], {
+      claimKind: "news",
+    });
+    expect(pool.verdict).toBe(POOL_VERDICT.UNSATISFIABLE);
+    expect(pool.admitted).toBe(0);
+  });
+
+  it("honours a per-candidate claimKind over the pool-wide opts", () => {
+    // Package rollup (8b): one pool, mixed kinds — the evergreen entry's
+    // rescue admits, the news entry's identical shape does not.
+    const pool = classifyPool(
+      [
+        { relevanceScore: 17, relevanceCheck: { verdict: "match" }, claimKind: "evergreen" },
+        { relevanceScore: 17, relevanceCheck: { verdict: "match" }, claimKind: "news" },
+      ],
+      {},
+    );
+    expect(pool.admitted).toBe(1);
+    expect(pool.verdict).toBe(POOL_VERDICT.SATISFIABLE);
+  });
+});

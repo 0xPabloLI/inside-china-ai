@@ -40,6 +40,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { analyzeAssetSemantics, closeVisualAnalyzer } from "./lib/visual-analyzer.mjs";
+import { classifyClaimKind } from "./lib/claim-kind.mjs";
 import {
   BORDERLINE_FLOOR,
   DEFAULT_RELEVANCE_THRESHOLD,
@@ -58,7 +59,11 @@ const THRESHOLD = DEFAULT_RELEVANCE_THRESHOLD;
 const REPORT_SCHEMA_VERSION = 2;
 
 /** Report status per admission source. Anything unadmitted is a FAIL. */
-const STATUS_BY_ADMISSION = { score: "PASS", "second-pass": "PASS (second-pass)" };
+const STATUS_BY_ADMISSION = {
+  score: "PASS",
+  "second-pass": "PASS (second-pass)",
+  "evergreen-subject": "PASS (evergreen-subject)",
+};
 
 function getArg(argv, name) {
   const idx = argv.indexOf(`--${name}`);
@@ -171,9 +176,14 @@ export async function evaluateScene(scene, contentDir, analyze) {
   // `reason` is not an input to this report.
   const reason = first?.relevanceReason ?? null;
   const band = classifyRelevance(relevance, { threshold: THRESHOLD });
+  // #1353: 8b judges pre-bound media the same way assignment judges sourced
+  // media — same claim, same kind, same admission rule. Evergreen scenes
+  // (standing facts, no archetype gate here) get the widened subject check;
+  // news scenes keep the borderline-only trigger.
+  const claimKind = classifyClaimKind(claim);
 
   let relevanceCheck = null;
-  if (needsSecondPass({ relevanceScore: relevance }, { threshold: THRESHOLD })) {
+  if (needsSecondPass({ relevanceScore: relevance }, { threshold: THRESHOLD, claimKind })) {
     try {
       const check = await analyze(assetPath, { claim, relevanceCheck: true });
       relevanceCheck = {
@@ -189,7 +199,7 @@ export async function evaluateScene(scene, contentDir, analyze) {
 
   const admittedBy = admissionSource(
     { relevanceScore: relevance, relevanceCheck },
-    { threshold: THRESHOLD },
+    { threshold: THRESHOLD, claimKind },
   );
   const status =
     band === RELEVANCE_BAND.UNAVAILABLE
@@ -204,6 +214,7 @@ export async function evaluateScene(scene, contentDir, analyze) {
     relevance,
     reason: reason ?? firstError,
     band,
+    claimKind,
     subjectMatch: relevanceCheck?.verdict ?? null,
     subjectReason: relevanceCheck?.reason ?? null,
     admittedBy,
@@ -226,6 +237,10 @@ export function summarizeResults(results) {
     evaluated.map((entry) => ({
       relevanceScore: entry.relevance,
       relevanceCheck: entry.subjectMatch ? { verdict: entry.subjectMatch } : null,
+      // #1353: each entry carries its scene's kind; the per-candidate kind
+      // wins over the pool-wide opts, so the rollup asks the same question
+      // assignment asked.
+      claimKind: entry.claimKind,
     })),
     { threshold: THRESHOLD },
   );

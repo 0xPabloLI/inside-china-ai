@@ -383,15 +383,25 @@ def score_one(server, case, path, crop_focus=None):
 # ─── eval math ───
 
 
-def admitted(record):
-    """Production admission rule (lib/relevance-verdict.mjs isRelevanceAdmitted)."""
+def admitted(record, claim_kind="news"):
+    """Production admission rule (lib/relevance-verdict.mjs isRelevanceAdmitted).
+
+    Mirrored 2026-11-16 (#1353): an evergreen claim widens the second-pass
+    trigger to every scored band below a pass, and an explicit subject `match`
+    in the low band admits with source `evergreen-subject`. Unavailable scores
+    stay closed whatever the kind — a tool outcome, not a verdict.
+    """
     score = (record.get("firstPass") or {}).get("relevance")
     if not isinstance(score, (int, float)):
         return False
     if score >= THRESHOLD:
         return True
-    second = record.get("secondPass") or {}
-    return BORDERLINE_FLOOR <= score < THRESHOLD and second.get("verdict") == "match"
+    second = (record.get("secondPass") or {}).get("verdict") == "match"
+    if not second:
+        return False
+    if BORDERLINE_FLOOR <= score < THRESHOLD:
+        return True
+    return claim_kind == "evergreen" and score >= 0
 
 
 def wilson(k, n, z=1.96):

@@ -195,13 +195,30 @@ describe("evaluateScene — tri-state verdict + second pass", () => {
     expect(result.reason).toMatch(/download page/);
   });
 
-  it("does not run the subject check below the borderline floor", async () => {
+  it("does not run the subject check below the borderline floor for a news claim", async () => {
     const analyze = vi.fn().mockResolvedValue({ relevance: 0 });
-    const result = await evaluateScene(scene(), contentDir, analyze);
+    const newsScene = scene({ voiceover: "DeepSeek unveiled a robot round today." });
+    const result = await evaluateScene(newsScene, contentDir, analyze);
 
     expect(analyze).toHaveBeenCalledTimes(1);
     expect(result.status).toBe("FAIL");
     expect(result.band).toBe("low");
+    expect(result.claimKind).toBe("news");
+  });
+
+  it("runs the widened subject check at a low score for an evergreen claim (#1353)", async () => {
+    // The default scene's standing fact has no time anchor; #1353 lets the
+    // subject check try to rescue a 0-scored candidate.
+    const analyze = vi
+      .fn()
+      .mockResolvedValueOnce({ relevance: 0 })
+      .mockResolvedValueOnce({ subjectMatch: "match", subjectMatchReason: "same robot" });
+    const result = await evaluateScene(scene(), contentDir, analyze);
+
+    expect(analyze).toHaveBeenCalledTimes(2);
+    expect(result.admittedBy).toBe("evergreen-subject");
+    expect(result.status).toBe("PASS (evergreen-subject)");
+    expect(result.claimKind).toBe("evergreen");
   });
 });
 

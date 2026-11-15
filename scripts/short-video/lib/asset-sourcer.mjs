@@ -125,6 +125,9 @@ import {
   extractZhKeywords,
   NO_MEDIA_TYPES as SHARED_NO_MEDIA_TYPES,
 } from "./claim-keywords.mjs";
+// #1353: the evergreen/news split decides both the query shape and which
+// relevance question is answerable for a scene.
+import { classifyClaimKind, CLAIM_KIND } from "./claim-kind.mjs";
 import { isReusedAsset } from "./used-asset-index.mjs";
 // #294: the relevance verdict (bands, pool satisfiability, admission rule) is
 // a leaf module shared with the B-roll gate and evaluate-stock-relevance.mjs.
@@ -1272,7 +1275,11 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     candidates.push(asset);
     poolCandidates.set(asset.claimSceneId, candidates);
   }
-  const poolFor = (sceneId) => classifyPool(poolCandidates.get(sceneId) ?? [], { threshold });
+  // #1353: the pool verdict must use the same admission rule as assignment —
+  // an evergreen scene whose only candidate came in via `evergreen-subject`
+  // is satisfiable, not "ceiling N — unsatisfiable".
+  const poolFor = (sceneId, claimKind) =>
+    classifyPool(poolCandidates.get(sceneId) ?? [], { threshold, claimKind });
 
   // Sort videos ahead of images, then by score descending (#355 D1a: the
   // sourcing rung is stock-video-first — "有视频就选视频，不选图片" — with the
@@ -1361,13 +1368,18 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
     // ── Claim binding: per-scene sourced assets never spill to other scenes ──
     if (asset.claimSceneId != null) {
       const target = scenes.find((s) => s.id === asset.claimSceneId);
-      const pool = poolFor(asset.claimSceneId);
+      // #1353: the scene's own kind, so both the pool verdict and the admission
+      // rule ask the question the second pass was allowed to answer. Same
+      // input as the trigger above (assetNeed/voiceover/sourceRef), so the
+      // three cannot disagree.
+      const claimKind = target ? classifyClaimKind(target) : CLAIM_KIND.NEWS;
+      const pool = poolFor(asset.claimSceneId, claimKind);
       const band = classifyRelevance(asset.relevanceScore, { threshold });
       let reason = null;
       let relevanceExtra = null;
       if (!target) {
         reason = `claim scene ${asset.claimSceneId} not found`;
-      } else if (!isRelevanceAdmitted(asset, { threshold })) {
+      } else if (!isRelevanceAdmitted(asset, { threshold, claimKind })) {
         // #294: keep the three outcomes distinct. A missing score is a tool
         // failure, not evidence about the image; a borderline score may have
         // been closed by the second-pass subject check; and a scene whose
@@ -1387,13 +1399,13 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
               : `; scene pool ceiling ${pool.ceiling} (other candidates scored)`;
         } else {
           reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold} (${band})`;
-          if (band === RELEVANCE_BAND.BORDERLINE) {
-            // #1360: once a check ran, its outcome is the fact to report —
-            // including a failed check (null verdict), which is "unavailable",
-            // not "never attempted".
-            reason += asset.relevanceCheck
-              ? `; second-pass subject check: ${asset.relevanceCheck.verdict ?? "unavailable"}`
-              : "; no second-pass subject check";
+          // #1360: once a check ran, its outcome is the fact to report —
+          // including a failed check (null verdict), which is "unavailable",
+          // not "never attempted". #1353 widens the trigger to the low band
+          // for evergreen scenes, so the outcome is reported for any band
+          // below a pass, not just borderline.
+          if (asset.relevanceCheck) {
+            reason += `; second-pass subject check: ${asset.relevanceCheck.verdict ?? "unavailable"}`;
           }
           if (pool.verdict === POOL_VERDICT.UNSATISFIABLE) {
             reason += `; scene pool ceiling ${pool.ceiling} — unsatisfiable, escalate to B-roll/human`;
@@ -1429,7 +1441,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // container behind the text block, so the verdict degrades to cover.
       const containAllowed = allowsContainFit(target);
       const containDowngraded = asset.fit === "contain" && !containAllowed;
-      const admittedBy = admissionSource(asset, { threshold });
+      const admittedBy = admissionSource(asset, { threshold, claimKind });
       const media = {
         type: asset.type,
         path: asset.path,
@@ -2098,7 +2110,12 @@ export async function analyzeAssets(assets, opts = {}) {
     if (
       claimInfo &&
       SECOND_PASS_TYPES.has(asset.type) &&
-      needsSecondPass({ relevanceScore: semantics.relevance })
+      // #1353: an evergreen claim has no event to depict, so the subject check
+      // is the right question at every band below a pass — not only in 40–59.
+      needsSecondPass(
+        { relevanceScore: semantics.relevance },
+        { claimKind: classifyClaimKind(claimInfo) },
+      )
     ) {
       let checkSemantics = null;
       let checkError = null;
