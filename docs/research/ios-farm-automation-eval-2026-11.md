@@ -5,6 +5,8 @@
 > **下游票**：#1183（真机 iPhone 自动化发布长期方案票；本报告的三选一建议与三项前置由它承接，采用与否仍待用户裁决）。
 > **边界**：本票只产出报告。未 clone 该仓库、未安装 Appium / WDA / Xcode、未采购硬件、未触碰任何 TikTok 账号，也未跑过一次真机流程（票面「明确不做」）。因此下文所有「能否装起来」的判断都是**静态契约推导**，不是实测复现；凡未经实测处均显式标注。
 
+> **路径记法**：下文形如 `Git-Agni/prod-FARM-IOS-Core/src/…` 的路径一律指该外部仓库 HEAD `3e936bab` 的文件，不是本仓路径；`appium/appium-xcuitest-driver/docs/…` 同理。
+
 **结论速览**：三选一 = **「需要先解决 X」**（X 为 §5 的三项前置）。核心原因不是「真机路线不工作」，而是**上游仓库当前在 fresh clone 上装不起来，且其锁定的 WDA 补丁链与本机 2026-11 的 Xcode/macOS 组合不兼容**；叠加 ToS 与 #1181 裁决边界，现阶段不具备进入施工的条件。
 
 ---
@@ -33,7 +35,7 @@
 | --- | --- | --- |
 | `appium/appium` | Apache-2.0，22,220 stars，最后 push 2026-11-14；npm 最新稳定 `3.9.1` [S7/S6] | 通过（活跃） |
 | `appium/appium-xcuitest-driver` | Apache-2.0，906 stars，最后 push 2026-11-13；npm 最新 `13.1.1`（2026-11-13），peer `appium ^4.0.0-beta.8` [S7/S6] | 通过（活跃） |
-| 版本矩阵（官方 `system-requirements.md`, master） | iOS 15.0–15.3 → driver 4.0.0–5.2.0 / WDA ≤5.8.5；iOS 16.0–16.7 → 4.7.4(4.21.7)–**7.26.3** / WDA ≤**8.9.1**；iOS 17 → ≤10.1.0；iOS 18 → 7.24.15–12.12.4 / WDA 8.9.1–16.12.8；iOS 26 → ≥9.5.0 / ≥10.23.2；iOS ≥27 → ≥11.1.2。driver→Appium server：4.0–9.10.5 ⇒ Appium 2；10.0–12.22.8 ⇒ Appium 3；≥13 ⇒ Appium 4 [S5, 2026-11-15] | #1183 票面录的「15.0–17.7」**方向正确但已不完整**：漏了 18/26/27，且漏了宿主侧约束（§2） |
+| 版本矩阵（Appium 官方 system-requirements 文档，master） | iOS 15.0–15.3 → driver 4.0.0–5.2.0 / WDA ≤5.8.5；iOS 16.0–16.7 → 4.7.4(4.21.7)–**7.26.3** / WDA ≤**8.9.1**；iOS 17 → ≤10.1.0；iOS 18 → 7.24.15–12.12.4 / WDA 8.9.1–16.12.8；iOS 26 → ≥9.5.0 / ≥10.23.2；iOS ≥27 → ≥11.1.2。driver→Appium server：4.0–9.10.5 ⇒ Appium 2；10.0–12.22.8 ⇒ Appium 3；≥13 ⇒ Appium 4 [S5, 2026-11-15] | #1183 票面录的「15.0–17.7」**方向正确但已不完整**：漏了 18/26/27，且漏了宿主侧约束（§2） |
 | 长期通道风险 | 官方注：iOS/tvOS **<18 只能走临时 `usbmux` fallback**，依赖 Apple 预期移除的 legacy lockdown 服务；iOS 18+ 建议 Remote XPC tunnel [S5] | iOS 15/16 旧机是**有到期日的方案** |
 
 ### 1.3 与现有 CDP 发布路径的重叠度与隔离边界
@@ -88,9 +90,9 @@ iOS 15 旧机并不更省：driver 5.2.0 / WDA 5.8.5 / Xcode 13–15 [S5]，补�
 
 ### 3.1 先纠正票面三处口径（影响人天估算）
 
-1. **「`wda:prepare` 八项检查」错配**：`src/devices/wda/prepare.ts` 实际只做 6 个路径存在性检查（`access`）+ 2 个补丁幂等检查 + 每设备一次 `xcodebuild build-for-testing` [S2]。writeup 说的「八项检查」指注册向导 [S4]，而当前 `src/devices/registration.ts` 的 `checkNames` 已是 **10 项**：`host / connection / signing / developer / wda / appium / video / touch / tiktok / accounts` [S2]。验收时应以源码为准。
+1. **「`wda:prepare` 八项检查」错配**：`Git-Agni/prod-FARM-IOS-Core/src/devices/wda/prepare.ts` 实际只做 6 个路径存在性检查（`access`）+ 2 个补丁幂等检查 + 每设备一次 `xcodebuild build-for-testing` [S2]。writeup 说的「八项检查」指注册向导 [S4]，而当前 `Git-Agni/prod-FARM-IOS-Core/src/devices/registration.ts` 的 `checkNames` 已是 **10 项**：`host / connection / signing / developer / wda / appium / video / touch / tiktok / accounts` [S2]。验收时应以源码为准。
 2. **「现有 `upload-prep` 任务队列」不存在**：见 §1.3 [S8]。
-3. **坐标档案不是「一份」**：`docs/coordinates.md` 明确新增/修改版式要同步 `src/devices/coordinates.ts` 与 `src/tiktok/coordinates.ts` 两处；目前只内置 `iphone8` 375×667 points（兼容 SE2/3、iPhone 7），15 个可单点校准目标，picker 网格 / swipe 向量 / 锁屏键盘仍留在 profile 级 [S2]。
+3. **坐标档案不是「一份」**：`Git-Agni/prod-FARM-IOS-Core/docs/coordinates.md` 明确新增/修改版式要同步 `Git-Agni/prod-FARM-IOS-Core/src/devices/coordinates.ts` 与 `Git-Agni/prod-FARM-IOS-Core/src/tiktok/coordinates.ts` 两处；目前只内置 `iphone8` 375×667 points（兼容 SE2/3、iPhone 7），15 个可单点校准目标，picker 网格 / swipe 向量 / 锁屏键盘仍留在 profile 级 [S2]。
 
 ### 3.2 改造点清单与人天区间（估算，无实测基线）
 
@@ -130,7 +132,7 @@ iOS 15 旧机并不更省：driver 5.2.0 / WDA 5.8.5 / Xcode 13–15 [S5]，补�
 > **选择：需要先解决 X**（不采用、也不是采用）。本票按 out of scope 不做「是否采用」裁决；下列三项是**重估前置**，全部满足后再由用户裁决采用/不采用、是否单独立项施工。
 
 **X1 · 工具链可安装性（技术前置）**
-在隔离环境（不得是日常开发机）按 README 复现 `npm install → appium:install-driver → db:migrate → wda:prepare`，以 `** TEST BUILD SUCCEEDED **` 为唯一通过判据；同时按 §2.1 明确选 A（旧 Mac + Xcode 16 + Appium 2）还是 B（Xcode 26 + Appium 3 + 补丁移植），并把选定组合的 macOS / Xcode / Appium / driver / WDA 五个版本号写进决策记录。**当前静态推导的结论是「按 README 原样必失败」，这一点必须先被实测证实或推翻。**
+在隔离环境（不得是日常开发机）按上游 README 走完安装链（install → driver install → migrate → WDA prepare），以 `xcodebuild` 输出 TEST BUILD SUCCEEDED 为唯一通过判据；同时按 §2.1 明确选 A（旧 Mac + Xcode 16 + Appium 2）还是 B（Xcode 26 + Appium 3 + 补丁移植），并把选定组合的 macOS / Xcode / Appium / driver / WDA 五个版本号写进决策记录。**当前静态推导的结论是「按 README 原样必失败」，这一点必须先被实测证实或推翻。**
 
 **X2 · 裁决与合规（治理前置）**
 用户明确：① 是否接受 R1 的 ToS 风险；② 是否重裁 #1181 的「自动路径止于草稿、公开点击归人」边界（R8）；③ AI 声明与官方声音在真机路径的处理方式（R9/R10）。三者都不能由 Agent 代拍板。
@@ -148,10 +150,10 @@ iOS 15 旧机并不更省：driver 5.2.0 / WDA 5.8.5 / Xcode 13–15 [S5]，补�
 | 编号 | 来源 | 日期 |
 | --- | --- | --- |
 | S1 | GitHub REST `repos/Git-Agni/prod-FARM-IOS-Core`（license / pushed_at / stars / forks / archived） | 读取 2026-11-15 |
-| S2 | 该仓 HEAD `3e936bab` 源码：`package.json`、`src/devices/wda/prepare.ts`、`src/devices/registration.ts`、`src/tiktok/{post,ocr,post-manifest}.ts`、`docs/{getting-started,coordinates}.md` | 代码 pushed 2026-09-07，读取 2026-11-15 |
+| S2 | 该仓 HEAD `3e936bab` 源码：`package.json`、`Git-Agni/prod-FARM-IOS-Core/src/devices/wda/prepare.ts`、`Git-Agni/prod-FARM-IOS-Core/src/devices/registration.ts`、`Git-Agni/prod-FARM-IOS-Core/src/tiktok/{post,ocr,post-manifest}.ts`、`Git-Agni/prod-FARM-IOS-Core/docs/{getting-started,coordinates}.md` | 代码 pushed 2026-09-07，读取 2026-11-15 |
 | S3 | 该仓 issues/PR #5/#6/#7/#8、commits、releases、forks 列表 | 读取 2026-11-15 |
 | S4 | `gethandler.ai/tiktok-iphone-farm` 工程 writeup（An Nayal） | Published 2026-09-07 / Updated 2026-11-02，抓取 2026-11-15 |
-| S5 | `appium/appium-xcuitest-driver` 官方 `docs/getting-started/system-requirements.md`（master raw）与 GitHub Pages 版 | 抓取 2026-11-15 |
+| S5 | Appium 官方 master 的 `appium/appium-xcuitest-driver/docs/getting-started/system-requirements.md`（raw）与 GitHub Pages 版 | 抓取 2026-11-15 |
 | S6 | npm registry：`appium@latest`、`appium-xcuitest-driver@latest` 与 `@7.26.3` 的 version / peerDependencies / `appium-webdriveragent` | 查询 2026-11-15 |
 | S7 | GitHub REST `repos/appium/appium`、`repos/appium/appium-xcuitest-driver` | 读取 2026-11-15 |
 | S8 | 本仓基线 `b111f7ff`：`scripts/short-video/tiktok-upload-prep.mjs`、`lib/{human-input,publish-throttle}.mjs`、`lib/platforms/upload-prep-policy.mjs`、`docs/content-pipeline.md:704-710` | 基线 2026-11-14，读取 2026-11-15 |
