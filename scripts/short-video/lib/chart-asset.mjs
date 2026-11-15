@@ -122,7 +122,7 @@ export const CHART_PARAM_FALLBACKS = Object.freeze({
  * Parameter Limit table, checked 2026-11-15). Only drawings are wired today,
  * so this is the whole drawings budget; exceeding it is a hard 400 upstream.
  */
-export const CHART_DRAWINGS_LIMIT = 3;
+const CHART_DRAWINGS_LIMIT = 3;
 
 /**
  * The request parameters for one scene's chart pin: the scene's own values
@@ -163,7 +163,7 @@ export function resolveChartParams(chart = {}, defaults = {}) {
  * @param {{annotations?: Array<object>}} chart
  * @returns {Array<object>} empty when the scene declared none
  */
-export function resolveChartDrawings(chart = {}) {
+function resolveChartDrawings(chart = {}) {
   const annotations = chart.annotations;
   if (annotations === undefined || annotations === null) return [];
   if (!Array.isArray(annotations)) {
