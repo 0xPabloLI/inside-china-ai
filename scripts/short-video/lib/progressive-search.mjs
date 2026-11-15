@@ -2,11 +2,14 @@
  * Progressive Search — Tier 3: Open Search Engine Image Search
  *
  * Provides tier evaluation logic and the pluggable image search engine pool
- * (IMAGE_SEARCH_ENGINES). Called by asset-sourcer.mjs when Tier 1 (stock API)
- * + Tier 2 (CDP news) yield insufficient results.
+ * (IMAGE_SEARCH_ENGINES). Called by asset-sourcer.mjs after Tier 1 (stock API)
+ * + Tier 2 (CDP news) have been through the relevance gate.
  *
- * Trigger condition: totalAssets < scenesNeedingMedia
- * Stop condition: totalAssets >= scenesNeedingMedia
+ * Trigger condition (#1361): after Tier 1 + Tier 2 downloads pass the
+ * relevance gate, at least one scene that needs media is still unassigned
+ * (`selectTier3Scenes`). The downloaded-candidate count is no longer the
+ * signal — a pool of rejected candidates means the search never found the
+ * subject, which is exactly what the open engines are for.
  *
  * Engine pool (#112): each engine = { name, label, type, requiresApiKey?,
  * apiKeyEnv?, search(keyword, ctx) }. ctx = { apiKey, quotaTracker }.
@@ -38,6 +41,8 @@
 
 import { ALL_SOURCES, imageApiSourceMetadata, resolveLoginGate } from "./source-registry.mjs";
 import { ensureSearxng } from "../../searxng/lifecycle.mjs";
+import { skipsMediaSourcing } from "./claim-keywords.mjs";
+import { shouldSourceStock } from "./media-strategies.mjs";
 
 // Resolve an image source's registry declaration by name. The pool entries and
 // the two parsers below all go through this, so the registry stays the only
@@ -60,15 +65,51 @@ function ensureSearxngOnce() {
 // ─── Tier evaluation ───
 
 /**
- * Determine whether Tier 3 (open search engine) should be triggered.
+ * Which scenes a quality-triggered Tier-3 pass should serve (#1361).
  *
- * @param {number} totalAssets - Current total downloaded assets
- * @param {number} scenesNeedingMedia - Scenes that need media and don't have it
- * @returns {boolean} true if Tier 3 should run
+ * Sourcing runs Tier 1 (stock API) and Tier 2 (CDP news) first, then the
+ * relevance-gated assignment decides what actually landed on a scene. The
+ * trigger therefore reads the gate's outcome, not the download count: a run
+ * that downloaded 27 candidates and assigned none is a search-yield failure,
+ * and `27 >= scenesNeedingMedia` used to call that "sufficient" (#1361
+ * 2026-11-15 zhipu-valuation: 27 candidates, 26 unsatisfiable, open engines
+ * never ran).
+ *
+ * "Needs media" is the gap ledger's stock-intent denominator
+ * (`asset-gap-ledger.mjs` `hasStockIntent`, minus its `assetNeed` condition):
+ * a scene that already carries media, opts out (`media: null`,
+ * `mediaOptOut`), is a text-only type (`cta`/`data`) or plans generation-only
+ * never enters it. Using the leakier "no media yet" reading would count a
+ * hand-bound scene as permanently unsatisfied and fire a search on every run.
+ *
+ * Cost guardrails stay outside this predicate: the caller runs at most one
+ * retry, scopes the keywords to `sceneIds`, and the engines keep their own
+ * quota (Brave) and container lifecycle (SearXNG #891).
+ *
+ * @param {Array<{id: number, visualType?: string, media?: unknown}>} scenes
+ * @param {Array<{sceneId?: number, status?: string}>} patches - assignment result
+ * @returns {{trigger: boolean, sceneIds: number[], needed: number, assigned: number}}
+ *   `sceneIds` are the unsatisfied scenes, in scene order; `needed`/`assigned`
+ *   describe the denominator so the caller can log the real ratio.
  */
-export function shouldTriggerTier3(totalAssets, scenesNeedingMedia) {
-  if (!scenesNeedingMedia || scenesNeedingMedia <= 0) return false;
-  return totalAssets < scenesNeedingMedia;
+export function selectTier3Scenes(scenes, patches) {
+  const list = Array.isArray(scenes) ? scenes : [];
+  const needed = list.filter(
+    (scene) => scene && !scene.media && !skipsMediaSourcing(scene) && shouldSourceStock(scene),
+  );
+  if (needed.length === 0) return { trigger: false, sceneIds: [], needed: 0, assigned: 0 };
+  const assigned = new Set(
+    (Array.isArray(patches) ? patches : [])
+      .filter((patch) => patch?.status === "assigned" && patch.sceneId != null)
+      .map((patch) => patch.sceneId),
+  );
+  const unsatisfied = needed.filter((scene) => !assigned.has(scene.id));
+  return {
+    trigger: unsatisfied.length > 0,
+    sceneIds: unsatisfied.map((scene) => scene.id),
+    needed: needed.length,
+    assigned: needed.length - unsatisfied.length,
+  };
 }
 
 // ─── Brave Quota Tracker ───

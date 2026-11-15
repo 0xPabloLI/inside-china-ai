@@ -4,14 +4,14 @@
  * TDD: Tests written first (red), implementation second (green).
  *
  * Tests cover:
- * - shouldTriggerTier3: boundary conditions (scenarios #1, #8)
+ * - selectTier3Scenes: the post-gate trigger and its denominator (#1361)
  * - searchBraveImages: API response parsing (scenarios #3, #4, #6, #9)
  * - searchSearXngImages: API response parsing (scenarios #5, #7, #9)
  * - BraveQuotaTracker: counter logic
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  shouldTriggerTier3,
+  selectTier3Scenes,
   searchBraveImages,
   searchSearXngImages,
   BraveQuotaTracker,
@@ -62,31 +62,89 @@ vi.mock("../lib/cdp-client.mjs", () => ({
   },
 }));
 
-// ─── shouldTriggerTier3 ───
+// ─── selectTier3Scenes (#1361) ───
 
-describe("shouldTriggerTier3", () => {
-  it("returns true when totalAssets < scenesNeedingMedia (scenario #2: insufficient)", () => {
-    expect(shouldTriggerTier3(3, 7)).toBe(true);
+describe("selectTier3Scenes", () => {
+  const scene = (id, visualType = "context", extra = {}) => ({ id, visualType, ...extra });
+
+  it("does not trigger when every scene that needs media already has an assignment", () => {
+    const scenes = [scene(1), scene(2), scene(3, "cta")];
+    const patches = [
+      { sceneId: 1, status: "assigned" },
+      { sceneId: 2, status: "assigned" },
+    ];
+    const gap = selectTier3Scenes(scenes, patches);
+    expect(gap.trigger).toBe(false);
+    expect(gap.sceneIds).toEqual([]);
+    expect(gap.needed).toBe(2);
   });
 
-  it("returns false when totalAssets >= scenesNeedingMedia (scenario #1: sufficient)", () => {
-    expect(shouldTriggerTier3(7, 7)).toBe(false);
-    expect(shouldTriggerTier3(10, 7)).toBe(false);
+  it("triggers for the scenes the gate left empty even though Tier 1+2 returned candidates (zhipu shape)", () => {
+    // 2026-11-15 zhipu-valuation: 27 candidates downloaded, 26 judged
+    // unsatisfiable, one chart-pin admitted. The old quantity trigger saw
+    // 27 >= 4 scenes and never ran the open engines.
+    const scenes = [scene(1), scene(2), scene(3), scene(4)];
+    const patches = [
+      { sceneId: 1, status: "assigned", source: "chart-img" },
+      { sceneId: 2, status: "unassigned", reason: "VLM relevance 0 below threshold 60" },
+      { sceneId: 4, status: "unassigned", reason: "VLM relevance 0 below threshold 60" },
+    ];
+    const gap = selectTier3Scenes(scenes, patches);
+    expect(gap.trigger).toBe(true);
+    expect(gap.sceneIds).toEqual([2, 3, 4]);
   });
 
-  it("returns false when scenesNeedingMedia is 0 (scenario #8: empty scenes)", () => {
-    expect(shouldTriggerTier3(0, 0)).toBe(false);
-    expect(shouldTriggerTier3(5, 0)).toBe(false);
+  it("counts a scene with no patch entry at all as unsatisfied", () => {
+    const gap = selectTier3Scenes([scene(1), scene(2)], [{ sceneId: 1, status: "assigned" }]);
+    expect(gap.sceneIds).toEqual([2]);
   });
 
-  it("returns false when scenesNeedingMedia is negative or undefined", () => {
-    expect(shouldTriggerTier3(0, -1)).toBe(false);
-    expect(shouldTriggerTier3(0, undefined)).toBe(false);
-    expect(shouldTriggerTier3(0, null)).toBe(false);
+  it("excludes cta/data, media:null and mediaOptOut scenes from the denominator", () => {
+    const scenes = [
+      scene(1, "cta"),
+      scene(2, "data"),
+      scene(3, "context", { media: null }),
+      scene(4, "context", { mediaOptOut: true }),
+    ];
+    const gap = selectTier3Scenes(scenes, []);
+    expect(gap.trigger).toBe(false);
+    expect(gap.needed).toBe(0);
   });
 
-  it("returns true when totalAssets is 0 and scenesNeedingMedia > 0", () => {
-    expect(shouldTriggerTier3(0, 5)).toBe(true);
+  it("excludes scenes that already carry hand-bound media", () => {
+    // A bound scene never gets a patch entry (assignment skips it), so counting
+    // it as "needs media" would make every run look unsatisfiable and fire a
+    // search the run does not need.
+    const scenes = [
+      scene(1, "hook", { media: { type: "image", path: "assets/a.jpg" } }),
+      scene(2, "context", { media: { type: "video", path: "assets/b.mp4" } }),
+    ];
+    const gap = selectTier3Scenes(scenes, []);
+    expect(gap.trigger).toBe(false);
+    expect(gap.needed).toBe(0);
+  });
+
+  it("excludes generation-only scenes — a stock search cannot serve them", () => {
+    const scenes = [
+      scene(1, "context", { mediaStrategy: "ai-image" }),
+      scene(2, "context", { mediaStrategy: "b-roll" }),
+      scene(3, "context", { mediaStrategy: "asset-then-broll" }),
+    ];
+    const gap = selectTier3Scenes(scenes, []);
+    expect(gap.sceneIds).toEqual([3]);
+  });
+
+  it("returns no trigger for empty scenes or missing patches", () => {
+    expect(selectTier3Scenes([], []).trigger).toBe(false);
+    expect(selectTier3Scenes(undefined, undefined).trigger).toBe(false);
+    expect(selectTier3Scenes(null, null).trigger).toBe(false);
+  });
+
+  it("does not let an assigned patch on a non-needed scene mask a real gap", () => {
+    const scenes = [scene(1, "cta"), scene(2)];
+    const gap = selectTier3Scenes(scenes, [{ sceneId: 1, status: "assigned" }]);
+    expect(gap.trigger).toBe(true);
+    expect(gap.sceneIds).toEqual([2]);
   });
 });
 
