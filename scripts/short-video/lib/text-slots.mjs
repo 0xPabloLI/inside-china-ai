@@ -371,7 +371,13 @@ export const HOOK_MEDIA_LED_LAYOUT = "media-led";
  * (preflight and render) must resolve through this function so both sides
  * judge the same contract (#190).
  *
- * @param {{visualType: string, layout?: string}} scene
+ * The media-led branch is conditional on `scene.media` because that is
+ * literally what HookScene dispatches on: with no media the component renders
+ * hero-center, so resolving media-led there would judge the fallback's texts
+ * against a contract that registers none of them (claim fields → "Unknown text
+ * field" mid-render). Resolution must match the renderer, not the intent.
+ *
+ * @param {{visualType: string, layout?: string, media?: object|null}} scene
  * @returns {string}
  */
 export function resolveRenderLayout(scene) {
@@ -379,7 +385,7 @@ export function resolveRenderLayout(scene) {
     return scene.layout ?? DEFAULT_NARRATIVE_LAYOUT;
   }
   if (scene.visualType === "fullscreen") return "media";
-  if (scene.visualType === "hook" && scene.layout === HOOK_MEDIA_LED_LAYOUT) {
+  if (scene.visualType === "hook" && scene.layout === HOOK_MEDIA_LED_LAYOUT && scene.media) {
     return HOOK_MEDIA_LED_LAYOUT;
   }
   return "hero-center";
@@ -508,6 +514,12 @@ export const REMOTION_SLOT_MAP = {
     // only — the claim-led focal (hookText/revealText) has no registered slot
     // here, so a claim hook in media-led fails the contract instead of
     // silently rendering an ungated claim over the picture.
+    //
+    // `color` stays a control field, but it steers a DIFFERENT element than in
+    // hero-center: there it paints the claim text, here it paints the strip's
+    // bigNumber (HookMediaLed → accentColorFor, default amber). Both consumers
+    // read the same ACCENT_COLORS map in tokens.ts, so a declared color is
+    // honoured rather than accepted-and-ignored (#1375 review).
     "media-led": {
       rendered: [],
       control: ["numberHighlight", "color"],

@@ -579,17 +579,25 @@ describe("hookSubjectTextWidth (#422: the logo shares the subject row)", () => {
 });
 
 describe("hook media-led layout contract (2026-11-15)", () => {
-  it("resolveRenderLayout passes a declared media-led through for hook scenes only", () => {
+  it("resolveRenderLayout passes a bound media-led through, and resolves the fallback to hero-center", () => {
     expect(HOOK_MEDIA_LED_LAYOUT).toBe("media-led");
-    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led" })).toBe("media-led");
+    const media = { type: "image", path: "assets/x.png" };
+    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led", media })).toBe(
+      "media-led",
+    );
+    // No media → HookScene renders hero-center, so the contract must judge
+    // hero-center too (a claim-led media-less scene would otherwise throw
+    // "Unknown text field" mid-render; #1375 review).
+    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led" })).toBe("hero-center");
+    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led", media: null })).toBe(
+      "hero-center",
+    );
     // Undeclared hook layout values still resolve to hero-center (dead data).
     expect(resolveRenderLayout({ visualType: "hook", layout: "something-else" })).toBe(
       "hero-center",
     );
     // Narrative keeps its own resolution — media-led is NOT a narrative layout.
-    expect(resolveRenderLayout({ visualType: "narrative", layout: "media-led" })).toBe(
-      "media-led",
-    );
+    expect(resolveRenderLayout({ visualType: "narrative", layout: "media-led" })).toBe("media-led");
     // But the narrative slot map has no media-led entry, so the contract
     // rejects it rather than silently rendering hero-center fields.
     expect(() => remotionSlotsFor("narrative", "media-led")).toThrow(
@@ -605,10 +613,16 @@ describe("hook media-led layout contract (2026-11-15)", () => {
     }
   });
 
-  it("media-led is number-led only: claim focals fail the contract", () => {
+  it("media-led is number-led only: claim focals fail the contract, `color` steers the number", () => {
     const groups = remotionSlotsFor("hook", "media-led");
     expect(groups.rendered).toEqual([]);
     expect(groups.optional).toEqual(["subject", "bigNumber", "numberLabel", "source", "badge"]);
+    // `color` is a control field (it paints the strip's bigNumber — see
+    // HookMediaLed → accentColorFor), so it must be accepted, not rejected.
+    expect(groups.control).toEqual(["numberHighlight", "color"]);
+    expect(() =>
+      assertKnownTextFields("hook", "media-led", { subject: "X", color: "red" }),
+    ).not.toThrow();
     expect(() =>
       assertKnownTextFields("hook", "media-led", {
         hookText: "SOME CLAIM",

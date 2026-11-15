@@ -18,6 +18,7 @@
  *
  * @module media-overlay
  */
+import { HOOK_MEDIA_LED_LAYOUT } from "./text-slots.mjs";
 
 /**
  * Scrim opacity per visual type. Lower = more of the image shows through.
@@ -45,18 +46,49 @@ export const MEDIA_OVERLAY = Object.freeze({
 export const DEFAULT_MEDIA_OVERLAY = 0.55;
 
 /**
+ * Scrim opacity for the media-led hook, split by fit (2026-11-15).
+ *
+ * `contain` is the whole point of the layout: the picture gets its own band and
+ * NO text is drawn over it, so the readability scrim that justifies hook's 0.5
+ * has no job — 0.15 keeps the picture at near-full strength (a hair of
+ * protection for the band's edges).
+ *
+ * `cover` renders full-bleed, and the badge + subject rows DO sit on the
+ * footage above MediaScrims' top band (which ends at y 200). It therefore keeps
+ * the hero-center cover value: the geometry is identical, so the scrim that
+ * protects hero-center's cover hook has to protect this one too.
+ */
+export const MEDIA_LED_DIM = Object.freeze({
+  contain: 0.15,
+  cover: MEDIA_OVERLAY.hook,
+});
+
+/**
+ * The media-led dim for a media object (or a scene without one yet).
+ *
+ * An absent `fit` reads as cover, the renderer's own default.
+ *
+ * @param {{fit?: string}} [media]
+ * @returns {number} 0–1
+ */
+export function mediaLedDimFor(media) {
+  return media?.fit === "contain" ? MEDIA_LED_DIM.contain : MEDIA_LED_DIM.cover;
+}
+
+/**
  * Resolve the scrim opacity for a SCENE, layout-aware.
  *
- * The media-led hook (2026-11-15) draws NO text over the picture — every text
- * row sits in the zones the picture does not own — so the readability scrim
- * that justifies hook's 0.5 has no job there. 0.15 keeps the picture at
- * near-full strength (a hair of protection for the contain band's edges).
+ * Only the media-led hook diverges from its visual type; every other scene
+ * resolves through {@link overlayForVisualType}. The layout string comes from
+ * the slot contract (HOOK_MEDIA_LED_LAYOUT) so a rename cannot desync the two.
  *
- * @param {{visualType?: string, layout?: string}} [scene]
+ * @param {{visualType?: string, layout?: string, media?: {fit?: string}}} [scene]
  * @returns {number} 0–1
  */
 export function overlayForScene(scene) {
-  if (scene?.visualType === "hook" && scene?.layout === "media-led") return 0.15;
+  if (scene?.visualType === "hook" && scene?.layout === HOOK_MEDIA_LED_LAYOUT) {
+    return mediaLedDimFor(scene.media);
+  }
   return overlayForVisualType(scene?.visualType);
 }
 

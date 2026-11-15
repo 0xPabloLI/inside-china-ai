@@ -1517,6 +1517,78 @@ describe("checkHookMediaContract", () => {
     expect(warns[0].check).toContain("source");
   });
 
+  // ── media-led (#1375 review) ──
+  //
+  // Preflight runs BEFORE sourcing, and a media-led hook's picture legitimately
+  // arrives after it (`chart: { entity }` is written by asset-sourcer Phase 0a,
+  // an assetNeed/voiceover claim by sourcing, the generating strategies by
+  // generation). Failing on "no media yet" would block the only mechanism that
+  // can supply the file.
+
+  it("media-led without media WARNS (sourcing/generation can still fill it)", () => {
+    const result = checkHookMediaContract([hook({ layout: "media-led" })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("warn");
+    expect(result[0].detail).toContain("media-led");
+    expect(result[0].detail).toContain("final media gate");
+    expect(result[0].fix).toContain("chart");
+    expect(result[0].fix).toContain("assetNeed");
+  });
+
+  it("media-led keeps warning for a declared chart pin (the file is not bound yet)", () => {
+    const result = checkHookMediaContract([
+      hook({ layout: "media-led", chart: { entity: "zhipu" } }),
+    ]);
+    expect(result[0].level).toBe("warn");
+  });
+
+  it("media-led FAILS on media:null — the waiver contradicts the layout", () => {
+    const result = checkHookMediaContract([hook({ layout: "media-led", media: null })]);
+    expect(result).toHaveLength(1);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].detail).toContain("contradiction");
+    expect(result[0].fix).toContain("chart");
+  });
+
+  it("media-led FAILS on mediaOptOut (generation skips opt-outs)", () => {
+    const result = checkHookMediaContract([hook({ layout: "media-led", mediaOptOut: true })]);
+    expect(result[0].level).toBe("fail");
+    expect(result[0].fix).toContain("mediaOptOut");
+  });
+
+  it("media-led accepts an overlay of 0.15 on a contain binding, and keeps the [0.4,0.9] band for cover", () => {
+    const contain = hook({
+      layout: "media-led",
+      media: { ...cleanMedia, fit: "contain", overlay: 0.15 },
+    });
+    expect(checkHookMediaContract([contain]).filter((r) => r.level === "warn")).toHaveLength(0);
+    const cover = hook({
+      layout: "media-led",
+      media: { ...cleanMedia, fit: "cover", overlay: 0.15 },
+    });
+    const warns = checkHookMediaContract([cover]).filter((r) => r.level === "warn");
+    expect(warns).toHaveLength(1);
+    expect(warns[0].check).toContain("overlay");
+    // The upper bound still applies to contain: past 0.9 the picture is gone.
+    const tooDark = hook({
+      layout: "media-led",
+      media: { ...cleanMedia, fit: "contain", overlay: 0.95 },
+    });
+    expect(checkHookMediaContract([tooDark]).filter((r) => r.level === "warn")).toHaveLength(1);
+  });
+
+  it('media-led FAILS on mode:"card" — the evidence card spans the badge/subject rows', () => {
+    const result = checkHookMediaContract([
+      hook({ layout: "media-led", media: { ...cleanMedia, mode: "card" } }),
+    ]);
+    const fail = result.find((r) => r.level === "fail");
+    expect(fail).toBeDefined();
+    expect(fail.check).toContain("mode");
+    // hero-center keeps accepting card mode — the rule is layout-specific.
+    const hero = checkHookMediaContract([hook({ media: { ...cleanMedia, mode: "card" } })]);
+    expect(hero.find((r) => r.level === "fail")).toBeUndefined();
+  });
+
   it("is included in runAllSceneDataChecks results (warn bucket for an unbound hook)", () => {
     const scenes = [hook()];
     const results = runAllSceneDataChecks(scenes, null);

@@ -274,6 +274,22 @@ describe("hook media gate (#299, layout-independent)", () => {
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0]).toMatchObject({ sceneId: 7, reason: "missing-hook-media" });
   });
+
+  it("FAILS an explicit media:null on a media-led hook (the waiver contradicts the layout)", () => {
+    // #1375 review: preflight fails this shape, so the last chance before a
+    // render must not wave it through as a hook waiver — a render-only path
+    // would otherwise render a layout whose declared point never arrives.
+    const dir = makeContentDir([]);
+    const result = checkFinalMedia({
+      scenes: [{ id: 8, visualType: "hook", layout: "media-led", media: null }],
+      contentDir: dir,
+    });
+    expect(result.pass).toBe(false);
+    expect(result.failures).toEqual([
+      { sceneId: 8, layout: "media-led", reason: "explicit-null-on-media-led-hook" },
+    ]);
+    expect(formatFinalMediaFailures(result)).toContain("media-led");
+  });
 });
 
 // ─── #299 review: the final gate enforces the same curation contract as

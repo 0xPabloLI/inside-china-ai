@@ -33,6 +33,36 @@ export const COLOR = {
   cyan: "#22d3ee",
 } as const;
 
+/**
+ * Accent palette for the hook's `texts.color` steering (#1375).
+ *
+ * One map for both hook layouts: hero-center paints its CLAIM text with it, the
+ * media-led variant paints its bigNumber (it registers no claim text). The
+ * allowed keys are exactly this map's keys — `accentColorFor` validates against
+ * them so an unknown value cannot reach the render as `undefined`.
+ */
+export const ACCENT_COLORS = {
+  blue: COLOR.brand,
+  red: COLOR.red,
+  amber: COLOR.amber,
+  green: COLOR.green,
+  purple: COLOR.purple,
+  cyan: COLOR.cyan,
+} as const;
+
+/**
+ * Resolve `texts.color` into a hex value, falling back when it is absent or
+ * not a known accent key.
+ *
+ * @param value - the raw `texts.color` value from scene data
+ * @param fallback - colour to use when `value` is not a legal key
+ */
+export function accentColorFor(value: unknown, fallback: string): string {
+  return typeof value === "string" && Object.hasOwn(ACCENT_COLORS, value)
+    ? ACCENT_COLORS[value as keyof typeof ACCENT_COLORS]
+    : fallback;
+}
+
 /** Typography tokens. Sizes stay contract-driven (TextGate Fit owns them). */
 export const TYPE = {
   /** Brand serif stack — the only family on the video surface. */

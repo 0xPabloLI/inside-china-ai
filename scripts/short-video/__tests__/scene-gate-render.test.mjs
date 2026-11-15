@@ -397,17 +397,27 @@ describe(
       }
     });
 
-    it("media-led contain: the strip corner is canvas ground, NOT the picture (no occlusion)", async () => {
-      // The pixel contract for the media-led ruling (2026-11-15): the text
-      // strip must render where the picture is not. The gates police text
-      // against the SAFE ZONES, but the media band lives INSIDE them — only
-      // pixels can prove the two bands never meet. Sampling the strip's left
-      // corner (x 80-110, y 1240-1270): no glyph reaches there (the strip's
-      // rows are centred), so any picture bleed (a MEDIA_LED constant drifting
-      // the strip up into the band, or the band's bottom edge growing past
-      // strip.top) shows up as testsrc2 colour on what must be #0a0a14 ground.
-      // The second probe asserts the picture is actually VISIBLE in its band —
-      // guards against the layout "passing" by rendering nothing at all.
+    it("media-led contain: no picture in the strip, no lane scrim in the picture's bottom", async () => {
+      // The pixel contract for the media-led ruling (2026-11-15): the picture
+      // owns its band and nothing else dims it. The gates police text against
+      // the SAFE ZONES; the media band lives INSIDE them, so only pixels can
+      // prove the two never meet.
+      //
+      // Probe 1 — strip corner (x 80-110, y 1240-1270): no glyph reaches there
+      // (the strip's rows are centred), so this window detects the strip
+      // drifting DOWN onto the picture (its ground turning into testsrc2
+      // colour). It cannot see the strip moving UP — that would leave this
+      // window on canvas ground — which is why probe 2 exists.
+      //
+      // Probe 2 — the band's bottom third (y 900-930): the frame-level lane
+      // stop in MediaBackground sits at 66.8% of whatever element it paints,
+      // so a band-mounted picture used to get a 0.75 scrim over exactly this
+      // region (66.8% of 619 → y ~823 downward). scrimScope="element" is what
+      // removes it; this window FAILS if the flat-dim path regresses to the
+      // canvas-relative gradient.
+      //
+      // Probe 3 — the band centre: the picture is actually VISIBLE (guards
+      // against "passing" by rendering nothing at all).
       const { PNG } = await import("pngjs");
       const { ok, raw, out } = await renderScenario("baseline-hook-media-led");
       expect(ok, raw).toBe(true);
@@ -434,10 +444,16 @@ describe(
       expect(strip.r, JSON.stringify(strip)).toBeLessThan(45);
       expect(strip.g, JSON.stringify(strip)).toBeLessThan(45);
       expect(strip.b, JSON.stringify(strip)).toBeLessThan(45);
-      // Media band centre: the contained picture (overlay 0.15 dims it, but
-      // testsrc2 is saturated — the mean stays bright and colourful).
-      const band = meanAt(450, 690, 60, 60);
-      expect(band.r + band.g + band.b, JSON.stringify(band)).toBeGreaterThan(180);
+      // Band centre and bottom third: the contained picture (0.15 dims it, but
+      // testsrc2 is saturated — the mean stays bright and colourful). The
+      // bottom window is the one the old canvas-relative lane stop darkened.
+      for (const [label, x, y] of [
+        ["centre", 450, 690],
+        ["bottom third", 450, 900],
+      ]) {
+        const band = meanAt(x, y, 60, 60);
+        expect(band.r + band.g + band.b, `${label} ${JSON.stringify(band)}`).toBeGreaterThan(180);
+      }
     });
   },
 );

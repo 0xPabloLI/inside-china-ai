@@ -14,9 +14,14 @@
  *   y 410-1029  media band — `fit: "contain"` gives the picture a 820×619
  *               box (x 60-880); `cover` fills the frame and only the text
  *               rows sit on it, over scrims
- *   y 1037-1298 text strip — number (locked 112px, no circle annotation: the
+ *   y 1037-1298 text strip — number (locked 110px, no circle annotation: the
  *               annotation belongs to the hero-center protagonist, and here
  *               the picture is the protagonist), numberLabel, source
+ *
+ * The dim follows the FIT (lib/media-overlay.mjs → MEDIA_LED_DIM): 0.15 for the
+ * contain band, where no text is drawn on the picture, and hook's 0.5 for
+ * cover, where the badge and subject rows sit on the footage. The renderer
+ * applies it as a fallback because only the sourcing seams write `overlay`.
  *
  * The number is deliberately `lockFontSize`d below the bigNumber contract's
  * 150px floor: the strip's vertical budget cannot hold a 150px line plus the
@@ -33,13 +38,13 @@ import type { SceneData } from "../types";
 import { BrandBar, BadgePill, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StampIn } from "../components/animations/entrance";
-import { SPACING, CANVAS, COLOR } from "../components/shared";
+import { SPACING, CANVAS, COLOR, accentColorFor } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
 import { MediaScrims } from "../components/MediaScrims";
-import { MediaCard } from "../components/MediaCard";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 import { hookSubjectTextWidth } from "../../../lib/text-slots.mjs";
+import { mediaLedDimFor } from "../../../lib/media-overlay.mjs";
 import { MEDIA_LED, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 
 /** Content-box width of the contain media band (SAFE_ZONES left/right). */
@@ -54,8 +59,23 @@ export const HookMediaLed: React.FC<{
   const sceneId = `hook-media-led-${scene.id}`;
   const contain = scene.media?.fit === "contain";
   const numberLight = useFocusLight("hook", "bigNumber", duration);
-  const hasSubjectLogo = !!txt.subjectLogo;
-  const subjectWidth = hookSubjectTextWidth({ hasLogo: hasSubjectLogo });
+  // The subject row is text-only: `subjectLogo` is NOT registered by the
+  // media-led slot contract (assertKnownTextFields rejects it), so reserving
+  // the logo's width here would be dead code that silently narrows the row.
+  const subjectWidth = hookSubjectTextWidth();
+  // `texts.color` steers the number here: media-led registers no claim text
+  // for hero-center's accent to paint, and the strip's number is the only
+  // coloured copy. Default amber; an unknown key falls back instead of
+  // rendering undefined (#1375 review — accepted-but-ignored steering).
+  const numberColor = accentColorFor(txt.color, COLOR.amber);
+
+  // The dim belongs to the FIT, not to whichever seam wrote the media object
+  // (#1305, 2026-11-15): sourcing writes it, but a hand-bound file and a
+  // generated frame reach this renderer without that write. `overlay` written
+  // by an author still wins.
+  const media = scene.media
+    ? { ...scene.media, overlay: scene.media.overlay ?? mediaLedDimFor(scene.media) }
+    : null;
 
   // Contain: the picture owns [mediaTop .. strip.top - 8]; the 8px gap keeps
   // the picture's bottom edge clear of the strip's first text row.
@@ -67,10 +87,12 @@ export const HookMediaLed: React.FC<{
   return (
     <Camera visualType="hook" duration={duration}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-        {scene.media &&
-          (scene.media.mode === "card" ? (
-            <MediaCard media={scene.media} duration={duration} />
-          ) : contain ? (
+        {/* `mode:"card"` has no branch here on purpose: the evidence card spans
+          y 300-986, straight through the badge and subject rows. The contract
+          rejects it (checkHookMediaQuality → "Hook media mode"), so the
+          renderer must not quietly accept what the gate refuses. */}
+        {media &&
+          (contain ? (
             <div
               style={{
                 position: "absolute",
@@ -81,15 +103,27 @@ export const HookMediaLed: React.FC<{
                 overflow: "hidden",
               }}
             >
-              <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+              {/* scrimScope "element": the lane stop and rail vignette are
+                canvas-relative and re-scale inside this 820×619 box — they
+                would darken the picture's own bottom third and right edge,
+                i.e. the focal content this layout exists to show. Neither
+                region is inside the band. */}
+              <MediaBackground
+                media={media}
+                duration={duration}
+                contentDir={contentDir}
+                scrimScope="element"
+              />
             </div>
           ) : (
             <>
               <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-                <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+                <MediaBackground media={media} duration={duration} contentDir={contentDir} />
               </div>
-              {/* Cover text sits on the picture, so the scrims must hold the
-                rows readable — same contract as hero-center's cover band. */}
+              {/* Cover: the badge and subject rows sit ON the footage, so the
+                scrim bed (top band + bottom ramp) is what holds them — the
+                same contract as hero-center's cover band, whose 0.5 dim
+                `cover` inherits from MEDIA_LED_DIM. */}
               <MediaScrims mediaBottom={CANVAS.height} />
             </>
           ))}
@@ -123,7 +157,9 @@ export const HookMediaLed: React.FC<{
               justifyContent: "center",
             }}
           >
-            <div style={{ minWidth: 0, maxWidth: subjectWidth, flexShrink: 1, textAlign: "center" }}>
+            <div
+              style={{ minWidth: 0, maxWidth: subjectWidth, flexShrink: 1, textAlign: "center" }}
+            >
               <TextGate sceneId={sceneId} slotId="hook.media-led.subject" slotWidth={subjectWidth}>
                 {(fontSize) => (
                   <span
@@ -169,7 +205,7 @@ export const HookMediaLed: React.FC<{
                   style={{
                     fontSize,
                     fontWeight: 900,
-                    color: COLOR.amber,
+                    color: numberColor,
                     letterSpacing: "-4px",
                     lineHeight: 1.2,
                     whiteSpace: "nowrap",

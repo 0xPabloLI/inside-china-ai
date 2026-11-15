@@ -29,7 +29,7 @@
  */
 import { existsSync } from "fs";
 import { resolve, sep } from "path";
-import { DEFAULT_NARRATIVE_LAYOUT } from "./text-slots.mjs";
+import { DEFAULT_NARRATIVE_LAYOUT, HOOK_MEDIA_LED_LAYOUT } from "./text-slots.mjs";
 import { NO_MEDIA_TYPES } from "./claim-keywords.mjs";
 import { resolveMediaPlan } from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
@@ -47,9 +47,11 @@ export const MEDIA_DEPENDENT_LAYOUTS = new Set([
   "media-overlay",
   "media-bottom-bar",
   "media-split",
-  // Media-led hook (2026-11-15): the picture IS the scene — media:null on it
-  // is the same contradiction it is on the narrative media layouts.
-  "media-led",
+  // Media-led hook (2026-11-15): the picture IS the scene. Hooks are judged by
+  // the dedicated hook branch above (which fails media:null on this layout), so
+  // this entry is the net for a `layout:"media-led"` declared on a NON-hook
+  // scene: a nonsense shape that must not slide through as a CSS-only layout.
+  HOOK_MEDIA_LED_LAYOUT,
 ]);
 
 /** Resolve the layout a scene will actually render with. */
@@ -238,9 +240,18 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
     // 4.5–5 seconds: a CSS-only hook is acceptable only as an explicit waiver, so it
     // passes with a warning; anything else without a landed file fails — this
     // is the last chance after sourcing/generation has run.
+    //
+    // Media-led is the one layout where the waiver is a contradiction rather
+    // than a choice: preflight fails it (checkHookMediaContract), and this gate
+    // must agree — otherwise a render-only path would wave through a hook whose
+    // declared layout never renders.
     if (scene.visualType === "hook") {
       if (scene.media === null) {
-        warnings.push({ sceneId: scene.id, layout, reason: "explicit-null-on-hook" });
+        if (layout === HOOK_MEDIA_LED_LAYOUT) {
+          failures.push({ sceneId: scene.id, layout, reason: "explicit-null-on-media-led-hook" });
+        } else {
+          warnings.push({ sceneId: scene.id, layout, reason: "explicit-null-on-hook" });
+        }
         continue;
       }
       const hookState = mediaPath ? mediaPathState(contentDir, mediaPath) : "absent";
@@ -268,7 +279,7 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
       // The file landed — now enforce the same curation contract as preflight
       // (#299), so a fit:"contain" hook cannot render through the paths that
       // skip scene-rules (render-only / rerender / rerender-full / realign).
-      const quality = checkHookMediaQuality(scene.media);
+      const quality = checkHookMediaQuality(scene.media, { layout });
       for (const f of quality.failures) {
         failures.push({
           sceneId: scene.id,
@@ -444,6 +455,9 @@ export function formatFinalMediaFailures(result, context = {}) {
   const lines = result.failures.map((f) => {
     if (f.reason === "opt-out-on-media-layout") {
       return `  Scene ${f.sceneId}: layout "${f.layout}" needs media but the scene sets mediaOptOut — remove the opt-out or use a CSS-only layout`;
+    }
+    if (f.reason === "explicit-null-on-media-led-hook") {
+      return `  Scene ${f.sceneId}: layout "${f.layout}" needs media but the hook declares media:null — bind the picture (chart pin / assetNeed / curated file) or drop the layout and keep the CSS-only waiver`;
     }
     if (f.reason === "missing-hook-media") {
       if (f.path) {
