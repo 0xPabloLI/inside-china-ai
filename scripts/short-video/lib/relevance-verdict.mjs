@@ -15,6 +15,11 @@
  *     When no candidate for a scene is admissible, the right output is
  *     "unsatisfiable → escalate to B-roll/human", not "pick the least-bad
  *     photo".
+ *   - a deterministic chart asset (chart-img PNG pinned via the curated
+ *     symbol map, `chartPin: true`, #1353 follow-up) carries no VLM score by
+ *     design — the symbol mapping is the relevance judgment. It is admitted
+ *     with source "chart-pin" so the patch still records why it walked past
+ *     the gate.
  *
  * This module owns the bands, the pool verdict and the admission rule so
  * asset-sourcer, the B-roll gate and evaluate-stock-relevance.mjs cannot drift
@@ -130,7 +135,8 @@ export function classifyPool(candidates, opts = {}) {
  * subject-focused second pass returned an explicit `match`; anything else
  * (no second pass, `no_match`, a failed/unparseable check) stays closed.
  *
- * @param {{relevanceScore?: number|null, relevanceCheck?: {verdict?: string}|null}} asset
+ * @param {{relevanceScore?: number|null, relevanceCheck?: {verdict?: string}|null,
+ *          chartPin?: boolean}} asset
  * @param {{threshold?: number, borderlineFloor?: number}} [opts]
  * @returns {boolean}
  */
@@ -142,11 +148,13 @@ export function isRelevanceAdmitted(asset, opts = {}) {
  * Why an asset was admitted, recorded on the patch entry for auditability.
  * Returns null when it was not admitted.
  *
- * @param {{relevanceScore?: number|null, relevanceCheck?: {verdict?: string}|null}} asset
+ * @param {{relevanceScore?: number|null, relevanceCheck?: {verdict?: string}|null,
+ *          chartPin?: boolean}} asset
  * @param {{threshold?: number, borderlineFloor?: number}} [opts]
- * @returns {"score"|"second-pass"|null}
+ * @returns {"score"|"second-pass"|"chart-pin"|null}
  */
 export function admissionSource(asset, opts = {}) {
+  if (asset?.chartPin === true) return "chart-pin";
   const band = classifyRelevance(asset?.relevanceScore, opts);
   if (band === RELEVANCE_BAND.PASS) return "score";
   if (band === RELEVANCE_BAND.BORDERLINE && asset?.relevanceCheck?.verdict === "match") {

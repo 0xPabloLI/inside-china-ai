@@ -1,0 +1,92 @@
+{
+  "_comment": "Entity → TradingView symbol map for CHART-IMG chart assets (#1353 follow-up, 2026-11-15). Curated by hand — scene-data declares chart.entity, this file resolves it to a full EXCHANGE:SYMBOL. Rules learned from the 2026-11-15 live probe: (1) always use the full EXCHANGE:SYMBOL form — bare numeric symbols resolve to arbitrary instruments (2513 → a FOREX.com CFD); (2) HKEX individual stocks are v1-unavailable but v2 Delayed (works); (3) indices live under HSI:* (Hang Seng Indexes provider), not HKEX:*. Aliases are matched lowercase; latin aliases use word boundaries, CJK aliases use substring match. Add entities here, never hardcode symbols in code.",
+  "version": "2026-11-15",
+  "defaults": {
+    "interval": "1D",
+    "range": "6M",
+    "theme": "light"
+  },
+  "entities": [
+    {
+      "key": "zhipu",
+      "symbol": "HKEX:2513",
+      "label": "Zhipu (Z. AI Co., Ltd.)",
+      "exchange": "HKEX",
+      "kind": "stock",
+      "currency": "HKD",
+      "aliases": ["zhipu", "zhipu ai", "z ai", "智谱", "智谱ai", "智谱华章"]
+    },
+    {
+      "key": "minimax",
+      "symbol": "HKEX:100",
+      "label": "MiniMax Group",
+      "exchange": "HKEX",
+      "kind": "stock",
+      "currency": "HKD",
+      "aliases": ["minimax", "mini max", "稀宇科技", "海螺ai", "hailuo", "talkie"]
+    },
+    {
+      "key": "hang-seng-tech",
+      "symbol": "HSI:HSTECH",
+      "label": "Hang Seng TECH Index",
+      "exchange": "HSI",
+      "kind": "index",
+      "currency": "index-pt",
+      "aliases": ["hang seng tech", "hang seng tech index", "hstech", "恒生科技", "恒生科技指数"]
+    },
+    {
+      "key": "hang-seng",
+      "symbol": "HSI:HSI",
+      "label": "Hang Seng Index",
+      "exchange": "HSI",
+      "kind": "index",
+      "currency": "index-pt",
+      "aliases": ["hang seng index", "hsi", "恒生指数"]
+    },
+    {
+      "key": "alibaba",
+      "symbol": "HKEX:9988",
+      "label": "Alibaba Group",
+      "exchange": "HKEX",
+      "kind": "stock",
+      "currency": "HKD",
+      "aliases": ["alibaba", "阿里巴巴", "阿里"]
+    },
+    {
+      "key": "tencent",
+      "symbol": "HKEX:700",
+      "label": "Tencent Holdings",
+      "exchange": "HKEX",
+      "kind": "stock",
+      "currency": "HKD",
+      "aliases": ["tencent", "腾讯"]
+    },
+    {
+      "key": "xiaomi",
+      "symbol": "HKEX:1810",
+      "label": "Xiaomi Corporation",
+      "exchange": "HKEX",
+      "kind": "stock",
+      "currency": "HKD",
+      "aliases": ["xiaomi", "小米"]
+    },
+    {
+      "key": "baidu",
+      "symbol": "HKEX:9888",
+      "label": "Baidu (HK secondary listing)",
+      "exchange": "HKEX",
+      "kind": "stock",
+      "currency": "HKD",
+      "aliases": ["baidu", "百度"]
+    },
+    {
+      "key": "nvidia",
+      "symbol": "NASDAQ:NVDA",
+      "label": "NVIDIA Corporation",
+      "exchange": "NASDAQ",
+      "kind": "stock",
+      "currency": "USD",
+      "aliases": ["nvidia", "英伟达"]
+    }
+  ]
+}
