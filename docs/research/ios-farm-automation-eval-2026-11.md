@@ -61,7 +61,7 @@
 | 约束 | 事实 | 来源 |
 | --- | --- | --- |
 | 补丁绑定版本 | `Patches/appium-webdriveragent-8.9.1-absolute-touch.patch` 与 `...-sessionless-buttons.patch`；`prepare.ts` 用 `/usr/bin/patch -p0` 打到 `.appium2/.../appium-webdriveragent`，并检查 `FBImportMedia` / `NSPhotoLibraryAddUsageDescription` / `withoutSession` 三个标记 [S2] | FARM 源码 |
-| WDA 8.9.1 的宿主范围 | driver 7.24.15–7.26.3 全支持 **Xcode 14.0–16.x**（最早可能可用 Xcode 13）；支持 Xcode 26 需 driver ≥10.7（Xcode 16–26.x，Appium 3）或 ≥12.12.5（Xcode ≥26，Appium 4） [S5] | Appium 官方 |
+| WDA 8.9.1 的宿主范围 | driver 7.24.15–7.26.3 全支持 **Xcode 14.0–16.x**（最早可能可用 Xcode 13）；支持 Xcode 26 需 driver ≥10.7（Xcode 16–26.x）或 ≥12.12.5（Xcode ≥26）；按同表 driver→Appium server 映射，10.0–12.22.8 属 Appium 3 带，只有 driver ≥13 才配 Appium 4 [S5] | Appium 官方 |
 | 本机实测 | macOS **26.5.1**、Apple M2 Pro / 32 GB、Node v22.22.2；`xcode-select -p` = `/Library/Developer/CommandLineTools`，`/Applications` 无完整 Xcode，`xcodebuild -version` 直接报「requires Xcode」 [S9, 2026-11-15] | 本机只读检查 |
 | 设备侧 | iPhone 8 class 上限 iOS 16.7；官方 Device-OS→Xcode 表给 iOS 15–16 的最后支持 Xcode 是 26.6（即设备本身可配新 Xcode） [S4/S5] | 官方 + writeup |
 
@@ -104,7 +104,7 @@ iOS 15 旧机并不更省：driver 5.2.0 / WDA 5.8.5 / Xcode 13–15 [S5]，补�
 | 4 | OCR 账号识别：接本仓账号清单、验证 Tesseract TSV（`MIN_CONFIDENCE=40`）与 fuzzy 匹配的误命中日志 | [S2] | 1–2 |
 | 5 | 产物适配 + at-most-once：`output/{slug}/publish/tiktok/*` → `PostManifest`，含 `musicUrl` 深链挂声音、AIGC 标签、发布回执与 `publish-log.jsonl` 对齐；新建队列/适配层（不是改现有队列） | [S2][S8] | 3–5 |
 | 6 | 真机验收（注册 10 项、草稿、同任务重复投递必须被拦）+ 失败回滚与操作手册 | [S2][S8][S11] | 2–3 |
-| | **合计（单台单账号最小可行）** | | **13–24 人天** |
+| | **合计（单台单账号最小可行）** | | **11–21 人天** |
 
 若选 §2.1 的 B 路线，另加 **3–5 人天**用于两个 WDA 补丁移植到 10.x+ 与真机回归；硬件采购、账号准备、账号养号观察不计入。这是按代码面拆分的**估算区间**，不是承诺——本票没有跑过任何一步，实测后可能上修。
 
