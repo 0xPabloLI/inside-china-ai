@@ -1577,8 +1577,8 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
 
   // #1360: the second pass is not image-only. A video's first-pass score is a
   // whole-clip judgment too, so the same 40-59 dead zone applies; the check is
-  // still ONE verdict over the asset (vlm_analyzer.py's video prompt). This
-  // suite pins the frames engine, whose check window is the middle 8 s.
+  // still ONE verdict over the asset (vlm_analyzer.py's video prompt), and it
+  // forwards no window — a window would cut coverage to one slice.
   const VIDEO_PROBE = {
     durationMs: 30000,
     fps: 30,
@@ -1610,9 +1610,11 @@ describe("analyzeAssets — #294 second-pass subject check", () => {
     expect(checkCall[0]).toBe("/abs/clip-hkex.mp4");
     expect(checkCall[1].relevanceCheck).toBe(true);
     expect(checkCall[1].claim).toEqual(claim);
-    // One whole-asset verdict, but not from the opening seconds: the frames
-    // engine sees at most 8 s, so the check gets the middle of a 30 s clip.
-    expect(checkCall[1]).toMatchObject({ startMs: 11000, endMs: 19000 });
+    // One whole-asset verdict with no window: the frames engine already reads
+    // the clip uniformly through resolve_video_inputs, so a window here would
+    // shrink coverage instead of widening it.
+    expect(checkCall[1].startMs).toBeUndefined();
+    expect(checkCall[1].endMs).toBeUndefined();
     expect(checkCall[1].windows).toBeUndefined();
     expect(assets[0].relevanceCheck).toEqual({
       verdict: "match",

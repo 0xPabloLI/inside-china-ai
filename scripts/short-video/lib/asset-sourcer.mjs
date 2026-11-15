@@ -2054,21 +2054,12 @@ export async function analyzeAssets(assets, opts = {}) {
     // whole-clip judgment" was true and irrelevant — a whole-clip judgment is
     // exactly what lands a topically-right clip at 40-59, so the exclusion
     // turned the borderline band into a dead end for every video candidate.
-    // What the check looks at: the native engine reads the whole clip (its own
-    // fps/frame cap is the bound), so no window is forwarded there — a windowed
-    // native call drops to frame stills (#542 L2). The frames engine cannot see
-    // past MAX_VIDEO_SECONDS (8 s), where a windowless call judges the opening
-    // frames; a long clip's head is usually the title card, so the frames
-    // engine gets the middle 8 s instead. Either way it is ONE verdict over the
-    // asset, never one per window.
-    const checkWindow =
-      asset.type === "video" && framesMode && asset.durationMs > 0
-        ? {
-            startMs: Math.max(0, Math.round(asset.durationMs / 2) - 4000),
-            endMs: Math.min(asset.durationMs, Math.round(asset.durationMs / 2) + 4000),
-            sampleFps: 1.0,
-          }
-        : null;
+    // No window is forwarded: with none, BOTH engines already read the whole
+    // asset — the native engine samples the file itself, and the frames engine
+    // goes through mlx_vlm's resolve_video_inputs (uniform across the clip,
+    // subsampled to max_frames). A window would cut that coverage down to one
+    // slice, and on the native engine it would drop the call to frame stills
+    // (#542 L2). The check stays ONE verdict over the asset, never per window.
     let relevanceCheck = null;
     if (
       claimInfo &&
@@ -2084,7 +2075,6 @@ export async function analyzeAssets(assets, opts = {}) {
             filePath: absPath,
             model: modelId,
             claim: claimInfo,
-            ...(checkWindow ? { window: checkWindow } : {}),
             cropFocus: cropHint ?? null,
             relevanceCheck: true,
           });
@@ -2102,7 +2092,6 @@ export async function analyzeAssets(assets, opts = {}) {
           checkSemantics = await analyzeAssetSemantics(absPath, {
             claim: claimInfo,
             relevanceCheck: true,
-            ...(checkWindow ? checkWindow : {}),
             ...(cropHint ? { cropFocus: cropHint } : {}),
           });
           // Only a committed verdict is cacheable — a degraded response is a
