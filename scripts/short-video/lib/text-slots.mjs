@@ -241,6 +241,14 @@ export const MEASURED_MAX_WIDTH = {
   "hook.hero-center.badge": 820,
   "hook.hero-center.subtitle": 820,
   "hook.hero-center.subtitleHighlight": 820,
+  // media-led hook: same 820 safe band; the text rows live in the letterbox
+  // zones above/below the contained picture or on the cover scrim, never over
+  // the picture's focal content.
+  "hook.media-led.badge": 820,
+  "hook.media-led.subject": 820,
+  "hook.media-led.bigNumber": 820,
+  "hook.media-led.numberLabel": 820,
+  "hook.media-led.source": 820,
   // One stat card's content box (three flex:1 cards in the 820 support band,
   // each with its own border+padding) — measured 200.
   "hook.hero-center.statCard": 200,
@@ -349,16 +357,51 @@ export function getGroup(groupId, overrides = {}) {
 /** Layout the Remotion narrative template has always fallen back to. */
 export const DEFAULT_NARRATIVE_LAYOUT = "media-bottom-bar";
 
+/** The hook layout where the MEDIA is the protagonist and text yields. */
+export const HOOK_MEDIA_LED_LAYOUT = "media-led";
+
+/**
+ * Whether `scene` renders the media-led hook layout.
+ *
+ * One predicate for both consumers, because they must never disagree: the
+ * renderer (HookScene, which dispatches to HookMediaLed) and the contract
+ * resolution (resolveRenderLayout, which decides whose texts are judged).
+ * #190's whole point is that validation and rendering read the same layout;
+ * two prose-coupled copies of `layout === … && scene.media` are exactly the
+ * drift this function removes.
+ *
+ * Media must be BOUND: with no picture the hook renders hero-center, and
+ * claiming media-led there would judge its claim texts against a map that
+ * registers none of them.
+ *
+ * @param {{visualType?: string, layout?: string, media?: object|null}} [scene]
+ * @returns {boolean}
+ */
+export function isMediaLedHook(scene) {
+  return (
+    scene?.visualType === "hook" && scene?.layout === HOOK_MEDIA_LED_LAYOUT && Boolean(scene?.media)
+  );
+}
+
 /**
  * The layout the render layer actually uses for `scene` — the resolution
  * ShortVideo.tsx's renderScene performs before assertKnownTextFields.
  *
- * Narrative is the only type that consumes scene.layout; fullscreen always
- * renders "media"; every other template renders "hero-center" regardless of
- * what scene-data says. Contract validation (preflight and render) must
- * resolve through this function so both sides judge the same contract (#190).
+ * Narrative consumes scene.layout; hook consumes it ONLY for the media-led
+ * variant (media-led hook, 2026-11-15: the picture is the protagonist and the
+ * number yields — see HookMediaLed). Every other template renders
+ * "hero-center" regardless of what scene-data says. Contract validation
+ * (preflight and render) must resolve through this function so both sides
+ * judge the same contract (#190).
  *
- * @param {{visualType: string, layout?: string}} scene
+ * The media-led branch is conditional on `scene.media` because that is
+ * literally what HookScene dispatches on: with no media the component renders
+ * hero-center, so resolving media-led there would judge the fallback's texts
+ * against a contract that registers none of them (claim fields → "Unknown text
+ * field" mid-render). Resolution must match the renderer, not the intent —
+ * both read the same predicate ({@link isMediaLedHook}).
+ *
+ * @param {{visualType: string, layout?: string, media?: object|null}} scene
  * @returns {string}
  */
 export function resolveRenderLayout(scene) {
@@ -366,6 +409,7 @@ export function resolveRenderLayout(scene) {
     return scene.layout ?? DEFAULT_NARRATIVE_LAYOUT;
   }
   if (scene.visualType === "fullscreen") return "media";
+  if (isMediaLedHook(scene)) return HOOK_MEDIA_LED_LAYOUT;
   return "hero-center";
 }
 
@@ -486,6 +530,22 @@ export const REMOTION_SLOT_MAP = {
         "badge",
         "statCard",
       ],
+      intentionallyOmitted: [],
+    },
+    // Media-led hook (2026-11-15): the picture is the protagonist. Number-led
+    // only — the claim-led focal (hookText/revealText) has no registered slot
+    // here, so a claim hook in media-led fails the contract instead of
+    // silently rendering an ungated claim over the picture.
+    //
+    // `color` stays a control field, but it steers a DIFFERENT element than in
+    // hero-center: there it paints the claim text, here it paints the strip's
+    // bigNumber (HookMediaLed → accentColorFor, default amber). Both consumers
+    // read the same ACCENT_COLORS map in tokens.ts, so a declared color is
+    // honoured rather than accepted-and-ignored (#1375 review).
+    "media-led": {
+      rendered: [],
+      control: ["numberHighlight", "color"],
+      optional: ["subject", "bigNumber", "numberLabel", "source", "badge"],
       intentionallyOmitted: [],
     },
   },
@@ -634,7 +694,10 @@ export function assertKnownTextFields(visualType, layout, texts) {
   for (const key of Object.keys(t)) {
     const field = aliases[key] ?? key;
     if (known.has(field)) continue;
-    // Throws "Unknown text field …" when the field is not registered at all.
+    // Throws for a SLOT_FIELDS entry without a measured width for THIS layout
+    // ("Slot <id> has no measured maxWidth" — the slot id in the message is
+    // the kimi-ipo incident's replay contract), and "Unknown text field …"
+    // when the field is not registered at all. Either way the render fails.
     getSlot(slotId({ visualType, layout, field }));
     throw new Error(
       `Unknown text field "${key}" for visualType "${visualType}" (layout "${layout}") — ` +

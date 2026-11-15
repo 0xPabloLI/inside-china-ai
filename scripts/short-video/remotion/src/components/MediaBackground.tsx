@@ -60,6 +60,22 @@ interface Props {
    * keeps the picture off the burned-subtitle lane.
    */
   containAlign?: ContainAlign;
+  /**
+   * Which scrims this element draws (#media-led, 2026-11-15).
+   *
+   * `"frame"` (default) is the full-frame contract: the subtitle-lane stop at
+   * 66.8–67.6% and the action-rail vignette, both calibrated in CANVAS
+   * percentages because the element spans the canvas.
+   *
+   * `"element"` is for a picture mounted inside a BAND. Those two gradients
+   * re-scale to whatever element they are painted on: in the media-led hook's
+   * 820×619 band at (60, 410) the 0.75 lane stop lands at the band's own
+   * y 823 (a 0.75 scrim over the picture's bottom third) and the rail ramp
+   * crosses the band's right edge — darkening the exact focal content the
+   * layout exists to expose. A band therefore gets a flat dim at `overlay`
+   * and no lane/rail gradients at all; neither region is inside the band.
+   */
+  scrimScope?: "frame" | "element";
 }
 
 /** Vertical anchor for a contained picture inside its container. */
@@ -105,6 +121,30 @@ const resolvePreset = (
 };
 
 /**
+ * The dim layer's background for a scrim scope (#media-led, 2026-11-15).
+ *
+ * `"frame"` keeps the two-stop gradient whose bottom stop protects the subtitle
+ * lane; `"element"` (a picture mounted in a band) gets the flat dim only, since
+ * those stops are canvas-relative and would land inside the band.
+ */
+const dimBackgroundFor = (
+  scope: "frame" | "element",
+  overlay: number,
+  overlayOpacity: number,
+): string =>
+  scope === "element"
+    ? `rgba(10, 10, 20, ${overlayOpacity})`
+    : `linear-gradient(to bottom,
+            rgba(10, 10, 20, ${overlayOpacity}) 0%,
+            rgba(10, 10, 20, ${overlayOpacity}) 66.8%,
+            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 67.6%,
+            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 100%)`;
+
+/** Whether the frame-level action-rail vignette applies to this element. */
+const drawsRailVignette = (scope: "frame" | "element", overlay: number): boolean =>
+  scope === "frame" && overlay > 0;
+
+/**
  * CSS `object-position` for the media element.
  *
  * #1040: `cropFocus.{x,y}` is already a normalized CSS object-position ratio,
@@ -145,6 +185,7 @@ export const MediaBackground: React.FC<Props> = ({
   duration,
   effects,
   containAlign = "center",
+  scrimScope = "frame",
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -387,11 +428,11 @@ export const MediaBackground: React.FC<Props> = ({
           // `overlay: 0` means "no dim layer" and is honoured literally: the
           // render contracts drive a pure-colour fixture through this component
           // and a floor there would recolour it.
-          background: `linear-gradient(to bottom,
-            rgba(10, 10, 20, ${overlayOpacity}) 0%,
-            rgba(10, 10, 20, ${overlayOpacity}) 66.8%,
-            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 67.6%,
-            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 100%)`,
+          //
+          // scrimScope "element" (a band-mounted picture) keeps only the flat
+          // dim: the lane stop below is canvas-relative and would land inside
+          // the band at its own 66.8%.
+          background: dimBackgroundFor(scrimScope, overlay, overlayOpacity),
           transition: "background 0.3s",
         }}
       />
@@ -415,7 +456,7 @@ export const MediaBackground: React.FC<Props> = ({
           would let the exit fade brighten the rail back up, and `overlay: 0`
           means "no dim layer" — a pure-colour fixture must stay untouched
           (render contracts). */}
-      {overlay > 0 && (
+      {drawsRailVignette(scrimScope, overlay) && (
         <div
           style={{
             position: "absolute",

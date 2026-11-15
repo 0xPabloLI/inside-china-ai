@@ -17,6 +17,9 @@ import {
   assertKnownTextFields,
   slotCharBudget,
   hookSubjectTextWidth,
+  resolveRenderLayout,
+  HOOK_MEDIA_LED_LAYOUT,
+  isMediaLedHook,
   HOOK_SUBJECT_ROW,
   MEASURED_MAX_WIDTH,
   SLOT_FIELDS,
@@ -573,5 +576,78 @@ describe("hookSubjectTextWidth (#422: the logo shares the subject row)", () => {
     // The component imports these numbers; a redesign (#291's logo ≥120px) has
     // to change them HERE, where the contract test can see the consequence.
     expect(HOOK_SUBJECT_ROW).toEqual({ logoSize: 96, gap: 24 });
+  });
+});
+
+describe("hook media-led layout contract (2026-11-15)", () => {
+  it("resolveRenderLayout passes a bound media-led through, and resolves the fallback to hero-center", () => {
+    expect(HOOK_MEDIA_LED_LAYOUT).toBe("media-led");
+    const media = { type: "image", path: "assets/x.png" };
+    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led", media })).toBe(
+      "media-led",
+    );
+    // No media → HookScene renders hero-center, so the contract must judge
+    // hero-center too (a claim-led media-less scene would otherwise throw
+    // "Unknown text field" mid-render; #1375 review).
+    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led" })).toBe("hero-center");
+    expect(resolveRenderLayout({ visualType: "hook", layout: "media-led", media: null })).toBe(
+      "hero-center",
+    );
+    // Undeclared hook layout values still resolve to hero-center (dead data).
+    expect(resolveRenderLayout({ visualType: "hook", layout: "something-else" })).toBe(
+      "hero-center",
+    );
+    // Narrative keeps its own resolution — media-led is NOT a narrative layout.
+    expect(resolveRenderLayout({ visualType: "narrative", layout: "media-led" })).toBe("media-led");
+    // But the narrative slot map has no media-led entry, so the contract
+    // rejects it rather than silently rendering hero-center fields.
+    expect(() => remotionSlotsFor("narrative", "media-led")).toThrow(
+      /No Remotion slot mapping for layout "media-led" of visualType "narrative"/,
+    );
+  });
+
+  it("isMediaLedHook is the one predicate the renderer and the contract share", () => {
+    const media = { type: "image", path: "assets/x.png" };
+    expect(isMediaLedHook({ visualType: "hook", layout: "media-led", media })).toBe(true);
+    expect(isMediaLedHook({ visualType: "hook", layout: "media-led" })).toBe(false);
+    expect(isMediaLedHook({ visualType: "hook", layout: "media-led", media: null })).toBe(false);
+    expect(isMediaLedHook({ visualType: "narrative", layout: "media-led", media })).toBe(false);
+    expect(isMediaLedHook({ visualType: "hook", layout: "hero-center", media })).toBe(false);
+    expect(isMediaLedHook(undefined)).toBe(false);
+  });
+
+  it("registers every media-led field with the 820 band width", () => {
+    for (const field of ["badge", "subject", "bigNumber", "numberLabel", "source"]) {
+      const id = `hook.media-led.${field}`;
+      expect(MEASURED_MAX_WIDTH[id], id).toBe(820);
+      expect(() => getSlot(id)).not.toThrow();
+    }
+  });
+
+  it("media-led is number-led only: claim focals fail the contract, `color` steers the number", () => {
+    const groups = remotionSlotsFor("hook", "media-led");
+    expect(groups.rendered).toEqual([]);
+    expect(groups.optional).toEqual(["subject", "bigNumber", "numberLabel", "source", "badge"]);
+    // `color` is a control field (it paints the strip's bigNumber — see
+    // HookMediaLed → accentColorFor), so it must be accepted, not rejected.
+    expect(groups.control).toEqual(["numberHighlight", "color"]);
+    expect(() =>
+      assertKnownTextFields("hook", "media-led", { subject: "X", color: "red" }),
+    ).not.toThrow();
+    expect(() =>
+      assertKnownTextFields("hook", "media-led", {
+        hookText: "SOME CLAIM",
+        subject: "X",
+      }),
+    ).toThrow(/hook\.media-led\.hookText has no measured maxWidth/);
+    // stats has no SLOT_FIELDS entry at all — the plain "Unknown text field"
+    // registration error, not the width one.
+    expect(() =>
+      assertKnownTextFields("hook", "media-led", {
+        subject: "X",
+        bigNumber: "-80%",
+        stats: [{ num: "1", unit: "", label: "L" }],
+      }),
+    ).toThrow(/Unknown text field "stats"/);
   });
 });

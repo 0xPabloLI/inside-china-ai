@@ -383,6 +383,50 @@ export const MEDIA_BAND = {
 export const CONTAIN_MEDIA_BOTTOM = mediaBottomBarTopFor({ company: 1, action: 1, result: 1 }) - 8;
 
 /**
+ * Media-led hook geometry (2026-11-15): the PICTURE is the protagonist and the
+ * text yields. The hook's hero-center layout draws the number over the media —
+ * right for a composed cover shot, wrong for a deterministic K-line whose June
+ * peak is exactly what the number covered (user ruling: "背后的图片视频更加
+ * 重要一些"). Media-led instead gives the picture its own band and pushes every
+ * text row into the zones the picture does not own:
+ *
+ *   y 220-298   kicker badge pill
+ *   y 306-402   subject row (64px name — no logo: media-led is chart/photo-led
+ *               and the slot contract does not register `subjectLogo`)
+ *   y 410-1029  MEDIA BAND (contain) — 820 wide (x 60-880), 619 tall. A 4:3
+ *               chart source (800x600) contains to 820x615 — essentially the
+ *               full band; a 16:9 source letterboxes 79px top/bottom inside it.
+ *               Cover renders full-frame instead and only the text rows sit on
+ *               the picture, over scrims.
+ *   y 1037-1298 text strip — number (locked 110px), numberLabel, source.
+ *               Bottom edge = the content safe-zone bottom (1920-622).
+ *
+ * Budget audit (worst case, all rows present). The stack has THREE 8px gaps,
+ * not two (kicker→subject, subject→media, media→strip):
+ *   78 + 8 + 96 + 8 + 619 + 8 + 261 = 1078 — the rows consume the content band
+ *   exactly, ZERO slack. Adding a row or growing a constant above pushes the
+ *   strip past the safe-zone bottom; shrink something else in the same change.
+ * The strip's own worst case (number 110 × 1.2 = 132, numberLabel marginTop
+ * SPACING.md = 12 + 48 × the font's default line height ≈ 58, source marginTop
+ * SPACING.sm = 8 + 40 × 1.2 = 48) totals ≈ 258 of 261 — 3px, not the 23 the
+ * earlier audit implied. A numberLabel line height past ~1.55 overflows; the
+ * per-slot TextGate budget, not this comment, is what catches that.
+ *
+ * numberSize is 110, not 112: 112 sits inside type-scale.mjs's deliberate
+ * 111-149 gap ("no fourth size"), 110 is that scale's 60-110 supporting band
+ * ceiling. Locking is the one place a size can be chosen freely, so it must
+ * still land inside a band.
+ */
+export const MEDIA_LED = Object.freeze({
+  kicker: Object.freeze({ top: 220, height: 78 }),
+  subject: Object.freeze({ top: 306, height: 96 }),
+  mediaTop: 410,
+  strip: Object.freeze({ top: 1037, height: 261 }),
+  /** The locked bigNumber size in the strip (bypasses the 150px floor). */
+  numberSize: 110,
+});
+
+/**
  * Normalised stops approximating smoothstep(t) = t²(3-2t).
  *
  * CSS gradients interpolate linearly between stops, so a two-stop gradient

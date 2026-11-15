@@ -66,7 +66,7 @@ import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import { brollSectionSpec } from "./media-window.mjs";
 import { VALID_FITS } from "./media-bg.mjs";
-import { overlayForVisualType } from "./media-overlay.mjs";
+import { overlayForScene, overlayForVisualType } from "./media-overlay.mjs";
 import { allowsContainFit, hasContainBand } from "./text-slots.mjs";
 import {
   getCachedSearchResults,
@@ -338,6 +338,26 @@ export function assetAspectRatio(asset) {
 export function isLandscapeAsset(asset) {
   const ratio = assetAspectRatio(asset);
   return ratio != null && ratio >= LANDSCAPE_MIN_ASPECT;
+}
+
+/**
+ * The fit an auto-sourced hook composes to, for a pack (`scenes`).
+ *
+ * One seam for both writers: `recommendScene` (the suggestion written into
+ * asset-analysis.json) and `assignAssetsToScenes` (the binding). The scrim
+ * depends on this fit (media-led: 0.15 contain / 0.5 cover), so a second copy
+ * of the rule here would put the two seams back on different numbers — the
+ * drift #1305 retired.
+ *
+ * @param {object} asset
+ * @param {Array<object>} scenes
+ * @returns {"cover" | "contain"}
+ */
+export function plannedHookFit(asset, scenes = []) {
+  // A pack that declares body fits has already answered the hook question;
+  // one that does not composes the hook from its own source aspect.
+  if (declaredBodyFit(scenes) != null) return hookRequiredFitFor(scenes);
+  return isLandscapeAsset(asset) ? "contain" : asset.fit || "cover";
 }
 
 // `hasContainBand` / `allowsContainFit` moved to lib/text-slots.mjs (#1075):
@@ -920,8 +940,18 @@ export function recommendScene(asset, scenes) {
 
     // #1305: the scrim comes from the shared table, not a local copy — these
     // two seams used to carry identical hardcoded numbers by coincidence.
+    // overlayForScene (not overlayForVisualType) so a media-led hook gets the
+    // fit's own dim (0.15 contain / 0.5 cover) instead of the text-over-picture
+    // 0.5 for both. The fit is not bound yet at recommendation time, so it is
+    // resolved here the same way the allocator will — passing the scene without
+    // one would reproduce the very 0.5 the contain layout must not get.
     if (vt === "hook") {
-      return { sceneId: scene.id, animation, overlay: overlayForVisualType("hook") };
+      const fit = plannedHookFit(asset, scenes);
+      return {
+        sceneId: scene.id,
+        animation,
+        overlay: overlayForScene({ ...scene, media: { fit } }),
+      };
     }
     if (vt === "narrative") {
       return { sceneId: scene.id, animation, overlay: overlayForVisualType("narrative") };
@@ -1228,8 +1258,7 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
   // A pack that declares body fits has already answered the hook question;
   // one that does not composes each hook from its own source aspect.
   const hookFitDeclared = declaredBodyFit(scenes) != null;
-  const hookFitFor = (asset) =>
-    hookFitDeclared ? hookRequiredFit : isLandscapeAsset(asset) ? "contain" : asset.fit || "cover";
+  const hookFitFor = (asset) => plannedHookFit(asset, scenes);
 
   // #294: satisfiability belongs to the scene's candidate pool, not to one
   // asset. Computed before the loop so a rejection reason can name the pool
@@ -1407,9 +1436,9 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         source: asset.source || asset.from || undefined,
         // #1030: animation is assigned below, once media.fit is resolved, so
         // a hook that composes to `contain` is seen by the content-aware seam.
-        // #1305: scrim from the shared table — a local ternary here drifted
-        // from `recommendScene` the moment either side changed.
-        overlay: overlayForVisualType(vt),
+        // #1305: scrim from the shared table, and written at the SAME point —
+        // its value depends on media.fit (media-led: 0.15 contain / 0.5 cover),
+        // so computing it in this literal would judge a fit that is not set yet.
       };
       // Composition default (#963): a third-party landscape source is shown
       // whole (contain) where the renderer has the contain band. Cover into
@@ -1440,6 +1469,11 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // A talking head keeps its own motion (`none`); charts, screenshots and
       // contained images stay still (`fade`); cover stills keep ken-burns.
       media.animation = selectAnimationForAsset(asset, media.fit);
+      // #1305: scrim from the shared table, now that the fit is final. A local
+      // ternary here drifted from `recommendScene` the moment either side
+      // changed; scene-level (not type-level) so a media-led hook writes the
+      // dim of the fit it actually renders.
+      media.overlay = overlayForScene({ ...target, media });
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
       if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 

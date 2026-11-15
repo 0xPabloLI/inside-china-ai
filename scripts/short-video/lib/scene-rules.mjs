@@ -48,6 +48,7 @@ const THRESHOLDS = getPlatformProfile("tiktok").thresholds;
 import {
   REMOTION_SLOT_MAP,
   DEFAULT_NARRATIVE_LAYOUT,
+  HOOK_MEDIA_LED_LAYOUT,
   allowsContainFit,
   assertKnownTextFields,
   resolveRenderLayout,
@@ -1397,6 +1398,19 @@ export function checkHookMediaContract(scenes) {
     return [{ level: "pass", category: CATEGORY, check: CHECK, detail: "No hook scene" }];
   }
 
+  // Media-led (2026-11-15): the picture IS the scene, so a media-less
+  // media-led hook would decay into hero-center — the layout the author asked
+  // to move away from. It still does NOT fail here when media is merely
+  // unbound: preflight runs BEFORE Step 1.5, and the picture legitimately
+  // arrives later (a `chart: { entity }` pin is written by asset-sourcer's
+  // Phase 0a, an `assetNeed`/voiceover claim by sourcing, and the
+  // GENERATING_STRATEGIES by generation). Failing here would block the one
+  // mechanism that can supply the file — the same doctrine the narrative
+  // media gate and final-media-gate follow. The declarations that DO fail are
+  // the ones that promise the file will never arrive: `media: null` and the
+  // deprecated `mediaOptOut` (both judged below, where their own branches
+  // already live).
+
   if (hook.media) {
     const media = hook.media;
     // The binding itself passes (media exists); quality issues are reported as
@@ -1411,7 +1425,7 @@ export function checkHookMediaContract(scenes) {
         detail: `${media.type}: ${media.path}`,
       },
     ];
-    const quality = checkHookMediaQuality(media);
+    const quality = checkHookMediaQuality(media, { layout: hook.layout });
     for (const f of quality.failures) {
       results.push({
         level: "fail",
@@ -1436,7 +1450,24 @@ export function checkHookMediaContract(scenes) {
   // Explicit `media: null` is a deliberate CSS-only hook, not an omission.
   // Distinguish it from a missing `media` key: `"media" in hook` survives the
   // null value, an absent key reads as falsy too.
+  //
+  // On media-led this waiver contradicts the declared layout instead of
+  // resolving it: the layout's whole point is the picture, and "no media ever"
+  // means the scene renders hero-center — the thing the author opted away
+  // from. That is a fail here and at the final gate, not a warning.
   if (hook.media === null && "media" in hook) {
+    if (hook.layout === HOOK_MEDIA_LED_LAYOUT) {
+      return [
+        {
+          level: "fail",
+          category: CATEGORY,
+          check: CHECK,
+          detail:
+            'layout:"media-led" + explicit media:null is a contradiction — the layout exists to give the picture the frame',
+          fix: 'Bind the picture (a chart: { entity } pin, assetNeed/curated file) or drop layout:"media-led" and keep media:null for a CSS-only hook',
+        },
+      ];
+    }
     return [
       {
         level: "warn",
@@ -1450,15 +1481,22 @@ export function checkHookMediaContract(scenes) {
   // `mediaOptOut` predates this contract: generation (planScenes) skips
   // opt-outs, so a hook carrying it can never receive media — fail instead of
   // promising a generation that cannot happen.
+  //
+  // On media-led the advised `media: null` exit would be a second failure (the
+  // branch above fails that combination), so the fix text must not offer it.
   if (hook.mediaOptOut === true) {
+    const mediaLed = hook.layout === HOOK_MEDIA_LED_LAYOUT;
     return [
       {
         level: "fail",
         category: CATEGORY,
         check: CHECK,
-        detail:
-          "Hook sets mediaOptOut:true but has no media — mediaOptOut is deprecated and generation skips opt-outs, so the opening hook would render CSS-only",
-        fix: "mediaOptOut is deprecated: bind scene.media from the curated library, or use media: null for a deliberate CSS-only hook",
+        detail: mediaLed
+          ? "media-led hook sets mediaOptOut:true — the deprecated flag makes generation skip the scene, so the declared layout can never get its picture"
+          : "Hook sets mediaOptOut:true but has no media — mediaOptOut is deprecated and generation skips opt-outs, so the opening hook would render CSS-only",
+        fix: mediaLed
+          ? "Remove mediaOptOut and bind the picture (a chart: { entity } pin, an assetNeed, or a curated file) — media: null is not an exit on media-led, it fails the same contract"
+          : "mediaOptOut is deprecated: bind scene.media from the curated library, or use media: null for a deliberate CSS-only hook",
       },
     ];
   }
@@ -1488,8 +1526,10 @@ export function checkHookMediaContract(scenes) {
       category: CATEGORY,
       check: CHECK,
       detail:
-        "Hook scene has no media and no waiver — sourcing/generation covers the opening now (2026-11-14); the final media gate enforces the landed file",
-      fix: 'Bind scene.media (media: { type, path: "assets/<file>", source, fit: "cover" }), declare an assetNeed for sourcing, or set media: null deliberately for a CSS-only hook',
+        hook.layout === HOOK_MEDIA_LED_LAYOUT
+          ? "media-led hook has no media yet — sourcing (chart pin / assetNeed / voiceover claim) or generation fills it after preflight; the final media gate enforces the landed file"
+          : "Hook scene has no media and no waiver — sourcing/generation covers the opening now (2026-11-14); the final media gate enforces the landed file",
+      fix: 'Bind scene.media (media: { type, path: "assets/<file>", source, fit: "cover" }), declare a chart: { entity } pin or an assetNeed for sourcing, or set media: null deliberately for a CSS-only hook',
     },
   ];
 }
@@ -1797,9 +1837,17 @@ export function checkTemplateContract(scenes) {
     }
     // Non-narrative templates never read scene.layout (renderScene forces the
     // layout), so a divergent value is dead data that misleads authors.
+    //
+    // media-led is the exception: it is a REAL hook layout whose resolution
+    // depends on whether media is bound. A bound hook renders it (so this
+    // never fires); an unbound one resolves to hero-center and is already
+    // reported by checkHookMediaContract with the right fix ("bind the
+    // picture / declare a chart pin"). Warning "remove the layout" here would
+    // tell the author to undo what docs/content-pipeline.md 8b-3 asks for.
     if (
       scene.visualType !== "narrative" &&
       typeof scene.layout === "string" &&
+      scene.layout !== HOOK_MEDIA_LED_LAYOUT &&
       scene.layout !== layout
     ) {
       results.push({
@@ -2544,7 +2592,15 @@ export function checkMediaOptOutDeprecation(scenes) {
   const nullOnMediaLayout = [];
   for (const scene of scenes) {
     if (scene.mediaOptOut === true) optedOut.push(String(scene.id));
-    if (scene.media === null && MEDIA_DEPENDENT_LAYOUTS.has(scene.layout)) {
+    // Hook shapes are owned by checkHookMediaContract (it fails media:null on
+    // the media-led layout outright), and "the frame renders an empty band" is
+    // false for a hook — HookScene drops to hero-center, never an empty frame.
+    // Same single-owner rule the narrative media warning applies to hooks.
+    if (
+      scene.media === null &&
+      MEDIA_DEPENDENT_LAYOUTS.has(scene.layout) &&
+      scene.visualType !== "hook"
+    ) {
       nullOnMediaLayout.push(String(scene.id));
     }
   }
@@ -2608,9 +2664,10 @@ export function checkLayoutMediaRouting(scenes) {
   const CATEGORY = "Media";
   // Single source of truth for the layouts that DO carry their own media
   // window (final-media-gate.MEDIA_DEPENDENT_LAYOUTS) — a new one cannot leave
-  // this fix text stale.
+  // this fix text stale. media-led is a HOOK layout, so it labels differently
+  // from the narrative media layouts.
   const MEDIA_WINDOW_LAYOUTS = [...MEDIA_DEPENDENT_LAYOUTS]
-    .map((layout) => `narrative ${layout}`)
+    .map((layout) => (layout === HOOK_MEDIA_LED_LAYOUT ? `hook ${layout}` : `narrative ${layout}`))
     .join(" / ");
   const needOnTextFirst = [];
   const evidenceOnTextFirst = [];

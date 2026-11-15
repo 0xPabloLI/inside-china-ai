@@ -131,6 +131,25 @@ describe("checkTemplateContract (kimi-ipo violation replay)", () => {
     expect(warns(results)).toHaveLength(0);
   });
 
+  // #1375 review: a media-led hook whose picture has not landed yet resolves to
+  // hero-center, and the divergence warning would then tell the author to
+  // REMOVE the layout — the opposite of what content-pipeline 8b-3 asks for,
+  // while checkHookMediaContract simultaneously tells them to keep it and bind
+  // a picture. Two contradictory fixes for one legal intermediate state.
+  it("does not scold a declared media-led hook for not rendering media-led yet", () => {
+    const results = checkTemplateContract([
+      scene(9, "hook", "media-led", { badge: "B", subject: "S", bigNumber: "-80%" }),
+    ]);
+    expect(warns(results)).toHaveLength(0);
+    expect(fails(results)).toHaveLength(0);
+  });
+
+  it("still warns for a hook layout value no template reads", () => {
+    const results = checkTemplateContract([scene(10, "hook", "media-split", { bigNumber: "1" })]);
+    expect(warns(results)).toHaveLength(1);
+    expect(warns(results)[0].detail).toContain("is ignored");
+  });
+
   it("reports one fail per violating scene, with the scene id in the check name", () => {
     const results = checkTemplateContract([
       scene(2, "narrative", "hero-center", { company: "A", action: "B", result: "C" }),

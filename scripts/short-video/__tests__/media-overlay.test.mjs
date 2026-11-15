@@ -10,6 +10,9 @@ import { describe, it, expect } from "vitest";
 import {
   MEDIA_OVERLAY,
   DEFAULT_MEDIA_OVERLAY,
+  MEDIA_LED_DIM,
+  mediaLedDimFor,
+  overlayForScene,
   overlayForVisualType,
 } from "../lib/media-overlay.mjs";
 
@@ -61,5 +64,35 @@ describe("overlayForVisualType", () => {
     expect(overlayForVisualType("constructor")).toBe(DEFAULT_MEDIA_OVERLAY);
     expect(overlayForVisualType("toString")).toBe(DEFAULT_MEDIA_OVERLAY);
     expect(overlayForVisualType("__proto__")).toBe(DEFAULT_MEDIA_OVERLAY);
+  });
+});
+
+describe("media-led dim (#1375 review)", () => {
+  const hook = (media) => ({ visualType: "hook", layout: "media-led", media });
+
+  it("splits by fit — contain draws no text over the picture, cover does", () => {
+    expect(MEDIA_LED_DIM.contain).toBe(0.15);
+    expect(MEDIA_LED_DIM.cover).toBe(MEDIA_OVERLAY.hook);
+    expect(overlayForScene(hook({ fit: "contain" }))).toBe(0.15);
+    expect(overlayForScene(hook({ fit: "cover" }))).toBe(MEDIA_OVERLAY.hook);
+  });
+
+  it("reads an absent fit as cover, the renderer's own default", () => {
+    expect(overlayForScene(hook({ type: "image", path: "assets/x.png" }))).toBe(
+      MEDIA_LED_DIM.cover,
+    );
+    expect(overlayForScene(hook(undefined))).toBe(MEDIA_LED_DIM.cover);
+    expect(mediaLedDimFor(undefined)).toBe(MEDIA_LED_DIM.cover);
+  });
+
+  it("leaves every other scene on its visual type's value", () => {
+    // Same layout string on a narrative scene is not a media-led hook.
+    expect(overlayForScene({ visualType: "narrative", layout: "media-led" })).toBe(
+      MEDIA_OVERLAY.narrative,
+    );
+    // A hero-center hook keeps hook's scrim — its number sits on the picture.
+    expect(overlayForScene({ visualType: "hook", layout: "hero-center" })).toBe(MEDIA_OVERLAY.hook);
+    expect(overlayForScene({ visualType: "hook" })).toBe(MEDIA_OVERLAY.hook);
+    expect(overlayForScene()).toBe(DEFAULT_MEDIA_OVERLAY);
   });
 });

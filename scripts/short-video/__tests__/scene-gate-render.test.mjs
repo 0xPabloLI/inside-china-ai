@@ -21,7 +21,7 @@
  */
 import { renderStill } from "./remotion-still.mjs";
 import { describe, it, expect, beforeAll } from "vitest";
-import { mkdtempSync } from "fs";
+import { mkdtempSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -51,11 +51,11 @@ async function renderScenario(scenario, frame = 45) {
       frame,
       timeout: 240_000,
     });
-    return { ok: true, payload: null, raw: "" };
+    return { ok: true, payload: null, raw: "", out };
   } catch (err) {
     const text = `${err.stdout ?? ""}${err.stderr ?? ""}`;
     const match = /\[TextFitError\] (\{.*\})/.exec(text);
-    return { ok: false, payload: match ? JSON.parse(match[1]) : null, raw: text };
+    return { ok: false, payload: match ? JSON.parse(match[1]) : null, raw: text, out };
   }
 }
 
@@ -104,6 +104,11 @@ const BASELINES = [
   // #761: the same copy with an ambient image bound — the media layer must
   // render behind the cards without breaking the text gates.
   "baseline-contrast-media",
+  // Media-led hook (2026-11-15): picture-led baselines — contain (chart-like
+  // band) and cover (full-bleed footage). The contain case additionally gets
+  // the no-occlusion pixel probe below.
+  "baseline-hook-media-led",
+  "baseline-hook-media-led-cover",
   "baseline-data",
   "baseline-info-card",
   "baseline-fullscreen",
@@ -389,6 +394,65 @@ describe(
         const { ok, payload, raw } = await renderScenario("transition-slide", frame);
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
+      }
+    });
+
+    it("media-led contain: no picture in the strip, no lane scrim in the picture's bottom", async () => {
+      // The pixel contract for the media-led ruling (2026-11-15): the picture
+      // owns its band and nothing else dims it. The gates police text against
+      // the SAFE ZONES; the media band lives INSIDE them, so only pixels can
+      // prove the two never meet.
+      //
+      // Probe 1 — strip corner (x 80-110, y 1240-1270): no glyph reaches there
+      // (the strip's rows are centred), so this window detects the strip
+      // drifting DOWN onto the picture (its ground turning into testsrc2
+      // colour). It cannot see the strip moving UP — that would leave this
+      // window on canvas ground — which is why probe 2 exists.
+      //
+      // Probe 2 — the band's bottom third (y 900-930): the frame-level lane
+      // stop in MediaBackground sits at 66.8% of whatever element it paints,
+      // so a band-mounted picture used to get a 0.75 scrim over exactly this
+      // region (66.8% of 619 → y ~823 downward). scrimScope="element" is what
+      // removes it; this window FAILS if the flat-dim path regresses to the
+      // canvas-relative gradient.
+      //
+      // Probe 3 — the band centre: the picture is actually VISIBLE (guards
+      // against "passing" by rendering nothing at all).
+      const { PNG } = await import("pngjs");
+      const { ok, raw, out } = await renderScenario("baseline-hook-media-led");
+      expect(ok, raw).toBe(true);
+      const png = PNG.sync.read(readFileSync(out));
+      const meanAt = (x0, y0, w, h) => {
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        for (let y = y0; y < y0 + h; y++) {
+          for (let x = x0; x < x0 + w; x++) {
+            const i = (png.width * y + x) << 2;
+            r += png.data[i];
+            g += png.data[i + 1];
+            b += png.data[i + 2];
+          }
+        }
+        const n = w * h;
+        return { r: r / n, g: g / n, b: b / n };
+      };
+      // Strip corner: canvas ground (#0a0a14). testsrc2's dimmest regions
+      // still average well above 45 per channel; canvas + the focus light's
+      // glow (nearest glyph is ~250px away) stays far below.
+      const strip = meanAt(80, 1240, 30, 30);
+      expect(strip.r, JSON.stringify(strip)).toBeLessThan(45);
+      expect(strip.g, JSON.stringify(strip)).toBeLessThan(45);
+      expect(strip.b, JSON.stringify(strip)).toBeLessThan(45);
+      // Band centre and bottom third: the contained picture (0.15 dims it, but
+      // testsrc2 is saturated — the mean stays bright and colourful). The
+      // bottom window is the one the old canvas-relative lane stop darkened.
+      for (const [label, x, y] of [
+        ["centre", 450, 690],
+        ["bottom third", 450, 900],
+      ]) {
+        const band = meanAt(x, y, 60, 60);
+        expect(band.r + band.g + band.b, `${label} ${JSON.stringify(band)}`).toBeGreaterThan(180);
       }
     });
   },

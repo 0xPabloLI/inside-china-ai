@@ -33,6 +33,8 @@ export {
  */
 export {
   COLOR,
+  ACCENT_COLORS,
+  accentColorFor,
   TYPE,
   MOTION,
   HOLD,

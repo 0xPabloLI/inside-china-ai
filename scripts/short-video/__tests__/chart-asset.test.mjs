@@ -4,10 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   CHART_IMG_V2_URL,
+  CHART_PARAM_FALLBACKS,
   buildChartAssets,
   fetchChartAsset,
   loadChartSymbolMap,
   resolveChartEntity,
+  resolveChartParams,
 } from "../lib/chart-asset.mjs";
 import { admissionSource, isRelevanceAdmitted } from "../lib/relevance-verdict.mjs";
 import { assignAssetsToScenes } from "../lib/asset-sourcer.mjs";
@@ -132,12 +134,21 @@ describe("fetchChartAsset", () => {
       chart: { entity: "zhipu", range: "6M" },
       assetsDir: dir,
       apiKey: "test-key",
+      // The map's `defaults` are the source for interval/range/theme — passed
+      // explicitly here because this unit test calls the fetch seam directly
+      // (buildChartAssets is what supplies them in production).
+      defaults: symbolMap().defaults,
     });
     expect(fetchCalls).toHaveLength(1);
     expect(fetchCalls[0].url).toBe(`${CHART_IMG_V2_URL}?key=test-key`);
     expect(fetchCalls[0].init.method).toBe("POST");
     const sentBody = JSON.parse(fetchCalls[0].init.body);
-    expect(sentBody).toEqual({ symbol: "HKEX:2513", interval: "1D", range: "6M", theme: "light" });
+    expect(sentBody).toEqual({
+      symbol: "HKEX:2513",
+      interval: "1D",
+      range: "6M",
+      theme: symbolMap().defaults.theme,
+    });
 
     expect(asset.chartPin).toBe(true);
     expect(asset.contentKind).toBe("chart");
@@ -356,6 +367,34 @@ describe("chart-pin admission through the relevance gate", () => {
     const ordinary = { ...chartAsset, chartPin: undefined };
     const result = assignAssetsToScenes([ordinary], scenes, { relevanceThreshold: 60 });
     expect(result[0].status).toBe("unassigned");
+  });
+});
+
+describe("chart parameters have one source (#1375 review)", () => {
+  it("the curated map's defaults match the last-resort constants", async () => {
+    // The map is the declared single source; the constants exist only for a key
+    // the map omits. If they disagree, a scene's effective theme depends on
+    // which file a reader opened — the drift this test exists to stop.
+    const { readFileSync } = await import("node:fs");
+    const { dirname, resolve } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const map = JSON.parse(
+      readFileSync(resolve(here, "..", "config", "chart-symbols.json"), "utf8"),
+    );
+    expect(map.defaults).toEqual(CHART_PARAM_FALLBACKS);
+  });
+
+  it("resolves scene → map defaults → constants, in that order", () => {
+    expect(resolveChartParams({ theme: "light" }, { theme: "dark" }).theme).toBe("light");
+    expect(resolveChartParams({}, { theme: "dark" }).theme).toBe("dark");
+    expect(resolveChartParams({}, {}).theme).toBe(CHART_PARAM_FALLBACKS.theme);
+    expect(resolveChartParams({}, {}).theme).toBe("dark");
+    expect(resolveChartParams({}, {}).interval).toBe("1D");
+    expect(resolveChartParams({}, {}).range).toBe("6M");
+    // A range OBJECT (exact window) passes through untouched.
+    const range = { from: "2026-06-01T00:00:00.000Z", to: "2026-11-14T00:00:00.000Z" };
+    expect(resolveChartParams({ range }, {}).range).toEqual(range);
   });
 });
 

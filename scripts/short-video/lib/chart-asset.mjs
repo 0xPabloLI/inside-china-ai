@@ -26,7 +26,11 @@
  *     FOREX.com CFD. Always the full `EXCHANGE:SYMBOL` form.
  *
  * Scene contract: a scene opts in with `chart: { entity: "zhipu", range?:
- * "6M" | { from, to }, interval?: "1D", theme?: "light" }` in scene-data.
+ * "6M" | { from, to }, interval?: "1D", theme?: "dark" }` in scene-data.
+ * `theme` defaults to `dark` (a light K-line reads as a bright rectangle on the
+ * 0a0a14 video canvas) and, like `interval`/`range`, is resolved through the
+ * map's `defaults` — see CHART_PARAM_FALLBACKS for the last-resort values and
+ * why the map stays authoritative.
  * `range` passes through to chart-img verbatim — a string selects a preset
  * window, an object `{ from, to }` (ISO 8601) pins an exact window (e.g.
  * peak-to-now, verified live 2026-11-15, ≤1000 bars per chart-img v3 notes).
@@ -82,6 +86,38 @@ export function loadChartSymbolMap(mapPath) {
     }
   }
   return raw;
+}
+
+/**
+ * Last-resort chart parameters, used only when `config/chart-symbols.json`
+ * omits a key from its own `defaults` block (the map is the declared single
+ * source, and a drift test in `__tests__/chart-asset.test.mjs` pins these to
+ * it).
+ *
+ * They used to be spelled inline at both resolution sites, which is how the
+ * code kept claiming `"light"` after the map flipped to `"dark"` — a second
+ * copy of a default is a second chance to disagree.
+ */
+export const CHART_PARAM_FALLBACKS = Object.freeze({
+  interval: "1D",
+  range: "6M",
+  theme: "dark",
+});
+
+/**
+ * The request parameters for one scene's chart pin: the scene's own values
+ * first, then the curated map's `defaults`, then {@link CHART_PARAM_FALLBACKS}.
+ *
+ * @param {{interval?: string, range?: string|object, theme?: string}} chart
+ * @param {{interval?: string, range?: string, theme?: string}} [defaults]
+ * @returns {{interval: string, range: string|object, theme: string}}
+ */
+export function resolveChartParams(chart = {}, defaults = {}) {
+  return {
+    interval: chart.interval || defaults.interval || CHART_PARAM_FALLBACKS.interval,
+    range: chart.range || defaults.range || CHART_PARAM_FALLBACKS.range,
+    theme: chart.theme || defaults.theme || CHART_PARAM_FALLBACKS.theme,
+  };
 }
 
 /**
@@ -141,9 +177,7 @@ export async function fetchChartAsset({
 }) {
   const body = {
     symbol: entity.symbol,
-    interval: chart.interval || defaults.interval || "1D",
-    range: chart.range || defaults.range || "6M",
-    theme: chart.theme || defaults.theme || "light",
+    ...resolveChartParams(chart, defaults),
   };
   const buf = await fetchChartPng({ entity, apiKey, body });
   const destPath = join(assetsDir, chartFileName(entity, sceneId, body));
@@ -244,11 +278,7 @@ export async function buildChartAssets(scenes, { assetsDir, apiKey, mapPath, log
       });
       continue;
     }
-    const params = {
-      interval: chart.interval || defaults.interval || "1D",
-      range: chart.range || defaults.range || "6M",
-      theme: chart.theme || defaults.theme || "light",
-    };
+    const params = resolveChartParams(chart, defaults);
     const paramsKey = JSON.stringify([entity.key, params.interval, params.range, params.theme]);
     try {
       let entry = fetchedByParams.get(paramsKey);
