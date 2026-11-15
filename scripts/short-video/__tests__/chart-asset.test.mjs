@@ -398,6 +398,193 @@ describe("chart parameters have one source (#1375 review)", () => {
   });
 });
 
+// ── chart.annotations → drawings (#1378) ──
+
+describe("chart.annotations pass through as chart-img drawings (#1378)", () => {
+  const entity = symbolMap().entities[0];
+  const RANGE = { from: "2026-06-01T00:00:00.000Z", to: "2026-11-14T00:00:00.000Z" };
+  const PEAK = 2980;
+  const NOW = 454;
+  let dir;
+  let fetchCalls;
+
+  // The three shapes verified live 2026-11-15 (see the ticket body): the kind
+  // lives in `name`, the coordinates in `input`. There is no `type` field —
+  // chart-img selects the drawing by name.
+  const annotationsFixture = () => [
+    {
+      name: "Horizontal Line",
+      input: { price: PEAK },
+      override: { lineColor: "rgb(255,196,0)" },
+    },
+    {
+      name: "Trend Line",
+      input: {
+        startDatetime: "2026-06-15T00:00:00.000Z",
+        startPrice: PEAK,
+        endDatetime: "2026-11-14T00:00:00.000Z",
+        endPrice: NOW,
+      },
+    },
+    { name: "Arrow Mark Down", input: { datetime: "2026-11-14T00:00:00.000Z", price: NOW } },
+  ];
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "chart-annot-"));
+    fetchCalls = [];
+    globalThis.fetch = async (url, init) => {
+      fetchCalls.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        text: async () => "",
+        arrayBuffer: async () => new Uint8Array(PNG_BYTES).buffer,
+      };
+    };
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    globalThis.fetch = undefined;
+  });
+
+  it("serializes the three verified drawing kinds verbatim into drawings[]", async () => {
+    const annotations = annotationsFixture();
+    const asset = await fetchChartAsset({
+      entity,
+      sceneId: 1,
+      chart: { entity: "zhipu", range: RANGE, annotations },
+      assetsDir: dir,
+      apiKey: "k",
+    });
+    const body = JSON.parse(fetchCalls[0].init.body);
+    // Verbatim: no key renaming, no invented `type` field. A silent rewrite
+    // here is exactly the failure this module's docblock keeps warning about.
+    expect(body.drawings).toEqual(annotations);
+    expect(body.drawings).toHaveLength(3);
+    expect(body.drawings.every((d) => !("type" in d))).toBe(true);
+    // The audit entry keeps the drawings that produced this PNG.
+    expect(asset.chart.drawings).toEqual(annotations);
+  });
+
+  it("omits drawings entirely when the scene declares no annotations", async () => {
+    // `undefined` and `[]` are both "no drawings": an empty array is a
+    // different request body and would drift every existing scene for nothing.
+    for (const chart of [
+      { entity: "zhipu", range: RANGE },
+      { entity: "zhipu", range: RANGE, annotations: [] },
+    ]) {
+      await fetchChartAsset({ entity, sceneId: 2, chart, assetsDir: dir, apiKey: "k" });
+    }
+    expect(fetchCalls).toHaveLength(2);
+    for (const call of fetchCalls) {
+      expect("drawings" in JSON.parse(call.init.body)).toBe(false);
+    }
+  });
+
+  it("rejects more than the BASIC budget (studies+drawings ≤ 3) instead of silently dropping", () => {
+    const annotations = [...annotationsFixture(), { name: "Text", input: { text: "x" } }];
+    expect(() => resolveChartParams({ annotations }, {})).toThrow(/at most 3/);
+  });
+
+  it("rejects malformed annotations loudly (no silent no-op)", () => {
+    expect(() => resolveChartParams({ annotations: "Horizontal Line" }, {})).toThrow(
+      /must be an array/,
+    );
+    expect(() => resolveChartParams({ annotations: [{ input: { price: 1 } }] }, {})).toThrow(
+      /name/,
+    );
+    expect(() =>
+      resolveChartParams({ annotations: [{ name: "Horizontal Line", input: 42 }] }, {}),
+    ).toThrow(/input/);
+    expect(() => resolveChartParams({ annotations: [{ name: "  ", input: {} }] }, {})).toThrow(
+      /name/,
+    );
+  });
+
+  it("one bad scene falls back to web sourcing without taking the others down", async () => {
+    const mapDir = mkdtempSync(join(tmpdir(), "chart-annot-build-"));
+    const mapPath = join(mapDir, "map.json");
+    writeTemp(mapPath, symbolMap());
+    try {
+      const scenes = [
+        {
+          id: 1,
+          chart: {
+            entity: "zhipu",
+            annotations: [...annotationsFixture(), { name: "Text", input: { text: "x" } }],
+          },
+        },
+        { id: 2, chart: { entity: "minimax", annotations: [annotationsFixture()[0]] } },
+      ];
+      const { assets, failures } = await buildChartAssets(scenes, {
+        assetsDir: dir,
+        apiKey: "k",
+        mapPath,
+        logger: { log: () => {}, warn: () => {} },
+      });
+      expect(failures).toEqual([{ sceneId: 1, error: expect.stringMatching(/at most 3/) }]);
+      expect(assets.map((a) => a.claimSceneId)).toEqual([2]);
+    } finally {
+      rmSync(mapDir, { recursive: true, force: true });
+    }
+  });
+
+  it("annotations are part of the reuse key and the filename", async () => {
+    const mapDir = mkdtempSync(join(tmpdir(), "chart-annot-dedup-"));
+    const mapPath = join(mapDir, "map.json");
+    writeTemp(mapPath, symbolMap());
+    try {
+      const peakLine = [annotationsFixture()[0]];
+      const arrow = [annotationsFixture()[2]];
+      // Same entity, same range/interval/theme — only the drawings differ.
+      const scenes = [
+        { id: 1, chart: { entity: "zhipu", range: RANGE, annotations: peakLine } },
+        { id: 2, chart: { entity: "zhipu", range: RANGE, annotations: arrow } },
+      ];
+      const { assets, failures } = await buildChartAssets(scenes, {
+        assetsDir: dir,
+        apiKey: "k",
+        mapPath,
+        logger: { log: () => {}, warn: () => {} },
+      });
+      expect(failures).toEqual([]);
+      // Two different pictures must not share one fetch (the second would get
+      // the first one's PNG) ...
+      expect(fetchCalls).toHaveLength(2);
+      expect(JSON.parse(fetchCalls[0].init.body).drawings).toEqual(peakLine);
+      expect(JSON.parse(fetchCalls[1].init.body).drawings).toEqual(arrow);
+      // ... nor one filename, or the second write silently clobbers the first.
+      const paths = new Set(assets.map((a) => a.path));
+      expect(paths.size).toBe(2);
+      for (const p of paths) expect(existsSync(p)).toBe(true);
+    } finally {
+      rmSync(mapDir, { recursive: true, force: true });
+    }
+  });
+
+  it("identical annotations still share one fetch", async () => {
+    const mapDir = mkdtempSync(join(tmpdir(), "chart-annot-same-"));
+    const mapPath = join(mapDir, "map.json");
+    writeTemp(mapPath, symbolMap());
+    try {
+      const scenes = [
+        { id: 1, chart: { entity: "zhipu", range: RANGE, annotations: annotationsFixture() } },
+        { id: 2, chart: { entity: "智谱", range: RANGE, annotations: annotationsFixture() } },
+      ];
+      const { assets } = await buildChartAssets(scenes, {
+        assetsDir: dir,
+        apiKey: "k",
+        mapPath,
+        logger: { log: () => {}, warn: () => {} },
+      });
+      expect(fetchCalls).toHaveLength(1); // shared free-tier quota still respected
+      expect(new Set(assets.map((a) => a.path)).size).toBe(2);
+    } finally {
+      rmSync(mapDir, { recursive: true, force: true });
+    }
+  });
+});
+
 // ── helpers ──
 
 function writeTemp(path, obj) {
