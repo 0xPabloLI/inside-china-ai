@@ -153,11 +153,17 @@ describe("admissionSource — patch-entry provenance", () => {
 });
 
 describe("needsSecondPass — #1353 evergreen widening", () => {
-  it("asks the subject question at every band below a pass for an evergreen claim", () => {
+  it("asks the subject question at every scored band below a pass for an evergreen claim", () => {
     expect(needsSecondPass({ relevanceScore: 17 }, { claimKind: "evergreen" })).toBe(true);
     expect(needsSecondPass({ relevanceScore: 0 }, { claimKind: "evergreen" })).toBe(true);
-    expect(needsSecondPass({ relevanceScore: null }, { claimKind: "evergreen" })).toBe(true);
     expect(needsSecondPass({ relevanceScore: 50 }, { claimKind: "evergreen" })).toBe(true);
+  });
+
+  it("keeps the unavailable band closed — a tool outcome, not the wrong question", () => {
+    // CONTEXT.md Relevance Gate contract: an unparsed score says nothing
+    // about the image; re-running the analyzer on a failed analysis is
+    // escalation, not rescue. Widening must not re-open it.
+    expect(needsSecondPass({ relevanceScore: null }, { claimKind: "evergreen" })).toBe(false);
   });
 
   it("still does not re-ask a pass, or a check that already ran", () => {
@@ -184,15 +190,17 @@ describe("admissionSource — #1353 evergreen-subject provenance", () => {
         { claimKind: "evergreen" },
       ),
     ).toBe("evergreen-subject");
-    // An unavailable first pass rescued the same way is admitted too — the
-    // subject check is direct VLM evidence, and the trigger deliberately
-    // includes the unavailable band for evergreen scenes.
+  });
+
+  it("keeps an unavailable score closed whatever the kind — tool outcome", () => {
+    // CONTEXT.md Relevance Gate contract: an unparsed score stays closed even
+    // when a subject check somehow returned a match.
     expect(
       admissionSource(
         { relevanceScore: null, relevanceCheck: { verdict: "match" } },
         { claimKind: "evergreen" },
       ),
-    ).toBe("evergreen-subject");
+    ).toBe(null);
   });
 
   it("keeps second-pass naming for the borderline band regardless of kind", () => {
@@ -248,5 +256,19 @@ describe("classifyPool — #1353 kind-aware satisfiability", () => {
     });
     expect(pool.verdict).toBe(POOL_VERDICT.UNSATISFIABLE);
     expect(pool.admitted).toBe(0);
+  });
+
+  it("honours a per-candidate claimKind over the pool-wide opts", () => {
+    // Package rollup (8b): one pool, mixed kinds — the evergreen entry's
+    // rescue admits, the news entry's identical shape does not.
+    const pool = classifyPool(
+      [
+        { relevanceScore: 17, relevanceCheck: { verdict: "match" }, claimKind: "evergreen" },
+        { relevanceScore: 17, relevanceCheck: { verdict: "match" }, claimKind: "news" },
+      ],
+      {},
+    );
+    expect(pool.admitted).toBe(1);
+    expect(pool.verdict).toBe(POOL_VERDICT.SATISFIABLE);
   });
 });

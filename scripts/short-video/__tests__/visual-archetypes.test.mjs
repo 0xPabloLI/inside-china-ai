@@ -74,3 +74,15 @@ describe("composeArchetypePhrase — entity + archetype", () => {
     expect(composeArchetypePhrase(null, "chart")).toBe(null);
   });
 });
+
+describe("archetypeForText — 指数 morpheme guard (#1353 review)", () => {
+  it("does not read exponential-growth compounds as a chart", () => {
+    expect(archetypeForText("算力需求呈指数增长")).toBe(null);
+    expect(archetypeForText("成本呈指数级下降")).toBe(null);
+  });
+
+  it("still reads a market index as a chart", () => {
+    expect(archetypeForText("恒生科技指数较高点下跌八成")).toBe("chart");
+    expect(archetypeForText("指数走势图")).toBe("chart");
+  });
+});

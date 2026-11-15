@@ -511,6 +511,22 @@ const ENTITY_LEADING = new Set([
   "meanwhile",
   "then",
   "still",
+  "inside",
+  "amid",
+  "after",
+  "before",
+  "against",
+  "without",
+  "over",
+  "under",
+  "into",
+  "upon",
+  "about",
+  "during",
+  "while",
+  "versus",
+  "who",
+  "where",
 ]);
 
 /** A name longer than this is a sentence fragment, not an entity. */
@@ -543,6 +559,28 @@ function isNameToken(token) {
   return /^\p{Lu}/u.test(token) || /[a-z]\p{Lu}/u.test(token) || /\p{Lu}{2,}/u.test(token);
 }
 
+/** Brand-shaped: the capitalisation carries information the shape proves. */
+function isBrandToken(token) {
+  return /\p{Lu}{2,}/u.test(token) || /[a-z]\p{Lu}/u.test(token);
+}
+
+/**
+ * Whether the surrounding text reads as a title-case headline.
+ *
+ * In a headline every word is capitalised, so an initial capital proves
+ * nothing about being a name — the signal entityPhraseFor is built on. A run
+ * extracted from such text with no brand-shaped token is a headline fragment,
+ * not an entity ("Inside Huawei's Ascend Chip" was sourced as one).
+ */
+function isTitleCaseText(text) {
+  const alphabetic = String(text)
+    .split(/[^\p{L}]+/u)
+    .filter(Boolean);
+  if (alphabetic.length < 3) return false;
+  const capitalised = alphabetic.filter((word) => /^\p{Lu}/u.test(word)).length;
+  return capitalised / alphabetic.length >= 0.6;
+}
+
 /**
  * The proper-noun run a text names, or "".
  *
@@ -570,7 +608,12 @@ export function entityPhraseFor(text) {
   if (!raw.trim()) return "";
   const tokens = raw
     .split(/\s+/u)
-    .map((token) => token.replace(/^[^\p{L}\p{N}]+/u, "").replace(/[^\p{L}\p{N}]+$/u, ""))
+    .map((token) =>
+      token
+        .replace(/^[^\p{L}\p{N}]+/u, "")
+        .replace(/[\u2019']s$/u, "")
+        .replace(/[^\p{L}\p{N}]+$/u, ""),
+    )
     .filter(Boolean);
 
   let best = [];
@@ -593,36 +636,49 @@ export function entityPhraseFor(text) {
     best.pop();
   }
   if (best.length === 0) return "";
-  const brandShaped = /\p{Lu}{2,}/u.test(best[0]) || /[a-z]\p{Lu}/u.test(best[0]);
+  // A run whose only name evidence is initial capitals is untrustworthy in
+  // title-case text (see isTitleCaseText) and, per the single-word rule
+  // below, in sentence-case text too — so require a brand-shaped token
+  // whenever the surrounding text does not vouch for the capitals.
+  const hasBrand = best.some((token) => isBrandToken(token));
+  if (!hasBrand && isTitleCaseText(raw)) return "";
+  const brandShaped = isBrandToken(best[0]);
   if (best.length === 1 && !brandShaped) return "";
   return best.join(" ");
 }
 
 /**
  * The `entity + archetype` search phrase an evergreen claim should be sourced
- * with, or [] when the claim is not evergreen or names no archetype.
+ * with, or [] when the claim is not evergreen or the pair cannot be found.
  *
  * #1353: this is the phrase the writer would have typed by hand. It replaces
  * the tokenized phrases rather than joining them — "hang seng tech" and
  * "Hang Seng TECH chart" retrieve different pictures, and paying for both is
  * exactly the wasted-network path #356 spent a ticket retiring.
  *
- * @param {{assetNeed?: string, voiceover?: string, searchHints?: string[], sourceRef?: {title?: string}}|null|undefined} claim
+ * Entity and archetype must come from the **same field** (preference order:
+ * assetNeed, voiceover, source title). Pairing across fields sourced a
+ * self-contradictory query — the assetNeed declared an index chart while a
+ * passing mention of data centers in the narration decided the archetype and
+ * the query asked for "Hang Seng TECH data center".
+ *
+ * @param {{assetNeed?: string, voiceover?: string, searchHints?: string[], sourceRef?: object}|null|undefined} claim
  * @returns {string[]} 0 or 1 phrase
  */
 export function evergreenQueryPhrases(claim) {
   if (!claim || !isEvergreenClaim(claim)) return [];
-  const text = [claim.assetNeed, claim.voiceover, claim.sourceRef?.title]
-    .filter((part) => typeof part === "string" && part.trim())
-    .join(" ");
-  const archetype = archetypeForText(text);
-  if (!archetype) return [];
-  const entity =
-    entityPhraseFor(claim.assetNeed) ||
-    entityPhraseFor(claim.voiceover) ||
-    entityPhraseFor(claim.sourceRef?.title);
-  const phrase = composeArchetypePhrase(entity, archetype);
-  return phrase ? [phrase] : [];
+  const fields = [claim.assetNeed, claim.voiceover, claim.sourceRef?.title].filter(
+    (part) => typeof part === "string" && part.trim(),
+  );
+  for (const field of fields) {
+    const entity = entityPhraseFor(field);
+    if (!entity) continue;
+    const archetype = archetypeForText(field);
+    if (!archetype) continue;
+    const phrase = composeArchetypePhrase(entity, archetype);
+    if (phrase) return [phrase];
+  }
+  return [];
 }
 
 /**

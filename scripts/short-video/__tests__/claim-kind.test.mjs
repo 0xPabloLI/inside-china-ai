@@ -1,15 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { classifyClaimKind, isEvergreenClaim, CLAIM_KIND } from "../lib/claim-kind.mjs";
-import {
-  archetypeForText,
-  archetypeWord,
-  composeArchetypePhrase,
-} from "../lib/visual-archetypes.mjs";
-import {
-  claimQueryPhrases,
-  evergreenQueryPhrases,
-  entityPhraseFor,
-} from "../lib/claim-keywords.mjs";
+import { evergreenQueryPhrases } from "../lib/claim-keywords.mjs";
 
 // ── classifyClaimKind ──
 
@@ -61,15 +52,16 @@ describe("classifyClaimKind", () => {
     );
   });
 
-  it("does not treat weak recency adverbs as news", () => {
-    // "now" / "latest" appear in standing facts; firing on them would classify
-    // exactly the claims this split exists for.
+  it("does not treat weak recency adverbs as news — English or Chinese", () => {
+    // "now" / "latest" / 刚刚 / 最新 appear in standing facts; firing on them
+    // would classify exactly the claims this split exists for.
     expect(classifyClaimKind({ voiceover: "The index is now 80% off its peak." })).toBe(
       CLAIM_KIND.EVERGREEN,
     );
     expect(classifyClaimKind({ assetNeed: "latest model lineup chart" })).toBe(
       CLAIM_KIND.EVERGREEN,
     );
+    expect(classifyClaimKind({ voiceover: "这是最新款的四足机器人。" })).toBe(CLAIM_KIND.EVERGREEN);
   });
 
   it("reads Chinese event cues", () => {
@@ -84,130 +76,51 @@ describe("classifyClaimKind", () => {
     expect(classifyClaimKind(null)).toBe(CLAIM_KIND.NEWS);
   });
 
-  it("reads a news source title as context", () => {
+  it("reads a source title only when the claim has no own text", () => {
+    // Review #1353: the title rides along only when assetNeed and voiceover
+    // are both empty — a news headline must not override the claim's own
+    // standing fact.
+    expect(
+      classifyClaimKind({
+        sourceRef: { title: "智谱宣布完成新一轮融资" },
+      }),
+    ).toBe(CLAIM_KIND.NEWS);
     expect(
       classifyClaimKind({
         voiceover: "The round values it at 40 billion yuan.",
         sourceRef: { title: "智谱宣布完成新一轮融资" },
       }),
-    ).toBe(CLAIM_KIND.NEWS);
+    ).toBe(CLAIM_KIND.EVERGREEN);
   });
 });
 
-// ── visual-archetypes ──
+// ── integration with the query seam: only the review-fix regressions ──
+// (archetype / entity / phrase-branch units live in visual-archetypes.test.mjs
+// and claim-keywords.test.mjs; this file keeps the classifier and the two
+// behaviours the #1353 review changed.)
 
-describe("archetypeForText", () => {
-  it("maps chart cues to the chart archetype", () => {
-    expect(archetypeForText("Hang Seng TECH index chart")).toBe("chart");
-    expect(archetypeForText("the benchmark has fallen 80%")).toBe("chart");
+describe("claim-kind integration with the query seam", () => {
+  it("a newsy source title no longer poisons an evergreen claim's query", () => {
+    // Review #1353: the title used to be joined unconditionally, so any
+    // evergreen claim attached to a news headline classified news and the
+    // split could never fire where it exists to.
+    const claim = {
+      assetNeed: "Hang Seng TECH index chart",
+      voiceover: "The Hang Seng TECH index sits 80% below its 2021 peak.",
+      sourceRef: { title: "恒生科技指数暴跌背后：AI股何去何从" },
+    };
+    expect(classifyClaimKind(claim)).toBe(CLAIM_KIND.EVERGREEN);
+    expect(evergreenQueryPhrases(claim)).toEqual(["Hang Seng TECH chart"]);
   });
 
-  it("prefers the specific multi-word cue", () => {
-    expect(archetypeForText("a GPU cluster inside the data center")).toBe("data_center");
-    expect(archetypeForText("robot arm picking a block")).toBe("robot_arm");
-  });
-
-  it("does not fire a single-word cue inside a longer word", () => {
-    expect(archetypeForText("factory planting season")).toBe("factory");
-    expect(archetypeForText("label printing")).toBe(null);
-  });
-
-  it("returns null for text with no archetype", () => {
-    expect(archetypeForText("a founder speaking to camera")).toBe(null);
-    expect(archetypeForText("")).toBe(null);
-  });
-
-  it("exposes the retrieval term per archetype", () => {
-    expect(archetypeWord("chart")).toBe("chart");
-    expect(archetypeWord("data_center")).toBe("data center");
-    expect(archetypeWord("nope")).toBe(null);
-  });
-
-  it("composes entity + archetype only when both halves exist", () => {
-    expect(composeArchetypePhrase("Hang Seng TECH", "chart")).toBe("Hang Seng TECH chart");
-    expect(composeArchetypePhrase("", "chart")).toBe(null);
-    expect(composeArchetypePhrase("Hang Seng TECH", null)).toBe(null);
-  });
-});
-
-// ── entity extraction ──
-
-describe("entityPhraseFor", () => {
-  it("takes the proper-noun run and drops a leading determiner", () => {
-    expect(entityPhraseFor("The Hang Seng TECH index is down")).toBe("Hang Seng TECH");
-  });
-
-  it("drops a trailing picture noun so the archetype is not doubled", () => {
-    expect(entityPhraseFor("Hang Seng TECH index")).toBe("Hang Seng TECH");
-  });
-
-  it("accepts a brand-shaped single word", () => {
-    expect(entityPhraseFor("UBTECH walker")).toBe("UBTECH");
-    expect(entityPhraseFor("DeepSeek pricing")).toBe("DeepSeek");
-  });
-
-  it("rejects a sentence-initial capitalised common noun", () => {
-    expect(entityPhraseFor("Robot up close")).toBe("");
-  });
-
-  it("returns nothing for un-capitalised or Chinese text", () => {
-    expect(entityPhraseFor("zhipu headquarters")).toBe("");
-    expect(entityPhraseFor("恒生科技指数")).toBe("");
-  });
-});
-
-// ── evergreenQueryPhrases / claimQueryPhrases ──
-
-describe("evergreenQueryPhrases", () => {
-  it("builds entity + archetype for an evergreen claim", () => {
-    expect(
-      evergreenQueryPhrases({
-        assetNeed: "Hang Seng TECH index chart",
-        voiceover: "The Hang Seng TECH index sits 80% below its 2021 peak.",
-      }),
-    ).toEqual(["Hang Seng TECH chart"]);
-  });
-
-  it("returns nothing for a news claim", () => {
-    expect(
-      evergreenQueryPhrases({ voiceover: "Unitree unveiled its humanoid robot today." }),
-    ).toEqual([]);
-  });
-
-  it("returns nothing when no archetype is identifiable", () => {
-    expect(evergreenQueryPhrases({ voiceover: "The two founders met at Stanford." })).toEqual([]);
-  });
-
-  it("returns nothing when no entity is identifiable", () => {
-    expect(evergreenQueryPhrases({ assetNeed: "a chart of the sector" })).toEqual([]);
-  });
-});
-
-describe("claimQueryPhrases with the evergreen branch", () => {
-  it("uses the archetype phrase instead of the tokenized one", () => {
-    expect(
-      claimQueryPhrases({
-        assetNeed: "Hang Seng TECH index chart",
-        voiceover: "The index is 80% below its 2021 peak.",
-      }),
-    ).toEqual(["Hang Seng TECH chart"]);
-  });
-
-  it("keeps writer searchHints ahead of the archetype branch", () => {
-    expect(
-      claimQueryPhrases({
-        assetNeed: "Hang Seng TECH index chart",
-        searchHints: ["hang seng tech chart screenshot"],
-      }),
-    ).toEqual(["hang seng tech chart screenshot"]);
-  });
-
-  it("falls back to tokenization for news claims", () => {
-    const phrases = claimQueryPhrases({
-      assetNeed: "humanoid robot walking in a lab",
-      voiceover: "It was announced today.",
-    });
-    expect(phrases[0]).not.toContain("chart");
-    expect(phrases.join(" ")).toContain("humanoid");
+  it("entity and archetype come from the same field", () => {
+    // Review #1353: the assetNeed declared a chart while a passing data-center
+    // mention in the narration decided the archetype, sourcing "Hang Seng TECH
+    // data center" for a chart scene.
+    const claim = {
+      assetNeed: "Hang Seng TECH index chart showing the drawdown",
+      voiceover: "Alibaba is pouring billions into new data centers.",
+    };
+    expect(evergreenQueryPhrases(claim)).toEqual(["Hang Seng TECH chart"]);
   });
 });

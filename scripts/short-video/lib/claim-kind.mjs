@@ -29,10 +29,14 @@
  * and a date alone says nothing happened; the event vocabulary carries the
  * "something happened" signal.
  *
- * The kind alone decides nothing downstream. `evergreen` is only acted on when
- * a visual archetype is also identifiable (see `visual-archetypes.mjs`); the
- * query and gate changes both gate on the pair. That keeps the relaxation
- * bound to scenes where "the right kind of picture" is a complete answer.
+ * The kind decides the query shape only when a visual archetype is also
+ * identifiable (see `visual-archetypes.mjs`) — the query branch gates on the
+ * pair. The relevance gate widens on the kind alone, but only as far as a
+ * stricter question: the first pass asks whether the picture depicts the
+ * claim's *event*, which an evergreen claim does not have, so for those
+ * scenes the subject check is always the right question. Admission still
+ * requires an explicit subject `match` — the relaxation never lowers what a
+ * candidate must prove.
  *
  * Leaf module: no imports, no I/O.
  */
@@ -48,14 +52,15 @@ export const CLAIM_KIND = {
  * "today" cannot fire inside "today's"-style compounds — it should, and does:
  * the possessive strip happens before the match.
  *
- * Weak recency adverbs are deliberately absent. "now", "just", "latest" and
- * "recently" appear in evergreen sentences far more often than in event ones
- * ("the index is now 80% off its peak" is the standing fact this module exists
- * for), and a cue that fires on them would classify exactly the claims the
- * split is meant to catch. A genuinely recent event carries a hard anchor
- * ("today", "yesterday", a date) *and* usually an event verb, so nothing is
- * lost. "may" is absent for the obvious reason: it is a modal verb before it
- * is a month name.
+ * Weak recency adverbs are deliberately absent — in **both** vocabularies.
+ * "now", "just", "latest", "recently" and their Chinese counterparts
+ * （刚刚 / 最新 / 近期）appear in evergreen sentences far more often than in
+ * event ones ("the index is now 80% off its peak" is the standing fact this
+ * module exists for), and a cue that fires on them would classify exactly the
+ * claims the split is meant to catch. A genuinely recent event carries a hard
+ * anchor ("today", "yesterday", a date) *and* usually an event verb, so
+ * nothing is lost. "may" is absent for the obvious reason: it is a modal verb
+ * before it is a month name.
  */
 const TIME_ANCHORS = new Set([
   "today",
@@ -222,10 +227,7 @@ const ZH_EVENT_CUES = [
   "上月",
   "今年",
   "去年",
-  "刚刚",
-  "最新",
   "宣布",
-  "发布",
   "推出",
   "上线",
   "公布",
@@ -257,19 +259,23 @@ const ZH_EVENT_CUES = [
  * `assetNeed` is the writer's own description of the desired picture and wins
  * when present; the voiceover is the fallback derivation (#354) and usually
  * carries the extra context ("… this quarter") that makes an event obvious.
- * The source title rides along when the claim is empty, because a claim built
- * from a news title should not read as evergreen.
+ * The source title rides along **only when both are empty** (#1353 review): a
+ * claim built from a news headline should not read as evergreen, and news
+ * titles almost always contain event cues — joining the title unconditionally
+ * made every evergreen claim attached to a news source classify as news, so
+ * the split could never fire where it exists to.
  *
  * @param {{assetNeed?: string, voiceover?: string, sourceRef?: {title?: string}}|null|undefined} claim
  * @returns {string}
  */
 function claimText(claim) {
   if (!claim) return "";
-  const parts = [claim.assetNeed, claim.voiceover, claim.sourceRef?.title];
-  return parts
-    .filter((part) => typeof part === "string" && part.trim())
-    .join(" ")
-    .trim();
+  const own = [claim.assetNeed, claim.voiceover].filter(
+    (part) => typeof part === "string" && part.trim(),
+  );
+  if (own.length > 0) return own.join(" ").trim();
+  const title = claim.sourceRef?.title;
+  return typeof title === "string" ? title.trim() : "";
 }
 
 /**

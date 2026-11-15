@@ -1399,13 +1399,13 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
               : `; scene pool ceiling ${pool.ceiling} (other candidates scored)`;
         } else {
           reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold} (${band})`;
-          if (band === RELEVANCE_BAND.BORDERLINE) {
-            // #1360: once a check ran, its outcome is the fact to report —
-            // including a failed check (null verdict), which is "unavailable",
-            // not "never attempted".
-            reason += asset.relevanceCheck
-              ? `; second-pass subject check: ${asset.relevanceCheck.verdict ?? "unavailable"}`
-              : "; no second-pass subject check";
+          // #1360: once a check ran, its outcome is the fact to report —
+          // including a failed check (null verdict), which is "unavailable",
+          // not "never attempted". #1353 widens the trigger to the low band
+          // for evergreen scenes, so the outcome is reported for any band
+          // below a pass, not just borderline.
+          if (asset.relevanceCheck) {
+            reason += `; second-pass subject check: ${asset.relevanceCheck.verdict ?? "unavailable"}`;
           }
           if (pool.verdict === POOL_VERDICT.UNSATISFIABLE) {
             reason += `; scene pool ceiling ${pool.ceiling} — unsatisfiable, escalate to B-roll/human`;

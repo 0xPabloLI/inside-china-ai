@@ -27,7 +27,10 @@
  * `word` is the single token appended to an entity to build a query, so it
  * must be a term stock/news indexes actually match: "chart", not "candlestick
  * diagram". `cues` are matched against lowercased claim text; multi-word cues
- * match as substrings, single words as whole tokens.
+ * match as substrings, single words as whole tokens. A cue may carry `unless`:
+ * compounds that contain the cue but name something else (指数 is also the
+ * morpheme of 指数增长 "exponential growth", which is not a chart) suppress
+ * that cue when present in the text.
  */
 export const ARCHETYPES = {
   chart: {
@@ -51,6 +54,7 @@ export const ARCHETYPES = {
       "k线",
       "行情",
     ],
+    unless: ["指数增长", "指数级", "指数式"],
   },
   skyline: {
     word: "skyline",
@@ -110,9 +114,10 @@ export const ARCHETYPES = {
  * Longest cue first, so "data center" wins over a bare "center" style match and
  * "robot arm" is not read as `humanoid`.
  */
-const CUE_INDEX = Object.entries(ARCHETYPES)
-  .flatMap(([id, spec]) => spec.cues.map((cue) => ({ id, cue: cue.toLowerCase() })))
-  .sort((a, b) => b.cue.length - a.cue.length);
+const CUE_INDEX = Object.entries(ARCHETYPES).flatMap(([id, spec]) =>
+  spec.cues.map((cue) => ({ id, cue: cue.toLowerCase(), unless: spec.unless ?? [] })),
+);
+CUE_INDEX.sort((a, b) => b.cue.length - a.cue.length);
 
 /**
  * The archetype a piece of claim text names, or null.
@@ -132,7 +137,10 @@ export function archetypeForText(text) {
   const raw = String(text ?? "").toLowerCase();
   if (!raw.trim()) return null;
   const tokens = new Set(raw.split(/[^\p{L}\p{N}-]+/u).filter(Boolean));
-  for (const { id, cue } of CUE_INDEX) {
+  for (const { id, cue, unless } of CUE_INDEX) {
+    // A compound containing the cue but naming something else (指数增长)
+    // suppresses the cue entirely — the next-longest cue still gets its turn.
+    if (unless.some((compound) => raw.includes(compound))) continue;
     if (/\p{Script=Han}/u.test(cue) || cue.includes(" ") || cue.includes("-")) {
       if (raw.includes(cue)) return id;
     } else if (tokens.has(cue)) {

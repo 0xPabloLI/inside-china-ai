@@ -725,3 +725,44 @@ describe("claimQueryPhrases — the #1353 branch order", () => {
     expect(claimQueryPhrases(null)).toEqual([]);
   });
 });
+
+describe("entityPhraseFor — title-case headline guard (#1353 review)", () => {
+  it("refuses a headline fragment whose capitals prove nothing", () => {
+    // Title-case text capitalises every word, so an initial capital is no
+    // name evidence; a run without a brand-shaped token is a fragment.
+    expect(entityPhraseFor("Inside Huawei's Ascend Chip Empire")).toBe("");
+  });
+
+  it("trusts a brand-shaped token inside a headline, minus the connector head", () => {
+    // Tail truncation is bounded by the 4-word cap; the noise floor for a
+    // headline with brand evidence is acceptable (the archetype word is
+    // appended from the same field).
+    expect(entityPhraseFor("Inside Huawei's UBTECH Factory Tour")).toBe("Huawei UBTECH Factory");
+  });
+
+  it("keeps sentence-case extraction working", () => {
+    expect(entityPhraseFor("The Hang Seng TECH index chart")).toBe("Hang Seng TECH");
+    expect(entityPhraseFor("Hong Kong is the listing venue")).toBe("Hong Kong");
+    // A possessive no longer leaks into the run; "Huawei Ascend" is the
+    // actual product line, so sentence-case extraction keeps it.
+    expect(entityPhraseFor("Huawei's Ascend chip empire explained")).toBe("Huawei Ascend");
+  });
+});
+
+describe("evergreenQueryPhrases — same-field pairing (#1353 review)", () => {
+  it("does not pair an assetNeed entity with a narration-only archetype", () => {
+    const claim = {
+      assetNeed: "Hang Seng TECH index chart showing the drawdown",
+      voiceover: "Alibaba is pouring billions into new data centers.",
+    };
+    expect(evergreenQueryPhrases(claim)).toEqual(["Hang Seng TECH chart"]);
+  });
+
+  it("falls through to the next field when the first yields only an entity", () => {
+    const claim = {
+      assetNeed: "DeepSeek company profile", // entity, but no archetype word
+      voiceover: "DeepSeek's data center sits in Guizhou.",
+    };
+    expect(evergreenQueryPhrases(claim)).toEqual(["DeepSeek data center"]);
+  });
+});
