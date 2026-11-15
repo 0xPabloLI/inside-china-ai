@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.74.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.3...tanstack_start_ts-v1.74.0) (2026-11-15)
+
+
+### Features
+
+* **sourcing:** CHART-IMG K线 chart 资产——实体→symbol 映射表 + v2 免费档接入 + chart-pin 准入 ([#1365](https://github.com/0xPabloLI/inside-china-ai/issues/1365)) ([94ae1b5](https://github.com/0xPabloLI/inside-china-ai/commit/94ae1b54c3024aee7658c905e724aca84c2d8849))
+
 ## [1.73.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.73.2...tanstack_start_ts-v1.73.3) (2026-11-14)
 
 
