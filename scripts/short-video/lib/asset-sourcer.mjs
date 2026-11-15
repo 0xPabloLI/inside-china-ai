@@ -75,7 +75,7 @@ import {
   saveSearchResultsCache,
 } from "./search-results-cache.mjs";
 import {
-  shouldTriggerTier3,
+  selectTier3Scenes,
   IMAGE_SEARCH_ENGINES,
   BraveQuotaTracker,
   searchCdpSource,
@@ -3911,21 +3911,35 @@ export async function main(args = process.argv.slice(2)) {
   }
 
   // ── Tier 3: Progressive (Open Search Engine) Image Search ──
-  // Issue #110/#112: Only triggers when Tier 1 (stock API) + Tier 2 (CDP news)
-  // yield insufficient results. Runs the pluggable IMAGE_SEARCH_ENGINES pool
-  // (brave_image, searxng_image, google_images, bing_images,
-  // duckduckgo_images, tavily_images) — engines in parallel, keywords serial
-  // within each engine. Results are copyright-unverified — attribution
-  // marks them for manual review.
-  const scenesNeedingMedia = scenes.filter(
-    (s) => !NO_MEDIA_TYPES.has(s.visualType) && !s.media,
-  ).length;
+  // Issue #110/#112 + #1361: the pool (brave_image, searxng_image,
+  // google_images, bing_images, duckduckgo_images, tavily_images) runs when the
+  // relevance gate left a scene without media — not when the download count was
+  // below the scene count. A run that downloaded 27 candidates and assigned
+  // none used to read as sufficient and never searched (#1361, 2026-11-15
+  // zhipu-valuation). Engines run in parallel, keywords serial within each
+  // engine; results are copyright-unverified, so attribution marks them for
+  // manual review. Cost stays bounded by one retry (MAX_TIER3_PASSES) plus each
+  // engine's own quota / container guardrails.
   let tier3Ran = false;
-  if (shouldTriggerTier3(allAssets.length, scenesNeedingMedia)) {
-    tier3Ran = true;
+  let tier3Passes = 0;
+
+  /**
+   * Run one Tier-3 pass over the query groups of `sceneIds` (all groups when
+   * null). Mutates allAssets / failed / skipped, like the Tier 1/2 loops.
+   *
+   * @param {number[]|null} sceneIds - scenes the gate left without media
+   */
+  async function runTier3Pass(sceneIds) {
+    const groups = sceneIds
+      ? sourceGroups.filter((group) => sceneIds.includes(group.claimSceneId))
+      : sourceGroups;
+    if (groups.length === 0) {
+      console.log("  ⏭️  Tier 3: no query groups carry the unsatisfied scenes — nothing to search");
+      return;
+    }
     console.log("\n🔍 Tier 3: Progressive Search (open search engine images):");
     console.log(
-      `   ${allAssets.length} assets found in Tier 1+2, ${scenesNeedingMedia} scenes need media`,
+      `   ${allAssets.length} assets from Tier 1+2; scenes without media: ${sceneIds ? sceneIds.join(", ") : "all"} (${groups.length} query groups)`,
     );
 
     const tier3QuotaTracker = new BraveQuotaTracker();
@@ -3943,7 +3957,7 @@ export async function main(args = process.argv.slice(2)) {
         const engineAssets = [];
         const engineFailed = [];
 
-        for (const { keywords: groupKeywords, claimSceneId } of sourceGroups) {
+        for (const { keywords: groupKeywords, claimSceneId } of groups) {
           keywordLoop: for (const keyword of groupKeywords) {
             console.log(`  🔍 ${source.label} search: "${keyword}"...`);
             // #249: rate-limited engine → record skip; remaining keywords of
@@ -4041,31 +4055,38 @@ export async function main(args = process.argv.slice(2)) {
       persistSearchResultsCache(searchCachePath, searchCache);
     }
     console.log(`   Tier 3 complete: ${allAssets.length} total assets now`);
-  } else {
-    console.log(
-      `\n✅ Tier 3 skipped: ${allAssets.length} assets >= ${scenesNeedingMedia} scenes needing media`,
-    );
   }
 
-  // ── AI Analysis (after download, before assignment) ──
+  // ── AI Analysis (before each assignment pass) ──
+  // Runs on every asset that has not been analyzed yet: the first pass covers
+  // Tier 1+2, a quality-triggered Tier-3 pass (#1361) adds only its own new
+  // downloads. `.vlm-cache` keys on content, so an asset that was analyzed in a
+  // previous run is a cache hit, not a second VLM call.
   let aiAnalysis = [];
-  // Chart-pinned assets carry no VLM score by design (relevance-verdict
-  // "chart-pin"); feeding them through the analyzer would burn a VLM call and
-  // could attach a spurious low score next to an admission rule that ignores it.
-  const vlmAssets = allAssets.filter((a) => a.chartPin !== true);
-  if (vlmAssets.length > 0) {
+  const analyzedAssets = new Set();
+
+  async function analyzePendingAssets() {
+    // Chart-pinned assets carry no VLM score by design (relevance-verdict
+    // "chart-pin"); feeding them through the analyzer would burn a VLM call and
+    // could attach a spurious low score next to an admission rule that ignores it.
+    const pending = allAssets.filter(
+      (asset) => asset.chartPin !== true && !analyzedAssets.has(asset),
+    );
+    if (pending.length === 0) return;
     console.log("\n🤖 AI Analysis:");
     // P0-1 fix: pass contentDir to analyzeAssets instead of mutating asset.path
     // asset.path stays relative; analyzeAssets resolves to absolute internally
     try {
-      aiAnalysis = await analyzeAssets(vlmAssets, {
+      const batch = await analyzeAssets(pending, {
         outputDir: join(__dirname, "..", "output"),
         contentDir,
         contentSlug,
         claims: sceneClaims,
       });
+      aiAnalysis = aiAnalysis.concat(batch ?? []);
       // Re-score assets with VLM description (Phase 2c: semantic scoring)
-      for (const asset of vlmAssets) {
+      for (const asset of pending) {
+        analyzedAssets.add(asset);
         if (asset.description) {
           const kw = asset.searchKeyword || primaryKeyword;
           asset.score = scoreCandidate(asset, kw, {
@@ -4075,40 +4096,50 @@ export async function main(args = process.argv.slice(2)) {
         }
       }
     } catch (err) {
+      // A failed batch is still "attempted": retrying the same assets would
+      // spend the retry budget on a broken analyzer instead of the new
+      // downloads. The gate then sees their null scores and fails closed.
+      for (const asset of pending) analyzedAssets.add(asset);
       console.warn(`⚠️  AI analysis layer not available: ${err.message}`);
-    } finally {
-      // Close VLM process — analyzeAssets no longer closes it itself,
-      // so we must close it here to release the ~2GB 2B-4bit model.
-      try {
-        const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
-        await closeVisualAnalyzer();
-      } catch {
-        // ignore close errors
+    }
+  }
+
+  /** Release the ~2GB VLM process once every sourcing pass is done. */
+  async function closeVlmAnalyzer() {
+    // analyzeAssets no longer closes the process itself, so main must.
+    try {
+      const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
+      await closeVisualAnalyzer();
+    } catch {
+      // ignore close errors
+    }
+  }
+
+  // ── Add scene recommendations + attribution, normalize paths ──
+  // Exactly once per asset: normalization rewrites `path` in place, so running
+  // it a second time on the same asset would strip another path segment.
+  const preparedAssets = new WeakSet();
+  function prepareAssetsForPatch() {
+    for (const asset of allAssets) {
+      if (preparedAssets.has(asset)) continue;
+      preparedAssets.add(asset);
+      const rec = recommendScene(asset, scenes);
+      if (rec) {
+        asset.recommendedScene = rec.sceneId;
+        asset.recommendedAnimation = rec.animation;
+        asset.recommendedOverlay = rec.overlay;
+      }
+      // Build attribution
+      asset.attribution = buildAttribution(asset.source || asset.from, asset);
+      // P0-1 fix: normalize any absolute paths back to relative before writing
+      // patch. absPath is kept for hash-based reuse detection during assignment.
+      if (asset.path) {
+        asset.absPath = asset.path;
+        asset.path = normalizePathForPatch(asset.path, contentDir);
       }
     }
   }
 
-  // ── Add scene recommendations + attribution ──
-  for (const asset of allAssets) {
-    const rec = recommendScene(asset, scenes);
-    if (rec) {
-      asset.recommendedScene = rec.sceneId;
-      asset.recommendedAnimation = rec.animation;
-      asset.recommendedOverlay = rec.overlay;
-    }
-    // Build attribution
-    asset.attribution = buildAttribution(asset.source || asset.from, asset);
-  }
-
-  // ── Generate media-patch.json (auto-fill suggestions) ──
-  // P0-1 fix: normalize any absolute paths back to relative before writing patch.
-  // absPath is kept for hash-based reuse detection during gated assignment.
-  for (const asset of allAssets) {
-    if (asset.path) {
-      asset.absPath = asset.path;
-      asset.path = normalizePathForPatch(asset.path, contentDir);
-    }
-  }
   // Relevance-gated assignment (spec #130 D6/D7 + #297): claim-bound assets
   // need VLM relevance >= threshold; unbound fallback-pool assets fail closed
   // (slot left empty for B-roll/layout); cross-content reuse capped at 40%.
@@ -4121,10 +4152,46 @@ export async function main(args = process.argv.slice(2)) {
   } catch (e) {
     console.warn(`⚠️  Used-asset index unavailable (${e.message}) — reuse cap inactive`);
   }
-  const patches = assignAssetsToScenes(allAssets, scenes, {
-    relevanceThreshold: relevanceThreshold,
-    usedIndex: usedAssetIndex,
-  });
+
+  // ── Gate → quality-triggered Tier-3 retry (#1361) ──
+  // The trigger reads the gate's own verdict, not the download count: a scene
+  // still without media after assignment means the search never found the
+  // subject, which is exactly what the open engines are for. One retry keeps
+  // the cost bounded, and the retry re-runs assignment over the full asset set,
+  // so it can never leave a slot worse than it already was.
+  const MAX_TIER3_PASSES = 1;
+  let patches = [];
+  try {
+    for (;;) {
+      await analyzePendingAssets();
+      prepareAssetsForPatch();
+      patches = assignAssetsToScenes(allAssets, scenes, {
+        relevanceThreshold: relevanceThreshold,
+        usedIndex: usedAssetIndex,
+      });
+      const gap = selectTier3Scenes(scenes, patches);
+      if (!gap.trigger) {
+        console.log(
+          `\n✅ Tier 3 not needed: ${gap.assigned}/${gap.needed} scenes needing media assigned`,
+        );
+        break;
+      }
+      if (tier3Passes >= MAX_TIER3_PASSES) {
+        console.warn(
+          `⚠️  Tier 3 ran ${tier3Passes}× and ${gap.sceneIds.length} scene(s) are still without media (${gap.sceneIds.join(", ")}) — leaving them to B-roll/human`,
+        );
+        break;
+      }
+      tier3Passes += 1;
+      tier3Ran = true;
+      console.log(
+        `\n🔍 Tier 3 (#1361 quality trigger): ${gap.assigned}/${gap.needed} scenes assigned, ${gap.sceneIds.length} unsatisfied (${gap.sceneIds.join(", ")})`,
+      );
+      await runTier3Pass(gap.sceneIds);
+    }
+  } finally {
+    await closeVlmAnalyzer();
+  }
   const assignedEntries = patches.filter((p) => p.status === "assigned");
   // #1075: a contain verdict that had nowhere to land is a silent quality loss
   // unless it is said out loud — the picture still ships, only cropped.
