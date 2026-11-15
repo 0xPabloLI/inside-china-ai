@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.76.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.75.0...tanstack_start_ts-v1.76.0) (2026-11-15)
+
+
+### Features
+
+* **short-video:** pass chart.annotations through as chart-img drawings ([#1378](https://github.com/0xPabloLI/inside-china-ai/issues/1378)) ([748bbfe](https://github.com/0xPabloLI/inside-china-ai/commit/748bbfe49d60aea5aa1c4e82eeb39cd159379cc7))
+* **short-video:** pass chart.annotations through as chart-img drawings ([#1379](https://github.com/0xPabloLI/inside-china-ai/issues/1379)) ([748bbfe](https://github.com/0xPabloLI/inside-china-ai/commit/748bbfe49d60aea5aa1c4e82eeb39cd159379cc7))
+* **video:** [#1353](https://github.com/0xPabloLI/inside-china-ai/issues/1353) evergreen/news claim 分流——常青场景的 query 派生与相关性别问分叉 ([#1380](https://github.com/0xPabloLI/inside-china-ai/issues/1380)) ([5465edc](https://github.com/0xPabloLI/inside-china-ai/commit/5465edc29c86a21764a988b2155cc0970d7a851f))
+
 ## [1.75.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.3...tanstack_start_ts-v1.75.0) (2026-11-15)
 
 
