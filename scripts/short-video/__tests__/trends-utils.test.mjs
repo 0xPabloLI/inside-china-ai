@@ -205,6 +205,123 @@ describe("deduplicateTopics", () => {
     expect(result.length).toBe(1);
     expect(result[0].title).toBe("DeepSeek funding paused after leaked investor meeting");
   });
+
+  // #1355: the merge used to keep "longest title" and "append every url" as two
+  // independent edits, so the surviving title and urls[0] could come from
+  // different articles — the brief then cited an unrelated page.
+  it("keeps each article's own title next to its url, and cites the surviving title's url first", () => {
+    const articles = [
+      { title: "中国拟新增23项AI技术出口管制", source: "qbitai", url: "U-SHORT" },
+      {
+        title: "中国拟新增23项AI技术出口管制 意见期至11月15日",
+        source: "36kr",
+        url: "U-LONG",
+      },
+    ];
+    const result = deduplicateTopics(articles);
+    expect(result.length).toBe(1);
+    expect(result[0].title).toBe("中国拟新增23项AI技术出口管制 意见期至11月15日");
+    // urls[0] is the url whose title won, not whichever article arrived first
+    expect(result[0].urls[0]).toBe("U-LONG");
+    expect(result[0].refs).toEqual([
+      { title: "中国拟新增23项AI技术出口管制", url: "U-SHORT", source: "qbitai" },
+      {
+        title: "中国拟新增23项AI技术出口管制 意见期至11月15日",
+        url: "U-LONG",
+        source: "36kr",
+      },
+    ]);
+    // flat arrays still agree with refs
+    expect(result[0].urls).toEqual(["U-LONG", "U-SHORT"]);
+    expect(result[0].sources).toEqual(["qbitai", "36kr"]);
+  });
+
+  // #1355: tokenize() used to replace a whole digit-bearing token with "NUM".
+  // A spaceless Chinese headline is one token, so any two headlines mentioning
+  // a number had identical token sets and merged.
+  it("does not merge unrelated headlines that both mention a number", () => {
+    const articles = [
+      { title: "中国拟新增23项AI技术出口管制", source: "qbitai", url: "http://1" },
+      { title: "英伟达第三季度营收570亿美元", source: "36kr", url: "http://2" },
+    ];
+    const result = deduplicateTopics(articles);
+    expect(result.length).toBe(2);
+    expect(result.map((topic) => topic.title)).toEqual([
+      "中国拟新增23项AI技术出口管制",
+      "英伟达第三季度营收570亿美元",
+    ]);
+  });
+
+  // #1355: containment divides by the shorter set, so a one-token title scored
+  // 1.0 against every headline containing that word.
+  it("does not let a bare entity name swallow a headline that mentions it", () => {
+    const articles = [
+      { title: "DeepSeek", source: "polymarket_search", url: "http://1" },
+      {
+        title: "DeepSeek V5或将成为首个完全基于国产芯片预训练的顶级大模型",
+        source: "qbitai",
+        url: "http://2",
+      },
+    ];
+    const result = deduplicateTopics(articles);
+    expect(result.length).toBe(2);
+  });
+
+  it("still merges a spaceless Chinese headline with its longer variant", () => {
+    const articles = [
+      { title: "中国拟新增23项AI技术出口管制", source: "qbitai", url: "http://1" },
+      {
+        title: "中国拟新增23项AI技术出口管制 意见期至11月15日",
+        source: "36kr",
+        url: "http://2",
+      },
+    ];
+    expect(deduplicateTopics(articles).length).toBe(1);
+  });
+
+  // The single-token guard must not disable the documented number equivalence.
+  it("still merges a bare number against its spelled-out form", () => {
+    const articles = [
+      { title: "$1.4B", source: "qbitai", url: "http://1" },
+      { title: "1.4 billion", source: "bloomberg", url: "http://2" },
+    ];
+    expect(deduplicateTopics(articles).length).toBe(1);
+  });
+
+  // Same page, re-titled by the feed: the longer title wins and the ref that
+  // owns the url must carry it, otherwise urls[0] has no matching title.
+  it("keeps the pairing when the same url arrives again with a longer title", () => {
+    const articles = [
+      { title: "DeepSeek funding paused", source: "qbitai", url: "http://1" },
+      {
+        title: "DeepSeek funding paused after leaked investor meeting",
+        source: "qbitai",
+        url: "http://1",
+      },
+    ];
+    const result = deduplicateTopics(articles);
+    expect(result.length).toBe(1);
+    expect(result[0].title).toBe("DeepSeek funding paused after leaked investor meeting");
+    expect(result[0].urls).toEqual(["http://1"]);
+    expect(result[0].refs).toEqual([
+      {
+        title: "DeepSeek funding paused after leaked investor meeting",
+        url: "http://1",
+        source: "qbitai",
+      },
+    ]);
+  });
+
+  it("keeps both sources when two sources point at the same url", () => {
+    const articles = [
+      { title: "DeepSeek funding paused", source: "qbitai", url: "http://1" },
+      { title: "DeepSeek funding paused", source: "searxng_search", url: "http://1" },
+    ];
+    const result = deduplicateTopics(articles);
+    expect(result.length).toBe(1);
+    expect(result[0].sources).toEqual(["qbitai", "searxng_search"]);
+    expect(result[0].urls).toEqual(["http://1"]);
+  });
 });
 
 // ─── T13: Special characters ───
@@ -247,6 +364,31 @@ describe("buildOutputJson", () => {
     expect(result.topics.data).toHaveLength(1);
     expect(result.topics.explainer).toHaveLength(1);
     expect(result.topics.fermenting).toHaveLength(0);
+  });
+
+  // #1355: the per-article pairs must survive into the artifact the brief reads.
+  it("carries refs (title↔url pairs) through to the topic entry", () => {
+    const deduped = deduplicateTopics([
+      { title: "中国拟新增23项AI技术出口管制", source: "qbitai", url: "U-SHORT" },
+      {
+        title: "中国拟新增23项AI技术出口管制 意见期至11月15日",
+        source: "36kr",
+        url: "U-LONG",
+        category: "fermenting",
+      },
+    ]);
+    const result = buildOutputJson(deduped);
+    const [topic] = result.topics.fermenting;
+    expect(topic.title).toBe("中国拟新增23项AI技术出口管制 意见期至11月15日");
+    expect(topic.urls[0]).toBe("U-LONG");
+    expect(topic.refs).toEqual([
+      { title: "中国拟新增23项AI技术出口管制", url: "U-SHORT", source: "qbitai" },
+      {
+        title: "中国拟新增23项AI技术出口管制 意见期至11月15日",
+        url: "U-LONG",
+        source: "36kr",
+      },
+    ]);
   });
 
   it("groups multiple articles in same category", () => {

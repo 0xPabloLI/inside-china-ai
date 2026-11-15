@@ -235,6 +235,25 @@ export function classifyTopic(title) {
 }
 
 /**
+ * Normalize a numeric token so "$1.4B" and "1.4 billion" compare alike.
+ *
+ * #1355: the previous rule replaced the WHOLE token with "NUM" whenever it
+ * contained a digit. A spaceless Chinese headline is one token, so
+ * 「中国拟新增23项AI技术出口管制」和「英伟达第三季度营收570亿美元」both collapsed
+ * to the literal {"NUM"} — identical token sets, so two unrelated stories
+ * merged (and, because containment is 1.0 for a one-token set, they also
+ * swallowed every other digit-bearing headline in the run).
+ *
+ * Now only a token that *is* a number (with an optional unit suffix) becomes
+ * "NUM"; a token that merely contains digits keeps its words and normalizes
+ * the digits in place.
+ */
+function normalizeNumericToken(token) {
+  if (/^[0-9][0-9.,]*[a-z%]*$/.test(token)) return "NUM";
+  return /[0-9]/.test(token) ? token.replace(/[0-9]+(?:\.[0-9]+)?/g, "NUM") : token;
+}
+
+/**
  * Tokenize a title into a set of normalized tokens.
  * Numbers are normalized to "NUM" so "$1.4B" and "1.4 billion" tokenize identically.
  */
@@ -245,7 +264,7 @@ function tokenize(s) {
       .replace(/[^\w\s\u4e00-\u9fff]/g, " ")
       .split(/\s+/)
       .filter((t) => t.length > 0)
-      .map((t) => (/[0-9]/.test(t) ? "NUM" : t)),
+      .map(normalizeNumericToken),
   );
 }
 
@@ -270,6 +289,31 @@ function jaccardSimilarity(a, b) {
 }
 
 /**
+ * A one-token title shorter than this is an entity label ("deepseek",
+ * "openai"), not a topic statement.
+ */
+const MIN_SINGLE_TOKEN_CHARS = 10;
+
+/**
+ * Whether containment may judge a pair at all.
+ *
+ * #1355: containment divides by the *shorter* set, so a one-token title scores
+ * 1.0 against every title that contains the word — "DeepSeek" swallowed
+ * "DeepSeek V5 或将成为首个完全基于国产芯片预训练的顶级大模型". A short single
+ * token is an entity name and is only ever merged on exact/Jaccard equality;
+ * a long single token is a spaceless Chinese sentence (tokenize() cannot split
+ * it) and carries enough information to stay comparable.
+ */
+function isContainmentComparable(tokenSet) {
+  if (tokenSet.size >= 2) return true;
+  const [only] = tokenSet;
+  // A title that is nothing but a normalized number is not an entity label;
+  // this keeps the documented "$1.4B" ≈ "1.4 billion" equivalence.
+  if (only === "NUM") return true;
+  return typeof only === "string" && only.length >= MIN_SINGLE_TOKEN_CHARS;
+}
+
+/**
  * Calculate containment coefficient: what fraction of the shorter
  * title's tokens appear in the longer title.
  * If the shorter title is a subset of the longer, returns 1.0.
@@ -279,6 +323,7 @@ function containment(a, b) {
   const setB = tokenize(b);
   const [shorter, longer] = setA.size <= setB.size ? [setA, setB] : [setB, setA];
   if (shorter.size === 0) return 0;
+  if (!isContainmentComparable(shorter)) return 0;
   let intersection = 0;
   for (const w of shorter) {
     if (longer.has(w)) intersection++;
@@ -287,12 +332,59 @@ function containment(a, b) {
 }
 
 /**
+ * Record one contributing article on the topic's refs.
+ *
+ * A ref is keyed by (url, source): the same page reported by two sources keeps
+ * two refs, so `sources` still lists both and `sourceStats` does not go down.
+ * When the same page arrives twice with different titles (feed re-titles, CDP
+ * markup vs API text), the ref keeps the longer title — that is the title the
+ * topic may adopt, so the pairing must not be dropped on the floor.
+ *
+ * @param {Object} topic - topic whose refs are extended
+ * @param {{title: string, url: string, source: string}} article
+ */
+function recordRef(topic, article) {
+  const existingRef = topic.refs.find(
+    (ref) => ref.url === article.url && ref.source === article.source,
+  );
+  if (existingRef) {
+    if (article.title.length > existingRef.title.length) {
+      existingRef.title = article.title;
+    }
+    return;
+  }
+  topic.refs.push({ title: article.title, url: article.url, source: article.source });
+}
+
+/**
+ * Re-derive `sources` and `urls` from `refs` so the flat arrays always agree
+ * with the per-article pairs.
+ *
+ * `urls[0]` is the url the surviving title came from: readers of the brief use
+ * it as the citation for that title, and before #1355 it was whichever article
+ * arrived first, which is how a topic ended up citing an unrelated page.
+ * `urls` stays de-duplicated even when two sources contribute the same page.
+ *
+ * @param {Object} topic - mutated in place
+ */
+function syncTopicMembership(topic) {
+  const titled = topic.refs.filter((ref) => ref.title === topic.title);
+  const rest = topic.refs.filter((ref) => ref.title !== topic.title);
+  topic.urls = [...new Set([...titled, ...rest].map((ref) => ref.url))];
+  topic.sources = [...new Set(topic.refs.map((ref) => ref.source))];
+}
+
+/**
  * Deduplicate articles by title similarity.
- * Articles with >= 80% Jaccard similarity are merged.
- * Merged articles keep the longer title and combine sources/urls.
+ * Articles with >= 80% Jaccard similarity are merged, and so are articles whose
+ * shorter title is fully contained in the longer one (see `containment`).
+ * Merged topics keep the longest title, and keep every contributing article as
+ * a `{ title, url, source }` ref so the title↔url pairing survives the merge
+ * (#1355). `sources` / `urls` are derived from `refs`, with `urls[0]` pointing
+ * at the article the surviving title came from.
  *
  * @param {Array} articles - Array of { title, source, url }
- * @returns {Array} Deduplicated articles with { title, sources[], urls[] }
+ * @returns {Array} Deduplicated articles with { title, sources[], urls[], refs[] }
  */
 export function deduplicateTopics(articles) {
   const JACCARD_THRESHOLD = 0.8;
@@ -305,27 +397,25 @@ export function deduplicateTopics(articles) {
       const sim = jaccardSimilarity(article.title, existing.title);
       const cont = containment(article.title, existing.title);
       if (sim >= JACCARD_THRESHOLD || cont >= CONTAINMENT_THRESHOLD) {
-        // Merge into existing
+        // Merge into existing: record the article's own title/url/source pair
+        // before the topic title can be replaced by a longer one.
+        recordRef(existing, article);
         // Keep longer title
         if (article.title.length > existing.title.length) {
           existing.title = article.title;
         }
-        // Merge sources and urls
-        if (!existing.sources.includes(article.source)) {
-          existing.sources.push(article.source);
-        }
-        if (!existing.urls.includes(article.url)) {
-          existing.urls.push(article.url);
-        }
+        syncTopicMembership(existing);
         merged = true;
         break;
       }
     }
     if (!merged) {
+      const refs = [{ title: article.title, url: article.url, source: article.source }];
       result.push({
         title: article.title,
         sources: [article.source],
         urls: [article.url],
+        refs,
         category: article.category,
       });
     }
@@ -366,6 +456,14 @@ export function buildOutputJson(articles) {
         title: article.title,
         sources: article.sources || [article.source],
         urls: article.urls || [article.url],
+        // #1355: the merge keeps every contributing article's own title next to
+        // its url, so a reader (or the brief) can tell which page said what
+        // instead of trusting `urls[0]`. `urls[0]` is the url whose title won.
+        refs:
+          article.refs ||
+          [{ title: article.title, url: article.url, source: article.source }].filter(
+            (ref) => ref.url,
+          ),
         keywords: extractKeywords(article.title),
         summary: "",
       };
