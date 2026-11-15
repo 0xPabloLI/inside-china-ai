@@ -278,6 +278,50 @@ describe("deduplicateTopics", () => {
     ];
     expect(deduplicateTopics(articles).length).toBe(1);
   });
+
+  // The single-token guard must not disable the documented number equivalence.
+  it("still merges a bare number against its spelled-out form", () => {
+    const articles = [
+      { title: "$1.4B", source: "qbitai", url: "http://1" },
+      { title: "1.4 billion", source: "bloomberg", url: "http://2" },
+    ];
+    expect(deduplicateTopics(articles).length).toBe(1);
+  });
+
+  // Same page, re-titled by the feed: the longer title wins and the ref that
+  // owns the url must carry it, otherwise urls[0] has no matching title.
+  it("keeps the pairing when the same url arrives again with a longer title", () => {
+    const articles = [
+      { title: "DeepSeek funding paused", source: "qbitai", url: "http://1" },
+      {
+        title: "DeepSeek funding paused after leaked investor meeting",
+        source: "qbitai",
+        url: "http://1",
+      },
+    ];
+    const result = deduplicateTopics(articles);
+    expect(result.length).toBe(1);
+    expect(result[0].title).toBe("DeepSeek funding paused after leaked investor meeting");
+    expect(result[0].urls).toEqual(["http://1"]);
+    expect(result[0].refs).toEqual([
+      {
+        title: "DeepSeek funding paused after leaked investor meeting",
+        url: "http://1",
+        source: "qbitai",
+      },
+    ]);
+  });
+
+  it("keeps both sources when two sources point at the same url", () => {
+    const articles = [
+      { title: "DeepSeek funding paused", source: "qbitai", url: "http://1" },
+      { title: "DeepSeek funding paused", source: "searxng_search", url: "http://1" },
+    ];
+    const result = deduplicateTopics(articles);
+    expect(result.length).toBe(1);
+    expect(result[0].sources).toEqual(["qbitai", "searxng_search"]);
+    expect(result[0].urls).toEqual(["http://1"]);
+  });
 });
 
 // ─── T13: Special characters ───

@@ -307,6 +307,9 @@ const MIN_SINGLE_TOKEN_CHARS = 10;
 function isContainmentComparable(tokenSet) {
   if (tokenSet.size >= 2) return true;
   const [only] = tokenSet;
+  // A title that is nothing but a normalized number is not an entity label;
+  // this keeps the documented "$1.4B" ≈ "1.4 billion" equivalence.
+  if (only === "NUM") return true;
   return typeof only === "string" && only.length >= MIN_SINGLE_TOKEN_CHARS;
 }
 
@@ -329,19 +332,45 @@ function containment(a, b) {
 }
 
 /**
+ * Record one contributing article on the topic's refs.
+ *
+ * A ref is keyed by (url, source): the same page reported by two sources keeps
+ * two refs, so `sources` still lists both and `sourceStats` does not go down.
+ * When the same page arrives twice with different titles (feed re-titles, CDP
+ * markup vs API text), the ref keeps the longer title — that is the title the
+ * topic may adopt, so the pairing must not be dropped on the floor.
+ *
+ * @param {Object} topic - topic whose refs are extended
+ * @param {{title: string, url: string, source: string}} article
+ */
+function recordRef(topic, article) {
+  const existingRef = topic.refs.find(
+    (ref) => ref.url === article.url && ref.source === article.source,
+  );
+  if (existingRef) {
+    if (article.title.length > existingRef.title.length) {
+      existingRef.title = article.title;
+    }
+    return;
+  }
+  topic.refs.push({ title: article.title, url: article.url, source: article.source });
+}
+
+/**
  * Re-derive `sources` and `urls` from `refs` so the flat arrays always agree
  * with the per-article pairs.
  *
  * `urls[0]` is the url the surviving title came from: readers of the brief use
  * it as the citation for that title, and before #1355 it was whichever article
  * arrived first, which is how a topic ended up citing an unrelated page.
+ * `urls` stays de-duplicated even when two sources contribute the same page.
  *
  * @param {Object} topic - mutated in place
  */
 function syncTopicMembership(topic) {
   const titled = topic.refs.filter((ref) => ref.title === topic.title);
   const rest = topic.refs.filter((ref) => ref.title !== topic.title);
-  topic.urls = [...titled, ...rest].map((ref) => ref.url);
+  topic.urls = [...new Set([...titled, ...rest].map((ref) => ref.url))];
   topic.sources = [...new Set(topic.refs.map((ref) => ref.source))];
 }
 
@@ -370,13 +399,7 @@ export function deduplicateTopics(articles) {
       if (sim >= JACCARD_THRESHOLD || cont >= CONTAINMENT_THRESHOLD) {
         // Merge into existing: record the article's own title/url/source pair
         // before the topic title can be replaced by a longer one.
-        if (!existing.refs.some((ref) => ref.url === article.url)) {
-          existing.refs.push({
-            title: article.title,
-            url: article.url,
-            source: article.source,
-          });
-        }
+        recordRef(existing, article);
         // Keep longer title
         if (article.title.length > existing.title.length) {
           existing.title = article.title;
