@@ -185,6 +185,28 @@ TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下�
 
 详见 `docs/research/reference-video-extraction.md`。
 
+### 网页上传通道的分发判定（#1181 后置）
+
+> 触发条件：要确认「TikTok Studio 网页上传本身是否拿不到分发」。2026-11-13 的裁决把自动路径停在草稿（#1181，PR #1283），但两次 0 播放各带混杂——10/25 那条无 AIGC 标签、东京出口、音乐未生效；11/1 那条没有交付记录——干净样本数仍是 **0**。本清单用一次手工上传单独测掉「通道」这个变量，不改代码。
+
+前置：`npm run cdp:ensure` 已跑、Studio 已登录（Chrome 安全规程见 `docs/selector-auto-healing.md`）；一条已过 HITL 的成片。
+
+1. 在自动化 profile 里手工打开 Studio 的 content 页，按网页表单上传那条成片并点发布。**不跑 `tiktok-upload-prep.mjs`**——本清单测的是网页通道，脚本痕迹是另一个变量。
+2. 点发布前逐项确认 AIGC 标签、出口国家、音乐（口径见本文件 `### 背景音乐` 与覆盖差报告），把 `method: "studio-web-manual"`、`videoId`、`publishedAt` 手工记进该内容的 `publish-log.jsonl`。
+3. 48 小时后抓详情。命令与三条既有行为（含「content 列表页只保留最近 8 条」）见 `docs/analytics-workflow.md`。
+
+判定先写下再看数：
+
+| 48h `videoViews` | 结论 | 后续 |
+| ---------------- | ---- | ---- |
+| ≥50 | 网页通道能拿到分发 | 当年的 0 归因于 AIGC 与出口混杂；是否恢复自动公开发布另立票 |
+| 1–49 | 不可判 | 同一形态再跑一次；两次都 <50 才落到下一行 |
+| 0 | 网页通道拿不到分发 | 维持仅存草稿裁决，实现不改 |
+
+结果为正时，剩下未排除的一支是「CDP 自动化痕迹」而不是通道（`lib/cdp-fingerprint.mjs` 记录着已加/未加清单），那需要再来一次带脚本的对照。
+
+完成判据：`tiktok-video-details-*.json` 里能找到该 `videoId` 且 `videoViews !== null`，判定表已选中一行。
+
 ---
 
 ## 文件参考
@@ -206,5 +228,5 @@ TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下�
 | ------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------- |
 | HITL 检查点设在视频成品审阅（发布前）                   | 文章+视频一旦发布难以撤回，在发布前设置唯一强制确认点            | `docs/content-pipeline.md` HITL 章节                     |
 | TikTok AIGC 标签由 Agent 自动开启                       | 标记只能在发布前设置，故做成发布流程里的 fail-closed 步骤        | TikTok 政策要求                                          |
-| BGM 默认在平台后台挂（`tiktok-upload-prep.mjs` 一条龙） | 用户决定 2026-10-25：确认后直接挂音乐+标 AIGC+发布，不再问选哪首 | `docs/research/music-under-voice-calibration-2026-10.md` |
+| BGM 默认在平台后台挂（`tiktok-upload-prep.mjs` 一条龙） | 用户决定 2026-10-25：确认后直接挂音乐+标 AIGC，不再问选哪首；2026-11-13 起停在草稿，公开发布由人点（#1181） | `docs/research/music-under-voice-calibration-2026-10.md` |
 | 竞品参考视频手动下载                                    | TikTok 视频无法 yt-dlp 下载，YouTube 可以                        | `docs/research/reference-video-extraction.md`            |
