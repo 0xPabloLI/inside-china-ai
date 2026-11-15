@@ -2,8 +2,8 @@
  * Progressive Search — Tier 3: Open Search Engine Image Search
  *
  * Provides tier evaluation logic and the pluggable image search engine pool
- * (IMAGE_SEARCH_ENGINES). Called by asset-sourcer.mjs when Tier 1 (stock API)
- * + Tier 2 (CDP news) yield insufficient results.
+ * (IMAGE_SEARCH_ENGINES). Called by asset-sourcer.mjs after Tier 1 (stock API)
+ * + Tier 2 (CDP news) have been through the relevance gate.
  *
  * Trigger condition (#1361): after Tier 1 + Tier 2 downloads pass the
  * relevance gate, at least one scene that needs media is still unassigned
@@ -42,6 +42,7 @@
 import { ALL_SOURCES, imageApiSourceMetadata, resolveLoginGate } from "./source-registry.mjs";
 import { ensureSearxng } from "../../searxng/lifecycle.mjs";
 import { skipsMediaSourcing } from "./claim-keywords.mjs";
+import { shouldSourceStock } from "./media-strategies.mjs";
 
 // Resolve an image source's registry declaration by name. The pool entries and
 // the two parsers below all go through this, so the registry stays the only
@@ -74,9 +75,12 @@ function ensureSearxngOnce() {
  * 2026-11-15 zhipu-valuation: 27 candidates, 26 unsatisfiable, open engines
  * never ran).
  *
- * "Needs media" is `skipsMediaSourcing`'s complement — the same predicate the
- * gap ledger uses, so a scene that opts out (`media: null`, `mediaOptOut`) or
- * is a text-only type (`cta`/`data`) never enters the denominator.
+ * "Needs media" is the gap ledger's stock-intent denominator
+ * (`asset-gap-ledger.mjs` `hasStockIntent`, minus its `assetNeed` condition):
+ * a scene that already carries media, opts out (`media: null`,
+ * `mediaOptOut`), is a text-only type (`cta`/`data`) or plans generation-only
+ * never enters it. Using the leakier "no media yet" reading would count a
+ * hand-bound scene as permanently unsatisfied and fire a search on every run.
  *
  * Cost guardrails stay outside this predicate: the caller runs at most one
  * retry, scopes the keywords to `sceneIds`, and the engines keep their own
@@ -90,7 +94,9 @@ function ensureSearxngOnce() {
  */
 export function selectTier3Scenes(scenes, patches) {
   const list = Array.isArray(scenes) ? scenes : [];
-  const needed = list.filter((scene) => scene && !skipsMediaSourcing(scene));
+  const needed = list.filter(
+    (scene) => scene && !scene.media && !skipsMediaSourcing(scene) && shouldSourceStock(scene),
+  );
   if (needed.length === 0) return { trigger: false, sceneIds: [], needed: 0, assigned: 0 };
   const assigned = new Set(
     (Array.isArray(patches) ? patches : [])

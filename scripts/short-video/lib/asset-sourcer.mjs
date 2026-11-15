@@ -3924,22 +3924,21 @@ export async function main(args = process.argv.slice(2)) {
   let tier3Passes = 0;
 
   /**
-   * Run one Tier-3 pass over the query groups of `sceneIds` (all groups when
-   * null). Mutates allAssets / failed / skipped, like the Tier 1/2 loops.
+   * Run one Tier-3 pass over the query groups of `sceneIds`.
+   * Mutates allAssets / failed / skipped, like the Tier 1/2 loops.
    *
-   * @param {number[]|null} sceneIds - scenes the gate left without media
+   * @param {number[]} sceneIds - scenes the gate left without media
+   * @returns {Promise<boolean>} whether any engine was actually searched
    */
   async function runTier3Pass(sceneIds) {
-    const groups = sceneIds
-      ? sourceGroups.filter((group) => sceneIds.includes(group.claimSceneId))
-      : sourceGroups;
+    const groups = sourceGroups.filter((group) => sceneIds.includes(group.claimSceneId));
     if (groups.length === 0) {
       console.log("  ⏭️  Tier 3: no query groups carry the unsatisfied scenes — nothing to search");
-      return;
+      return false;
     }
     console.log("\n🔍 Tier 3: Progressive Search (open search engine images):");
     console.log(
-      `   ${allAssets.length} assets from Tier 1+2; scenes without media: ${sceneIds ? sceneIds.join(", ") : "all"} (${groups.length} query groups)`,
+      `   ${allAssets.length} assets from Tier 1+2; scenes without media: ${sceneIds.join(", ")} (${groups.length} query groups)`,
     );
 
     const tier3QuotaTracker = new BraveQuotaTracker();
@@ -4055,6 +4054,7 @@ export async function main(args = process.argv.slice(2)) {
       persistSearchResultsCache(searchCachePath, searchCache);
     }
     console.log(`   Tier 3 complete: ${allAssets.length} total assets now`);
+    return true;
   }
 
   // ── AI Analysis (before each assignment pass) ──
@@ -4064,6 +4064,9 @@ export async function main(args = process.argv.slice(2)) {
   // previous run is a cache hit, not a second VLM call.
   let aiAnalysis = [];
   const analyzedAssets = new Set();
+  // Flipped when a batch fails: null scores are "unavailable", never
+  // "unsatisfiable" (#294), so a broken analyzer must not trigger a search.
+  let analysisAvailable = true;
 
   async function analyzePendingAssets() {
     // Chart-pinned assets carry no VLM score by design (relevance-verdict
@@ -4096,22 +4099,20 @@ export async function main(args = process.argv.slice(2)) {
         }
       }
     } catch (err) {
-      // A failed batch is still "attempted": retrying the same assets would
-      // spend the retry budget on a broken analyzer instead of the new
-      // downloads. The gate then sees their null scores and fails closed.
+      // No VLM verdict means the gate cannot judge anything: record the batch
+      // as attempted and stop the caller from spending a search on null scores.
       for (const asset of pending) analyzedAssets.add(asset);
+      analysisAvailable = false;
       console.warn(`⚠️  AI analysis layer not available: ${err.message}`);
-    }
-  }
-
-  /** Release the ~2GB VLM process once every sourcing pass is done. */
-  async function closeVlmAnalyzer() {
-    // analyzeAssets no longer closes the process itself, so main must.
-    try {
-      const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
-      await closeVisualAnalyzer();
-    } catch {
-      // ignore close errors
+    } finally {
+      // Release the ~2GB VLM process between passes — analyzeAssets no longer
+      // closes it itself, and a Tier-3 network phase must not keep it resident.
+      try {
+        const { closeVisualAnalyzer } = await import("./visual-analyzer.mjs");
+        await closeVisualAnalyzer();
+      } catch {
+        // ignore close errors
+      }
     }
   }
 
@@ -4161,43 +4162,47 @@ export async function main(args = process.argv.slice(2)) {
   // so it can never leave a slot worse than it already was.
   const MAX_TIER3_PASSES = 1;
   let patches = [];
-  try {
-    for (;;) {
-      await analyzePendingAssets();
-      prepareAssetsForPatch();
-      patches = assignAssetsToScenes(allAssets, scenes, {
-        relevanceThreshold: relevanceThreshold,
-        usedIndex: usedAssetIndex,
-      });
-      const gap = selectTier3Scenes(scenes, patches);
-      if (!gap.trigger) {
-        console.log(
-          `\n✅ Tier 3 not needed: ${gap.assigned}/${gap.needed} scenes needing media assigned`,
-        );
-        break;
-      }
-      if (tier3Passes >= MAX_TIER3_PASSES) {
-        console.warn(
-          `⚠️  Tier 3 ran ${tier3Passes}× and ${gap.sceneIds.length} scene(s) are still without media (${gap.sceneIds.join(", ")}) — leaving them to B-roll/human`,
-        );
-        break;
-      }
-      tier3Passes += 1;
-      tier3Ran = true;
+  for (;;) {
+    await analyzePendingAssets();
+    prepareAssetsForPatch();
+    patches = assignAssetsToScenes(allAssets, scenes, {
+      relevanceThreshold: relevanceThreshold,
+      usedIndex: usedAssetIndex,
+    });
+    const gap = selectTier3Scenes(scenes, patches);
+    if (!gap.trigger) {
       console.log(
-        `\n🔍 Tier 3 (#1361 quality trigger): ${gap.assigned}/${gap.needed} scenes assigned, ${gap.sceneIds.length} unsatisfied (${gap.sceneIds.join(", ")})`,
+        `\n✅ Tier 3 not needed: ${gap.assigned}/${gap.needed} scenes needing media assigned`,
       );
-      try {
-        await runTier3Pass(gap.sceneIds);
-      } catch (err) {
-        // A broken retry must not discard the Tier 1+2 sourcing that already
-        // succeeded: keep the assignment above and let B-roll/human fill the gap.
-        console.warn(`⚠️  Tier 3 pass failed: ${err.message} — keeping the Tier 1+2 assignment`);
-        break;
-      }
+      break;
     }
-  } finally {
-    await closeVlmAnalyzer();
+    if (tier3Passes >= MAX_TIER3_PASSES) {
+      console.warn(
+        `⚠️  Tier 3 ran ${tier3Passes}× and ${gap.sceneIds.length} scene(s) are still without media (${gap.sceneIds.join(", ")}) — leaving them to B-roll/human`,
+      );
+      break;
+    }
+    if (!analysisAvailable) {
+      console.warn(
+        "⚠️  Tier 3 skipped: the analysis layer failed, so no scene has a verdict to escalate from",
+      );
+      break;
+    }
+    console.log(
+      `\n🔍 Tier 3 (#1361 quality trigger): ${gap.assigned}/${gap.needed} scenes assigned, ${gap.sceneIds.length} unsatisfied (${gap.sceneIds.join(", ")})`,
+    );
+    let searched = false;
+    try {
+      searched = await runTier3Pass(gap.sceneIds);
+    } catch (err) {
+      // A broken retry must not discard the Tier 1+2 sourcing that already
+      // succeeded: keep the assignment above and let B-roll/human fill the gap.
+      console.warn(`⚠️  Tier 3 pass failed: ${err.message} — keeping the Tier 1+2 assignment`);
+      break;
+    }
+    if (!searched) break;
+    tier3Passes += 1;
+    tier3Ran = true;
   }
   const assignedEntries = patches.filter((p) => p.status === "assigned");
   // #1075: a contain verdict that had nowhere to land is a silent quality loss

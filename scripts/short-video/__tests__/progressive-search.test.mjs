@@ -4,7 +4,7 @@
  * TDD: Tests written first (red), implementation second (green).
  *
  * Tests cover:
- * - shouldTriggerTier3: boundary conditions (scenarios #1, #8)
+ * - selectTier3Scenes: the post-gate trigger and its denominator (#1361)
  * - searchBraveImages: API response parsing (scenarios #3, #4, #6, #9)
  * - searchSearXngImages: API response parsing (scenarios #5, #7, #9)
  * - BraveQuotaTracker: counter logic
@@ -109,6 +109,29 @@ describe("selectTier3Scenes", () => {
     const gap = selectTier3Scenes(scenes, []);
     expect(gap.trigger).toBe(false);
     expect(gap.needed).toBe(0);
+  });
+
+  it("excludes scenes that already carry hand-bound media", () => {
+    // A bound scene never gets a patch entry (assignment skips it), so counting
+    // it as "needs media" would make every run look unsatisfiable and fire a
+    // search the run does not need.
+    const scenes = [
+      scene(1, "hook", { media: { type: "image", path: "assets/a.jpg" } }),
+      scene(2, "context", { media: { type: "video", path: "assets/b.mp4" } }),
+    ];
+    const gap = selectTier3Scenes(scenes, []);
+    expect(gap.trigger).toBe(false);
+    expect(gap.needed).toBe(0);
+  });
+
+  it("excludes generation-only scenes — a stock search cannot serve them", () => {
+    const scenes = [
+      scene(1, "context", { mediaStrategy: "ai-image" }),
+      scene(2, "context", { mediaStrategy: "b-roll" }),
+      scene(3, "context", { mediaStrategy: "asset-then-broll" }),
+    ];
+    const gap = selectTier3Scenes(scenes, []);
+    expect(gap.sceneIds).toEqual([3]);
   });
 
   it("returns no trigger for empty scenes or missing patches", () => {
