@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.74.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.2...tanstack_start_ts-v1.74.3) (2026-11-15)
+
+
+### Bug Fixes
+
+* **trends:** keep title↔url pairing through dedup, stop numeric over-merge ([#1373](https://github.com/0xPabloLI/inside-china-ai/issues/1373)) ([46c9027](https://github.com/0xPabloLI/inside-china-ai/commit/46c902733c648d837ac9e85cffee29a0e16e400f))
+
 ## [1.74.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.74.1...tanstack_start_ts-v1.74.2) (2026-11-15)
 
 
