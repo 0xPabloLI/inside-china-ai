@@ -9,7 +9,7 @@
 import { useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
-import { GridBg, Scanlines, BrandBar, Slot } from "../components/visuals";
+import { BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR, ANNOTATION } from "../components/shared";
@@ -41,8 +41,6 @@ export const StatRevealScene: React.FC<{
       {scene.media && (
         <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
       )}
-      {!scene.media && <GridBg />}
-      <Scanlines />
       <BrandBar />
 
       <Camera visualType="stat-reveal" duration={duration}>

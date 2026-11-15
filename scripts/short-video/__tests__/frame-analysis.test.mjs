@@ -199,6 +199,40 @@ describe("checkSafeZoneTop", () => {
     const result = checkSafeZoneTop(buf, SAFE_ZONES);
     expect(result.level).toBe("pass");
   });
+
+  // #1215 (2026-11-15): the outer-15px frameGlow exemption is gone with
+  // FrameGlow itself. The remaining ground tone sits at luminance 12-14, far
+  // below BRIGHT_THRESHOLD, so the frame edge is ordinary sampled pixels.
+  it("counts bright content inside the retired outer 15px band", () => {
+    // y=8 is on the SAMPLE_STEP=8 grid; x=300..700 is clear of both the
+    // BRAND_BAR_REGION (x60-880, y130-200) and WATERMARK_REGION (x55-125, y55-125).
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 300,
+      xEnd: 700,
+      yStart: 8,
+      yEnd: 16,
+    });
+    expect(checkSafeZoneTop(buf, SAFE_ZONES).metrics.bright).toBeGreaterThan(0);
+  });
+
+  it("still exempts the brand bar and watermark regions", () => {
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 60,
+      xEnd: 880,
+      yStart: 130,
+      yEnd: 200,
+    });
+    // Bright pixels inside WATERMARK_REGION too (x55-125, y55-125).
+    for (let y = 56; y < 125; y += 1) {
+      for (let x = 56; x < 125; x += 1) {
+        const idx = (CANVAS.width * y + x) * 4;
+        buf.data[idx] = 220;
+        buf.data[idx + 1] = 220;
+        buf.data[idx + 2] = 220;
+      }
+    }
+    expect(checkSafeZoneTop(buf, SAFE_ZONES).metrics.bright).toBe(0);
+  });
 });
 
 // ─── checkSafeZoneRight ───
@@ -422,21 +456,14 @@ describe("checkTextOverflow", () => {
     expect(result.level).toBe("pass"); // content is within width, brand bar not scanned
   });
 
-  it("ignores frame glow border pixels", () => {
-    // Draw bright pixels in the outer 15px (frame glow) but within content y-range
+  it("no longer exempts frame-edge pixels (#1215)", () => {
+    // Bright pixels on BOTH outer edges must now widen the measured span past
+    // the content width. The old test painted the right band at x=1065/1073,
+    // off the SAMPLE_STEP=8 grid, so it passed vacuously even after the
+    // exemption was retired; use on-grid x=1064/1072 instead.
     const buf = bgBuffer();
-    // Left glow band x[0,15] at y=300
     for (let y = 300; y < 1000; y += SAMPLE_STEP) {
-      for (let x = 0; x < 15; x += SAMPLE_STEP) {
-        const idx = (CANVAS.width * y + x) * 4;
-        buf.data[idx] = 200;
-        buf.data[idx + 1] = 200;
-        buf.data[idx + 2] = 200;
-      }
-    }
-    // Right glow band x[1065,1080] at y=300
-    for (let y = 300; y < 1000; y += SAMPLE_STEP) {
-      for (let x = CANVAS.width - 15; x < CANVAS.width; x += SAMPLE_STEP) {
+      for (const x of [0, 8, 1064, 1072]) {
         const idx = (CANVAS.width * y + x) * 4;
         buf.data[idx] = 200;
         buf.data[idx + 1] = 200;
@@ -444,8 +471,8 @@ describe("checkTextOverflow", () => {
       }
     }
     const result = checkTextOverflow(buf, SAFE_ZONES);
-    // Glow pixels are in exempt regions → no overflow detected
-    expect(result.level).toBe("pass");
+    expect(result.level).toBe("warn");
+    expect(result.metrics.maxOverflow).toBeGreaterThan(0);
   });
 
   it("is included in runFrameAnalysis results", () => {

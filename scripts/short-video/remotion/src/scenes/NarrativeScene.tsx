@@ -11,11 +11,11 @@
  *     the media-window layouts by #761)
  *
  * Each variant has its own entrance animation pattern and uses
- * SPACING tokens, Interactive.Div on company/result, and conditional GridBg.
+ * SPACING tokens and Interactive.Div on company/result.
  */
 import { Interactive, useCurrentFrame, interpolate } from "remotion";
 import type { SceneData } from "../types";
-import { GridBg, Glow, Scanlines, BrandBar } from "../components/visuals";
+import { Glow, BrandBar } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import {
   SlideUp,
@@ -560,12 +560,12 @@ export const NarrativeScene: React.FC<{
       {scene.layout === "stacked-cards" && hasMedia && (
         <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
       )}
-      {renderLayout()}
-      {/* GridBg only when no media */}
-      {!hasMedia && <GridBg />}
+      {/* Background chrome precedes content, as in the other eight
+          templates. Until #1215 the background layers were painted after
+          renderLayout(), i.e. on top of the text. */}
       <Glow color={glowColor} />
-      <Scanlines />
       <BrandBar />
+      {renderLayout()}
     </div>
   );
 };

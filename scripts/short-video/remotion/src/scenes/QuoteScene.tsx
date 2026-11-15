@@ -9,7 +9,7 @@
 import { useCurrentFrame, interpolate } from "remotion";
 import { Underline } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
-import { GridBg, Scanlines, BrandBar, Slot } from "../components/visuals";
+import { BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { FadeIn, SlideUp, StampIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
@@ -32,8 +32,6 @@ export const QuoteScene: React.FC<{ scene: SceneData; duration: number }> = ({
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <GridBg />
-      <Scanlines />
       <BrandBar />
 
       <Camera visualType="quote" duration={duration}>

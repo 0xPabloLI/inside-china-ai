@@ -19,9 +19,9 @@ import { MEDIA_BAND, SUBTITLE_LANE_TOP } from "./safe-zones.mjs";
 /**
  * Luminance threshold for "bright" (content) pixels.
  * Background #0a0a14 → luminance ≈ 10.
- * GridBg/Glow/Scanlines → luminance < 60.
+ * The `<Glow>` corner tint → luminance < 60.
  * Text/brand elements → luminance > 100.
- * 80 splits the difference: ignores background layers, catches content.
+ * 80 splits the difference: ignores the ground tone, catches content.
  */
 export const BRIGHT_THRESHOLD = 80;
 
@@ -216,9 +216,11 @@ export function countBrightPixels(buf, region, threshold, step, exemptRegions = 
  * @returns {AnalysisResult}
  */
 /**
- * Brand bar exempt region — matches BrandBar component in visuals.tsx:
- *   top: 140, left: 60, right: 200 (→ xEnd = width - 200)
- *   Approximate height: 50px (logo 48px + padding)
+ * Brand bar exempt region — the pre-#1228 band, still used by the overflow
+ * and clipped-text checks. `BRAND_BAR.top` moved from 140 to 236 in #1228,
+ * which puts the real bar outside `checkSafeZoneTop`'s y < 220 region. These
+ * coordinates are left unchanged pending a real-frame re-verification of
+ * those two checks; do not copy `top: 140` into new code.
  * This is the same exemption the retired verify-scene-dom.mjs DOM gate used
  * (EXEMPT_SELECTORS — archive removed 2026-09-20, see git history).
  */
@@ -230,8 +232,10 @@ const BRAND_BAR_REGION = {
 };
 
 /**
- * Watermark exempt region — top-left corner.
- * Matches Watermark component: top: 60, left: 60, 55×55px.
+ * Watermark exempt region — top-left corner (`WATERMARK_POS`, 55×55px).
+ * The `Watermark` component was retired with #1215; the region is kept for
+ * the overflow and clipped-text checks pending a real-frame re-verification,
+ * same as BRAND_BAR_REGION above. Do not treat it as proof a watermark ships.
  */
 const WATERMARK_REGION = {
   xStart: 55,
@@ -240,21 +244,6 @@ const WATERMARK_REGION = {
   yEnd: 125,
 };
 
-/**
- * Frame glow exempt regions — decorative border + inset shadow on every frame edge.
- * 3px border + 40px inset boxShadow. The visible glow extends ~15px inward.
- * Exempt the outer 15px on all sides to avoid false positives from the border.
- */
-function frameGlowExemptRegions(width, height) {
-  const GLOW_BAND = 15;
-  return [
-    { xStart: 0, xEnd: width, yStart: 0, yEnd: GLOW_BAND }, // top
-    { xStart: 0, xEnd: width, yStart: height - GLOW_BAND, yEnd: height }, // bottom
-    { xStart: 0, xEnd: GLOW_BAND, yStart: 0, yEnd: height }, // left
-    { xStart: width - GLOW_BAND, xEnd: width, yStart: 0, yEnd: height }, // right
-  ];
-}
-
 export function checkSafeZoneTop(buf, safeZones) {
   const region = {
     xStart: 0,
@@ -262,11 +251,10 @@ export function checkSafeZoneTop(buf, safeZones) {
     yStart: 0,
     yEnd: safeZones.top,
   };
-  const exempt = [
-    BRAND_BAR_REGION,
-    WATERMARK_REGION,
-    ...frameGlowExemptRegions(buf.width, buf.height),
-  ];
+  // #1215 (2026-11-15): the outer-15px frameGlow exemption is gone with
+  // FrameGlow itself. Remaining background chrome sits at luminance 12-14,
+  // far below BRIGHT_THRESHOLD, so the frame edge is ordinary sampled pixels.
+  const exempt = [BRAND_BAR_REGION, WATERMARK_REGION];
   const { bright, total, ratio } = countBrightPixels(
     buf,
     region,
@@ -652,11 +640,10 @@ export function checkTextOverflow(buf, safeZones) {
   const yStart = safeZones.top;
   const yEnd = buf.height - safeZones.bottom;
 
-  const exempt = [
-    BRAND_BAR_REGION,
-    WATERMARK_REGION,
-    ...frameGlowExemptRegions(buf.width, buf.height),
-  ];
+  // #1215 (2026-11-15): the outer-15px frameGlow exemption is gone with
+  // FrameGlow itself. Remaining background chrome sits at luminance 12-14,
+  // far below BRIGHT_THRESHOLD, so the frame edge is ordinary sampled pixels.
+  const exempt = [BRAND_BAR_REGION, WATERMARK_REGION];
 
   let maxOverflow = 0;
   let overflowRow = -1;
@@ -724,11 +711,10 @@ export function checkClippedText(buf, safeZones) {
   const contentRight = buf.width - safeZones.right;
   const yStart = safeZones.top;
   const yEnd = buf.height - safeZones.bottom;
-  const exempt = [
-    BRAND_BAR_REGION,
-    WATERMARK_REGION,
-    ...frameGlowExemptRegions(buf.width, buf.height),
-  ];
+  // #1215 (2026-11-15): the outer-15px frameGlow exemption is gone with
+  // FrameGlow itself. Remaining background chrome sits at luminance 12-14,
+  // far below BRIGHT_THRESHOLD, so the frame edge is ordinary sampled pixels.
+  const exempt = [BRAND_BAR_REGION, WATERMARK_REGION];
 
   const rowIsCut = (y) => {
     let brightAtEdge = false;

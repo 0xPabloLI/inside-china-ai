@@ -27,14 +27,6 @@ describe("T2: CanvasImage replaces Img in visuals.tsx", () => {
     expect(brandBarSection[0]).not.toMatch(/<Img/);
   });
 
-  it("Watermark uses CanvasImage instead of Img", () => {
-    const content = readFile("components/visuals.tsx");
-    const watermarkSection = content.match(/Watermark[\s\S]*?\n\};/);
-    expect(watermarkSection).toBeTruthy();
-    expect(watermarkSection[0]).not.toMatch(/<Img/);
-    expect(watermarkSection[0]).toMatch(/CanvasImage/);
-  });
-
   it("visuals.tsx imports CanvasImage from remotion", () => {
     const content = readFile("components/visuals.tsx");
     expect(content).toMatch(/import\s+\{[^}]*CanvasImage[^}]*\}\s+from\s+["']remotion["']/);

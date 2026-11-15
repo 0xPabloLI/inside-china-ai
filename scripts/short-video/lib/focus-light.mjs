@@ -21,11 +21,17 @@
  * 40px inset wash: ambient colour with no subject, no tiers, no budget and no
  * transfer, so the brightest coloured area was the same in a close-up and in a
  * wide shot. #738 removed the wash, leaving the 3px structure line as the
- * `bloom` tier; #1215 PR-A retired that line too (real-frame sampling found it
- * invisible at phone width). `LIGHT_TIERS` now holds the two tiers that land
- * on an object: `soft` and `flash`. The quoted three-tier source rule is
- * provenance — a frame-wide decorative glow is ambient colour, not a subject
- * light.
+ * `bloom` tier; #1215 PR-A retired that line too. `LIGHT_TIERS` now holds the
+ * two tiers that land on an object: `soft` and `flash`. The quoted three-tier
+ * source rule is provenance — a frame-wide decorative glow is ambient colour,
+ * not a subject light.
+ *
+ * The 2026-11-15 #1215 extension also retired the `GridBg` grid and the
+ * `Scanlines` texture: each contributed at most 2 of 255 luminance levels on
+ * the dark canvas, below discrimination threshold at any playback resolution.
+ * The old "invisible at phone width" wording implied a downsampling argument;
+ * the criterion is contrast, not scale (3x-DPR devices can map 1080 video
+ * pixels 1:1). See the #1215 design-ruling comment for measurements.
  *
  * ## Where the light lives
  *

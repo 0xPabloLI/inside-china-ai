@@ -1,6 +1,6 @@
 /**
  * T1: Shared Layer Foundation — tests for SPACING, configurable Slot,
- * weakened GridBg, new animation components, perceptual-scale.
+ * new animation components, perceptual-scale.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
@@ -51,13 +51,12 @@ describe("T1: Configurable Slot", () => {
   });
 });
 
-describe("T1: GridBg weakening", () => {
-  it("GridBg opacity reduced to 0.015", () => {
+describe("T1: retired background textures (#1215)", () => {
+  it("visuals.tsx no longer defines GridBg or Scanlines", () => {
     const content = readFile("components/visuals.tsx");
-    expect(content).toMatch(/0\.015/);
-    const gridBgSection = content.match(/GridBg[\s\S]*?\/>/);
-    expect(gridBgSection).toBeTruthy();
-    expect(gridBgSection[0]).not.toMatch(/0\.04/);
+    expect(content).not.toMatch(/GridBg|Scanlines/);
+    // The visible corner ground tone stays.
+    expect(content).toMatch(/export const Glow/);
   });
 });
 
