@@ -26,7 +26,8 @@
  *     FOREX.com CFD. Always the full `EXCHANGE:SYMBOL` form.
  *
  * Scene contract: a scene opts in with `chart: { entity: "zhipu", range?:
- * "6M" | { from, to }, interval?: "1D", theme?: "dark" }` in scene-data.
+ * "6M" | { from, to }, interval?: "1D", theme?: "dark", annotations?: [...] }`
+ * in scene-data.
  * `theme` defaults to `dark` (a light K-line reads as a bright rectangle on the
  * 0a0a14 video canvas) and, like `interval`/`range`, is resolved through the
  * map's `defaults` — see CHART_PARAM_FALLBACKS for the last-resort values and
@@ -34,6 +35,17 @@
  * `range` passes through to chart-img verbatim — a string selects a preset
  * window, an object `{ from, to }` (ISO 8601) pins an exact window (e.g.
  * peak-to-now, verified live 2026-11-15, ≤1000 bars per chart-img v3 notes).
+ * `annotations` becomes the request's `drawings` array verbatim (#1378).
+ * chart-img selects the shape by `name` — there is NO `type` field — and reads
+ * the coordinates from `input`. Three shapes verified live 2026-11-15:
+ *   - `{ name: "Horizontal Line", input: { price } }`
+ *   - `{ name: "Trend Line", input: { startDatetime, startPrice,
+ *       endDatetime, endPrice } }` (the `Datetime` suffix is required —
+ *       `startTime`/`points` 422s and echoes the real keys back)
+ *   - `{ name: "Arrow Mark Down", input: { datetime, price } }`
+ * `override` / `zOrder` ride along untouched. BASIC caps studies+drawings at
+ * 3 per request, so a fourth annotation is rejected before the call rather
+ * than as an opaque 400.
  * `entity` must resolve through the symbol map — free-text symbols are
  * deliberately not accepted from scene-data so one typo cannot put the wrong
  * company's chart on screen.
@@ -41,6 +53,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { PNG_SIGNATURE } from "./media-integrity.mjs";
 
 export const CHART_IMG_V2_URL = "https://api.chart-img.com/v2/tradingview/advanced-chart";
@@ -105,19 +118,81 @@ export const CHART_PARAM_FALLBACKS = Object.freeze({
 });
 
 /**
+ * BASIC-plan parameter cap: `studies` + `drawings` per request (chart-img docs,
+ * Parameter Limit table, checked 2026-11-15). Only drawings are wired today,
+ * so this is the whole drawings budget; exceeding it is a hard 400 upstream.
+ */
+export const CHART_DRAWINGS_LIMIT = 3;
+
+/**
  * The request parameters for one scene's chart pin: the scene's own values
  * first, then the curated map's `defaults`, then {@link CHART_PARAM_FALLBACKS}.
  *
- * @param {{interval?: string, range?: string|object, theme?: string}} chart
+ * `drawings` is present only when the scene declared `annotations` — an empty
+ * array is a different request and would drift every existing scene's body.
+ *
+ * @param {{interval?: string, range?: string|object, theme?: string,
+ *          annotations?: Array<object>}} chart
  * @param {{interval?: string, range?: string, theme?: string}} [defaults]
- * @returns {{interval: string, range: string|object, theme: string}}
+ * @returns {{interval: string, range: string|object, theme: string,
+ *            drawings?: Array<object>}}
+ * @throws when `chart.annotations` is malformed or over the BASIC budget
  */
 export function resolveChartParams(chart = {}, defaults = {}) {
-  return {
+  const params = {
     interval: chart.interval || defaults.interval || CHART_PARAM_FALLBACKS.interval,
     range: chart.range || defaults.range || CHART_PARAM_FALLBACKS.range,
     theme: chart.theme || defaults.theme || CHART_PARAM_FALLBACKS.theme,
   };
+  const drawings = resolveChartDrawings(chart);
+  if (drawings.length > 0) params.drawings = drawings;
+  return params;
+}
+
+/**
+ * Validate `chart.annotations` and hand it back as the request's `drawings`.
+ * Loud on every failure mode: a scene that declares annotations and gets a
+ * chart without them is the silent-wrong-output case this module exists to
+ * prevent, and a dropped declaration is worse than a failed fetch (which falls
+ * back to web sourcing).
+ *
+ * Entries are NOT reshaped — chart-img's own `{ name, input, override?, zOrder? }`
+ * shape is the scene contract, so what a writer reads in the docs is what goes
+ * over the wire.
+ *
+ * @param {{annotations?: Array<object>}} chart
+ * @returns {Array<object>} empty when the scene declared none
+ */
+export function resolveChartDrawings(chart = {}) {
+  const annotations = chart.annotations;
+  if (annotations === undefined || annotations === null) return [];
+  if (!Array.isArray(annotations)) {
+    throw new Error(
+      `chart.annotations must be an array of { name, input } drawings (got ${typeof annotations})`,
+    );
+  }
+  if (annotations.length > CHART_DRAWINGS_LIMIT) {
+    throw new Error(
+      `chart-img BASIC allows at most ${CHART_DRAWINGS_LIMIT} drawings per request ` +
+        `(studies+drawings share the cap); scene declared ${annotations.length}`,
+    );
+  }
+  annotations.forEach((entry, index) => {
+    const where = `chart.annotations[${index}]`;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error(`${where} must be an object shaped { name, input }`);
+    }
+    if (typeof entry.name !== "string" || entry.name.trim() === "") {
+      throw new Error(
+        `${where}.name must be a non-empty string — the drawing kind, e.g. "Horizontal Line" ` +
+          `(chart-img has no \`type\` field)`,
+      );
+    }
+    if (!entry.input || typeof entry.input !== "object" || Array.isArray(entry.input)) {
+      throw new Error(`${where}.input must be an object carrying the drawing coordinates`);
+    }
+  });
+  return annotations;
 }
 
 /**
@@ -217,7 +292,18 @@ function rangeSlug(range) {
 }
 
 function chartFileName(entity, sceneId, body) {
-  return `chart-img-${entity.key}-s${sceneId}-${body.interval}-${rangeSlug(body.range)}.png`;
+  return `chart-img-${entity.key}-s${sceneId}-${body.interval}-${rangeSlug(body.range)}${drawingsSlug(body.drawings)}.png`;
+}
+
+/**
+ * Annotations change the pixels, so they must change the filename too: two
+ * scenes on the same entity/range with different drawings would otherwise
+ * write the same path and the second PNG would silently clobber the first.
+ */
+function drawingsSlug(drawings) {
+  if (!Array.isArray(drawings) || drawings.length === 0) return "";
+  const digest = createHash("sha256").update(JSON.stringify(drawings)).digest("hex");
+  return `-a${digest.slice(0, 8)}`;
 }
 
 function chartEntry({ entity, sceneId, body, path }) {
@@ -278,9 +364,18 @@ export async function buildChartAssets(scenes, { assetsDir, apiKey, mapPath, log
       });
       continue;
     }
-    const params = resolveChartParams(chart, defaults);
-    const paramsKey = JSON.stringify([entity.key, params.interval, params.range, params.theme]);
     try {
+      // Resolved inside the try: malformed annotations are this scene's
+      // failure and must fall through to web sourcing, not abort the run.
+      const params = resolveChartParams(chart, defaults);
+      const paramsKey = JSON.stringify([
+        entity.key,
+        params.interval,
+        params.range,
+        params.theme,
+        // Different drawings are different pixels — never share a fetch.
+        params.drawings ?? null,
+      ]);
       let entry = fetchedByParams.get(paramsKey);
       let reused = false;
       if (!entry) {

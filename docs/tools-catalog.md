@@ -98,7 +98,7 @@
   - 试用验证：`HKEX:2513` 智谱 / `HKEX:100` MiniMax / `HSI:HSTECH` 恒生科技全部 200 PNG；6M 区间 + 1D 蜡烛布满全画面；峰值 2,980 精确区间图 + 水平线标注实测通过
   - 记录：本条目 + `scripts/short-video/config/chart-symbols.json`（映射表）+ `lib/chart-asset.mjs`（模块 docblock 含免费档实测事实）
 - **许可注意**：TradingView 条款要求站外使用带 attribution（内置水印即归档标注；画面 credit 机制已带 delayed quote 标注——延迟行情不得用于「此刻价格」叙事）
-- **消费点**：`scripts/short-video/lib/chart-asset.mjs` / `asset-sourcer.mjs` Phase 0a / `config/chart-symbols.json`（实体→symbol 唯一权威）
+- **消费点**：`scripts/short-video/lib/chart-asset.mjs` / `asset-sourcer.mjs` Phase 0a / `config/chart-symbols.json`（实体→symbol 唯一权威）。标注能力已接线（#1378）：scene-data 的 `chart.annotations` 原样进请求 `drawings`（形状 `{ name, input }`，种类写在 `name`），上限 3 条、越界或形状不对按**场景**失败退回常规采购链；写入契约见 `content-pipeline.md` 8b-2。
 
 ### Tavily MCP — fallback 链硬规则（唯一权威）
 
