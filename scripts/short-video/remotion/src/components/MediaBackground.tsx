@@ -121,6 +121,30 @@ const resolvePreset = (
 };
 
 /**
+ * The dim layer's background for a scrim scope (#media-led, 2026-11-15).
+ *
+ * `"frame"` keeps the two-stop gradient whose bottom stop protects the subtitle
+ * lane; `"element"` (a picture mounted in a band) gets the flat dim only, since
+ * those stops are canvas-relative and would land inside the band.
+ */
+const dimBackgroundFor = (
+  scope: "frame" | "element",
+  overlay: number,
+  overlayOpacity: number,
+): string =>
+  scope === "element"
+    ? `rgba(10, 10, 20, ${overlayOpacity})`
+    : `linear-gradient(to bottom,
+            rgba(10, 10, 20, ${overlayOpacity}) 0%,
+            rgba(10, 10, 20, ${overlayOpacity}) 66.8%,
+            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 67.6%,
+            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 100%)`;
+
+/** Whether the frame-level action-rail vignette applies to this element. */
+const drawsRailVignette = (scope: "frame" | "element", overlay: number): boolean =>
+  scope === "frame" && overlay > 0;
+
+/**
  * CSS `object-position` for the media element.
  *
  * #1040: `cropFocus.{x,y}` is already a normalized CSS object-position ratio,
@@ -147,30 +171,6 @@ const resolvePreset = (
  * @param {ContainAlign} containAlign - vertical anchor for a contained picture
  * @returns {string} a CSS `object-position` value
  */
-/**
- * The dim layer's background for a scrim scope (#media-led, 2026-11-15).
- *
- * `"frame"` keeps the two-stop gradient whose bottom stop protects the subtitle
- * lane; `"element"` (a picture mounted in a band) gets the flat dim only, since
- * those stops are canvas-relative and would land inside the band.
- */
-const dimBackgroundFor = (
-  scope: "frame" | "element",
-  overlay: number,
-  overlayOpacity: number,
-): string =>
-  scope === "element"
-    ? `rgba(10, 10, 20, ${overlayOpacity})`
-    : `linear-gradient(to bottom,
-            rgba(10, 10, 20, ${overlayOpacity}) 0%,
-            rgba(10, 10, 20, ${overlayOpacity}) 66.8%,
-            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 67.6%,
-            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 100%)`;
-
-/** Whether the frame-level action-rail vignette applies to this element. */
-const drawsRailVignette = (scope: "frame" | "element", overlay: number): boolean =>
-  scope === "frame" && overlay > 0;
-
 const objectPositionFor = (media: MediaField, containAlign: ContainAlign): string => {
   const focusX = media.cropFocus?.x ?? 0.5;
   if ((media.fit ?? "cover") === "contain") {

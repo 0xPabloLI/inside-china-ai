@@ -361,6 +361,29 @@ export const DEFAULT_NARRATIVE_LAYOUT = "media-bottom-bar";
 export const HOOK_MEDIA_LED_LAYOUT = "media-led";
 
 /**
+ * Whether `scene` renders the media-led hook layout.
+ *
+ * One predicate for both consumers, because they must never disagree: the
+ * renderer (HookScene, which dispatches to HookMediaLed) and the contract
+ * resolution (resolveRenderLayout, which decides whose texts are judged).
+ * #190's whole point is that validation and rendering read the same layout;
+ * two prose-coupled copies of `layout === … && scene.media` are exactly the
+ * drift this function removes.
+ *
+ * Media must be BOUND: with no picture the hook renders hero-center, and
+ * claiming media-led there would judge its claim texts against a map that
+ * registers none of them.
+ *
+ * @param {{visualType?: string, layout?: string, media?: object|null}} [scene]
+ * @returns {boolean}
+ */
+export function isMediaLedHook(scene) {
+  return (
+    scene?.visualType === "hook" && scene?.layout === HOOK_MEDIA_LED_LAYOUT && Boolean(scene?.media)
+  );
+}
+
+/**
  * The layout the render layer actually uses for `scene` — the resolution
  * ShortVideo.tsx's renderScene performs before assertKnownTextFields.
  *
@@ -375,7 +398,8 @@ export const HOOK_MEDIA_LED_LAYOUT = "media-led";
  * literally what HookScene dispatches on: with no media the component renders
  * hero-center, so resolving media-led there would judge the fallback's texts
  * against a contract that registers none of them (claim fields → "Unknown text
- * field" mid-render). Resolution must match the renderer, not the intent.
+ * field" mid-render). Resolution must match the renderer, not the intent —
+ * both read the same predicate ({@link isMediaLedHook}).
  *
  * @param {{visualType: string, layout?: string, media?: object|null}} scene
  * @returns {string}
@@ -385,9 +409,7 @@ export function resolveRenderLayout(scene) {
     return scene.layout ?? DEFAULT_NARRATIVE_LAYOUT;
   }
   if (scene.visualType === "fullscreen") return "media";
-  if (scene.visualType === "hook" && scene.layout === HOOK_MEDIA_LED_LAYOUT && scene.media) {
-    return HOOK_MEDIA_LED_LAYOUT;
-  }
+  if (isMediaLedHook(scene)) return HOOK_MEDIA_LED_LAYOUT;
   return "hero-center";
 }
 

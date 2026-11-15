@@ -19,6 +19,7 @@ import {
   hookSubjectTextWidth,
   resolveRenderLayout,
   HOOK_MEDIA_LED_LAYOUT,
+  isMediaLedHook,
   HOOK_SUBJECT_ROW,
   MEASURED_MAX_WIDTH,
   SLOT_FIELDS,
@@ -603,6 +604,16 @@ describe("hook media-led layout contract (2026-11-15)", () => {
     expect(() => remotionSlotsFor("narrative", "media-led")).toThrow(
       /No Remotion slot mapping for layout "media-led" of visualType "narrative"/,
     );
+  });
+
+  it("isMediaLedHook is the one predicate the renderer and the contract share", () => {
+    const media = { type: "image", path: "assets/x.png" };
+    expect(isMediaLedHook({ visualType: "hook", layout: "media-led", media })).toBe(true);
+    expect(isMediaLedHook({ visualType: "hook", layout: "media-led" })).toBe(false);
+    expect(isMediaLedHook({ visualType: "hook", layout: "media-led", media: null })).toBe(false);
+    expect(isMediaLedHook({ visualType: "narrative", layout: "media-led", media })).toBe(false);
+    expect(isMediaLedHook({ visualType: "hook", layout: "hero-center", media })).toBe(false);
+    expect(isMediaLedHook(undefined)).toBe(false);
   });
 
   it("registers every media-led field with the 820 band width", () => {

@@ -22,9 +22,9 @@ import { MediaCard } from "../components/MediaCard";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 import {
-  HOOK_MEDIA_LED_LAYOUT,
   HOOK_SUBJECT_ROW,
   hookSubjectTextWidth,
+  isMediaLedHook,
 } from "../../../lib/text-slots.mjs";
 import { CONTAIN_MEDIA_BOTTOM, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
@@ -147,14 +147,13 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
 
   // Media-led dispatch (2026-11-15): the picture is the protagonist and the
   // text yields — the whole hero path below assumes the opposite hierarchy.
-  // The `scene.media` guard is what makes the fallback real: with no media the
-  // scene renders hero-center, and resolveRenderLayout (lib/text-slots.mjs)
-  // resolves the SAME way, so the contract judges the texts that actually
-  // render instead of rejecting claim fields the media-led map never registers.
-  // Preflight still fails the contradictory shapes (media:null / mediaOptOut).
-  // AFTER the hooks above: an early return before a Hook call would make
-  // every subsequent Hook conditional (rules-of-hooks).
-  if (scene.layout === HOOK_MEDIA_LED_LAYOUT && scene.media) {
+  // `isMediaLedHook` is the SAME predicate resolveRenderLayout judges contracts
+  // with, so validation and rendering cannot drift; it also carries the
+  // media guard that makes the hero-center fallback real (with no picture the
+  // contract is resolved as hero-center, which is what renders). AFTER the
+  // hooks above: an early return before a Hook call would make every
+  // subsequent Hook conditional (rules-of-hooks).
+  if (isMediaLedHook(scene)) {
     return <HookMediaLed scene={scene} duration={duration} contentDir={contentDir} />;
   }
 

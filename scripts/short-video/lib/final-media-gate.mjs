@@ -14,7 +14,11 @@
  *
  * The hook (#299) is enforced independently of its layout: preflight only warns
  * for generation strategies, so this gate is where "generation did not land"
- * becomes a failure. An explicit `media: null` hook passes with a warning.
+ * becomes a failure. An explicit `media: null` hook passes with a warning,
+ * EXCEPT on the media-led layout: there the waiver contradicts the layout (its
+ * whole point is the picture), so it fails as
+ * `explicit-null-on-media-led-hook` — matching preflight, which fails the same
+ * shape, so a render-only path cannot wave through what preflight rejected.
  *
  * Existence is not integrity (#759): once a file is present this gate opens it
  * and judges the bytes (zero-byte, truncated, placeholder, wrong container),
