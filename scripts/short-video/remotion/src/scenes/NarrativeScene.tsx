@@ -561,7 +561,7 @@ export const NarrativeScene: React.FC<{
         <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
       )}
       {/* Background chrome precedes content, as in the other eight
-          templates. Until #1215 these four layers were painted after
+          templates. Until #1215 the background layers were painted after
           renderLayout(), i.e. on top of the text. */}
       <Glow color={glowColor} />
       <BrandBar />

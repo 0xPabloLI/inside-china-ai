@@ -90,7 +90,6 @@ describe("T3: SPACING tokens used in NarrativeScene", () => {
 describe("T3: background chrome precedes content (#1215)", () => {
   it("NarrativeScene paints Glow and BrandBar before renderLayout()", () => {
     const content = readFile("scenes/NarrativeScene.tsx");
-    expect(content).not.toMatch(/GridBg|Scanlines/);
     const glow = content.indexOf("<Glow");
     const layout = content.indexOf("{renderLayout()}");
     expect(glow).toBeGreaterThan(-1);

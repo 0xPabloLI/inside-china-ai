@@ -150,20 +150,27 @@ Style: Default,Helvetica Neue,68,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,
 
 ## Background Layers
 
-Every scene layers **one** background effect; thumbnails inherit it:
+This section governs **Remotion video scenes only**. `scripts/youtube-thumbnail.html`
+is a separate HTML surface with its own grid/scanline texture, out of scope here.
+
+Five of the nine scene templates paint a corner ground tone; four paint no
+full-scene background layer at all:
 
 1. **Glow-Red** — radial gradient top-right, `rgba(239,68,68,0.15)`
 2. **Glow-Blue** — radial gradient bottom-left, `rgba(77,139,255,0.10)`
 
-`<Glow>` is a ground tone, not light: it never marks a subject. Real
-1080×1920 stills measure +5.46 luminance levels across its 900px area.
+`<Glow>` is a ground tone, not light: it never marks a subject. It appears in
+Context / InfoCard / Cta / Contrast / Narrative. Hook keeps only its blue
+`scan-sweep`; Data, Quote and StatReveal paint no background layer.
 
 **Retired, do not re-add** (`#1215`): the 3px `FrameGlow` structure line
 (2026-11-14), then `GridBg` (alpha 0.015) and `Scanlines` (alpha 0.008) on
-2026-11-15. Those two contributed +1.88 / +1.95 of 255 luminance levels —
-below discrimination threshold and gone at phone width. A static source
-contract (`__tests__/decorative-layer-contrast.test.mjs`) rejects any `rgba`
-decoration below alpha 0.02 in `remotion/src`. Subject light is separate; see
+2026-11-15. Those two contributed at most 2 of 255 luminance levels — below
+discrimination threshold regardless of playback resolution. A static source
+contract (`__tests__/decorative-layer-contrast.test.mjs`) rejects plain numeric
+`rgba` literals below alpha 0.02 under `remotion/src`; interpolated rgba alpha
+expressions still need a manual check. Measurements and the ruling are on
+#1215. Subject light is separate; see
 `docs/conventions/visual-design-loop.md` → 主角光.
 
 ## Animation Library
@@ -306,7 +313,7 @@ support (840–1298)   [stats]    optional stat cards (staggered 1.3s+)
 
 The support band grew 200 → 310px because the copy it holds did: the `source` line went 20 → 40px and now wraps to two lines, and the stat card's label went 0.36em → 0.5em of the card (20 → 32px at the 64px card). Measured on the real packs, the worst case is 305.8px of stat card + source. The kicker band gave up the difference — it only ever holds the badge pill (71px) — and the badge pill's vertical padding went 16 → 12px. The three bands' worst cases sum to 915.8 of the 930px safe zone, so the split is tight but not over-subscribed.
 
-- Background layers: `<Glow>` corner tint + blue `scan-sweep`; the 60px grid and scanline textures were retired in `#1215`
+- Background layers: blue `scan-sweep` only — no corner tint (#738 removed it as a second key light); the 60px grid and scanline textures were retired in `#1215`
 - Animation contract: badge 0.2s → subject 0.2s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.3s / revealText 0.8s → stats 0.8s+ → source 1.3s
 - Amber-dominant numbers + red accent badge follow the 60-30-10 doctrine; `glowPulse` is a blue-only keyframe, so non-blue reveal colors get a static same-color glow instead
 - Data contract: `badge` / `subject` / `subjectLogo` (logo registry key into `assets/logos/`) / `bigNumber`+`numberLabel` / `hookText`+`revealText` / `stats[]` / `source` / `color` — see the `hookScene()` docblock. Focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`

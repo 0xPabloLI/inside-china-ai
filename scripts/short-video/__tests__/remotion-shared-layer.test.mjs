@@ -54,7 +54,7 @@ describe("T1: Configurable Slot", () => {
 describe("T1: retired background textures (#1215)", () => {
   it("visuals.tsx no longer defines GridBg or Scanlines", () => {
     const content = readFile("components/visuals.tsx");
-    expect(content).not.toMatch(/GridBg|Scanlines|0\.015|0\.008/);
+    expect(content).not.toMatch(/GridBg|Scanlines/);
     // The visible corner ground tone stays.
     expect(content).toMatch(/export const Glow/);
   });

@@ -118,14 +118,14 @@ Each video can have a different visual DNA while sharing the same brand system:
 | Video type    | Color dominance     | Animation style        | Logo usage       |
 | ------------- | ------------------- | ---------------------- | ---------------- |
 | Breaking news | Red, urgent         | Glitch, stamp-in       | Brand bar at top |
-| Deep analysis | Blue, authoritative | Slide, fade            | Watermark only   |
+| Deep analysis | Blue, authoritative | Slide, fade            | Brand bar at top |
 | Data reveal   | Amber, focused      | Number pulse, bar grow | Minimal          |
 | Explainer     | Blue + cyan         | Sequential reveal      | Brand at CTA     |
 
 **Mandatory across all styles:**
 
 - Use the brand color tokens from `docs/brand-system.md` (implemented in `remotion/src/`) — never hardcode hex
-- Watermark + brand chrome come from the shared Remotion components — every scene includes them
+- Brand chrome comes from the shared `BrandBar` Remotion component; the standalone watermark was retired in `#1215` and no scene ships one
 - Brand logo appears in CTA scene at 130px+
 
 ## Run and Verify

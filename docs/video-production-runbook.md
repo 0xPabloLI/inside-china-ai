@@ -185,7 +185,7 @@ node scripts/short-video/main.mjs --content series/pt4 &
 
 - **Tone**: Intelligence briefing. Authoritative, fast, no fluff.
 - **Pace**: CosyVoice3-MLX (cloned voice + emotion instruct, speed=1.0). Fallback engines below.
-- **Visual**: Cyber Intelligence Briefing — dark, grid, glow, scanlines
+- **Visual**: Cyber Intelligence Briefing — dark ground with a corner glow; no grid or scanline texture (#1215)
 - **Colors**: Consistent entity-color mapping across all videos. Amber `#f59e0b` used for key data highlights (Hook scene big numbers) and CTA prompts (FOLLOW FOR MORE — the standard end-card action) for maximum visibility on dark backgrounds. White text uses `#f5f5f5` (not pure `#ffffff`) to reduce dark-mode glare.
 
 ## TTS Engine Configuration
@@ -916,12 +916,13 @@ Install mflux in its **own venv** — `python3 -m venv ~/.video-t2i-env && ~/.vi
 
 ## Logo Handling
 
-**Video-grade brand mark**: `scripts/short-video/assets/china-ai-news-mark-video.svg` — viewBox'd, brand-palette fills (`#4d8bff`/`#ef4444`), generated **idempotently** by `scripts/short-video/build-mark-svg.mjs` from `china-ai-news-mark.svg`. Change the mark → edit the source SVG, then re-run the builder. Used in three places:
+**Video-grade brand mark**: `scripts/short-video/assets/china-ai-news-mark-video.svg` — viewBox'd, brand-palette fills (`#4d8bff`/`#ef4444`), generated **idempotently** by `scripts/short-video/build-mark-svg.mjs` from `china-ai-news-mark.svg`. Change the mark → edit the source SVG, then re-run the builder. Used in two places:
 
 - **Brand bar** (top-left on opener/mid scenes): 48px, in `brandBar()`
-- **Watermark** (top-left on non-brand scenes): 55px, `opacity: 0.35`, at `top: 60px; left: 60px` (`WATERMARK_POS` in `lib/safe-zones.mjs`)
 - **CTA scene**: 160×104 centered in the hero slot — rendered by the shared CtaScene end card (`remotion/src/scenes/CtaScene.tsx`), never hand-rolled
 
+> The former standalone **Watermark** (55px, `opacity: 0.35`, `WATERMARK_POS`) was retired in `#1215`; `WATERMARK_POS` remains only as geometry for the frame-analysis exempt region. No scene ships a watermark.
+>
 > Logo asset creation (PNG→SVG conversion, posterize, vtracer) is a branding task, documented in `docs/brand-system.md`.
 
 ## Publishing Strategy
