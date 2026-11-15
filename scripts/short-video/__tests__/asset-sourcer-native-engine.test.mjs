@@ -242,4 +242,37 @@ describe("analyzeAssets — native video engine (#542)", () => {
     expect(mockTranscribeVideo).not.toHaveBeenCalled();
     expect(mockAnalyzeAssetSemantics).toHaveBeenCalledWith("/abs/img.jpg");
   });
+
+  it("#1360: a borderline video gets the check with no window — the whole clip is the native reading", async () => {
+    mockAnalyzeAssetSemantics.mockImplementation((_path, opts) =>
+      Promise.resolve(
+        opts?.relevanceCheck
+          ? { subjectMatch: "match", subjectMatchReason: "the clip shows the stage" }
+          : {
+              ...FULL_SEMANTICS,
+              relevance: 50,
+              relevanceReason: "topically right, not the named event",
+              sourceMode: "native",
+            },
+      ),
+    );
+
+    const assets = [{ path: "/abs/clip.mp4", type: "video", claimSceneId: 2 }];
+    await analyzeAssets(assets, {
+      claims: [{ sceneId: 2, voiceover: "Li Yanhong unveiled it.", assetNeed: "keynote stage" }],
+    });
+
+    expect(mockAnalyzeAssetSemantics).toHaveBeenCalledTimes(2);
+    const checkOpts = mockAnalyzeAssetSemantics.mock.calls[1][1];
+    expect(checkOpts.relevanceCheck).toBe(true);
+    // A windowed native call drops to frame stills (#542 L2); the native
+    // engine's own sampling is what sees the whole clip.
+    expect(checkOpts.startMs).toBeUndefined();
+    expect(checkOpts.endMs).toBeUndefined();
+    expect(checkOpts.sampleFps).toBeUndefined();
+    expect(assets[0].relevanceCheck).toEqual({
+      verdict: "match",
+      reason: "the clip shows the stage",
+    });
+  });
 });

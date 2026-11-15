@@ -224,6 +224,14 @@ const COMPANY_NAME_ZH = {
  */
 export const NO_MEDIA_TYPES = SHARED_NO_MEDIA_TYPES;
 
+/**
+ * Asset types that can carry the #294 second-pass subject check (#1360).
+ * A 40-59 first-pass score is a band, not a verdict, for both kinds — a video
+ * lands there for the same reason a stock image does: it is topically right
+ * and not the specific thing the scene names.
+ */
+const SECOND_PASS_TYPES = new Set(["image", "video"]);
+
 /** Minimum score for hook scene auto-assignment (spec D1). */
 const HOOK_MIN_SCORE = 60;
 
@@ -1351,10 +1359,12 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
         } else {
           reason = `VLM relevance ${asset.relevanceScore} below threshold ${threshold} (${band})`;
           if (band === RELEVANCE_BAND.BORDERLINE) {
-            reason +=
-              asset.relevanceCheck?.verdict === "no_match"
-                ? "; second-pass subject check: no_match"
-                : "; no second-pass subject check";
+            // #1360: once a check ran, its outcome is the fact to report —
+            // including a failed check (null verdict), which is "unavailable",
+            // not "never attempted".
+            reason += asset.relevanceCheck
+              ? `; second-pass subject check: ${asset.relevanceCheck.verdict ?? "unavailable"}`
+              : "; no second-pass subject check";
           }
           if (pool.verdict === POOL_VERDICT.UNSATISFIABLE) {
             reason += `; scene pool ceiling ${pool.ceiling} — unsatisfiable, escalate to B-roll/human`;
@@ -2033,19 +2043,27 @@ export async function analyzeAssets(assets, opts = {}) {
       }
     }
 
-    // ── Phase 3a-2: second-pass subject check (#294) ──
+    // ── Phase 3a-2: second-pass subject check (#294, #1360) ──
     // A 40-59 first-pass score is not a verdict: the claim prompt asks whether
     // the asset depicts the claim's specific event, which a topically correct
     // stock image cannot do. Ask the narrower, answerable question once —
     // "is the visible subject the thing the scene is about?" — and record the
     // answer. Only an explicit `match` can admit the asset downstream; a
     // failed or unparseable check is recorded as a null verdict (closed).
-    // Images only: a video's first-pass score is already a whole-clip
-    // judgment, and the check has no per-window answer.
+    // #1360: videos take the same path. "A video's score is already a
+    // whole-clip judgment" was true and irrelevant — a whole-clip judgment is
+    // exactly what lands a topically-right clip at 40-59, so the exclusion
+    // turned the borderline band into a dead end for every video candidate.
+    // No window is forwarded: with none, BOTH engines already read the whole
+    // asset — the native engine samples the file itself, and the frames engine
+    // goes through mlx_vlm's resolve_video_inputs (uniform across the clip,
+    // subsampled to max_frames). A window would cut that coverage down to one
+    // slice, and on the native engine it would drop the call to frame stills
+    // (#542 L2). The check stays ONE verdict over the asset, never per window.
     let relevanceCheck = null;
     if (
       claimInfo &&
-      asset.type === "image" &&
+      SECOND_PASS_TYPES.has(asset.type) &&
       needsSecondPass({ relevanceScore: semantics.relevance })
     ) {
       let checkSemantics = null;
