@@ -7,7 +7,7 @@
  * corner tint is ground colour, not a second key light.
  */
 import { type SceneData } from "../types";
-import { GridBg, Glow, Scanlines, BrandBar, Slot } from "../components/visuals";
+import { Glow, BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, StaggerWords } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
@@ -30,9 +30,7 @@ export const ContextScene: React.FC<{ scene: SceneData; duration: number; conten
       {hasMedia && (
         <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
       )}
-      {!hasMedia && <GridBg />}
       <Glow color="blue" />
-      <Scanlines />
       <BrandBar />
 
       <Camera visualType="context" duration={duration}>

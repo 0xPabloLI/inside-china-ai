@@ -87,12 +87,13 @@ describe("T3: SPACING tokens used in NarrativeScene", () => {
   });
 });
 
-describe("T3: GridBg absent on media layouts", () => {
-  it("GridBg not rendered when scene has media (media layouts)", () => {
+describe("T3: background chrome precedes content (#1215)", () => {
+  it("NarrativeScene paints Glow and BrandBar before renderLayout()", () => {
     const content = readFile("scenes/NarrativeScene.tsx");
-    // The component should conditionally render GridBg based on media presence
-    expect(content).toMatch(/GridBg/);
-    // Check for conditional rendering — GridBg should be inside a conditional
-    expect(content).toMatch(/\{.*&&.*GridBg|GridBg.*\?|!.*media.*&&.*GridBg/);
+    expect(content).not.toMatch(/GridBg|Scanlines/);
+    const glow = content.indexOf("<Glow");
+    const layout = content.indexOf("{renderLayout()}");
+    expect(glow).toBeGreaterThan(-1);
+    expect(layout).toBeGreaterThan(glow);
   });
 });

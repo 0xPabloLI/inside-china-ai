@@ -123,20 +123,12 @@ describe("T4: ContextScene rewrites", () => {
   });
 });
 
-describe("T4: GridBg opacity 0.015 on no-media scenes", () => {
-  it("DataScene GridBg opacity is 0.015 (not 0.04)", () => {
-    const content = readFile("scenes/DataScene.tsx");
-    // GridBg is imported from visuals.tsx which has 0.015
-    // Just verify GridBg is still present
-    expect(content).toMatch(/GridBg/);
-  });
-
-  it("GridBg absent on media scenes (InfoCardScene has media)", () => {
-    const content = readFile("scenes/InfoCardScene.tsx");
-    // InfoCardScene has media, so GridBg should be conditional
-    expect(content).toMatch(/GridBg/);
-    // Verify conditional rendering
-    expect(content).toMatch(/\{.*&&.*GridBg|!.*media.*&&|GridBg.*\?/);
+describe("T4: retired background textures stay retired (#1215)", () => {
+  it("no scene paints GridBg or Scanlines", () => {
+    for (const scene of ["DataScene", "InfoCardScene", "NarrativeScene"]) {
+      const content = readFile(`scenes/${scene}.tsx`);
+      expect(content, scene).not.toMatch(/GridBg|Scanlines/);
+    }
   });
 });
 

@@ -11,15 +11,7 @@
 import { staticFile, CanvasImage, Interactive, useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
 import type { SceneData } from "../types";
-import {
-  GridBg,
-  Glow,
-  Scanlines,
-  BrandBar,
-  BadgePill,
-  StatCard,
-  Slot,
-} from "../components/visuals";
+import { BrandBar, BadgePill, StatCard, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
 import { SPACING, ANNOTATION, CANVAS, COLOR } from "../components/shared";
@@ -189,12 +181,12 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
               <MediaScrims mediaBottom={hookBand.scrimBottom} />
             </>
           ))}
-        {/* Background layers — CSS: .grid-bg + .scanlines + .scan-sweep.
-            #738 removed the corner radial tint: it was a second key light with
-            no subject, and the hook's number/claim is the only thing that
-            should glow. */}
-        <GridBg />
-        <Scanlines />
+        {/* Background layers — #1215 (2026-11-15) retired the 60px grid and
+            the scanline texture: each contributed ≤2/255 luminance on the dark
+            canvas, below discrimination threshold in the delivered frame.
+            #738 removed the corner radial tint: a second key light with no
+            subject. Only the sweep remains; the hook's number/claim is the
+            only thing that glows. */}
         <ScanSweep duration={duration} />
         <BrandBar />
 

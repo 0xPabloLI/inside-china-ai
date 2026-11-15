@@ -137,12 +137,14 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 **2026-11-14 迁移**：`bloom`（3px 画框结构线）随 `#1215` PR-A 退役——真实成片抽帧与手机 360px 宽度下均测不出其内侧柔光。来源调研的三层光规则仍记在 `docs/research/repo-survey-tracking.md` §C；本仓 `LIGHT_TIERS` 是当前实现的唯一真源。
 
+**2026-11-15 装饰层判据**：恒定全屏装饰若在 8-bit 下贡献 ≤2 亮度级即不画。九张真实静帧实测 `GridBg` +1.88 级、`Scanlines` +1.95 级（对比已退役的 `FrameGlow` +46 级），两者随 `#1215` 延伸清理一并删除；`<Glow>` +5.46 级、900px 大面积，属可见底色，保留。判据用对比度而非缩放——3x DPR 设备可能把 1080 视频像素 1:1 映射到物理屏。防复发靠 `__tests__/decorative-layer-contrast.test.mjs` 的源码契约。
+
 - **「受光主角」与「空场判据的主角对象」是两个问题**：这里的主角是「光跟谁走」，由模板声明，可以是一个 60–110px 的标题；空场判据问的是「内容区最大物体够不够大」，`contrast` / `info-card` / `context` 的文本侧主角今天仍判具名设计债（#1215 补版式）。光跟着它，不等于宣称它是 hero 档。
 - **主角必带光，配角默认不发光**：主角由**模板显式声明**（`LIGHT_PLANS[visualType].protagonist`，HITL 2026-11-09 裁定「scene 显式声明」，不作 `focusAnalysis` 自动判定）。互斥变体（hook 的 `bigNumber` / `hookText`）按优先级取第一个实际声明的字段。
 - **一帧内重点 ≤1**：每个模板的 `beats` 按时间排序、每个 target 只出现一次；拍点之间的间隔必须 ≥ `FOCUS_LIGHT.transferOffFrames`（8 帧），因此任一帧最多一个 target 处于 `level 1`。违反即 `resolveLightTimeline()` 抛错——渲染失败，而不是「风格不佳」。
 - **转移灭灯 8 帧**：新拍点亮起的那一帧，前一处已经离开 `level 1`，并在 8 帧内线性退回它的静止值（主角退回 0.55，配角退回 0）。衰减跑在 shadow alpha 上，内容本身不降透明度。
 - **光落在元素自己身上**（`textShadow` / `boxShadow`；纯图形未来用 `drop-shadow`，当前没有图形主角），不是额外的一层定位 div：Remotion 没有布局 pass，任何「测量主角盒子」的做法都要么拿不到值、要么变成第二个真源；而 style 不参与布局，TextGate 的 fit 契约看到的盒子与改动前逐像素相同。
-- **背景色不是光**：`<Glow>` 是底色（blue corner vignette，0.10），与 `GridBg` / `Scanlines` 同层，不标记主体；让某物跳出来用 `useFocusLight`。画框结构线（`FrameGlow`）已于 2026-11-14 随 `#1215` PR-A 一并删除。
+- **背景色不是光**：`<Glow>` 是底色（blue corner vignette，0.10），也是目前唯一的全场景背景装饰；不标记主体，让某物跳出来用 `useFocusLight`。画框结构线（`FrameGlow`）于 2026-11-14 退役，`GridBg` / `Scanlines` 于 2026-11-15 随 `#1215` 延伸清理退役。
 - **被删掉的是「第二盏主光灯」**：`data` / `stat-reveal` / `quote` / `hook` 原来各自手写了一个 0.12–0.15 的 amber/red 角部 radial，颜色与主角光同源、位置与内容无关——那是第二盏同色溢光灯，不是底色，随本票一并删除。保留的是模板已声明的 blue 底色（`<Glow>`，0.10），两者区别就是「零点一几的品牌底色」与「零点一几的主角同色光」。
 
 可校验面：`checkFocusLight`（preflight，WARN：某镜的声明的字段没渲染 → 镜头没有受光主体；`fail`：plan 本身违反预算），以及渲染期 `resolveLightTimeline()` 的硬抛错。来源规则见 `docs/research/repo-survey-tracking.md` §C 第 2 条，许可分档（PolyForm Noncommercial，只吸收规则）与「不吸收紫色配色」的决定记在 `lib/focus-light.mjs` 模块头。

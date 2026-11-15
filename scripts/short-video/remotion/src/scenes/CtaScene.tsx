@@ -11,7 +11,7 @@
  */
 import { staticFile, CanvasImage, Interactive } from "remotion";
 import type { SceneData } from "../types";
-import { GridBg, Glow, Scanlines, Slot } from "../components/visuals";
+import { Glow, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { ScaleIn, StampIn, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
@@ -32,9 +32,7 @@ export const CtaScene: React.FC<{ scene: SceneData; duration: number }> = ({ sce
     <Camera visualType="cta" duration={duration}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
         {/* Background */}
-        <GridBg />
         <Glow color="blue" />
-        <Scanlines />
 
         {/* Hero slot — brand logo + name + tagline.
           Override top/height for vertical centering within safe zone. */}

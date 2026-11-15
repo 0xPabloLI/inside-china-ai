@@ -150,13 +150,21 @@ Style: Default,Helvetica Neue,68,&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000,-1,
 
 ## Background Layers
 
-Every scene/thumbnail layers these five effects:
+Every scene layers **one** background effect; thumbnails inherit it:
 
-1. **Grid** — `linear-gradient` lines, 60px spacing, opacity 0.04
-2. **Glow-Red** — radial gradient top-right, `rgba(239,68,68,0.15)`
-3. **Glow-Blue** — radial gradient bottom-left, `rgba(77,139,255,0.10)`
-4. **Scanlines** — `repeating-linear-gradient`, 3px period, opacity 0.008
-5. **Frame Glow** — `position: absolute; inset: 0;` border + inner glow; amber `rgba(245,158,11,0.2)` on content scenes, blue `rgba(77,139,255,0.2)` on CTA. `pointer-events: none`; decorative, not content (safe-zone-exempt)
+1. **Glow-Red** — radial gradient top-right, `rgba(239,68,68,0.15)`
+2. **Glow-Blue** — radial gradient bottom-left, `rgba(77,139,255,0.10)`
+
+`<Glow>` is a ground tone, not light: it never marks a subject. Real
+1080×1920 stills measure +5.46 luminance levels across its 900px area.
+
+**Retired, do not re-add** (`#1215`): the 3px `FrameGlow` structure line
+(2026-11-14), then `GridBg` (alpha 0.015) and `Scanlines` (alpha 0.008) on
+2026-11-15. Those two contributed +1.88 / +1.95 of 255 luminance levels —
+below discrimination threshold and gone at phone width. A static source
+contract (`__tests__/decorative-layer-contrast.test.mjs`) rejects any `rgba`
+decoration below alpha 0.02 in `remotion/src`. Subject light is separate; see
+`docs/conventions/visual-design-loop.md` → 主角光.
 
 ## Animation Library
 
@@ -245,7 +253,7 @@ Calibrated against real FYP playback screenshots cross-checked with 2026 researc
 
 | Zone   | Inset (px, 1080×1920 canvas) | Content edge | Meaning                                                                                                       |
 | ------ | ---------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------- |
-| Top    | 220                          | y ≥ 220      | Below this: top tabs/search overlays stay clear. Brand chrome (brandBar top:236, watermark top:60) is exempt. |
+| Top    | 220                          | y ≥ 220      | Below this: top tabs/search overlays stay clear. Brand chrome (brandBar top:236) is exempt.                    |
 | Right  | 200                          | x ≤ 880      | Right action rail (avatar/like/comment/save/share/music, y≈655–1775). brandBar right:200 matches.             |
 | Bottom | 622                          | y ≤ 1298     | Bottom UI: caption, progress bar; also clears the subtitle lane                                               |
 | Left   | 60                           | x ≥ 60       | Left margin (no overlay, but content breathes here)                                                           |
@@ -258,9 +266,10 @@ Reference implementation: `lib/safe-zones.mjs` (SAFE_ZONES / SUBTITLE_LANE / WAT
 
 ### Watermark Rule
 
-- Channel watermark sits **top-left** (`top: 60px; left: 60px`) inside the brand corner.
-- Scenes that already carry the **brand bar** (top-left identity) or a **large brand logo** (CTA close) are skipped — no double identity.
-- `baseStyles().withWatermark()` injects the watermark into the final scene HTML; it must never be part of scene source (drift guard).
+**Retired.** No watermark ships: the HTML-path `baseStyles().withWatermark()`
+injector went with the HTML renderer (2026-09-20), and the unused Remotion
+`Watermark` component was removed in `#1215` (2026-11-15). `WATERMARK_POS`
+and the frame-analysis exempt region remain as geometry constants only.
 
 ### Bottom Elements Strategy
 
@@ -297,11 +306,10 @@ support (840–1298)   [stats]    optional stat cards (staggered 1.3s+)
 
 The support band grew 200 → 310px because the copy it holds did: the `source` line went 20 → 40px and now wraps to two lines, and the stat card's label went 0.36em → 0.5em of the card (20 → 32px at the 64px card). Measured on the real packs, the worst case is 305.8px of stat card + source. The kicker band gave up the difference — it only ever holds the badge pill (71px) — and the badge pill's vertical padding went 16 → 12px. The three bands' worst cases sum to 915.8 of the 930px safe zone, so the split is tight but not over-subscribed.
 
-- Background layers: `grid-bg` + color-tinted glow (semantic color token drives the tint) + `scanlines` + blue `scan-sweep`
+- Background layers: `<Glow>` corner tint + blue `scan-sweep`; the 60px grid and scanline textures were retired in `#1215`
 - Animation contract: badge 0.2s → subject 0.2s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.3s / revealText 0.8s → stats 0.8s+ → source 1.3s
 - Amber-dominant numbers + red accent badge follow the 60-30-10 doctrine; `glowPulse` is a blue-only keyframe, so non-blue reveal colors get a static same-color glow instead
 - Data contract: `badge` / `subject` / `subjectLogo` (logo registry key into `assets/logos/`) / `bigNumber`+`numberLabel` / `hookText`+`revealText` / `stats[]` / `source` / `color` — see the `hookScene()` docblock. Focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`
-- `withWatermark` skips (brandBar) — no double branding on the channel open
 
 ### 2. Timeline Scene
 

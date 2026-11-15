@@ -9,34 +9,22 @@
  */
 import { staticFile, CanvasImage } from "remotion";
 import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
-import { BRAND_BAR, CANVAS, COLOR, SAFE_ZONES, WATERMARK_POS } from "./shared";
+import { BRAND_BAR, COLOR, SAFE_ZONES } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
 
 // ── Background layers ──
 
-/** Grid background — 60px grid with subtle blue lines. */
-export const GridBg: React.FC = () => (
-  <div
-    style={{
-      position: "absolute",
-      inset: 0,
-      backgroundImage: `
-      linear-gradient(rgba(77,139,255,0.015) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(77,139,255,0.015) 1px, transparent 1px)
-    `,
-      backgroundSize: "60px 60px",
-    }}
-  />
-);
-
 /**
  * Radial glow — background GROUND colour, not light.
  *
- * This is the scene's ambient tint (a corner vignette at 0.10–0.15 alpha), part
- * of the same layer as `GridBg` and `Scanlines`. It never marks a subject: a
- * subject draws the eye through `useFocusLight` (#738), which owns the soft and
- * flash tiers.
+ * The only remaining full-scene background decoration (#1215, 2026-11-15):
+ * a corner vignette at 0.10–0.15 alpha, measured at +5.46 luminance levels
+ * across a 900px area — visible as a ground tone. The 60px grid and the
+ * scanline texture were retired with the frame line: each contributed at most
+ * 2/255 levels, below discrimination threshold in the delivered frame. This
+ * never marks a subject: a subject draws the eye through `useFocusLight`
+ * (#738), which owns the soft and flash tiers.
  */
 export const Glow: React.FC<{ color: "red" | "blue" }> = ({ color }) => {
   const config =
@@ -59,19 +47,6 @@ export const Glow: React.FC<{ color: "red" | "blue" }> = ({ color }) => {
     />
   );
 };
-
-/** Scanlines texture — repeating horizontal lines. */
-export const Scanlines: React.FC = () => (
-  <div
-    style={{
-      position: "absolute",
-      inset: 0,
-      background:
-        "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(255,255,255,0.008) 3px, rgba(255,255,255,0.008) 4px)",
-      pointerEvents: "none",
-    }}
-  />
-);
 
 // ── Brand elements ──
 
@@ -295,23 +270,6 @@ export const StatCard: React.FC<{
     </div>
   );
 };
-
-/** Channel watermark — top-left corner. */
-export const Watermark: React.FC = () => (
-  <CanvasImage
-    src={staticFile("assets/china-ai-news-mark-video.svg")}
-    style={{
-      position: "absolute",
-      top: WATERMARK_POS.top,
-      left: WATERMARK_POS.left,
-      width: 55,
-      height: 55,
-      opacity: 0.35,
-      zIndex: 100,
-      objectFit: "contain",
-    }}
-  />
-);
 
 // ── Slot layout ──
 

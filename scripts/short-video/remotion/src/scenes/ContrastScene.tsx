@@ -16,7 +16,7 @@
  */
 import { Interactive } from "remotion";
 import { type SceneData } from "../types";
-import { GridBg, Glow, Scanlines, BrandBar, Slot } from "../components/visuals";
+import { Glow, BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StampIn, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR } from "../components/shared";
@@ -70,11 +70,7 @@ export const ContrastScene: React.FC<{
       {hasMedia && (
         <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
       )}
-      {/* GridBg only when no media — same rule as NarrativeScene, so the grid
-          never competes with a bound background image. */}
-      {!hasMedia && <GridBg />}
       <Glow color="blue" />
-      <Scanlines />
       <BrandBar />
 
       {/* #688: the shared hero band (400-950) was sized for 22px chips. At the
