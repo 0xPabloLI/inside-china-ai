@@ -617,3 +617,111 @@ describe("extractSceneClaims — sourceRef passthrough (#185)", () => {
     expect(claims[0].sourceRef?.sourceText).toContain("月之暗面");
   });
 });
+
+// ── #1353 evergreen query split ──
+
+import { entityPhraseFor, evergreenQueryPhrases } from "../lib/claim-keywords.mjs";
+
+describe("entityPhraseFor — the proper-noun run in claim text", () => {
+  it("extracts a multi-word entity and strips sentence-position capitals", () => {
+    expect(entityPhraseFor("The Hang Seng TECH index chart showing the drawdown")).toBe(
+      "Hang Seng TECH",
+    );
+  });
+
+  it("strips picture nouns from the tail of a capitalised run", () => {
+    expect(entityPhraseFor("Hang Seng TECH Index performance")).toBe("Hang Seng TECH");
+  });
+
+  it("accepts a brand-shaped single token but not a sentence-initial noun", () => {
+    expect(entityPhraseFor("DeepSeek was founded in 2023")).toBe("DeepSeek");
+    expect(entityPhraseFor("UBTECH showed the robot")).toBe("UBTECH");
+    expect(entityPhraseFor("Robot up close")).toBe("");
+  });
+
+  it("caps the run to its first four name tokens", () => {
+    expect(entityPhraseFor("The Hang Seng TECH Index Company Announcement Today")).toBe(
+      "Hang Seng TECH",
+    );
+  });
+
+  it("returns the empty string for empty input", () => {
+    expect(entityPhraseFor("")).toBe("");
+    expect(entityPhraseFor(null)).toBe("");
+    expect(entityPhraseFor("the market fell today")).toBe("");
+  });
+
+  it("leaves a single camel-less name to the tokenizer — the honest boundary", () => {
+    // "Zhipu" is capitalised only because it opens the sentence; accepting it
+    // would also accept "Robot". Both fall back to the status quo.
+    expect(entityPhraseFor("Zhipu headquarters building at dusk")).toBe("");
+  });
+
+  it("strips a sentence-initial negation from the run (#1353 A/B)", () => {
+    // Caught on the real deepseek-huawei-cluster package: "No Huawei data
+    // center construction…" produced the query "No Huawei data center". The
+    // negation is now stripped; what remains ("Huawei", a single camel-less
+    // name) hits the honest boundary and falls back to the tokenizer.
+    expect(entityPhraseFor("No Huawei data center construction site")).toBe("");
+    expect(entityPhraseFor("Not DeepSeek but a rival chip")).toBe("DeepSeek");
+  });
+});
+
+describe("evergreenQueryPhrases — entity + archetype for standing claims", () => {
+  it("builds the writer's phrase for an evergreen index claim", () => {
+    const claim = {
+      assetNeed: "Hang Seng TECH index chart showing the drawdown",
+      voiceover: "The Hang Seng TECH index sits 80% below its 2021 peak.",
+    };
+    expect(evergreenQueryPhrases(claim)).toEqual(["Hang Seng TECH chart"]);
+  });
+
+  it("returns no phrase when the claim is news-shaped", () => {
+    const claim = {
+      assetNeed: "Unitree humanoid robot on stage",
+      voiceover: "Unitree just unveiled its new humanoid robot today.",
+    };
+    expect(evergreenQueryPhrases(claim)).toEqual([]);
+  });
+
+  it("returns no phrase when no archetype is identifiable", () => {
+    const claim = { voiceover: "A person walking down a street." };
+    expect(evergreenQueryPhrases(claim)).toEqual([]);
+  });
+
+  it("returns no phrase when no entity is identifiable", () => {
+    const claim = { voiceover: "The index chart shows the drawdown." };
+    expect(evergreenQueryPhrases(claim)).toEqual([]);
+  });
+
+  it("keeps the tokenizer's phrases for a Chinese evergreen claim", () => {
+    const claim = { voiceover: "恒生科技指数较高点下跌八成。" };
+    expect(evergreenQueryPhrases(claim)).toEqual([]);
+  });
+});
+
+describe("claimQueryPhrases — the #1353 branch order", () => {
+  it("writer hints still outrank the evergreen phrase", () => {
+    const claim = {
+      assetNeed: "Hang Seng TECH index chart",
+      voiceover: "The index sits below its peak.",
+      searchHints: ["hong kong stock exchange trading floor"],
+    };
+    expect(claimQueryPhrases(claim)).toEqual(["hong kong stock exchange trading floor"]);
+  });
+
+  it("an evergreen claim with an archetype replaces the tokenized phrases", () => {
+    const claim = {
+      assetNeed: "Hang Seng TECH index chart showing the drawdown",
+      voiceover: "The Hang Seng TECH index sits 80% below its 2021 peak.",
+    };
+    expect(claimQueryPhrases(claim)).toEqual(["Hang Seng TECH chart"]);
+  });
+
+  it("everything else still falls through to the tokenizer", () => {
+    expect(claimQueryPhrases({ voiceover: "Unitree unveiled a robot today." })).toEqual(
+      claimToKeywords("Unitree unveiled a robot today."),
+    );
+    expect(claimQueryPhrases(null)).toEqual([]);
+  });
+});

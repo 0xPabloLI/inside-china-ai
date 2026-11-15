@@ -89,12 +89,21 @@ export function classifyRelevance(score, opts = {}) {
  * Whether a first-pass score earns the second, subject-focused check.
  * An asset that already carries a `relevanceCheck` is not re-checked.
  *
+ * #1353: `claimKind: "evergreen"` widens the trigger from the 40–59 band to
+ * every band below a pass, `unavailable` included. The first-pass question
+ * asks whether the picture depicts the claim's *event*, which an evergreen
+ * claim does not have — so for those scenes the first pass is the wrong
+ * question at every score, and the subject check is the right one. A pass is
+ * still a pass: there is nothing to re-ask.
+ *
  * @param {{relevanceScore: number|null|undefined, relevanceCheck?: {verdict?: string}|null}} asset
- * @param {{threshold?: number, borderlineFloor?: number}} [opts]
+ * @param {{threshold?: number, borderlineFloor?: number, claimKind?: "news"|"evergreen"}} [opts]
  */
 export function needsSecondPass(asset, opts = {}) {
   if (asset?.relevanceCheck) return false;
-  return classifyRelevance(asset?.relevanceScore, opts) === RELEVANCE_BAND.BORDERLINE;
+  const band = classifyRelevance(asset?.relevanceScore, opts);
+  if (opts.claimKind === "evergreen") return band !== RELEVANCE_BAND.PASS;
+  return band === RELEVANCE_BAND.BORDERLINE;
 }
 
 /**
@@ -148,17 +157,23 @@ export function isRelevanceAdmitted(asset, opts = {}) {
  * Why an asset was admitted, recorded on the patch entry for auditability.
  * Returns null when it was not admitted.
  *
+ * `evergreen-subject` is the #1353 counterpart of `second-pass`: the same
+ * explicit subject `match`, taken as the verdict on an evergreen claim whose
+ * first pass sat below the borderline band. Kept as its own value so the patch
+ * still records *why* an 17/100 candidate was allowed in — the answer differs
+ * from "it scored well" and from "it scored 50 and got a second look".
+ *
  * @param {{relevanceScore?: number|null, relevanceCheck?: {verdict?: string}|null,
  *          chartPin?: boolean}} asset
- * @param {{threshold?: number, borderlineFloor?: number}} [opts]
- * @returns {"score"|"second-pass"|"chart-pin"|null}
+ * @param {{threshold?: number, borderlineFloor?: number, claimKind?: "news"|"evergreen"}} [opts]
+ * @returns {"score"|"second-pass"|"evergreen-subject"|"chart-pin"|null}
  */
 export function admissionSource(asset, opts = {}) {
   if (asset?.chartPin === true) return "chart-pin";
   const band = classifyRelevance(asset?.relevanceScore, opts);
   if (band === RELEVANCE_BAND.PASS) return "score";
-  if (band === RELEVANCE_BAND.BORDERLINE && asset?.relevanceCheck?.verdict === "match") {
-    return "second-pass";
-  }
+  if (asset?.relevanceCheck?.verdict !== "match") return null;
+  if (band === RELEVANCE_BAND.BORDERLINE) return "second-pass";
+  if (opts.claimKind === "evergreen") return "evergreen-subject";
   return null;
 }
