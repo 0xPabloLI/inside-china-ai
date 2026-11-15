@@ -13,9 +13,9 @@
 
 ---
 
-## 逐轮盘点（Round CXCIX → LV）
+## 逐轮盘点（Round CXCVIII → LV）
 
-（**Round CXCIX：`#1361` 交付闭票、Track 1A 出清，`PR #1370` 消账**——Tier-3 触发信号从「候选数量」改为「相关性判决后仍未满足的场景」：删 `shouldTriggerTier3(totalAssets, scenesNeedingMedia)`，新增 `selectTier3Scenes(scenes, patches)`，分母 = 「`!scene.media` + `!skipsMediaSourcing(scene)` + `shouldSourceStock(scene)`」，分子再扣掉已拿到 `assigned` patch 的场景；触发点后置到「VLM 判分 + `assignAssetsToScenes` 分配」之后，只搜未满足场景的 query，新增资产过增量 VLM 后重分配一次（`MAX_TIER3_PASSES = 1`，不循环）；`tier3Ran` 只在真跑时置真（`runTier3Pass` 返回 boolean，分组为空 `return false` 即 break，不白跑一轮）；VLM 进程按批 `finally` 关闭，分析失败置 `analysisAvailable = false` 后跳过重试。产品验证门：**有产出差异**——zhipu-valuation 真实包旧规则按「65 资产 ≥ 7 场景」判充足、五家引擎全未启动；新规则报 `1/7 scenes assigned, 6 unsatisfied` 并起 SearXNG/Bing/DDG/Google 四家，SearXNG 回 7–10 个资产，scene 2（`close` stat-reveal）拿到 `searxng_image-hkex-closes-02.jpg`（relevance 80），基线该槽位无素材；余 6 场以 `Tier 3 ran 1× and 6 scene(s) are still without media` 告警收敛，Brave/Tavily 因 worktree 无 `.env.local` 未测。frontier 复算：Track 1A **空**（`#1360`/`#1361` 双双出清）、① `#1355 → #1353 → #1354 → #1362`、② `#541 → #1215`、③④ 空。`docs/content-pipeline.md` 同步改口径，并撤回「月度配额强制」的超额承诺（`BraveQuotaTracker` 仍是每次 run 的内存计数）。）
+（**Round CXCVIII：`#1360` 交付出清 Track 1A 队首、`PR #1365`/`#1367` 消账**——`#1360` 由 PR #1367（squash `92653227`）交付：40–59 分视频候选接上第二轮主体复查（真实 Qwen3-VL 对两支存量片均判 `no_match`，产出变化待 `#1361`/`#1353` 放大候选面）；两条 ledger 候选（PR #1365 `94ae1b54`、PR #1367 `92653227`）逐条落 archive 补登，`--gate` 复跑归零；订正 Phase 3 `#294` 行「视频侧仍只做首评」的过期口径，并把 `#1353` 行的 K 线归属改写为「PR #1365 直接交付、未拆票」。产品验证门：**无产出差异**（enabling fix——候选面未变时成片与配图不变，`#294` 的二次主体复查对两支存量片均判 `no_match`）。frontier 复算：Track 1A `#1361`（`#1360` 出清）、① `#1355 → #1353 → #1354 → #1362`、② `#541 → #1215`、③④ 空。台账 PR #1369（squash `8daf16de`），无施工 PR。
 
 （**Round CXCVII：`#1360`/`#1361` 提权 Track 1A、`#1362` 入 ① 段尾，16 条 ledger 候选补登消账**——三张 `needs-triage` 票经源码与实跑证据核验、无阻塞边：两张 P1 bug 造成 27 候选 0 分配、整包退 AI 生成背景，属「保持既有契约的出片质量 bug」按 Step 2 提权；`#1362` 落 Tier 2 · P2 · ① 段尾。产品验证门：**无产出差异**（纯台账轮，不改编排产物）。frontier 复算：Track 1A `#1360 → #1361`、① `#1355 → #1353 → #1354 → #1362`、② `#541 → #1215`（`#404` 已闭删行）、③④ 空。无交付 PR / squash sha（纯台账换轮 PR）；`docs/archive/` 补登 16 条施工 PR 使 `roadmap-ledger --gate` 归零。）
 
