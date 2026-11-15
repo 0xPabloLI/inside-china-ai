@@ -4187,7 +4187,14 @@ export async function main(args = process.argv.slice(2)) {
       console.log(
         `\n🔍 Tier 3 (#1361 quality trigger): ${gap.assigned}/${gap.needed} scenes assigned, ${gap.sceneIds.length} unsatisfied (${gap.sceneIds.join(", ")})`,
       );
-      await runTier3Pass(gap.sceneIds);
+      try {
+        await runTier3Pass(gap.sceneIds);
+      } catch (err) {
+        // A broken retry must not discard the Tier 1+2 sourcing that already
+        // succeeded: keep the assignment above and let B-roll/human fill the gap.
+        console.warn(`⚠️  Tier 3 pass failed: ${err.message} — keeping the Tier 1+2 assignment`);
+        break;
+      }
     }
   } finally {
     await closeVlmAnalyzer();
