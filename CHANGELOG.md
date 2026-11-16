@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.79.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.78.0...tanstack_start_ts-v1.79.0) (2026-11-16)
+
+
+### Features
+
+* **caption:** 公司名+模型品牌双标签自动派生（SSOT 白名单） ([#1389](https://github.com/0xPabloLI/inside-china-ai/issues/1389)) ([be55595](https://github.com/0xPabloLI/inside-china-ai/commit/be555959ad9d5d6e24a2ed9c94570f3a600df7f0))
+
 ## [1.78.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.77.1...tanstack_start_ts-v1.78.0) (2026-11-16)
 
 
