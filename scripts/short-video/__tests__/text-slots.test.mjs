@@ -46,6 +46,19 @@ describe("slot id", () => {
       "narrative.media-bottom-bar.result",
     );
   });
+
+  it("resolves an information scene's declared layout, defaulting to hero-center", () => {
+    // #1215: the five information templates consume scene.layout; before this
+    // they rendered hero-center regardless of what scene-data said.
+    expect(resolveRenderLayout({ visualType: "contrast", layout: "split" })).toBe("split");
+    expect(resolveRenderLayout({ visualType: "context", layout: "flow" })).toBe("flow");
+    expect(resolveRenderLayout({ visualType: "info-card", layout: "array" })).toBe("array");
+    expect(resolveRenderLayout({ visualType: "data", layout: "year-source" })).toBe("year-source");
+    expect(resolveRenderLayout({ visualType: "stat-reveal", layout: "set-piece" })).toBe(
+      "set-piece",
+    );
+    expect(resolveRenderLayout({ visualType: "contrast" })).toBe("hero-center");
+  });
 });
 
 describe("field size defaults", () => {

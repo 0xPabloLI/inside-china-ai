@@ -7,7 +7,15 @@
  * ("no fourth size") is checked against every declared design size.
  */
 import { describe, it, expect } from "vitest";
-import { EMPTY_FIELD, TYPE_TIERS, isEmptyField, tierForSize } from "../lib/type-scale.mjs";
+import {
+  EMPTY_FIELD,
+  LAYOUT_FOCAL,
+  TYPE_TIERS,
+  isEmptyField,
+  isWidthProtagonist,
+  layoutFocalFor,
+  tierForSize,
+} from "../lib/type-scale.mjs";
 import { READABILITY_TIERS, SLOT_FIELDS } from "../lib/text-slots.mjs";
 import { TYPE } from "../remotion/src/tokens.ts";
 
@@ -114,6 +122,43 @@ describe("empty-field rule", () => {
     expect(isEmptyField({ largestObjectPx: 0, frames: 90 })).toBe(false);
     expect(isEmptyField({ largestObjectPx: null, frames: 90 })).toBe(false);
     expect(isEmptyField({ largestObjectPx: Number.NaN, frames: 90 })).toBe(false);
+  });
+});
+
+describe("layout focal objects (#1215)", () => {
+  it("declares every new information topology and no hero-center fallback", () => {
+    expect(Object.keys(LAYOUT_FOCAL).sort()).toEqual([
+      "context.flow",
+      "contrast.split",
+      "data.chart-card",
+      "data.year-source",
+      "info-card.array",
+      "stat-reveal.set-piece",
+    ]);
+    expect(layoutFocalFor("contrast", "hero-center")).toBeNull();
+  });
+
+  it("accepts a focal object at one third of the canvas width", () => {
+    expect(isWidthProtagonist({ widthPx: 360, heightPx: 1 })).toBe(true);
+    expect(isWidthProtagonist({ widthPx: 359, heightPx: 1 })).toBe(false);
+  });
+
+  it("accepts a smaller object only when it covers at least 8% of the canvas", () => {
+    // 8% of 1080×1920 = 165,888 px².
+    expect(isWidthProtagonist({ widthPx: 300, heightPx: 553 })).toBe(true);
+    expect(isWidthProtagonist({ widthPx: 300, heightPx: 552 })).toBe(false);
+  });
+
+  it("rejects missing and non-positive geometry", () => {
+    expect(isWidthProtagonist(null)).toBe(false);
+    expect(isWidthProtagonist({ widthPx: 0, heightPx: 600 })).toBe(false);
+    expect(isWidthProtagonist({ widthPx: 400, heightPx: -1 })).toBe(false);
+  });
+
+  it("qualifies every declared topology", () => {
+    for (const [id, focal] of Object.entries(LAYOUT_FOCAL)) {
+      expect(isWidthProtagonist(focal), id).toBe(true);
+    }
   });
 });
 

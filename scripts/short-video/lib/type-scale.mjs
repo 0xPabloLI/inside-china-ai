@@ -97,6 +97,61 @@ export const EMPTY_FIELD = {
 };
 
 /**
+ * Layout-level focal objects (#1215).
+ *
+ * The ticket's ruling defines the focal object by LAYOUT, not by bare font
+ * size: a 96px year beside a 440px card, a 480px flow, a 672px card array.
+ * Those objects are wider than any text slot, so the height-only empty-field
+ * rule cannot see them. Each information topology declares the object it
+ * actually draws here; `checkEmptyField` treats a qualifying declaration as
+ * the scene's hero in addition to (not instead of) the text read.
+ *
+ * The declaration is geometry, not a template-name exemption: a layout that
+ * does not draw an object at least one third of the canvas wide, or at least
+ * 8% of its area, does not qualify. That is the width-protagonist rule from
+ * the 2026-11-14 HITL decision, kept measurable and free of a whitelist.
+ */
+export const LAYOUT_FOCAL = {
+  "stat-reveal.set-piece": { widthPx: 820, heightPx: 420, kind: "text" },
+  "data.year-source": { widthPx: 440, heightPx: 300, kind: "card" },
+  "data.chart-card": { widthPx: 440, heightPx: 300, kind: "chart" },
+  "contrast.split": { widthPx: 820, heightPx: 560, kind: "columns" },
+  "context.flow": { widthPx: 480, heightPx: 600, kind: "flow" },
+  "info-card.array": { widthPx: 672, heightPx: 324, kind: "grid" },
+};
+
+const CANVAS_WIDTH = 1080;
+const CANVAS_HEIGHT = 1920;
+
+/**
+ * Whether a layout focal declaration meets the width-protagonist rule.
+ *
+ * @param {{widthPx?: number, heightPx?: number}|null|undefined} focal
+ * @returns {boolean}
+ */
+export function isWidthProtagonist(focal) {
+  if (!focal) return false;
+  const width = Number(focal.widthPx);
+  const height = Number(focal.heightPx);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return false;
+  }
+  if (width >= CANVAS_WIDTH / 3) return true;
+  return (width * height) / (CANVAS_WIDTH * CANVAS_HEIGHT) >= 0.08;
+}
+
+/**
+ * The declared focal object for a rendered information layout, if any.
+ *
+ * @param {string} visualType
+ * @param {string} layout
+ * @returns {{widthPx: number, heightPx: number, kind: string}|null}
+ */
+export function layoutFocalFor(visualType, layout) {
+  return LAYOUT_FOCAL[`${visualType}.${layout}`] ?? null;
+}
+
+/**
  * Which band a declared size belongs to, or null when it sits in a gap.
  *
  * @param {number} px

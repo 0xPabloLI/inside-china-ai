@@ -60,7 +60,7 @@ export const scenes = [
     id: 3,
     name: "cabin",
     visualType: "info-card",
-    layout: "stacked-cards",
+    layout: "array",
     assetNeed: "autonomous vehicle interior cabin with touchscreen and passenger seats",
     media: {
       type: "image",
@@ -85,7 +85,7 @@ export const scenes = [
     id: 4,
     name: "pony-surge",
     visualType: "data",
-    layout: "media-overlay",
+    layout: "hero-center",
     assetNeed: "robotaxi fleet cars lined up ready for passenger service",
     media: {
       type: "image",
@@ -131,7 +131,7 @@ export const scenes = [
     id: 6,
     name: "going-global",
     visualType: "info-card",
-    layout: "stacked-cards",
+    layout: "array",
     assetNeed: "autonomous vehicle testing on public road in asian city",
     media: {
       type: "image",

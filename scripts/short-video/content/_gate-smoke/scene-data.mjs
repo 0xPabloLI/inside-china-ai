@@ -82,7 +82,7 @@ export const scenes = [
     id: 5,
     name: "info-card",
     visualType: "info-card",
-    layout: "hero-center",
+    layout: "array",
     voiceover: "Three numbers say the whole story of this smoke check.",
     texts: {
       title: "SMOKE CHECK NUMBERS",
@@ -94,7 +94,7 @@ export const scenes = [
     id: 6,
     name: "contrast",
     visualType: "contrast",
-    layout: "hero-center",
+    layout: "split",
     voiceover: "Two roads to scale: small active params against giant dense models.",
     texts: {
       title: "TWO ROADS TO SCALE",

@@ -57,7 +57,14 @@ import {
   SLOT_FIELDS,
   textFieldValue,
 } from "./text-slots.mjs";
-import { EMPTY_FIELD, isEmptyField, tierForSize, TYPE_TIERS } from "./type-scale.mjs";
+import {
+  EMPTY_FIELD,
+  isEmptyField,
+  isWidthProtagonist,
+  layoutFocalFor,
+  tierForSize,
+  TYPE_TIERS,
+} from "./type-scale.mjs";
 import { FOCUS_LIGHT, LIGHT_PLANS, lightPlanFor, validateLightPlan } from "./focus-light.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
@@ -2121,10 +2128,15 @@ export function checkEmptyField(scenes, opts = {}) {
   const warns = [];
   /** @type {Array<{px: number, field: string, frames: number|null}>} */
   const heroClear = [];
+  /** Scenes carried by a layout-declared focal object (#1215). */
+  let layoutHeroes = 0;
   /** Clip lengths of scenes that stay small but too short for the rule. */
   const shortSkips = [];
   let mediaHeroes = 0;
   let skipped = 0;
+  /** Scenes whose own template contract already fails — not renderable, so
+   * their empty-field verdict is the template gate's finding, not this one. */
+  let contractSkips = 0;
   scenes.forEach((scene, index) => {
     if (!EMPTY_FIELD_TYPES.has(scene.visualType)) return;
     // A rendered media layer IS the content area's largest object (background,
@@ -2135,13 +2147,36 @@ export function checkEmptyField(scenes, opts = {}) {
     // render media (`cta`/`data` are the remaining NO_MEDIA_TYPES), and an
     // empty `media: {}` draws the CSS fallback — exempting either would
     // silence the rule without a hero. `stat-reveal` renders an ambient
-    // background since the media-density pass (2026-11-14).
+    // background since the media-density pass (2026-11-14), and the #1215
+    // `data.chart-card` layout draws a bound chart asset inside its card.
+    const layout = resolveRenderLayout(scene);
+    // A scene that cannot satisfy its own template contract will fail the
+    // render before this design rule matters; report the empty-field verdict
+    // only for scenes that can actually ship. The template gate owns the
+    // unknown-field / missing-rendered-field findings.
+    try {
+      assertKnownTextFields(scene.visualType, layout, scene.texts ?? {});
+    } catch {
+      contractSkips += 1;
+      return;
+    }
     const drawsMedia =
-      (scene.media?.mode === "fullscreen" || !NO_MEDIA_TYPES.has(scene.visualType)) &&
+      (scene.media?.mode === "fullscreen" ||
+        !NO_MEDIA_TYPES.has(scene.visualType) ||
+        layout === "chart-card") &&
       typeof scene.media?.path === "string" &&
       scene.media.path.trim() !== "";
     if (drawsMedia) {
       mediaHeroes += 1;
+      return;
+    }
+    // #1215 width protagonist: a layout-declared object that is at least a
+    // third of the canvas wide (or 8% of its area) is the shot's hero even
+    // when the text layer stays in the supporting band. The declaration is
+    // geometry per layout, not a template-name exemption.
+    const focal = layoutFocalFor(scene.visualType, layout);
+    if (isWidthProtagonist(focal)) {
+      layoutHeroes += 1;
       return;
     }
     const largest = largestDeclaredObject(scene);
@@ -2192,8 +2227,10 @@ export function checkEmptyField(scenes, opts = {}) {
         `window (longest clip ${Math.max(...shortSkips)} frames)`,
     );
   }
+  if (layoutHeroes > 0) parts.push(`${layoutHeroes} carried by a layout focal object`);
   if (mediaHeroes > 0) parts.push(`${mediaHeroes} carried by a media layer`);
   if (skipped > 0) parts.push(`${skipped} without a measurable text object`);
+  if (contractSkips > 0) parts.push(`${contractSkips} skipped (template contract fails)`);
   return [
     {
       level: "pass",

@@ -16,6 +16,18 @@ import { SPACING, COLOR, ANNOTATION } from "../components/shared";
 import { Camera } from "../components/Camera";
 import { MediaBackground } from "../components/MediaBackground";
 import { TextGate } from "../components/text-gate";
+import { ComparisonRail } from "../components/topology";
+import { resolveRenderLayout } from "../../../lib/text-slots.mjs";
+
+/** Animated numeric prefix for the set-piece count-up (20 frames to land). */
+function countUpText(text: string, frame: number, windowFrames = 20): string {
+  const match = /^([^0-9]*)(\d+(?:\.\d+)?)(.*)$/.exec(text);
+  if (!match) return text;
+  const value = Number(match[2]);
+  const decimals = (match[2].split(".")[1] ?? "").length;
+  const progress = Math.max(0, Math.min(1, frame / windowFrames));
+  return `${match[1]}${(value * progress).toFixed(decimals)}${match[3]}`;
+}
 
 export const StatRevealScene: React.FC<{
   scene: SceneData;
@@ -31,6 +43,152 @@ export const StatRevealScene: React.FC<{
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+  const layout = resolveRenderLayout(scene);
+  // The set-piece requires a comparison object: `subtext` is the baseline
+  // label. Without it the hero-center layout is the honest rendering, not a
+  // large number pretending to be a comparison.
+  const setPiece = layout === "set-piece" && Boolean(txt.bigNumber) && Boolean(txt.subtext);
+
+  if (setPiece) {
+    const full = txt.bigNumber as string;
+    const animated = countUpText(full, frame);
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        {scene.media && (
+          <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
+        )}
+        <BrandBar />
+
+        <Camera visualType="stat-reveal" duration={duration}>
+          <div
+            style={{
+              position: "absolute",
+              left: 60,
+              right: 200,
+              // Below BrandBar (top 236) and the 220 safe-zone top.
+              top: 320,
+              height: 660,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 18,
+            }}
+          >
+            <TextGate sceneId={sceneId} slotId="stat-reveal.set-piece.bigNumber">
+              {(fontSize) => (
+                <div
+                  style={{
+                    position: "relative",
+                    fontSize,
+                    fontWeight: 900,
+                    color: COLOR.amber,
+                    lineHeight: 1.2,
+                    // The rough-notation circle paints ~29px past the 288px
+                    // line box; vertical padding gives the annotation assert
+                    // the room without changing the glyphs or the line box.
+                    padding: "20px 0",
+                    textAlign: "center",
+                    ...numberLight,
+                  }}
+                >
+                  <Circle
+                    color={COLOR.amber}
+                    strokeWidth={ANNOTATION.circle.strokeWidth}
+                    padding={ANNOTATION.circle.padding}
+                    progress={circleProgress}
+                    box="inside"
+                  >
+                    {/* Hidden only while the count-up overlay owns the
+                        glyphs; `visibility` keeps the box measurable. */}
+                    <span style={{ visibility: frame < 22 ? "hidden" : "visible" }}>{full}</span>
+                  </Circle>
+                  {frame < 22 && <span style={{ position: "absolute", inset: 0 }}>{animated}</span>}
+                </div>
+              )}
+            </TextGate>
+
+            {txt.label && (
+              <SlideUp delay={0.7} duration={0.5}>
+                <TextGate sceneId={sceneId} slotId="stat-reveal.set-piece.label">
+                  {(fontSize) => (
+                    <div
+                      style={{
+                        fontSize,
+                        fontWeight: 800,
+                        color: COLOR.text,
+                        letterSpacing: "3px",
+                        textAlign: "center",
+                        ...labelLight,
+                      }}
+                    >
+                      {txt.label as string}
+                    </div>
+                  )}
+                </TextGate>
+              </SlideUp>
+            )}
+
+            <FadeIn delay={0.9} duration={0.5}>
+              <ComparisonRail
+                width={560}
+                reveal={interpolate(frame, [8, 30], [0, 1], {
+                  extrapolateLeft: "clamp",
+                  extrapolateRight: "clamp",
+                })}
+                valueNode={
+                  <div
+                    aria-hidden
+                    style={{ width: 18, height: 18, borderRadius: 3, background: COLOR.amber }}
+                  />
+                }
+                baselineNode={
+                  <TextGate
+                    sceneId={sceneId}
+                    slotId="stat-reveal.set-piece.subtext"
+                    slotWidth={512}
+                  >
+                    {(fontSize) => (
+                      <div
+                        style={{
+                          fontSize,
+                          fontWeight: 600,
+                          color: COLOR.textMuted,
+                          textAlign: "right",
+                        }}
+                      >
+                        {txt.subtext as string}
+                      </div>
+                    )}
+                  </TextGate>
+                }
+              />
+            </FadeIn>
+
+            {txt.source && (
+              <FadeIn delay={1.1} duration={0.5} style={{ marginTop: SPACING.lg }}>
+                <TextGate sceneId={sceneId} slotId="stat-reveal.set-piece.source">
+                  {(fontSize) => (
+                    <div
+                      style={{
+                        fontSize,
+                        fontWeight: 600,
+                        color: COLOR.textDim,
+                        letterSpacing: "1px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {txt.source as string}
+                    </div>
+                  )}
+                </TextGate>
+              </FadeIn>
+            )}
+          </div>
+        </Camera>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>

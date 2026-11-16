@@ -21,7 +21,7 @@ export const scenes = [
   {
     id: 2,
     visualType: "info-card",
-    layout: "hero-center",
+    layout: "array",
     narrativeRole: "T",
     retentionMechanism: "open-loop",
     voiceover: "Bloomberg reported the round closed. 15 billion dollars, one hundred billion yuan.",
@@ -36,7 +36,7 @@ export const scenes = [
   {
     id: 3,
     visualType: "contrast",
-    layout: "hero-center",
+    layout: "split",
     narrativeRole: "A",
     voiceover: "The target started at 7.5 billion dollars. Two raises later, it doubled.",
     texts: {
@@ -51,7 +51,7 @@ export const scenes = [
   {
     id: 4,
     visualType: "info-card",
-    layout: "hero-center",
+    layout: "array",
     narrativeRole: "A",
     voiceover:
       "More than 15 investors joined. Tencent and CATL wrote the biggest checks, and Geely, Meituan and Midea came in too.",
@@ -66,7 +66,7 @@ export const scenes = [
   {
     id: 5,
     visualType: "contrast",
-    layout: "hero-center",
+    layout: "split",
     narrativeRole: "A",
     retentionMechanism: "pattern-interrupt",
     voiceover:
@@ -83,7 +83,7 @@ export const scenes = [
   {
     id: 6,
     visualType: "contrast",
-    layout: "hero-center",
+    layout: "split",
     narrativeRole: "A",
     voiceover: "That is 2.1 times the combined market value of Zhipu and MiniMax.",
     texts: {
@@ -98,7 +98,7 @@ export const scenes = [
   {
     id: 7,
     visualType: "context",
-    layout: "hero-center",
+    layout: "flow",
     narrativeRole: "A",
     voiceover:
       "The cash goes into model training, compute and hiring, as DeepSeek pushes for global competition and a Shanghai listing.",
@@ -115,7 +115,7 @@ export const scenes = [
   {
     id: 8,
     visualType: "context",
-    layout: "hero-center",
+    layout: "flow",
     narrativeRole: "R",
     voiceover:
       "DeepSeek has not confirmed any of this. Reports say the deal closes within days, and the valuation is still being argued over.",

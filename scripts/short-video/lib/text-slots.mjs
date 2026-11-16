@@ -281,6 +281,48 @@ export const MEASURED_MAX_WIDTH = {
   "info-card.hero-center.subtitle": 820,
   // Info card content box (820 band − card padding/border) — measured 752.
   "info-card.hero-center.points": 752,
+
+  // #1215 information topologies. Each width is the content box the layout
+  // actually grants, measured from the portrait geometry:
+  // - stat-reveal set piece: full 820 band (the comparison rail is graphic).
+  // - data year/source: 300px left column, 382px card content
+  //   (440 − 2×28 padding − 2×1 border).
+  // - contrast split: two 380px column cards, 328px content
+  //   (380 − 2×24 padding − 2×2 border).
+  // - context flow: 480px nodes, 430px content (480 − 2×24 − 2×1).
+  // - info-card array: 820 at the top; the 5–11 card branch's content box is
+  //   216px, and the other branches pass `slotWidth` explicitly at render.
+  "stat-reveal.set-piece.bigNumber": 820,
+  "stat-reveal.set-piece.label": 820,
+  // The comparison rail gives the baseline 512px; the big number owns 820.
+  "stat-reveal.set-piece.subtext": 512,
+  "stat-reveal.set-piece.source": 820,
+  "data.year-source.stat": 300,
+  "data.year-source.label": 300,
+  // 440px card − 2×28 padding − 2×1 border.
+  "data.year-source.subtext": 382,
+  "data.year-source.source": 820,
+  "data.chart-card.stat": 392,
+  // The label sits above the 440px chart, not inside it: full 820 band.
+  "data.chart-card.label": 820,
+  "data.chart-card.subtext": 392,
+  "data.chart-card.source": 820,
+  "contrast.split.title": 820,
+  // One 380px column card minus its 26px side padding.
+  "contrast.split.left": 328,
+  "contrast.split.right": 328,
+  "contrast.split.vs": 820,
+  "contrast.split.note": 820,
+  // 480px node minus its 24px side padding and 1px border.
+  // The badge node is 360px wide, not the 480px causal nodes.
+  "context.flow.badge": 310,
+  "context.flow.title": 430,
+  "context.flow.context": 430,
+  "context.flow.detail": 430,
+  "info-card.array.title": 820,
+  "info-card.array.subtitle": 820,
+  // 250px card − 2×16 padding − 2×1 border.
+  "info-card.array.points": 216,
 };
 
 /**
@@ -384,15 +426,25 @@ export function isMediaLedHook(scene) {
 }
 
 /**
+ * Visual types whose template owns more than one information layout (#1215).
+ * `stat-reveal`, `data`, `contrast`, `context` and `info-card` consume
+ * `scene.layout`; the remaining templates do not (narrative has its own set,
+ * hook only the media-led variant, cta/quote are single-layout).
+ */
+const INFO_LAYOUT_TYPES = new Set(["stat-reveal", "data", "contrast", "context", "info-card"]);
+
+/**
  * The layout the render layer actually uses for `scene` — the resolution
  * ShortVideo.tsx's renderScene performs before assertKnownTextFields.
  *
  * Narrative consumes scene.layout; hook consumes it ONLY for the media-led
  * variant (media-led hook, 2026-11-15: the picture is the protagonist and the
- * number yields — see HookMediaLed). Every other template renders
- * "hero-center" regardless of what scene-data says. Contract validation
- * (preflight and render) must resolve through this function so both sides
- * judge the same contract (#190).
+ * number yields — see HookMediaLed). Since #1215 the five information
+ * templates (`INFO_LAYOUT_TYPES`) also consume `scene.layout`, defaulting to
+ * "hero-center"; their new variants are registered in REMOTION_SLOT_MAP.
+ * Every other template renders "hero-center" regardless of what scene-data
+ * says. Contract validation (preflight and render) must resolve through this
+ * function so both sides judge the same contract (#190).
  *
  * The media-led branch is conditional on `scene.media` because that is
  * literally what HookScene dispatches on: with no media the component renders
@@ -410,6 +462,7 @@ export function resolveRenderLayout(scene) {
   }
   if (scene.visualType === "fullscreen") return "media";
   if (isMediaLedHook(scene)) return HOOK_MEDIA_LED_LAYOUT;
+  if (INFO_LAYOUT_TYPES.has(scene.visualType)) return scene.layout ?? "hero-center";
   return "hero-center";
 }
 
@@ -556,6 +609,14 @@ export const REMOTION_SLOT_MAP = {
       optional: ["label", "subtext", "source"],
       intentionallyOmitted: [],
     },
+    // #1215: the number is a set piece — count-up landing, a comparison
+    // rail (subtext is the required baseline) and the conclusion below.
+    "set-piece": {
+      rendered: ["bigNumber"],
+      control: [],
+      optional: ["label", "subtext", "source"],
+      intentionallyOmitted: [],
+    },
   },
   cta: {
     "hero-center": {
@@ -580,10 +641,24 @@ export const REMOTION_SLOT_MAP = {
       optional: ["badge", "detail"],
       intentionallyOmitted: [],
     },
+    // #1215: badge → title → context → detail as causal nodes, top to bottom.
+    flow: {
+      rendered: ["title"],
+      control: ["titleHighlight"],
+      optional: ["badge", "context", "detail"],
+      intentionallyOmitted: [],
+    },
   },
   contrast: {
     "hero-center": {
       // left/right are string arrays; each entry gates as left[i] / right[i].
+      rendered: ["title", "left", "right"],
+      control: ["noteHighlight"],
+      optional: ["vs", "note"],
+      intentionallyOmitted: [],
+    },
+    // #1215: left/right columns with the first entry as the column lead.
+    split: {
       rendered: ["title", "left", "right"],
       control: ["noteHighlight"],
       optional: ["vs", "note"],
@@ -600,12 +675,34 @@ export const REMOTION_SLOT_MAP = {
       optional: ["label", "subtext", "source"],
       intentionallyOmitted: [],
     },
+    // #1215: a 96px year/number, an institution pill and a ≥240px card.
+    "year-source": {
+      rendered: ["stat"],
+      control: [],
+      optional: ["label", "subtext", "source"],
+      intentionallyOmitted: [],
+    },
+    // #1215: a framed chart card. Text is optional — a bound chart asset is
+    // the content; `label` names the institution, `subtext` the reading.
+    "chart-card": {
+      rendered: [],
+      control: [],
+      optional: ["stat", "label", "subtext", "source"],
+      intentionallyOmitted: [],
+    },
   },
   "info-card": {
     "hero-center": {
       rendered: ["title", "subtitle", "points"],
-      control: [],
+      control: ["titleHighlight"],
       optional: [],
+      intentionallyOmitted: [],
+    },
+    // #1215: points as a staggered card array + a dot matrix for the count.
+    array: {
+      rendered: ["title", "points"],
+      control: ["titleHighlight"],
+      optional: ["subtitle"],
       intentionallyOmitted: [],
     },
   },

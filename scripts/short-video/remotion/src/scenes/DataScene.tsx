@@ -8,7 +8,7 @@
  * used to sit behind this scene is gone — a full-frame gradient is not a
  * subject.
  */
-import { Interactive, useCurrentFrame, interpolate } from "remotion";
+import { Img, Interactive, staticFile, useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
 import { type SceneData } from "../types";
 import { BrandBar, Slot } from "../components/visuals";
@@ -17,6 +17,8 @@ import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
 import { SPACING, COLOR, ANNOTATION } from "../components/shared";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
+import { ChartFrame } from "../components/topology";
+import { resolveRenderLayout } from "../../../lib/text-slots.mjs";
 
 export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
   scene,
@@ -31,6 +33,281 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+  const layout = resolveRenderLayout(scene);
+  const chartSrc =
+    layout === "chart-card" && scene.media?.path
+      ? staticFile(
+          scene.media.path.startsWith("assets/") ? scene.media.path : `assets/${scene.media.path}`,
+        )
+      : null;
+  const yearSource = layout === "year-source" && Boolean(txt.stat) && Boolean(txt.subtext);
+
+  if (yearSource) {
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <BrandBar />
+        <Camera visualType="data" duration={duration}>
+          <div
+            style={{
+              position: "absolute",
+              left: 60,
+              right: 200,
+              top: 260,
+              height: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 24,
+            }}
+          >
+            <div
+              style={{
+                width: 300,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                gap: 16,
+              }}
+            >
+              <SlideUp delay={0.2} duration={0.5}>
+                <TextGate
+                  sceneId={sceneId}
+                  slotId="data.year-source.stat"
+                  lockFontSize={96}
+                  // The year reads as a date stamp, not a stat the circle
+                  // annotation owns (the field's default policy is circle for
+                  // the hero-center stat).
+                  expectAnnotation={false}
+                >
+                  {(fontSize) => (
+                    <div
+                      style={{
+                        fontSize,
+                        fontWeight: 900,
+                        color: COLOR.amber,
+                        // 1.2 leaves the 96px glyph ink (107px) inside the
+                        // 300px-wide column's line box.
+                        lineHeight: 1.2,
+                        letterSpacing: "-2px",
+                        ...statLight,
+                      }}
+                    >
+                      {txt.stat as string}
+                    </div>
+                  )}
+                </TextGate>
+              </SlideUp>
+              {txt.label && (
+                <SlideUp delay={0.4} duration={0.5}>
+                  <TextGate
+                    sceneId={sceneId}
+                    slotId="data.year-source.label"
+                    // One line in the 300px column; the pill shape depends on it.
+                    lockFontSize={40}
+                  >
+                    {(fontSize) => (
+                      <div
+                        style={{
+                          display: "inline-block",
+                          padding: "8px 16px",
+                          border: "1px solid rgba(77,139,255,0.35)",
+                          borderRadius: 999,
+                          fontSize,
+                          fontWeight: 800,
+                          color: COLOR.brand,
+                          letterSpacing: "1px",
+                          ...labelLight,
+                        }}
+                      >
+                        {txt.label as string}
+                      </div>
+                    )}
+                  </TextGate>
+                </SlideUp>
+              )}
+            </div>
+
+            <SlideUp delay={0.5} duration={0.5}>
+              <div
+                data-text-container
+                style={{
+                  width: 440,
+                  height: 300,
+                  padding: 28,
+                  border: "1px solid rgba(223,227,232,0.28)",
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.04)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  gap: 12,
+                }}
+              >
+                <div
+                  aria-hidden
+                  style={{ width: 56, height: 4, borderRadius: 2, background: COLOR.amber }}
+                />
+                <TextGate
+                  sceneId={sceneId}
+                  slotId="data.year-source.subtext"
+                  slotWidth={382}
+                  // The 300px card is 244px tall after padding; five 40px
+                  // lines overflowed it. 36px keeps five lines inside.
+                  lockFontSize={36}
+                >
+                  {(fontSize) => (
+                    <div style={{ fontSize, fontWeight: 700, color: COLOR.text, lineHeight: 1.35 }}>
+                      {txt.subtext as string}
+                    </div>
+                  )}
+                </TextGate>
+              </div>
+            </SlideUp>
+          </div>
+
+          {txt.source && (
+            <div
+              style={{
+                position: "absolute",
+                left: 60,
+                right: 200,
+                bottom: 210,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <FadeIn delay={1.0} duration={0.5}>
+                <TextGate sceneId={sceneId} slotId="data.year-source.source">
+                  {(fontSize) => (
+                    <div
+                      style={{
+                        fontSize,
+                        fontWeight: 600,
+                        color: COLOR.textDim,
+                        letterSpacing: "1px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {txt.source as string}
+                    </div>
+                  )}
+                </TextGate>
+              </FadeIn>
+            </div>
+          )}
+        </Camera>
+      </div>
+    );
+  }
+
+  if (chartSrc) {
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <BrandBar />
+        <Camera visualType="data" duration={duration}>
+          <div
+            style={{
+              position: "absolute",
+              left: 60,
+              right: 200,
+              // Below BrandBar (top 236).
+              top: 320,
+              height: 760,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 20,
+            }}
+          >
+            {txt.label && (
+              <TextGate
+                sceneId={sceneId}
+                slotId="data.chart-card.label"
+                // One line; the pill looks like a pill only when it does.
+                lockFontSize={40}
+              >
+                {(fontSize) => (
+                  <div
+                    style={{
+                      display: "inline-block",
+                      padding: "8px 18px",
+                      border: "1px solid rgba(77,139,255,0.35)",
+                      borderRadius: 999,
+                      fontSize,
+                      fontWeight: 800,
+                      color: COLOR.brand,
+                      letterSpacing: "1px",
+                      ...labelLight,
+                    }}
+                  >
+                    {txt.label as string}
+                  </div>
+                )}
+              </TextGate>
+            )}
+
+            <FadeIn delay={0.3} duration={0.5}>
+              <ChartFrame>
+                <Img
+                  src={chartSrc}
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                />
+              </ChartFrame>
+            </FadeIn>
+
+            {txt.subtext && (
+              <TextGate sceneId={sceneId} slotId="data.chart-card.subtext" slotWidth={440}>
+                {(fontSize) => (
+                  <div
+                    style={{
+                      fontSize,
+                      fontWeight: 700,
+                      color: COLOR.text,
+                      textAlign: "center",
+                    }}
+                  >
+                    {txt.subtext as string}
+                  </div>
+                )}
+              </TextGate>
+            )}
+          </div>
+
+          {txt.source && (
+            <div
+              style={{
+                position: "absolute",
+                left: 60,
+                right: 200,
+                bottom: 210,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <FadeIn delay={1.0} duration={0.5}>
+                <TextGate sceneId={sceneId} slotId="data.chart-card.source">
+                  {(fontSize) => (
+                    <div
+                      style={{
+                        fontSize,
+                        fontWeight: 600,
+                        color: COLOR.textDim,
+                        letterSpacing: "1px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {txt.source as string}
+                    </div>
+                  )}
+                </TextGate>
+              </FadeIn>
+            </div>
+          )}
+        </Camera>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
