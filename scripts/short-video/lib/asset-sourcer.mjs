@@ -1487,6 +1487,10 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // dim of the fit it actually renders.
       media.overlay = overlayForScene({ ...target, media });
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
+      // chartEntry's upscale opt-out must survive into scene.media — the
+      // render-stage safety net reads media.upscale, not the entry (#1382:
+      // Real-ESRGAN drops tiles on line-art charts).
+      if (asset.upscale === false) media.upscale = false;
       if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 
       result.push({

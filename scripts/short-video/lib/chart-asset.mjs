@@ -54,6 +54,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { PNG } from "pngjs";
 import { PNG_SIGNATURE } from "./media-integrity.mjs";
 
 export const CHART_IMG_V2_URL = "https://api.chart-img.com/v2/tradingview/advanced-chart";
@@ -62,6 +63,19 @@ const CHART_WIDTH = 800;
 const CHART_HEIGHT = 600;
 /** Sibling network calls in this pipeline all bound a 30s timeout. */
 const CHART_FETCH_TIMEOUT_MS = 30000;
+
+/** Fetch attempts before declaring a frame unhydrated (see fetchChartPngVerified). */
+const CHART_HYDRATION_ATTEMPTS = 2;
+/** Plot-band grid resolution for the hydration probe (see probeChartHydration). */
+const CHART_HYDRATION_COLS = 16;
+/** Vertical structure a column needs to count as painted — the centered
+ * CHART-IMG.COM watermark is ~12px tall, candles/wicks are tens. */
+const CHART_HYDRATION_MIN_ROWS = 10;
+/** RGB-sum distance from the sampled background that counts as content. */
+const CHART_HYDRATION_BG_DIFF = 90;
+/** Analyzed band as fractions of w/h: header (top 12%), time axis (bottom 8%)
+ * and price axis (right 10%) always carry text and would fake coverage. */
+const CHART_HYDRATION_BAND = Object.freeze({ top: 0.12, bottom: 0.92, left: 0.02, right: 0.9 });
 
 /**
  * Exchanges whose v2 data is Delayed per chart-img's availability table
@@ -254,7 +268,7 @@ export async function fetchChartAsset({
     symbol: entity.symbol,
     ...resolveChartParams(chart, defaults),
   };
-  const buf = await fetchChartPng({ entity, apiKey, body });
+  const buf = await fetchChartPngVerified({ entity, apiKey, body });
   const destPath = join(assetsDir, chartFileName(entity, sceneId, body));
   if (!existsSync(assetsDir)) mkdirSync(assetsDir, { recursive: true });
   writeFileSync(destPath, buf);
@@ -262,9 +276,103 @@ export async function fetchChartAsset({
 }
 
 /**
- * POST the v2 request and return the raw PNG buffer. Loud on non-200 and on
- * non-PNG bodies (error JSON can hide behind a 200).
+ * POST the v2 request and return a raw PNG buffer that actually depicts the
+ * chart. Retries once on a hydration failure: the 2026-11-16 zhipu run shipped
+ * a K-line whose mid-July~October candles were missing, and the render still
+ * passed every gate — a screenshot service can hand back a frame captured
+ * before the chart finished painting, and nothing downstream can tell.
+ *
+ * Loud on non-200 and on non-PNG bodies (error JSON can hide behind a 200).
  */
+async function fetchChartPngVerified({ entity, apiKey, body }) {
+  let lastProbe = null;
+  for (let attempt = 1; attempt <= CHART_HYDRATION_ATTEMPTS; attempt++) {
+    const buf = await fetchChartPng({ entity, apiKey, body });
+    lastProbe = probeChartHydration(buf);
+    if (lastProbe.ok) return buf;
+    console.warn(
+      `  ⚠️  chart-img ${entity.symbol} attempt ${attempt}/${CHART_HYDRATION_ATTEMPTS}: ` +
+        `unhydrated frame (covered ${lastProbe.coveredCount}/${lastProbe.cols} columns, ` +
+        `empty run ${lastProbe.maxRun}) — retrying`,
+    );
+  }
+  throw new Error(
+    `chart-img frame for ${entity.symbol} failed the hydration probe after ` +
+      `${CHART_HYDRATION_ATTEMPTS} attempts (covered ${lastProbe.coveredCount}/${lastProbe.cols}, ` +
+      `empty run ${lastProbe.maxRun}) — the screenshot service returned an unpainted chart`,
+  );
+}
+
+/**
+ * Hydration probe for a chart screenshot (2026-11-16).
+ *
+ * A candlestick chart of a liquid instrument paints candles across essentially
+ * every horizontal slice of the plot band; a frame captured mid-hydration has
+ * large contiguous unpainted stretches. So: grid the plot band (header, time
+ * axis and price axis excluded — they carry text that would fake coverage)
+ * into CHART_HYDRATION_COLS columns, mark a column covered when it holds
+ * content with vertical structure (≥ CHART_HYDRATION_MIN_ROWS distinct rows),
+ * then require high coverage AND no long empty run. Calibrated live against
+ * the two broken Real-ESRGAN outputs and three good charts on 2026-11-16:
+ * good charts cover 16/16 with run 0, broken frames cover ≤12/16 with run ≥4.
+ *
+ * NOTE this probes the FETCHED frame only. The other half of the same defect —
+ * Real-ESRGAN dropping tiles while upscaling a perfectly good chart — is cut
+ * off at the root: chart entries opt out of auto-upscale entirely (see
+ * chartEntry; line-art charts are the wrong input for a photo SR model and
+ * 800×600 already covers the contain band).
+ *
+ * @param {Buffer} buf - raw PNG bytes
+ * @returns {{ok: boolean, coveredCount: number, cols: number, maxRun: number}}
+ */
+export function probeChartHydration(buf) {
+  const png = PNG.sync.read(buf);
+  const { width: w, height: h, data } = png;
+  const at = (x, y) => {
+    const i = (y * w + x) * 4;
+    return [data[i], data[i + 1], data[i + 2]];
+  };
+  // Background = a quiet plot-band sample (grid lines and candles are far
+  // from it; the watermark is not, but it cannot carry a column alone —
+  // see MIN_ROWS).
+  const bg = at(Math.floor(w * 0.5), Math.floor(h * 0.16));
+  const diff = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+  const top = Math.floor(h * CHART_HYDRATION_BAND.top);
+  const bottom = Math.floor(h * CHART_HYDRATION_BAND.bottom);
+  const left = Math.floor(w * CHART_HYDRATION_BAND.left);
+  const right = Math.floor(w * CHART_HYDRATION_BAND.right);
+  const colW = Math.floor((right - left) / CHART_HYDRATION_COLS);
+  const covered = [];
+  for (let c = 0; c < CHART_HYDRATION_COLS; c++) {
+    const x0 = left + c * colW;
+    const x1 = Math.min(x0 + colW, right);
+    let rows = 0;
+    for (let y = top; y < bottom; y++) {
+      let hit = false;
+      for (let x = x0; x < x1 && !hit; x += 2) {
+        if (diff(at(x, y), bg) > CHART_HYDRATION_BG_DIFF) hit = true;
+      }
+      if (hit) rows++;
+    }
+    covered.push(rows >= CHART_HYDRATION_MIN_ROWS);
+  }
+  const coveredCount = covered.filter(Boolean).length;
+  let maxRun = 0;
+  let run = 0;
+  for (const cov of covered) {
+    run = cov ? 0 : run + 1;
+    maxRun = Math.max(maxRun, run);
+  }
+  return {
+    ok: coveredCount >= CHART_HYDRATION_COLS * 0.75 && maxRun <= 3,
+    coveredCount,
+    cols: CHART_HYDRATION_COLS,
+    maxRun,
+  };
+}
+
+/** POST the v2 request and return the raw PNG buffer. Loud on non-200 and on
+ * non-PNG bodies (error JSON can hide behind a 200). */
 async function fetchChartPng({ entity, apiKey, body }) {
   const res = await fetch(`${CHART_IMG_V2_URL}?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
@@ -323,6 +431,16 @@ function chartEntry({ entity, sceneId, body, path }) {
     // Deterministic asset — admitted by relevance-verdict "chart-pin", never
     // VLM-scored (see analyzeAssets exclusion in asset-sourcer main()).
     chartPin: true,
+    // Opt out of the render-stage auto-upscale: Real-ESRGAN is a photo SR
+    // model and DROPS TILES on line-art charts (2026-11-16 zhipu run: a good
+    // 800×600 fetch came out of the 2× pass with the mid-July~October candles
+    // and half the title blank — reproduced 100% locally). The probe in
+    // probeChartHydration catches this shape on FETCHED frames, but the
+    // corrupted one is written after the fetch, so the only safe seam is to
+    // not run charts through it: 800×600 already covers the 820×619 contain
+    // band (1.03×, invisible), and nearest/lanczos quality loss on candles
+    // would be preferable to lost tiles anyway.
+    upscale: false,
     chart: {
       ...body,
       label: entity.label,
