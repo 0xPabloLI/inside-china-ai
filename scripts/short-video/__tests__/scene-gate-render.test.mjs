@@ -112,6 +112,16 @@ const BASELINES = [
   "baseline-data",
   "baseline-info-card",
   "baseline-fullscreen",
+  // #1215: one legal-copy scene per new information layout. These fail the
+  // render if the layout's declared focal object, slot widths, or annotation
+  // contract drift.
+  "topology-set-piece",
+  "topology-year-source",
+  "topology-chart-card",
+  "topology-split",
+  "topology-flow",
+  "topology-array",
+  "topology-array-dense",
 ];
 
 // baseline-quote renders after the verified badge's StampIn settles (delay

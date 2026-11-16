@@ -137,7 +137,7 @@ export const scenes = [
     id: 6,
     name: "hardware",
     visualType: "contrast",
-    layout: "hero-center",
+    layout: "split",
     narrativeRole: "A",
     retentionMechanism: null,
     mediaStrategy: "asset",

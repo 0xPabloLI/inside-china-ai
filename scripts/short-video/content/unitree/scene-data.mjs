@@ -112,6 +112,7 @@ export const scenes = [
     id: 6,
     name: "deepseek-backing",
     visualType: "context",
+    layout: "flow",
     voiceover:
       "DeepSeek backed the IPO. Liang Wenfeng's allocation gained 1.1 billion yuan day one. Tencent and the pension fund joined.",
     texts: {
@@ -145,6 +146,7 @@ export const scenes = [
     id: 8,
     name: "agibot-rivalry",
     visualType: "contrast",
+    layout: "split",
     voiceover:
       "But AgiBot shipped more humanoids in H1. Yu-shu IPO'd first, but lost the shipment crown.",
     texts: {

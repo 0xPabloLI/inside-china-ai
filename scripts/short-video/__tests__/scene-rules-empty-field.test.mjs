@@ -118,6 +118,37 @@ describe("checkEmptyField — largest declared object", () => {
     expect(warns(checkEmptyField([infoCardScene]))).toHaveLength(1);
   });
 
+  // #1215: the new layouts carry a layout-declared focal object (a 380px
+  // column pair, a 360px flow, a 672px card array). Those objects are wider
+  // than any text slot, so the text-only read cannot see them; the declared
+  // geometry is the measurable width protagonist from the 2026-11-14 ruling.
+  it("passes a contrast scene in the split layout: the column pair is the hero", () => {
+    const results = checkEmptyField([{ ...contrastScene, layout: "split" }]);
+    expect(warns(results)).toEqual([]);
+    expect(results[0].detail).toContain("layout focal object");
+  });
+
+  it("passes context.flow and info-card.array by their declared geometry", () => {
+    const flow = checkEmptyField([{ ...contextScene, layout: "flow" }]);
+    expect(warns(flow)).toEqual([]);
+    const array = checkEmptyField([{ ...infoCardScene, layout: "array" }]);
+    expect(warns(array)).toEqual([]);
+    const yearSource = checkEmptyField([
+      { ...dataScene, layout: "year-source", texts: { stat: "2026", subtext: "THE ROUND" } },
+    ]);
+    expect(warns(yearSource)).toEqual([]);
+  });
+
+  it("skips a scene that already fails its template contract", () => {
+    // A typo'd field fails the template gate; the empty-field verdict would be
+    // a second finding about a scene that cannot render at all.
+    const results = checkEmptyField([
+      { ...contrastScene, texts: { ...contrastScene.texts, leftTitle: "TYPO" } },
+    ]);
+    expect(warns(results)).toEqual([]);
+    expect(results[0].detail).toContain("skipped (template contract fails)");
+  });
+
   it("reads the data.label alias (statLabel) when the stat itself is empty", () => {
     const results = checkEmptyField([
       { ...dataScene, texts: { stat: "", statLabel: "ONLY A LABEL" } },

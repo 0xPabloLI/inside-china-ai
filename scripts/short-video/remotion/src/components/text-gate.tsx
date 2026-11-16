@@ -931,7 +931,18 @@ export const TextGate: React.FC<TextGateProps> = ({
       // display:block + auto margins: a full-width inline-block under
       // textAlign:center shifts right by half the parent's slack and
       // overflows its container (seen on quote.hero-center.verified).
-      style={{ width: contentWidth, position: "relative", display: "block", margin: "0 auto" }}
+      // flexShrink: 0 — a flex parent narrower than the measured slot must
+      // overflow (and fail the container assert), not silently shrink the
+      // contract width and re-wrap the copy. The #1215 split title hit this:
+      // an absolute band in a zero-width measuring context shrank the 820px
+      // gate to its 380px min-content and failed fit-bottom on legal copy.
+      style={{
+        width: contentWidth,
+        position: "relative",
+        display: "block",
+        margin: "0 auto",
+        flexShrink: 0,
+      }}
     >
       {/*
         Keyed by the governing font size. The gate's Fit walk mutates

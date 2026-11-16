@@ -31,7 +31,7 @@ export const scenes = [
     id: 2,
     name: "funding",
     visualType: "stat-reveal",
-    layout: "hero-center",
+    layout: "set-piece",
     voiceover:
       "Moonshot AI raised 3.5 billion in its F round. Valuation jumped from 35 to 50 billion in six months.",
     texts: {
@@ -123,7 +123,7 @@ export const scenes = [
     id: 8,
     name: "contrast",
     visualType: "contrast",
-    layout: "hero-center",
+    layout: "split",
     voiceover:
       "So China's AI unicorn faces US sanctions on one side, and negotiates with US tech giants on the other. All while filing for IPO.",
     texts: {

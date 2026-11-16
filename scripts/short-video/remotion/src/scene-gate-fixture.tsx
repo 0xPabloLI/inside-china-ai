@@ -196,6 +196,14 @@ const MEDIA_LED_CONTAIN_SCENE: SceneData = {
   },
 };
 
+/** The cover variant: the same generated photo with `fit` omitted. */
+const MEDIA_LED_COVER_MEDIA: NonNullable<SceneData["media"]> = {
+  type: "image",
+  path: SCENE_GATE_PHOTO,
+  animation: "none",
+  source: "FIXTURE",
+};
+
 /** Legal-copy baselines, one scene per template (#35). */
 const BASELINE_SCENES: Record<string, SceneData> = {
   "baseline-hook": {
@@ -235,7 +243,121 @@ const BASELINE_SCENES: Record<string, SceneData> = {
   "baseline-hook-media-led-cover": {
     ...MEDIA_LED_CONTAIN_SCENE,
     id: 31,
-    media: { ...MEDIA_LED_CONTAIN_SCENE.media, fit: undefined },
+    media: MEDIA_LED_COVER_MEDIA,
+  },
+  // #1215 topology scenarios: one legal-copy scene per new information
+  // layout. These are the render evidence for the layout PR — the frame must
+  // show the declared focal object (count-up number, year card, chart frame,
+  // column pair, flow nodes, card array), not the hero-center fallback.
+  "topology-set-piece": {
+    id: 41,
+    visualType: "stat-reveal",
+    layout: "set-piece",
+    voiceover: "Ninety-seven percent of China's public cloud runs on domestic silicon.",
+    texts: {
+      bigNumber: "97%",
+      label: "MARKET SHARE",
+      subtext: "OF CHINA'S PUBLIC CLOUD",
+      source: "IDC, 2026",
+    },
+  },
+  "topology-year-source": {
+    id: 42,
+    visualType: "data",
+    layout: "year-source",
+    voiceover: "The round closed in late September 2026.",
+    texts: {
+      stat: "2026",
+      label: "THE ROUND",
+      subtext: "DEEPSEEK CLOSED A 15B YUAN ROUND LED BY A STATE FUND",
+      source: "LATE SEPTEMBER",
+    },
+  },
+  "topology-chart-card": {
+    id: 43,
+    visualType: "data",
+    layout: "chart-card",
+    voiceover: "Revenue doubled for a third straight quarter.",
+    media: { type: "image", path: SCENE_GATE_PHOTO, animation: "none", source: "FIXTURE" },
+    texts: {
+      label: "REVENUE, 2025–2026",
+      subtext: "THREE CONSECUTIVE QUARTERS OF DOUBLING",
+      source: "COMPANY FILINGS",
+    },
+  },
+  "topology-split": {
+    id: 44,
+    visualType: "contrast",
+    layout: "split",
+    voiceover: "One path ships hardware. The other ships demos.",
+    texts: {
+      title: "TWO PATHS TO HUMANOIDS",
+      vs: "VS",
+      left: ["REAL ROBOT SHIPPING", "FULL STACK HARDWARE", "FACTORY FLOORS"],
+      right: ["DEMO FIRST", "CONSUMER HYPE", "VIDEO-ONLY"],
+      note: "SAME YEAR, DIFFERENT BET",
+      noteHighlight: "DIFFERENT",
+    },
+  },
+  "topology-flow": {
+    id: 45,
+    visualType: "context",
+    layout: "flow",
+    voiceover: "The report landed, the exchange asked for proof, and the filing followed.",
+    texts: {
+      badge: "CAUSE",
+      title: "THE REPORT LANDED",
+      context: "THE EXCHANGE ASKED FOR PROOF",
+      detail: "THE FILING FOLLOWED",
+    },
+  },
+  "topology-array": {
+    id: 46,
+    visualType: "info-card",
+    layout: "array",
+    voiceover: "Ten models shipped in the same quarter.",
+    texts: {
+      title: "TEN MODELS, ONE QUARTER",
+      subtitle: "THE RELEASE WAVE",
+      points: [
+        "QWEN 4",
+        "KIMI K3",
+        "DEEPSEEK V4",
+        "GLM-6",
+        "ERNIE 6",
+        "MINIMAX M3",
+        "STEP 4",
+        "HUNYUAN 3",
+        "DOUBAO 2",
+        "YI-LIGHTNING",
+      ],
+    },
+  },
+  // #1215 density edge: ≥12 points switch to the count matrix (ordinal cells,
+  // no per-label gate), so long model names cannot overflow a 72px content box.
+  "topology-array-dense": {
+    id: 47,
+    visualType: "info-card",
+    layout: "array",
+    voiceover: "Twelve models shipped in the same quarter.",
+    texts: {
+      title: "TWELVE MODELS, ONE QUARTER",
+      subtitle: "THE RELEASE WAVE",
+      points: [
+        "QWEN 4",
+        "KIMI K3",
+        "DEEPSEEK V4",
+        "GLM-6",
+        "ERNIE 6",
+        "MINIMAX M3",
+        "STEP 4",
+        "HUNYUAN 3",
+        "DOUBAO 2",
+        "YI-LIGHTNING",
+        "BAICHUAN 5",
+        "SENSETIME 6",
+      ],
+    },
   },
   // #255 incident replay: deepseek-v41-flash-report's real hook shape —
   // two stat cards + a source line with lowercase DESCENDERS ("p" in

@@ -23,6 +23,7 @@ import { SPACING, COLOR } from "../components/shared";
 import { TextGate } from "../components/text-gate";
 import { MediaBackground } from "../components/MediaBackground";
 import { Camera } from "../components/Camera";
+import { resolveRenderLayout } from "../../../lib/text-slots.mjs";
 
 export const ContrastScene: React.FC<{
   scene: SceneData;
@@ -36,6 +37,7 @@ export const ContrastScene: React.FC<{
   const hasMedia = Boolean(scene.media);
   const titleLight = useFocusLight("contrast", "title", duration);
   const rightLight = useFocusLight("contrast", "right", duration);
+  const layout = resolveRenderLayout(scene);
 
   const Chip: React.FC<{
     text: string;
@@ -64,6 +66,179 @@ export const ContrastScene: React.FC<{
       </TextGate>
     </SlideUp>
   );
+
+  if (layout === "split") {
+    const column = (
+      items: string[],
+      side: "left" | "right",
+      tone: string,
+      bg: string,
+      delay: number,
+      glow: React.CSSProperties | undefined,
+    ) => (
+      <div
+        data-text-container
+        style={{
+          width: 380,
+          minHeight: 300,
+          padding: 24,
+          borderRadius: 12,
+          border: `2px solid ${tone}`,
+          background: bg,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 14,
+          ...glow,
+        }}
+      >
+        {items.map((item, i) => (
+          <SlideUp key={i} delay={delay + i * 0.12} duration={0.4}>
+            <TextGate sceneId={sceneId} slotId={`contrast.split.${side}[${i}]`}>
+              {(fontSize) => (
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: i === 0 ? "8px 16px" : "0 6px",
+                    // 12px, not a full pill: the lead can wrap to three lines
+                    // and a 999px radius then draws an ellipse around them.
+                    borderRadius: i === 0 ? 12 : 0,
+                    background: i === 0 ? bg : "transparent",
+                    border: i === 0 ? `1px solid ${tone}` : "none",
+                    fontSize,
+                    fontWeight: i === 0 ? 900 : 700,
+                    color: i === 0 ? tone : COLOR.text,
+                    textAlign: "center",
+                  }}
+                >
+                  {item}
+                </div>
+              )}
+            </TextGate>
+          </SlideUp>
+        ))}
+      </div>
+    );
+
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        {hasMedia && (
+          <MediaBackground media={scene.media!} duration={duration} contentDir={contentDir} />
+        )}
+        <Glow color="blue" />
+        <BrandBar />
+
+        <Camera visualType="contrast" duration={duration}>
+          <div
+            style={{
+              position: "absolute",
+              left: 60,
+              right: 200,
+              // Below BrandBar (top 236); the gate is 138px at preferred 60.
+              top: 320,
+              height: 140,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {txt.title && (
+              <TextGate sceneId={sceneId} slotId="contrast.split.title">
+                {(fontSize) => (
+                  <Interactive.Div
+                    name="title"
+                    style={{
+                      fontSize,
+                      fontWeight: 900,
+                      color: COLOR.text,
+                      textAlign: "center",
+                      ...titleLight,
+                    }}
+                  >
+                    {txt.title as string}
+                  </Interactive.Div>
+                )}
+              </TextGate>
+            )}
+          </div>
+
+          {/* One flow column: VS overlays the card gap, the note follows the
+              cards' real height instead of a fixed 1080px that left a hole
+              under short real copy and collided with tall copy. */}
+          <div
+            style={{
+              position: "absolute",
+              left: 60,
+              width: 820,
+              top: 475,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ position: "relative", display: "flex", gap: 60 }}>
+              {txt.vs && (
+                <div
+                  style={{
+                    position: "absolute",
+                    // The gate is 820px wide; a narrower parent makes its
+                    // `margin: 0 auto` negative and shifts the glyph off the
+                    // row. 820 also keeps it centred in the 60px card gap.
+                    left: 0,
+                    top: 0,
+                    width: 820,
+                    textAlign: "center",
+                  }}
+                >
+                  <TextGate sceneId={sceneId} slotId="contrast.split.vs" lockFontSize={36}>
+                    {(fontSize) => (
+                      <div
+                        style={{
+                          // Bare symbol, not a pill: 48px + 40px padding was
+                          // 88px wide and covered both column borders.
+                          fontSize,
+                          fontWeight: 900,
+                          color: COLOR.textDim,
+                          letterSpacing: "2px",
+                        }}
+                      >
+                        {txt.vs as string}
+                      </div>
+                    )}
+                  </TextGate>
+                </div>
+              )}
+              {column(left, "left", COLOR.amber, "rgba(245,158,11,0.06)", 0.5, undefined)}
+              {column(right, "right", COLOR.brand, "rgba(77,139,255,0.06)", 0.8, rightLight)}
+            </div>
+
+            {txt.note && (
+              <FadeIn delay={1.2} duration={0.5} style={{ marginTop: 36, width: 820 }}>
+                <TextGate sceneId={sceneId} slotId="contrast.split.note">
+                  {(fontSize) => (
+                    <div
+                      style={{
+                        fontSize,
+                        fontWeight: 700,
+                        color: COLOR.textMuted,
+                        textAlign: "center",
+                      }}
+                    >
+                      {txt.note as string}
+                      {txt.noteHighlight && (
+                        <span style={{ color: COLOR.red }}>{txt.noteHighlight as string}</span>
+                      )}
+                    </div>
+                  )}
+                </TextGate>
+              </FadeIn>
+            )}
+          </div>
+        </Camera>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
