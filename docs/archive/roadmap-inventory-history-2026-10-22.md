@@ -15,6 +15,8 @@
 
 ## 逐轮盘点（Round CXCIX → LV）
 
+（**Round CCI：`#1354` 交付闭票、`#1353` 补登退场、Track 1B ① 队首换 `#1362`**——Kaggle 排队超时先落 `kaggle-queue-attribution.json` 再按拥堵/配额/卡死/慢归因；push 前同 slug 槽位预检；kernel 90min 墙钟自尽 + 60s 心跳。产品验证门：**无产出差异（enabling fix）**，产出变化待 `#1362`。`#1353` 由 PR #1380（squash `5465edc2`）交付；`#1354` 由 PR #1383 交付；`--gate` 复跑归零。frontier 复算：Track 1A **空**、① `#1362`、② `#541 → #1215`、③④ 空。）
+
 （**Round CXCIX：`#1361` 交付闭票、Track 1A 出清、`PR #1370` 消账**——Tier-3 触发信号从「候选数量」改为「相关性判决后仍未满足的场景」：`selectTier3Scenes(scenes, patches)` 只数 `!media` + `!skipsMediaSourcing` + `shouldSourceStock` 且无 `assigned` patch 的场景，后置到 VLM 判分与分配之后、`MAX_TIER3_PASSES = 1` 一次重试（产品验证门：**有产出差异**——zhipu-valuation 旧规则按「65 资产 ≥ 7 场景」判充足、跳过五家引擎，新规则触发 SearXNG 等四家、scene 2 得 relevance 80 素材，余 6 场告警收敛）；`PR #1370` 落 archive，`--gate` 复跑归零。frontier 复算：Track 1A **空**（`#1360`/`#1361` 双双出清）、① `#1355 → #1353 → #1354 → #1362`、② `#541 → #1215`、③④ 空。）
 
 （**Round CXCVIII：`#1360` 交付出清 Track 1A 队首、`PR #1365`/`#1367` 消账**——`#1360` 由 PR #1367（squash `92653227`）交付：40–59 分视频候选接上第二轮主体复查（真实 Qwen3-VL 对两支存量片均判 `no_match`，产出变化待 `#1361`/`#1353` 放大候选面）；两条 ledger 候选（PR #1365 `94ae1b54`、PR #1367 `92653227`）逐条落 archive 补登，`--gate` 复跑归零；订正 Phase 3 `#294` 行「视频侧仍只做首评」的过期口径，并把 `#1353` 行的 K 线归属改写为「PR #1365 直接交付、未拆票」。产品验证门：**无产出差异**（enabling fix——候选面未变时成片与配图不变，`#294` 的二次主体复查对两支存量片均判 `no_match`）。frontier 复算：Track 1A `#1361`（`#1360` 出清）、① `#1355 → #1353 → #1354 → #1362`、② `#541 → #1215`、③④ 空。台账 PR #1369（squash `8daf16de`），无施工 PR。
