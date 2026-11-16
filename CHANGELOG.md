@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.80.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.79.0...tanstack_start_ts-v1.80.0) (2026-11-16)
+
+
+### Features
+
+* **short-video:** [#1215](https://github.com/0xPabloLI/inside-china-ai/issues/1215) PR-B information layout topologies ([#1391](https://github.com/0xPabloLI/inside-china-ai/issues/1391)) ([48b19e4](https://github.com/0xPabloLI/inside-china-ai/commit/48b19e426010a313164919a8aa21f794ca5597ef))
+
 ## [1.79.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.78.0...tanstack_start_ts-v1.79.0) (2026-11-16)
 
 
