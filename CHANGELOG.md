@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.77.0...tanstack_start_ts-v1.77.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **sourcing:** chart 资产防 Real-ESRGAN tile 丢失 + fetch 水合探针 ([#1382](https://github.com/0xPabloLI/inside-china-ai/issues/1382)) ([36b411b](https://github.com/0xPabloLI/inside-china-ai/commit/36b411bbabe87d4da524459c038da5008aaa91e0))
+
 ## [1.77.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.76.0...tanstack_start_ts-v1.77.0) (2026-11-16)
 
 
