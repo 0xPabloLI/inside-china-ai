@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.76.0...tanstack_start_ts-v1.77.0) (2026-11-16)
+
+
+### Features
+
+* **short-video:** [#1354](https://github.com/0xPabloLI/inside-china-ai/issues/1354) Kaggle 排队取证归因、push 前槽位预检与 kernel 墙钟自尽 ([#1383](https://github.com/0xPabloLI/inside-china-ai/issues/1383)) ([16cf564](https://github.com/0xPabloLI/inside-china-ai/commit/16cf564e1e86e69cdf2ce7b986d40708c5965af2))
+
 ## [1.76.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.75.0...tanstack_start_ts-v1.76.0) (2026-11-15)
 
 
