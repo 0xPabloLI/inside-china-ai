@@ -12,6 +12,11 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { runMediaTrack } from "../lib/media-track.mjs";
+import {
+  DEFAULT_SOURCING_SETTINGS,
+  buildReuseMetadata,
+  sceneClaimSignatures,
+} from "../lib/media-reuse.mjs";
 
 describe("media-track", () => {
   let tmp;
@@ -469,6 +474,36 @@ describe("media-track", () => {
     );
     writeFileSync(join(tmp, "content", "c", "found.png"), "x");
     await runMediaTrack(ctx);
+    expect(scene.media.path).toBe("found.png");
+  });
+
+  it("skips sourcing and applies the patch when every claim is unchanged (#1362)", async () => {
+    const sourcer = vi.fn(async () => {});
+    const scene = { id: 2, voiceover: "v" };
+    const { ctx, contentDir } = makeCtx({
+      scenes: [scene],
+      broll: null,
+      deps: baseDeps({ sourcerMain: sourcer }),
+    });
+    const patchDir = join(tmp, "output", contentDir);
+    mkdirSync(patchDir, { recursive: true });
+    writeFileSync(join(tmp, "content", "c", "found.png"), "x");
+    writeFileSync(
+      join(patchDir, "media-patch.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        reuse: buildReuseMetadata({
+          signatures: sceneClaimSignatures([scene]),
+          searchedSceneIds: [2],
+          settings: DEFAULT_SOURCING_SETTINGS,
+        }),
+        patches: [{ sceneId: 2, status: "assigned", media: { path: "found.png" } }],
+      }),
+    );
+
+    await runMediaTrack(ctx);
+
+    expect(sourcer).not.toHaveBeenCalled();
     expect(scene.media.path).toBe("found.png");
   });
 

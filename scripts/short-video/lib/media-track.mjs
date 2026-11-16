@@ -23,6 +23,7 @@
 import { existsSync, readFileSync } from "fs";
 import { join, relative, resolve } from "path";
 import { skipsMediaSourcing } from "./claim-keywords.mjs";
+import { DEFAULT_SOURCING_SETTINGS, planPatchReuse, readMediaPatchFile } from "./media-reuse.mjs";
 
 /**
  * Run the media track stages.
@@ -47,6 +48,9 @@ export async function runMediaTrack({
   mediaChain = {},
 }) {
   const contentDirAbs = resolve(baseDir, "content", contentDir);
+  // media-patch.json lives beside the other per-package artifacts, keyed by
+  // slug (#1362 makes it survive reruns instead of being per-run only).
+  const patchPath = resolve(contentDirAbs, "..", "..", "output", contentDir, "media-patch.json");
 
   // ── Stage 1.5a: Evidence captures (re-capture missing screenshots) ──
   // Runs before stock sourcing: an evidence scene's file is a capture of the
@@ -92,22 +96,36 @@ export async function runMediaTrack({
     return !existsSync(mediaPath); // Media path set but file missing → needs sourcing
   });
   if (scenesNeedingMedia.length > 0) {
-    console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
-    prof.mark?.("step-1.5-sourcing", { track: "media" });
-    try {
-      const sourcerMain = deps.sourcerMain ?? (await import("./asset-sourcer.mjs")).main;
-      await sourcerMain(["--content", contentDir]);
-      console.log();
-    } catch (e) {
-      console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
+    // #1362: a rerun after a voice-track failure (TTS queue timeout) must not
+    // re-send 25 sources for claims that did not change. The sourcer enforces
+    // the same rule; checking here skips the import and scene-data load too.
+    const reusePlan = planPatchReuse({
+      scenes,
+      rawPatch: readMediaPatchFile(patchPath),
+      contentDirAbs,
+      settings: DEFAULT_SOURCING_SETTINGS,
+    });
+    if (reusePlan.signatures.size > 0 && reusePlan.stale.length === 0) {
+      console.log(
+        `♻️  Step 1.5: Reused media-patch.json — ${reusePlan.reusable.length} scene claim(s) unchanged, sourcing skipped\n`,
+      );
+    } else {
+      console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
+      prof.mark?.("step-1.5-sourcing", { track: "media" });
+      try {
+        const sourcerMain = deps.sourcerMain ?? (await import("./asset-sourcer.mjs")).main;
+        await sourcerMain(["--content", contentDir]);
+        console.log();
+      } catch (e) {
+        console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
+      }
+      prof.end?.("step-1.5-sourcing");
     }
-    prof.end?.("step-1.5-sourcing");
   }
 
   // ── Stage 1.5c: Apply media-patch.json to scenes (auto-assign sourced assets) ──
   // Memory-only mutation — does NOT write back to scene-data.mjs.
   {
-    const patchPath = resolve(contentDirAbs, "..", "..", "output", contentDir, "media-patch.json");
     prof.mark?.("step-1.5c-media-patch", { track: "media" });
     if (existsSync(patchPath)) {
       try {

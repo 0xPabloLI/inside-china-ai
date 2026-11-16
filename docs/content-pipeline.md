@@ -562,6 +562,8 @@ node scripts/short-video/main.mjs                    # TTS → Remotion 渲染 �
 
 > **Step 1.5 证据截图**：媒体轨在 asset sourcing 之前，按 `content/<slug>/evidence-captures.json` 重捕获缺失的证据截图（手动入口 `capture-evidence-shot.mjs`）；`media.evidence: true` 的 scene 不参与 stock 搜索。配方、失败语义与落档约定见 `docs/video-script-writing-guide.md` §截图证据约定。
 
+> **Step 1.5 跨 run 复用（#1362）**：`output/<slug>/media-patch.json` 记录每个 claim 场景的签名（claim 文本 + 影响分派的 scene 字段）与上次实际搜索过的场景。同包重跑（例如 voice 轨被 Kaggle 排队超时打断后恢复）时，claim 未变的场景直接复用上一轮的 assigned / unassigned 判决，只重搜 claim 变化的场景；全部未变时整段 sourcing 跳过（日志 `♻️ Step 1.5: Reused media-patch.json`，实测 <1s）。短路只在上一轮至少成功分配过一个文件时成立；assignment / relevance / query 规则变化时 bump `lib/media-reuse.mjs` 的 `MEDIA_PATCH_RECIPE_VERSION`，令旧判决整体失效；`asset-sourcer.mjs --content <slug> --no-reuse` 强制全量重搜。部分复用 run 不写 `source-yield-report.json`（整包基线不适用于单场景重搜）。
+
 > **Step 1.5d 兜底链 HITL（#355）**：sourcing 落空后，缺省链会尝试生成；这条隐式路径默认**不花钱**。先跑 `node scripts/short-video/generate-broll.mjs --content <dir> --plan`，把 `output/<dir>/media-chain-plan.json`（每 scene 的形态、prompt 来源、预算与跳过原因）给用户确认；用户确认后才在 `main.mjs` 加 `--approve-auto`（可配 `--auto-budget N` / `--video-budget N`，默认 4 个链场景 / 1 条 T2V）。显式 `b-roll` / `ai-image` 等覆盖不受此门限制。未经确认时管线照常跑，但链场景只写 plan、不生成。
 
 > **BGM 不在 Stage 4 自动添加**。视频先以纯 VO 产出，BGM 在 Stage 5 HITL 确认后通过 `mix-bgm.mjs` 独立混入。

@@ -4,8 +4,9 @@
  * Stage 3 sourcing records what it could not satisfy; Stage 0 of the next
  * package reads that record before it starts, so the asset library grows
  * instead of every topic starting from zero. The ledger is the durable home —
- * `output/<slug>/media-patch.json` is a per-run artifact that dies with the
- * package.
+ * `output/<slug>/media-patch.json` is a per-package artifact. Since #1362 it
+ * survives reruns of the same package (claim-matched verdicts are reused), but
+ * it still does not cross package boundaries and cannot serve as the ledger.
  *
  * Why this module is a leaf:
  *   - derivation from artifacts (`scenes` + `media-patch` + optional

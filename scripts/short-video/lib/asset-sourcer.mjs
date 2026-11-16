@@ -128,6 +128,18 @@ import {
 // #1353: the evergreen/news split decides both the query shape and which
 // relevance question is answerable for a scene.
 import { classifyClaimKind, CLAIM_KIND } from "./claim-kind.mjs";
+// #1362: cross-run reuse — compare per-scene claim signatures against the
+// previous media-patch.json and re-source only what changed.
+import {
+  DEFAULT_MAX_PER_SOURCE,
+  MEDIA_PATCH_RECIPE_VERSION,
+  buildReuseMetadata,
+  mergePatchEntries,
+  nextSearchedSceneIds,
+  planPatchReuse,
+  readMediaPatchFile,
+  summarizeReusePlan,
+} from "./media-reuse.mjs";
 import { isReusedAsset } from "./used-asset-index.mjs";
 // #294: the relevance verdict (bands, pool satisfiability, admission rule) is
 // a leaf module shared with the B-roll gate and evaluate-stock-relevance.mjs.
@@ -3361,11 +3373,16 @@ export function persistSearchResultsCache(searchCachePath, searchCache, logger =
 /**
  * Main entry point.
  *
- * Usage: node asset-sourcer.mjs --content unitree [--max-per-source 3]
+ * Usage: node asset-sourcer.mjs --content unitree [--max-per-source 3] [--no-reuse]
  *
- * @param {string[]} args - CLI arguments
+ * `options.contentRoot` / `options.outputRoot` are a test seam (hermetic
+ * fixtures); production callers omit them. They do not change the CLI
+ * contract or the resolved paths of a normal run.
+ *
+ * @param {string[]} [args]
+ * @param {{contentRoot?: string, outputRoot?: string}} [options]
  */
-export async function main(args = process.argv.slice(2)) {
+export async function main(args = process.argv.slice(2), options = {}) {
   // Parse CLI args
   const getArg = (name) => {
     const i = args.indexOf(`--${name}`);
@@ -3373,7 +3390,7 @@ export async function main(args = process.argv.slice(2)) {
   };
 
   const contentSlug = getArg("content");
-  const maxPerSource = parseInt(getArg("max-per-source") || "3", 10);
+  const maxPerSource = parseInt(getArg("max-per-source") || String(DEFAULT_MAX_PER_SOURCE), 10);
   const relevanceThreshold = parseFloat(
     getArg("relevance-threshold") || String(DEFAULT_RELEVANCE_THRESHOLD),
   );
@@ -3386,18 +3403,20 @@ export async function main(args = process.argv.slice(2)) {
 
   if (!contentSlug) {
     console.error(
-      "Usage: node asset-sourcer.mjs --content <slug> [--max-per-source <n>] [--strict-yield]",
+      "Usage: node asset-sourcer.mjs --content <slug> [--max-per-source <n>] [--strict-yield] [--no-reuse]",
     );
     process.exit(1);
   }
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
-  const contentDir = join(__dirname, "..", "content", contentSlug);
+  const contentRoot = options.contentRoot ?? join(__dirname, "..", "content");
+  const outputRoot = options.outputRoot ?? join(__dirname, "..", "output");
+  const contentDir = join(contentRoot, contentSlug);
   const assetsDir = join(contentDir, "assets");
-  const outputRoot = join(__dirname, "..", "output");
   const outputPath = join(outputRoot, "asset-report.json");
   const yieldHistoryPath = join(outputRoot, YIELD_HISTORY_FILE);
+  const sourcingSettings = { relevanceThreshold, maxPerSource };
 
   // #779: seed the baseline ledger from run artifacts that predate this
   // feature, so the first run asserts against real history. Runs before any
@@ -3447,12 +3466,70 @@ export async function main(args = process.argv.slice(2)) {
     }
   }
 
+  // ── Cross-run reuse (#1362) ──
+  // The media track is deterministic for unchanged claims. A failed voice
+  // track (TTS queue timeout) must not throw away the sourced assignment:
+  // matching claim signatures reuse the previous verdicts (assigned *and*
+  // unassigned), and only changed/new scenes are searched again. `--no-reuse`
+  // forces a full re-source; a changed assignment recipe invalidates every
+  // verdict through MEDIA_PATCH_RECIPE_VERSION.
+  const patchDir = contentSlug ? join(outputRoot, contentSlug) : outputRoot;
+  const patchPath = join(patchDir, "media-patch.json");
+  const previousPatchRaw = readMediaPatchFile(patchPath);
+  const reusePlan = planPatchReuse({
+    scenes,
+    rawPatch: previousPatchRaw,
+    contentDirAbs: contentDir,
+    settings: sourcingSettings,
+    force: args.includes("--no-reuse"),
+  });
+  console.log(`  Reuse: ${summarizeReusePlan(reusePlan)}`);
+
+  /**
+   * Persist the patch with the metadata that makes the next run reusable.
+   *
+   * @param {Array<object>} entries
+   * @param {Iterable<number>} searchedSceneIds
+   */
+  const writeMediaPatch = (entries, searchedSceneIds) => {
+    mkdirSync(patchDir, { recursive: true });
+    writeFileSync(
+      patchPath,
+      JSON.stringify(
+        {
+          schemaVersion: MEDIA_PATCH_SCHEMA_VERSION,
+          reuse: buildReuseMetadata({
+            signatures: reusePlan.signatures,
+            searchedSceneIds,
+            settings: sourcingSettings,
+          }),
+          patches: entries,
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf8",
+    );
+  };
+
+  if (reusePlan.signatures.size > 0 && reusePlan.stale.length === 0) {
+    console.log(
+      `♻️  Sourcing skipped: ${reusePlan.reusable.length} scene claim(s) unchanged — reusing media-patch.json\n`,
+    );
+    return { reused: true, reuse: reusePlan, sourceYield: null, strictYield };
+  }
+
+  const staleSceneIds = new Set(reusePlan.stale.map((entry) => entry.sceneId));
+  const scenesForSourcing = scenes.filter((scene) => staleSceneIds.has(scene.id));
+
   // Per-scene claims (explicit assetNeed or voiceover-derived, #354). The
   // company-entity fallback pool was retired by #356 (was fail-closed by
   // #297 and only wasted network/compute).
   // Claim-bound candidates are tagged with claimSceneId so they can only be
   // assigned to the scene they were sourced for (spec #130 D3/D7).
-  const { queryGroups, zhQueryGroups, allKeywords, claimCount } = buildQueryGroups(scenes);
+  // #1362: a partial reuse run only searches the scenes whose claim changed.
+  const { queryGroups, zhQueryGroups, allKeywords, claimCount } =
+    buildQueryGroups(scenesForSourcing);
   // #185: international image/API sources append the zh sourceRef groups
   // after the en groups (engines handle CJK; no locale field on these).
   const sourceGroups = [...queryGroups, ...zhQueryGroups];
@@ -3463,9 +3540,9 @@ export async function main(args = process.argv.slice(2)) {
   // company names only (previous behavior unchanged).
   const zhVideoKeywords = mergeZhPools(
     zhQueryGroups.flatMap((g) => g.keywords),
-    buildZhVideoKeywords(meta, scenes),
+    buildZhVideoKeywords(meta, scenesForSourcing),
   );
-  const sceneClaims = extractSceneClaims(scenes);
+  const sceneClaims = extractSceneClaims(scenesForSourcing);
   const primaryKeyword = queryGroups[0]?.keywords[0] || "asset";
   console.log(
     `  Claims: ${claimCount} scene(s) (assetNeed or voiceover-derived) → ${queryGroups.length} query group(s)`,
@@ -3479,7 +3556,21 @@ export async function main(args = process.argv.slice(2)) {
     console.warn(
       "   Scenes will render with CSS fallback. Add assetNeed/searchHints to scene-data for per-scene sourcing.",
     );
-    return;
+    // #1362: a partial reuse run still owes the next run a consistent patch —
+    // reused verdicts survive, the changed scene's stale entry is dropped.
+    // An unloadable/empty scene-data is not evidence that the claims vanished,
+    // so keep the previous patch instead of wiping it.
+    if (previousPatchRaw && scenes.length > 0) {
+      const mergedPatches = mergePatchEntries({
+        scenes,
+        previousPatches: reusePlan.previousPatches,
+        freshPatches: [],
+        reusableSceneIds: reusePlan.reusable.map((entry) => entry.sceneId),
+      });
+      writeMediaPatch(mergedPatches, nextSearchedSceneIds(reusePlan));
+      console.log(`   Media patch updated: ${patchPath} (${mergedPatches.length} entries)\n`);
+    }
+    return { reused: false, reuse: reusePlan, sourceYield: null, strictYield };
   }
 
   // Load environment
@@ -3535,11 +3626,14 @@ export async function main(args = process.argv.slice(2)) {
     console.log("  Chart assets: no CHART_IMG_API_KEY — phase skipped");
   } else {
     try {
-      const { assets: chartAssets, failures: chartFailures } = await buildChartAssets(scenes, {
-        assetsDir,
-        apiKey: chartApiKey,
-        mapPath: join(__dirname, "..", "config", "chart-symbols.json"),
-      });
+      const { assets: chartAssets, failures: chartFailures } = await buildChartAssets(
+        scenesForSourcing,
+        {
+          assetsDir,
+          apiKey: chartApiKey,
+          mapPath: join(__dirname, "..", "config", "chart-symbols.json"),
+        },
+      );
       if (chartAssets.length > 0) {
         allAssets.push(...chartAssets);
         console.log(`\n📈 Chart assets: ${chartAssets.length} fetched (scenes pinned)`);
@@ -4220,7 +4314,11 @@ export async function main(args = process.argv.slice(2)) {
       relevanceThreshold: relevanceThreshold,
       usedIndex: usedAssetIndex,
     });
-    const gap = selectTier3Scenes(scenes, patches);
+    // #1362: only the re-sourced scenes may trigger a Tier-3 pass. Reused
+    // scenes carry their previous verdict (assigned or unassigned); asking
+    // again would re-run the open engines for a package whose claims did not
+    // change.
+    const gap = selectTier3Scenes(scenesForSourcing, patches);
     if (!gap.trigger) {
       console.log(
         `\n✅ Tier 3 not needed: ${gap.assigned}/${gap.needed} scenes needing media assigned`,
@@ -4292,35 +4390,35 @@ export async function main(args = process.argv.slice(2)) {
   const report = buildReport(contentSlug, allKeywords, allAssets, failed, skipped, { aiAnalysis });
   report.credits = creditsText;
   report.reuseStats = reuseStats;
+  report.reuse = {
+    recipe: MEDIA_PATCH_RECIPE_VERSION,
+    reusableScenes: reusePlan.reusable.length,
+    resourcedScenes: reusePlan.stale.length,
+    stale: reusePlan.stale.map(({ sceneId, reason }) => ({ sceneId, reason })),
+  };
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
   }
   writeFileSync(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+  // #1362: keep reused verdicts, replace only the scenes this run sourced.
+  const mergedPatches = mergePatchEntries({
+    scenes,
+    previousPatches: reusePlan.previousPatches,
+    freshPatches: patches,
+    reusableSceneIds: reusePlan.reusable.map((entry) => entry.sceneId),
+  });
   // Defensive: also normalize media.path in patches
-  for (const patch of patches) {
+  for (const patch of mergedPatches) {
     if (patch.media?.path) {
       patch.media.path = normalizePathForPatch(patch.media.path, contentDir);
     }
   }
-  // P1-3: isolate media-patch.json by content slug
-  const patchDir = contentSlug
-    ? join(__dirname, "..", "output", contentSlug)
-    : join(__dirname, "..", "output");
-  const patchPath = join(patchDir, "media-patch.json");
-  // Ensure the directory exists
-  if (contentSlug) {
-    mkdirSync(patchDir, { recursive: true });
-  }
-  // Envelope (#199 2.5): readers normalize via normalizeMediaPatch() —
-  // legacy top-level-array files stay readable.
-  writeFileSync(
-    patchPath,
-    JSON.stringify({ schemaVersion: MEDIA_PATCH_SCHEMA_VERSION, patches }, null, 2) + "\n",
-    "utf8",
-  );
-  const assignedCount = patches.filter((p) => p.status === "assigned").length;
-  const unassignedCount = patches.filter((p) => p.status === "unassigned").length;
+  // P1-3: isolate media-patch.json by content slug. Envelope (#199 2.5) plus
+  // the #1362 reuse metadata so the next run can skip unchanged claims.
+  writeMediaPatch(mergedPatches, nextSearchedSceneIds(reusePlan));
+  const assignedCount = mergedPatches.filter((p) => p.status === "assigned").length;
+  const unassignedCount = mergedPatches.filter((p) => p.status === "unassigned").length;
 
   console.log("\n" + "=".repeat(60));
   console.log(`📊 Summary:`);
@@ -4331,6 +4429,17 @@ export async function main(args = process.argv.slice(2)) {
   console.log(
     `   Media patch: ${patchPath} (${assignedCount} assigned, ${unassignedCount} unassigned)`,
   );
+
+  // #1362: a partial run sources one or two scenes. Comparing its asset count
+  // with whole-package baselines would manufacture a source-yield drop (#779),
+  // so this run neither writes a report nor feeds the history.
+  const partialReuseRun = reusePlan.reusable.length > 0 && reusePlan.stale.length > 0;
+  if (partialReuseRun) {
+    console.log(
+      "   Source yield: skipped (partial reuse run — whole-package baselines do not apply)",
+    );
+    return { sourceYield: null, strictYield, reuse: reusePlan, partial: true };
+  }
 
   // ── Source yield assertion (#779) — additive, non-blocking by default ──
   // Runs after media-patch.json is written; the history cutoff is runStartedAt,
@@ -4363,7 +4472,7 @@ export async function main(args = process.argv.slice(2)) {
   if (!historySave.ok) {
     console.warn(`⚠️  Source yield history not saved: ${historySave.error}`);
   }
-  return { sourceYield, strictYield };
+  return { sourceYield, strictYield, reuse: reusePlan };
 }
 
 // Auto-run if called directly

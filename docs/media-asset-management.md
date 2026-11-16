@@ -109,7 +109,7 @@ Text assets (articles, scene-data) have auto-triggers in the content pipeline (S
 
 ### 素材缺口账本（#293）
 
-`knowledge/asset-gaps.json` 是「场景声明了素材需求、sourcing 却没给到」的 durable 缺口记录。它是跨包资产：Stage 3 生产结束写入，下一轮 Stage 0 预获取读取——素材库因此逐轮增长，而不是每次从零撞运气。`output/<slug>/media-patch.json` 只活到本包结束，不能当账本。
+`knowledge/asset-gaps.json` 是「场景声明了素材需求、sourcing 却没给到」的 durable 缺口记录。它是跨包资产：Stage 3 生产结束写入，下一轮 Stage 0 预获取读取——素材库因此逐轮增长，而不是每次从零撞运气。`output/<slug>/media-patch.json` 是 per-package 判决缓存（#1362 起同包重跑会复用 claim 未变的场景），不跨包，不能当账本。
 
 - **写入**：`node scripts/short-video/asset-gaps.mjs --record --content <slug>`（`docs/content-pipeline.md` Stage 3 第 8d 步，必须执行）。证据来自 scene-data + `media-patch.json` + 8b 的 `stock-relevance-report.json` + Stage 4 的 `b-roll-report.json`；不重新搜索、不下载。
 - **读取**：`--query "<实体,概念>"`（按需短路）或 `--list`（默认只看 open）。

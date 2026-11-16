@@ -168,6 +168,7 @@ node scripts/short-video/verify-video.mjs --content deepseek
 
 # Source assets for a content pipeline
 node scripts/short-video/lib/asset-sourcer.mjs --content unitree
+# Reruns reuse claim-matched verdicts; --no-reuse forces a full search
 # API sources: Pexels, Unsplash, Wikimedia, Coverr, Pixabay, Lorem Picsum
 # CDP sources: Google News, Bing News, IT之家, 机器之心, 新华网, 澎湃, 雷锋网, 新智元, 智东西
 # Need more image/video sources? See docs/tools-catalog.md → Pipeline API 补充候选
