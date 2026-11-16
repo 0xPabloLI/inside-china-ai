@@ -137,7 +137,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 「多」不再撒氛围小图标：`DotMatrix` 用 ≥6px 方点按节拍点亮。真实包 2026-11-16 复测：`checkEmptyField` 的 WARN 从 **43 条 / 16 包** 归零；9 个契约本就不合法的旧 scene 被跳过，留给后续内容清理，不由本版式票改写。
 
-**2026-11-16 PR-C 翻档**：`checkEmptyField` 的 finding 由 WARN 升为 FAIL，四条翻档条件（PR-B 已合入、真实包 finding 归零、合法空白镜不误伤、契约测试覆盖）均已满足。同轮迁移四个 PR-B 之前创建的包（`baidu-token-exchange` / `baidu-token-market` / `zhipu-valuation` 的 9 个 `context` → `flow`，`zhipu-valuation` 的 1 个 `contrast` → `split`）；37 包复测 `Empty field` 0 FAIL / 0 WARN。
+**2026-11-16 PR-C 翻档**：`checkEmptyField` 的 finding 由 WARN 升为 FAIL，三条翻档条件（PR-B 已合入、真实包 finding 归零、合法空白镜不误伤）均已满足。同轮迁移四个 PR-B 之前创建的包（`baidu-token-exchange` / `baidu-token-market` 各 3 个、`minimax-h3-image` 1 个、`zhipu-valuation` 2 个 `context` → `flow`，`zhipu-valuation` 另有 1 个 `contrast` → `split`）；37 包复测 `Empty field` 0 FAIL / 0 WARN。
 
 **作者侧纪律**：写 `scene-data.mjs` 的信息类 scene 时，按类型指定主角——`data` / `stat-reveal` 用 `stat` / `bigNumber`（hero 档 240px；这两类不渲染媒体，`media.path` 无效）；`contrast` / `info-card` / `context` 可以选上面的文本侧拓扑（由 `LAYOUT_FOCAL` 判主角），也可以继续用会渲染的 `media.path` 作满幅环境底（hero-center 回退）。`title` 的 60px 属配角档，只有落在带 focal object 的拓扑里才成立。`verify-video.mjs --pre` 在 TTS 之前用同一条判据点名缺主角的镜头。
 
