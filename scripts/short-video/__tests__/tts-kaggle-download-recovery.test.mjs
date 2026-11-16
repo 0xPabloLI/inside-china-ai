@@ -479,6 +479,14 @@ describe("#581 — the cut batch is recovered and the takes are promoted", () =>
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec,
       refAudioPath: refAudio,
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => ({ duration: 3.0 }),
       sleep: async () => {},
@@ -512,6 +520,14 @@ describe("#581 — the cut batch is recovered and the takes are promoted", () =>
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec,
       refAudioPath: refAudio,
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => ({ duration: 3.0 }),
       sleep: async () => {},
@@ -529,6 +545,14 @@ describe("#581 — the cut batch is recovered and the takes are promoted", () =>
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec,
       refAudioPath: refAudio,
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => ({ duration: 3.0 }),
       sleep: async () => {},

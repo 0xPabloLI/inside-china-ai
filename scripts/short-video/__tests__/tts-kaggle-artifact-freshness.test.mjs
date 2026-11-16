@@ -166,6 +166,14 @@ async function makeEngine(mock, { postProcess } = {}) {
   writeFileSync(refAudioPath, wavBytes("ref"));
   return createCosyVoice3KaggleCudaEngine({
     exec: mock.exec,
+    preflight: async () => ({
+      waitedMs: 0,
+      target: { phase: "unknown", listed: false },
+      holders: [],
+      probes: [],
+      listOk: true,
+      listError: null,
+    }),
     poll: async () => ({ queuedMs: 0, runningMs: 0 }),
     postProcess: postProcess ?? (async () => ({ duration: 3.0 })),
     refAudioPath,
@@ -395,6 +403,14 @@ describe("#420 — incomplete artifacts fail closed before promotion", () => {
     writeFileSync(refAudioPath, wavBytes("ref"));
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec: failingExec,
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => ({ duration: 3.0 }),
       refAudioPath,

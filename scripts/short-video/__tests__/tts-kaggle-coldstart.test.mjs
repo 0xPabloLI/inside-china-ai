@@ -247,6 +247,14 @@ describe("engine metadata — the wetext dataset rides along with the kernel", (
         }
         return { stdout: "" };
       },
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => ({ duration: 3.0 }),
     });

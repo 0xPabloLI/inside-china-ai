@@ -28,7 +28,7 @@
  * License: Apache-2.0 (CosyVoice3) — commercial OK.
  */
 
-import { exec } from "child_process";
+import { exec, execFile } from "child_process";
 import { createHash, randomUUID } from "crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { basename, join, dirname, relative } from "path";
@@ -36,12 +36,14 @@ import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { REGEN_STAGING_PREFIX } from "./staging.mjs";
 import { assertRiffWaveHeader, walkRiffChunks } from "../audio/wav.mjs";
+import { containedPath } from "../path-safety.mjs";
 import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-process.mjs";
 import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * The default exec seam.
@@ -54,6 +56,16 @@ const execAsync = promisify(exec);
  * function with no `deps.exec` at all.
  */
 const defaultExec = (cmd, opts) => execAsync(cmd, opts);
+
+/**
+ * The default argv seam for the slot/attribution probes (#1354).
+ *
+ * These probes carry a kernel ref into a CLI call. `execFile` passes it as one
+ * argv element, so no shell parses it (Semgrep detect-child-process). The
+ * poll's long-standing `exec` seam stays for compatibility; only the new
+ * probes use this one.
+ */
+const defaultExecFile = (file, args, opts) => execFileAsync(file, args, opts);
 
 // ── Config ──
 const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.py");
@@ -958,9 +970,9 @@ export function parseKernelLogProgress(raw) {
   return { lastLogSeconds, lastHeartbeat, lastLine };
 }
 
-async function probeKernelStatus(ref, { exec, probeTimeoutMs }) {
+async function probeKernelStatus(ref, { execFile: run = defaultExecFile, probeTimeoutMs }) {
   try {
-    const { stdout } = await exec(`kaggle kernels status ${ref} 2>&1`, {
+    const { stdout } = await run("kaggle", ["kernels", "status", ref], {
       timeout: probeTimeoutMs,
       killSignal: "SIGKILL",
     });
@@ -973,7 +985,7 @@ async function probeKernelStatus(ref, { exec, probeTimeoutMs }) {
       error: null,
     };
   } catch (e) {
-    const raw = String(e.stdout || e.message || "unknown").trim();
+    const raw = String(e.stderr || e.stdout || e.message || "unknown").trim();
     return {
       ref,
       ok: false,
@@ -986,9 +998,9 @@ async function probeKernelStatus(ref, { exec, probeTimeoutMs }) {
   }
 }
 
-async function probeKernelLogProgress(ref, { exec, probeTimeoutMs }) {
+async function probeKernelLogProgress(ref, { execFile: run = defaultExecFile, probeTimeoutMs }) {
   try {
-    const { stdout } = await exec(`kaggle kernels logs ${ref} 2>&1`, {
+    const { stdout } = await run("kaggle", ["kernels", "logs", ref], {
       timeout: probeTimeoutMs,
       killSignal: "SIGKILL",
       // A real kernel log (pip + model + inference) is routinely >1MB, the
@@ -1006,7 +1018,7 @@ async function probeKernelLogProgress(ref, { exec, probeTimeoutMs }) {
       lastLogSeconds: null,
       lastHeartbeat: null,
       lastLine: null,
-      error: firstLine(e.stdout || e.message),
+      error: firstLine(e.stderr || e.stdout || e.message),
     };
   }
 }
@@ -1023,24 +1035,35 @@ async function probeKernelLogProgress(ref, { exec, probeTimeoutMs }) {
  */
 async function probeOwnKernelSlots({
   kernelId,
-  exec,
+  execFile: run = defaultExecFile,
   now = Date.now,
   recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
   maxKernels = KAGGLE_EVIDENCE_MAX_KERNELS,
   probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
 }) {
-  const probe = async (cmd) => {
+  const probe = async (args) => {
     try {
-      const { stdout } = await exec(cmd, { timeout: probeTimeoutMs, killSignal: "SIGKILL" });
+      const { stdout } = await run("kaggle", args, {
+        timeout: probeTimeoutMs,
+        killSignal: "SIGKILL",
+      });
       return { ok: true, raw: String(stdout ?? "") };
     } catch (e) {
-      return { ok: false, raw: String(e.stdout || e.message || "unknown") };
+      return { ok: false, raw: String(e.stderr || e.stdout || e.message || "unknown") };
     }
   };
 
-  const list = await probe(
-    `kaggle kernels list --mine --sort-by dateRun --page-size 200 --format json 2>&1`,
-  );
+  const list = await probe([
+    "kernels",
+    "list",
+    "--mine",
+    "--sort-by",
+    "dateRun",
+    "--page-size",
+    "200",
+    "--format",
+    "json",
+  ]);
   const entries = list.ok ? parseKernelList(list.raw) : [];
   const targetRef = String(kernelId).toLowerCase();
   const nowMs = now();
@@ -1073,7 +1096,7 @@ async function probeOwnKernelSlots({
 
   const probes = [];
   for (const item of ordered) {
-    const result = await probeKernelStatus(item.ref, { exec, probeTimeoutMs });
+    const result = await probeKernelStatus(item.ref, { execFile: run, probeTimeoutMs });
     probes.push({
       ...result,
       lastRunTime: item.lastRunTime,
@@ -1109,7 +1132,7 @@ async function probeOwnKernelSlots({
  * @param {object} [opts]
  * @param {number} [opts.waitBudgetMs]
  * @param {number} [opts.pollIntervalMs]
- * @param {object} [deps] - injected exec/sleep/now/log for tests
+ * @param {object} [deps] - injected execFile/sleep/now/log for tests
  * @returns {Promise<{waitedMs: number, target: object, holders: object[], probes: object[], listOk: boolean, listError: string|null}>}
  * @throws {Error} when the target itself stays RUNNING/QUEUED past the wait budget
  */
@@ -1120,14 +1143,14 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
     recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
     probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
   } = opts;
-  const exec = deps.exec ?? defaultExec;
+  const execFile = deps.execFile ?? defaultExecFile;
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
   const log = deps.log ?? ((msg) => console.log(msg));
 
   let snapshot = await probeOwnKernelSlots({
     kernelId,
-    exec,
+    execFile,
     now,
     recentWindowMs,
     probeTimeoutMs,
@@ -1148,7 +1171,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
         `(${snapshot.target.error || "unknown"}) — retrying once before refusing`,
     );
     await sleep(Math.min(pollIntervalMs, 2000));
-    const retry = await probeKernelStatus(kernelId, { exec, probeTimeoutMs });
+    const retry = await probeKernelStatus(kernelId, { execFile, probeTimeoutMs });
     snapshot = {
       ...snapshot,
       target: {
@@ -1183,7 +1206,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
     let lastTarget = snapshot.target;
     while (!isTerminal(lastTarget) && now() - started < waitBudgetMs) {
       await sleep(pollIntervalMs);
-      const target = await probeKernelStatus(kernelId, { exec, probeTimeoutMs });
+      const target = await probeKernelStatus(kernelId, { execFile, probeTimeoutMs });
       if (target.phase !== "unknown") lastTarget = target;
       snapshot = {
         ...snapshot,
@@ -1213,7 +1236,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
     }
     const refreshed = await probeOwnKernelSlots({
       kernelId,
-      exec,
+      execFile,
       now,
       recentWindowMs,
       probeTimeoutMs,
@@ -1390,7 +1413,7 @@ export async function collectQueueAttribution({
   probeFailures = 0,
   probeFailureMs = 0,
   lastProbeError = null,
-  exec = defaultExec,
+  execFile = defaultExecFile,
   now = Date.now,
   probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
   logProbeTimeoutMs = KAGGLE_LOG_PROBE_TIMEOUT_MS,
@@ -1399,7 +1422,7 @@ export async function collectQueueAttribution({
 } = {}) {
   const slot = await probeOwnKernelSlots({
     kernelId,
-    exec,
+    execFile,
     now,
     recentWindowMs,
     probeTimeoutMs,
@@ -1416,7 +1439,7 @@ export async function collectQueueAttribution({
     };
     if (probe.phase === "running") {
       const progress = await probeKernelLogProgress(probe.ref, {
-        exec,
+        execFile,
         probeTimeoutMs: logProbeTimeoutMs,
       });
       entry.log = progress.ok
@@ -1595,7 +1618,7 @@ export function formatKernelTimeoutError({
  * @param {number} [opts.stuckWindowMs] - no-log-progress window (#1354)
  * @param {number} [opts.recentWindowMs] - own-kernel lookback (#1354)
  * @param {number} [opts.logProbeTimeoutMs] - per-log-fetch bound (#1354)
- * @param {object} [deps] - injected exec/sleep/now/log for tests
+ * @param {object} [deps] - injected exec/execFile/sleep/now/log for tests
  * @returns {Promise<{queuedMs: number, runningMs: number}>}
  * @throws {Error} on kernel failure, queue timeout, or run timeout
  */
@@ -1617,6 +1640,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
     logProbeTimeoutMs = KAGGLE_LOG_PROBE_TIMEOUT_MS,
   } = opts;
   const exec = deps.exec ?? defaultExec;
+  const execFile = deps.execFile ?? defaultExecFile;
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
   const log = deps.log ?? ((msg) => console.log(msg));
@@ -1671,7 +1695,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
         probeFailures,
         probeFailureMs,
         lastProbeError,
-        exec,
+        execFile,
         now,
         probeTimeoutMs,
         logProbeTimeoutMs,
@@ -1863,6 +1887,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
  *
  * @param {object} [deps] - injectable seams for tests (default: real CLI).
  * @param {(cmd: string) => Promise<{stdout: string}>} [deps.exec] - shell command runner
+ * @param {(file: string, args: string[], opts: object) => Promise<{stdout: string}>} [deps.execFile] - argv runner for the slot probes (#1354)
  * @param {typeof pollKernelStatus} [deps.poll] - kernel status poller
  * @param {typeof preflightKernelSlot} [deps.preflight] - pre-push slot precheck (#1354)
  * @param {typeof postProcessBatch} [deps.postProcess] - per-scene audio post-process
@@ -1991,7 +2016,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         kernelId,
         {},
         {
-          exec: runCmd,
+          execFile: deps.execFile,
           sleep: deps.sleep,
           now: deps.now,
           log: console.log,
@@ -2012,7 +2037,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // Run evidence is the durable answer to "what was pushed, when did it
       // start queueing, and what did the slot precheck see?" for the next
       // attribution; it sits beside poll-status.json under .kaggle-kernel/.
-      writeJsonFile(join(tempDir, "kaggle-run-evidence.json"), {
+      writeJsonFile(containedPath(tempDir, "kaggle-run-evidence.json"), {
         schemaVersion: 1,
         kernelId,
         ...attempt,
@@ -2037,8 +2062,8 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // (#250). attributionFile (#1354) makes a timeout collect status/log
       // evidence and phrase the error from the observed cause, not a guess.
       await poll(kernelId, {
-        statusFile: join(tempDir, "poll-status.json"),
-        attributionFile: join(tempDir, "kaggle-queue-attribution.json"),
+        statusFile: containedPath(tempDir, "poll-status.json"),
+        attributionFile: containedPath(tempDir, "kaggle-queue-attribution.json"),
         attempt,
         stuckWindowMs: deps.stuckWindowMs,
         recentWindowMs: deps.recentWindowMs,

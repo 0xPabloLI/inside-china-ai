@@ -80,7 +80,10 @@ function makeCli({ list = "[]", statuses = {}, logs = {} } = {}) {
     }
     return { stdout: "" };
   };
-  return { exec, commands };
+  // The production probes use execFile so a kernel ref is never shell-parsed;
+  // tests route argv through the same string router for readability.
+  const execFile = async (file, args, opts) => exec([file, ...args].join(" "), opts);
+  return { exec, execFile, commands };
 }
 
 function makeClock() {
@@ -152,7 +155,7 @@ describe("kernel CLI parsing (#1354)", () => {
 
 describe("preflightKernelSlot — never stack a version behind a live slug (#1354)", () => {
   it("waits for the same slug to finish, then proceeds", async () => {
-    const { exec, commands } = makeCli({
+    const { execFile, commands } = makeCli({
       list: JSON.stringify([{ ref: "xpabloli/k", lastRunTime: iso(60_000) }]),
       statuses: {
         "xpabloli/k": ["k running: now", "k complete: done", "k complete: done"],
@@ -163,7 +166,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
     const result = await preflightKernelSlot(
       "xpabloli/k",
       { waitBudgetMs: 5000, pollIntervalMs: 1000 },
-      { exec, ...deps, log: (msg) => logs.push(msg) },
+      { execFile, ...deps, log: (msg) => logs.push(msg) },
     );
     expect(result.waitedMs).toBe(1000);
     expect(clock()).toBe(1000);
@@ -175,7 +178,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
   });
 
   it("fails closed after the wait budget when the same slug is still RUNNING", async () => {
-    const { exec, commands } = makeCli({
+    const { execFile, commands } = makeCli({
       list: JSON.stringify([{ ref: "xpabloli/k", lastRunTime: iso(60_000) }]),
       statuses: { "xpabloli/k": "k running: now" },
     });
@@ -184,7 +187,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
       preflightKernelSlot(
         "xpabloli/k",
         { waitBudgetMs: 3000, pollIntervalMs: 1000 },
-        { exec, ...deps, log: () => {} },
+        { execFile, ...deps, log: () => {} },
       ),
     ).rejects.toThrow(
       /still RUNNING[\s\S]*Not pushing[\s\S]*stack[\s\S]*queue budget was not consumed/,
@@ -196,7 +199,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
     const probeError = Object.assign(new Error("Command failed"), {
       stdout: "504 Gateway Timeout",
     });
-    const { exec } = makeCli({
+    const { execFile } = makeCli({
       list: JSON.stringify([{ ref: "xpabloli/k", lastRunTime: iso(60_000) }]),
       statuses: {
         "xpabloli/k": ["k running: now", probeError, probeError, probeError],
@@ -207,7 +210,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
       preflightKernelSlot(
         "xpabloli/k",
         { waitBudgetMs: 3000, pollIntervalMs: 1000 },
-        { exec, ...deps, log: () => {} },
+        { execFile, ...deps, log: () => {} },
       ),
     ).rejects.toThrow(/still RUNNING[\s\S]*Not pushing/);
   });
@@ -216,7 +219,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
     const probeError = Object.assign(new Error("Command failed"), {
       stdout: "504 Gateway Timeout",
     });
-    const { exec, commands } = makeCli({
+    const { execFile, commands } = makeCli({
       list: JSON.stringify([{ ref: "xpabloli/k", lastRunTime: iso(60_000) }]),
       statuses: { "xpabloli/k": [probeError, probeError] },
     });
@@ -225,25 +228,25 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
       preflightKernelSlot(
         "xpabloli/k",
         { waitBudgetMs: 3000, pollIntervalMs: 1000 },
-        { exec, ...deps, log: () => {} },
+        { execFile, ...deps, log: () => {} },
       ),
     ).rejects.toThrow(/could not be read after 2 probes[\s\S]*Refusing to push/);
     expect(commands.some((c) => c.includes("kaggle kernels push"))).toBe(false);
   });
 
   it("still pushes a fresh slug whose status probe 404s", async () => {
-    const { exec } = makeCli({ list: "[]" });
+    const { execFile } = makeCli({ list: "[]" });
     const result = await preflightKernelSlot(
       "xpabloli/brand-new",
       {},
-      { exec, now: () => NOW, sleep: async () => {}, log: () => {} },
+      { execFile, now: () => NOW, sleep: async () => {}, log: () => {} },
     );
     expect(result.target.phase).toBe("unknown");
     expect(result.target.listed).toBe(false);
   });
 
   it("warns (but does not wait) when another own kernel holds the slot", async () => {
-    const { exec } = makeCli({
+    const { execFile } = makeCli({
       list: JSON.stringify([
         { ref: "xpabloli/k", lastRunTime: iso(60_000) },
         { ref: "xpabloli/other", lastRunTime: iso(120_000) },
@@ -257,7 +260,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
     const result = await preflightKernelSlot(
       "xpabloli/k",
       {},
-      { exec, now: () => NOW, sleep: async () => {}, log: (msg) => logs.push(msg) },
+      { execFile, now: () => NOW, sleep: async () => {}, log: (msg) => logs.push(msg) },
     );
     expect(result.waitedMs).toBe(0);
     expect(result.holders.map((h) => h.ref)).toContain("xpabloli/other");
@@ -265,14 +268,14 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
   });
 
   it("is fail-open when the list/status probes cannot answer", async () => {
-    const { exec } = makeCli({
+    const { execFile } = makeCli({
       list: Object.assign(new Error("network down"), { stdout: "network down" }),
     });
     const logs = [];
     const result = await preflightKernelSlot(
       "xpabloli/k",
       {},
-      { exec, now: () => NOW, sleep: async () => {}, log: (msg) => logs.push(msg) },
+      { execFile, now: () => NOW, sleep: async () => {}, log: (msg) => logs.push(msg) },
     );
     expect(result.target.phase).toBe("unknown");
     expect(result.listOk).toBe(false);
@@ -282,7 +285,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
 
 describe("queue attribution — classify from evidence, not from our own status (#1354)", () => {
   it("classifies platform congestion when no own kernel is active", async () => {
-    const { exec } = makeCli({
+    const { execFile } = makeCli({
       list: "[]",
       statuses: { "xpabloli/k": "k queued: position 1" },
     });
@@ -290,7 +293,7 @@ describe("queue attribution — classify from evidence, not from our own status 
       kernelId: "xpabloli/k",
       timeoutKind: "queue",
       target: { phase: "queued", queuedMs: 2_400_000, runningMs: 0 },
-      exec,
+      execFile,
       now: () => NOW,
       stuckWindowMs: 1_200_000,
     });
@@ -302,7 +305,7 @@ describe("queue attribution — classify from evidence, not from our own status 
   });
 
   it("classifies a RUNNING own kernel with a stale log as stuck", async () => {
-    const { exec } = makeCli({
+    const { execFile } = makeCli({
       list: JSON.stringify([
         { ref: "xpabloli/k", lastRunTime: iso(60_000) },
         { ref: "xpabloli/other", lastRunTime: iso(3_600_000) },
@@ -326,7 +329,7 @@ describe("queue attribution — classify from evidence, not from our own status 
       kernelId: "xpabloli/k",
       timeoutKind: "queue",
       target: { phase: "queued", queuedMs: 2_400_000, runningMs: 0 },
-      exec,
+      execFile,
       now: () => NOW,
       recentWindowMs: 24 * 60 * 60 * 1000,
       stuckWindowMs: 20 * 60 * 1000,
@@ -340,7 +343,7 @@ describe("queue attribution — classify from evidence, not from our own status 
   });
 
   it("classifies a quota error printed by the CLI as the cause", async () => {
-    const { exec } = makeCli({
+    const { execFile } = makeCli({
       list: "[]",
       statuses: {
         "xpabloli/k": Object.assign(new Error("Command failed"), {
@@ -352,7 +355,7 @@ describe("queue attribution — classify from evidence, not from our own status 
       kernelId: "xpabloli/k",
       timeoutKind: "queue",
       target: { phase: "queued", queuedMs: 2_400_000, runningMs: 0 },
-      exec,
+      execFile,
       now: () => NOW,
     });
     expect(attribution.conclusion.cause).toBe("quota");
@@ -360,7 +363,7 @@ describe("queue attribution — classify from evidence, not from our own status 
   });
 
   it("does not call a RUNNING kernel stuck while its logs are advancing", async () => {
-    const { exec } = makeCli({
+    const { execFile } = makeCli({
       list: JSON.stringify([{ ref: "xpabloli/k", lastRunTime: iso(1_800_000) }]),
       statuses: { "xpabloli/k": "k running: now" },
       logs: {
@@ -373,7 +376,7 @@ describe("queue attribution — classify from evidence, not from our own status 
       kernelId: "xpabloli/k",
       timeoutKind: "run",
       target: { phase: "running", queuedMs: 0, runningMs: 1_800_000 },
-      exec,
+      execFile,
       now: () => NOW,
       stuckWindowMs: 20 * 60 * 1000,
     });
@@ -434,7 +437,7 @@ describe("pollKernelStatus — timeout writes evidence and uses it (#1354)", () 
     mkdirSync(dir, { recursive: true });
     const attributionFile = join(dir, "kaggle-queue-attribution.json");
     let t = 0;
-    const { exec } = makeCli({
+    const { exec, execFile } = makeCli({
       list: "[]",
       statuses: { "u/k": "k queued: position 1" },
     });
@@ -450,6 +453,7 @@ describe("pollKernelStatus — timeout writes evidence and uses it (#1354)", () 
           },
           {
             exec,
+            execFile,
             now: () => t,
             sleep: async (ms) => {
               t += ms;
@@ -589,6 +593,14 @@ describe("engine wiring — precheck before push and evidence to the poller (#13
         }
         return { stdout: "" };
       },
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async (kernelId, opts) => {
         pollCalls.push({ kernelId, opts });
         return { queuedMs: 0, runningMs: 0 };

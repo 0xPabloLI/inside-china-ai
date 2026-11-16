@@ -88,6 +88,14 @@ describe("engine generate — one kernel push for the whole manifest (#241)", ()
     const pollCalls = [];
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec,
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async (kernelId, opts) => {
         pollCalls.push({ kernelId, opts });
         return { queuedMs: 0, runningMs: 0 };
