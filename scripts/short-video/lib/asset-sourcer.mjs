@@ -3556,10 +3556,11 @@ export async function main(args = process.argv.slice(2), options = {}) {
     console.warn(
       "   Scenes will render with CSS fallback. Add assetNeed/searchHints to scene-data for per-scene sourcing.",
     );
-    // #1362: a partial reuse run still owes the next run a consistent patch —
-    // reused verdicts survive, the changed scene's stale entry is dropped.
-    // An unloadable/empty scene-data is not evidence that the claims vanished,
-    // so keep the previous patch instead of wiping it.
+    // #1362: keep the patch consistent with the current claims. Reused
+    // verdicts survive; entries for scenes that no longer carry a claim are
+    // dropped (a full run would drop them too). An unloadable/empty
+    // scene-data is not evidence that the claims vanished, so keep the
+    // previous patch instead of wiping it.
     if (previousPatchRaw && scenes.length > 0) {
       const mergedPatches = mergePatchEntries({
         scenes,
@@ -4438,6 +4439,11 @@ export async function main(args = process.argv.slice(2), options = {}) {
     console.log(
       "   Source yield: skipped (partial reuse run — whole-package baselines do not apply)",
     );
+    if (strictYield) {
+      console.warn(
+        "⚠️  --strict-yield not asserted: a partial reuse run has no whole-package baseline",
+      );
+    }
     return { sourceYield: null, strictYield, reuse: reusePlan, partial: true };
   }
 
