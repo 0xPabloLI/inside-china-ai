@@ -30,6 +30,8 @@
 
 **入口 3（无输入）**：`search-sources --trend` → Agent 从 `trending-topics.json` 选话题 → 走入口 2 路线
 
+> **选题报告（#203 + videoFit）**：选话题前先按 `docs/trend-selection-dedup-scoring.md` 的去重、0-10 评分与按类阈值过滤；达到阈值的 topic 再标 `videoFit`（0-5，第一方画面能否在 1-2 秒内展示核心结果）及 §4 要求的 `assetEvidence`/`format`/`hook`，并输出 **News-first**（0-10 分降序，同分看 videoFit）和 **Video-ready**（videoFit 降序）两条列表，写到 `scripts/short-video/output/topic-selection.md`。`videoFit` 不折进 0-10 分；判据见该文档 §4。
+
 > **Evidence 模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）保留但不接入管线。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。非阻塞审计可通过 `research-pipeline.mjs --audit-only` 手动触发（Issue #61）。
 >
 > **证据分组（issue #97）**：research 模式将 articles-capable 源分为三组——`direct-evidence`（关键词 capable 源，提供可搜索的 claim 证据）、`tracked-feed-context`（12 个 Wechat2RSS 固定公开 Feed，每 run 拉取一次作为 14 天窗口内的背景 context）、`environmental-signal`（homepage-only 源，登记为低优先级背景不拉取）。`discovery.json` 的 `evidenceGroups` 列出三组源名，每条 `sources[]` item 带 `sourceRole` 与真实 `collectionMethod`；`buildBrief` 将 `tracked-feed-context` 排除出 `candidateSources`，避免背景 context 污染 claim 直接证据排序。详见 `docs/archive/spec-wechat2rss-source-tracking.md`。

@@ -6,8 +6,20 @@
  */
 
 import { canonicalizeUrl } from "./url-normalizer.mjs";
+import { loadCompanyRelations } from "./company-relations.mjs";
 
 // ─── China AI filter keywords ───
+
+// English/full Chinese aliases for these companies live in
+// data/company-relations.json (the caption SSOT); derive them so a naming
+// change there reaches trend filtering too.
+const ROBOTICS_SSOT_ENTITIES = new Set(["unitree", "ubtech", "agibot", "fourier"]);
+
+function ssotRoboticsAliases() {
+  return loadCompanyRelations()
+    .entities.filter((entity) => ROBOTICS_SSOT_ENTITIES.has(entity.entity))
+    .flatMap((entity) => entity.aliases ?? []);
+}
 
 const CHINA_AI_KEYWORDS = [
   // English
@@ -102,6 +114,32 @@ const CHINA_AI_KEYWORDS = [
   "Enflame",
   "Biren",
   "Moore Threads",
+  // 2026-11-16: China robotics companies. A demo headline ("Unitree H2
+  // backflip") often carries no "AI" token, and a token embedded in Chinese
+  // text ("对AI的") is missed by the old whole-word matcher. These are the most
+  // video-ready topics in the pool. Company names keep recall up without a
+  // bare "robot" / "机器人" keyword, which would also pull in non-China
+  // robotics stories. The English/full Chinese aliases for Unitree, UBTECH,
+  // AgiBot and Fourier are derived from company-relations.json; the short
+  // forms and companies the SSOT lacks stay inline. This is a recall aid, not
+  // an exhaustive registry. See trend-selection-dedup-scoring.md §4.
+  "宇树",
+  "智元",
+  "傅利叶",
+  "银河通用",
+  "Galbot",
+  "云深处",
+  "Deep Robotics",
+  "星动纪元",
+  "Robot Era",
+  "众擎",
+  "EngineAI",
+  "逐际动力",
+  "LimX Dynamics",
+  "松延动力",
+  "达闼",
+  "CloudMinds",
+  ...ssotRoboticsAliases(),
   // #51 V1a: Product/Model names
   "豆包",
   "元宝",
@@ -166,7 +204,8 @@ const CLASSIFY_KEYWORDS = {
 /**
  * Check if a title contains a keyword.
  * - Multi-word keywords: substring match
- * - Single English words: whole-word match (avoids 'ai' matching 'training')
+ * - Single English words: whole-word match at ASCII word boundaries, so "AI"
+ *   matches "对AI的" but not "training" or "OpenAI"
  * - Chinese keywords: substring match
  */
 function titleMatchesKeyword(title, kw) {
@@ -175,9 +214,10 @@ function titleMatchesKeyword(title, kw) {
   if (kw.includes(" ")) {
     return title.includes(lowerKw);
   }
-  // Single ASCII word — match as whole word
+  // Single ASCII word — split on any non-alphanumeric boundary, so CJK text
+  // separates the word without a space
   if (/^[a-z0-9]+$/i.test(kw)) {
-    const words = title.split(/[\s,.;:!?'"\-()\[\]{}]+/);
+    const words = title.split(/[^a-z0-9]+/);
     return words.includes(lowerKw);
   }
   // Chinese or mixed — substring match
@@ -509,6 +549,11 @@ export function buildOutputJson(articles) {
 
 /**
  * Extract China AI keywords from a title for the "keywords" field.
+ *
+ * Substring matching is intentional here: model names carry version suffixes
+ * ("Qwen3", "DeepSeekV3", "KimiK2") and plurals ("agents"), and the filter's
+ * stricter boundary matcher would drop them. The filter uses boundaries to
+ * avoid "ai" matching "training"; keyword tagging keeps the broader recall.
  *
  * @param {string} title
  * @returns {string[]} Array of matched keywords

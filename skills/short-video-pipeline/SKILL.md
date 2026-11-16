@@ -433,6 +433,8 @@ News channels do not ride trending sounds. Instead, monitor which China AI topic
 - Ranking/comparison data available -> **Data Reveal** (P1/P6 hook)
 - Topic is cool but has educational value -> **Explainer** (P3 hook)
 
+**Video-fit triage**: For every topic above the news threshold, annotate `videoFit` (0-5), `assetEvidence`, `format`, and `hook`. `videoFit` measures whether first-party footage can show the core result in the first 1-2 seconds; it is not folded into the news score. Output two lists: **News-first** (news score; `videoFit` breaks equal scores) and **Video-ready** (videoFit, same threshold), written to `scripts/short-video/output/topic-selection.md`. Full rubric: `docs/trend-selection-dedup-scoring.md` §4.
+
 ### News Content Calendar (adapted from tt-content-planner)
 
 News is event-driven, but you can still build a rhythm:
