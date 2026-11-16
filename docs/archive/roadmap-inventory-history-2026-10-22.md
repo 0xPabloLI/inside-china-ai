@@ -815,3 +815,9 @@ PR #1375 — `4614063b` — 无关联票（2026-11-15 用户裁决的 hook 版�
 PR #1380 — `5465edc2` — `#1353` evergreen/news claim 分流：规则分 kind、evergreen 场景改问「画面主体对不对」、query 升为「实体 + 原型」；真实包离线 A/B（deepseek-huawei-cluster 3/3 改写、runninghub 1/9、zhipu-glm6 0/10），属**有产出差异**；`#1325` 是正文引用的 PR 号（本档案 Round CLXXXII 已记），不是票
 PR #1379 — `748bbfe4` — `#1378` chart.annotations 原样透传为 chart-img `drawings`（BASIC ≤3、坏形状按场景失败回落、不同标注不共用 fetch/文件名）；`#1378` 从未入表、由本 PR 直接交付，**无 tracker 行可删**；真实 API 对照 PNG 肉眼可见峰值/趋势线，属**有产出差异**
 
+## Round CCII 补登：施工 PR 消账（roadmap-ledger）
+
+> 同上节口径：施工 PR 不动台账是既定分工，此处只记账，不复制交付细节（权威源是各自 issue 评论）。
+
+PR #1382 — `36b411bb` — zhipu 成片 K 线残缺根因：chart 资产跳过 Real-ESRGAN auto-upscale（`-t 256` 分块在 tile 边界丢图）+ fetch 水合探针（16 列网格 ≥75% 覆盖、最长空段 ≤3，双失败抛错走既有 per-scene 降级）；两张已知坏图 FAIL、三张好图 PASS，属**有产出差异**（已生成的残图需重跑 chart 资产才修复）
+
