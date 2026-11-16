@@ -174,6 +174,40 @@ describe("kernel timeout — streaming output and split budgets", () => {
   });
 });
 
+describe("kernel wall-clock self-termination (#1354)", () => {
+  it("declares a 90min whole-kernel budget with an env override", () => {
+    expect(KERNEL_SRC).toContain(
+      'KERNEL_WALL_CLOCK_BUDGET_SEC = int(os.environ.get("KERNEL_WALL_CLOCK_BUDGET_SEC", "5400"))',
+    );
+    expect(KERNEL_SRC).toContain("KERNEL_HEARTBEAT_SEC");
+  });
+
+  it("arms the watchdog only in a real Kaggle session", () => {
+    expect(KERNEL_SRC).toContain('if os.path.isdir("/kaggle/working"):');
+    expect(KERNEL_SRC).toContain("threading.Thread(target=_heartbeat_loop, daemon=True).start()");
+  });
+
+  it("emits heartbeats and exits the process when the budget fires", () => {
+    expect(KERNEL_SRC).toContain("KERNEL_HEARTBEAT phase=");
+    expect(KERNEL_SRC).toContain("os._exit(1)");
+    expect(KERNEL_SRC).toContain("kernel wall-clock budget");
+  });
+
+  it("marks every setup phase so a stalled setup is attributable", () => {
+    for (const phase of [
+      "deps",
+      "cosyvoice-source",
+      "model",
+      "ref-audio",
+      "wetext-seed",
+      "inference",
+      "complete",
+    ]) {
+      expect(KERNEL_SRC).toContain(`_set_phase("${phase}")`);
+    }
+  });
+});
+
 describe("engine metadata — the wetext dataset rides along with the kernel", () => {
   it("declares xPabloLI/cosyvoice3-wetext in dataset_sources", async () => {
     process.env.COSYVOICE3_KAGGLE_USER = "test-kaggle-user";

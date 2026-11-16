@@ -803,3 +803,10 @@ PR #1370 — `c4c4e70b` — `#1361` Tier-3 触发改读相关性判决：`select
 PR #1373 — `46c90273` — `#1355` trends 去重 title↔url 配对：合并按 `(url, source)` 记 `refs`，`urls`/`sources` 由 refs 派生、`urls[0]` 恒为当前标题来源那一篇；单 token 实体名不参与 containment（阈值 Jaccard 0.8 / containment 0.9 未动）；真实 `search-sources --trend` 一轮 232 topic、5 个多 url topic、0 个 `urls[0]` 与标题不同源，属**有产出差异**
 PR #1375 — `4614063b` — 无关联票（2026-11-15 用户裁决的 hook 版式改进）：「素材为主角」的 `layout: "media-led"` hook——图片独占中部媒体带、数字退到下方文字条，scrim 随 fit 定（contain 0.15 / cover 0.5），preflight 对「尚无 media」只 WARN 以让 chart pin / assetNeed / 生成策略在 preflight 之后落盘；不占台账 frontier
 
+## Round CCI 补登：施工 PR 消账（roadmap-ledger）
+
+> 同上节口径：施工 PR 不动台账是既定分工，此处只记账，不复制交付细节（权威源是各自 issue 评论）。
+
+PR #1380 — `5465edc2` — `#1353` evergreen/news claim 分流：规则分 kind、evergreen 场景改问「画面主体对不对」、query 升为「实体 + 原型」；真实包离线 A/B（deepseek-huawei-cluster 3/3 改写、runninghub 1/9、zhipu-glm6 0/10），属**有产出差异**；`#1325` 是正文引用的 PR 号（本档案 Round CLXXXII 已记），不是票
+PR #1379 — `748bbfe4` — `#1378` chart.annotations 原样透传为 chart-img `drawings`（BASIC ≤3、坏形状按场景失败回落、不同标注不共用 fetch/文件名）；`#1378` 从未入表、由本 PR 直接交付，**无 tracker 行可删**；真实 API 对照 PNG 肉眼可见峰值/趋势线，属**有产出差异**
+

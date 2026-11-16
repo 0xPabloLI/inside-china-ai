@@ -100,6 +100,44 @@ const KAGGLE_PROBE_FAILURE_BUDGET_MS = parseInt(
   process.env.COSYVOICE3_KAGGLE_PROBE_FAILURE_BUDGET_MS || "900000",
   10,
 );
+// Slot precheck (#1354). Kaggle's free tier runs ONE GPU session at a time and
+// a re-push of the same slug stacks a new version behind the one that is still
+// running — the queue therefore gets longer every time a timed-out pipeline is
+// retried. Before pushing, `kaggle kernels list --mine` is narrowed to recent
+// kernels, then each candidate (target first) is probed with
+// `kaggle kernels status`. A target that is still RUNNING/QUEUED is waited out
+// for a bounded 10min; another own kernel only earns a warning because queuing
+// behind it is the documented, expected behaviour of the 40min queue budget.
+const KAGGLE_SLOT_WAIT_MS = parseInt(process.env.COSYVOICE3_KAGGLE_SLOT_WAIT_MS || "600000", 10); // 10 min, pre-push only; the queue budget starts after the push
+const KAGGLE_SLOT_POLL_INTERVAL_MS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_SLOT_POLL_INTERVAL_MS || "15000",
+  10,
+);
+// How far back a listed kernel counts as a possible slot holder. One day
+// covers a same-day pipeline retry; older COMPLETE kernels are history.
+const KAGGLE_RECENT_KERNEL_WINDOW_MS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_RECENT_WINDOW_MS || String(24 * 60 * 60 * 1000),
+  10,
+);
+// RUNNING but the log clock has not advanced for this long => report stalled.
+// Setup normally logs every few seconds; the longest legitimate silent phase
+// is the model load, and the pre-seeded mount keeps that well below 20min.
+const KAGGLE_STUCK_WINDOW_MS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_STUCK_WINDOW_MS || "1200000",
+  10,
+);
+// One list page can hold 200 kernels; each status/log probe is a network
+// round-trip, so evidence collection is capped.
+const KAGGLE_EVIDENCE_MAX_KERNELS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_EVIDENCE_MAX_KERNELS || "8",
+  10,
+);
+// `kaggle kernels logs` streams the whole log as one JSON array; it can be a
+// few hundred KB, so it gets a wider bound than a status probe.
+const KAGGLE_LOG_PROBE_TIMEOUT_MS = parseInt(
+  process.env.COSYVOICE3_KAGGLE_LOG_PROBE_TIMEOUT_MS || "120000",
+  10,
+);
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 
 // The kernel writes every artifact below `<working dir>/output`
@@ -757,8 +795,12 @@ export function classifyKernelStatus(raw) {
   return "unknown";
 }
 
-/** Best-effort poll-status.json write — fail-open, bookkeeping never breaks a run. */
-function writeStatusFile(filePath, payload) {
+/**
+ * Best-effort JSON artifact write (poll-status / run evidence / attribution).
+ * Fail-open: a missing directory or a read-only checkout must not turn an
+ * otherwise working run into a failure. Only observability is lost.
+ */
+function writeJsonFile(filePath, payload) {
   try {
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, JSON.stringify(payload, null, 2) + "\n", "utf8");
@@ -769,6 +811,745 @@ function writeStatusFile(filePath, payload) {
 
 function fmtDuration(ms) {
   return `${Math.floor(ms / 60000)}m${Math.floor((ms % 60000) / 1000)}s`;
+}
+
+function firstLine(text) {
+  return String(text ?? "")
+    .split("\n")[0]
+    .trim();
+}
+
+function formatLogClock(seconds) {
+  if (!Number.isFinite(seconds)) return "unknown";
+  return fmtDuration(Math.max(0, seconds) * 1000);
+}
+
+/**
+ * Parse the JSON body `kaggle kernels list --format json` prints.
+ *
+ * The CLI writes its "outdated version" warning to stderr, but the engine
+ * captures `2>&1` like every other probe, so the payload starts after the
+ * first `[`. An empty/failed list is an empty array, never a throw: a failed
+ * precheck must not block a push (the push itself will fail loudly if the
+ * network is really down).
+ *
+ * @param {string} raw
+ * @returns {Array<{ref: string, title?: string, lastRunTime?: string}>}
+ */
+export function parseKernelList(raw) {
+  const text = String(raw ?? "");
+  const start = text.indexOf("[");
+  if (start < 0) return [];
+  try {
+    const parsed = JSON.parse(text.slice(start));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Parse a Kaggle list timestamp.
+ *
+ * `lastRunTime` is UTC but carries no zone suffix (`2026-11-15T01:00:04.977000`).
+ * `Date.parse` would read that as LOCAL time, shifting a RUNNING kernel's age by
+ * the host's UTC offset — in UTC+8 a kernel started 10 minutes ago would look
+ * 8h10m old and be misclassified as stalled. Append `Z` unless the value
+ * already carries one.
+ *
+ * @param {string} raw
+ * @returns {number} epoch ms, or NaN
+ */
+export function parseKaggleTimestamp(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return NaN;
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+  return Date.parse(hasZone ? text : `${text}Z`);
+}
+
+/**
+ * Parse the version echoed by `kaggle kernels push` (#1354).
+ *
+ * The CLI prints `Kernel version <N> successfully pushed.` on success. The
+ * version is evidence only: a missing/unparsable line must not fail a push
+ * that the CLI itself accepted.
+ *
+ * @param {string} raw
+ * @returns {number|null}
+ */
+export function parseKernelPushVersion(raw) {
+  const match = String(raw ?? "").match(/Kernel version\s+(\d+)\s+successfully pushed/i);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Parse `kaggle kernels logs` output into the two progress signals the
+ * attribution needs (#1354): the newest log clock (`time`, seconds since the
+ * session started) and the newest `KERNEL_HEARTBEAT` line emitted by the
+ * kernel's own watchdog.
+ *
+ * The CLI prints the whole stream as one JSON array with a non-JSON warning
+ * line in front, so the parser starts at the first `[` and falls back to a
+ * line scan when the payload is truncated.
+ *
+ * @param {string} raw
+ * @returns {{lastLogSeconds: number|null, lastHeartbeat: {phase: string, elapsedSec: number, logSeconds: number|null}|null, lastLine: string|null}}
+ */
+export function parseKernelLogProgress(raw) {
+  const text = String(raw ?? "");
+  const start = text.indexOf("[");
+  let entries = null;
+  if (start >= 0) {
+    try {
+      const parsed = JSON.parse(text.slice(start));
+      if (Array.isArray(parsed)) entries = parsed;
+    } catch {
+      // truncated/plain-text output falls through to the line scan
+    }
+  }
+
+  let lastLogSeconds = null;
+  let lastHeartbeat = null;
+  let lastLine = null;
+
+  const noteLine = (line, logSeconds = null) => {
+    const trimmed = String(line ?? "").trim();
+    if (!trimmed) return;
+    lastLine = trimmed;
+    const match = trimmed.match(/KERNEL_HEARTBEAT phase=(\S+) elapsed=(\d+)s/);
+    if (match) {
+      lastHeartbeat = {
+        phase: match[1],
+        elapsedSec: Number(match[2]),
+        logSeconds: Number.isFinite(logSeconds) ? logSeconds : null,
+      };
+    }
+  };
+
+  if (entries) {
+    for (const entry of entries) {
+      const t = Number(entry?.time);
+      if (Number.isFinite(t)) {
+        lastLogSeconds = lastLogSeconds === null ? t : Math.max(lastLogSeconds, t);
+      }
+      for (const line of String(entry?.data ?? "").split("\n")) {
+        noteLine(line, Number.isFinite(t) ? t : null);
+      }
+    }
+  } else {
+    for (const line of text.split("\n")) noteLine(line);
+  }
+
+  return { lastLogSeconds, lastHeartbeat, lastLine };
+}
+
+async function probeKernelStatus(ref, { exec, probeTimeoutMs }) {
+  try {
+    const { stdout } = await exec(`kaggle kernels status ${ref} 2>&1`, {
+      timeout: probeTimeoutMs,
+      killSignal: "SIGKILL",
+    });
+    const raw = String(stdout ?? "").trim();
+    return {
+      ref,
+      ok: true,
+      phase: classifyKernelStatus(raw),
+      statusLine: firstLine(raw),
+      error: null,
+    };
+  } catch (e) {
+    const raw = String(e.stdout || e.message || "unknown").trim();
+    return {
+      ref,
+      ok: false,
+      // A failed probe is not kernel truth (#250). It only means this
+      // precheck cannot see the slot; unattributable, not "RUNNING".
+      phase: "unknown",
+      statusLine: firstLine(raw),
+      error: firstLine(raw),
+    };
+  }
+}
+
+async function probeKernelLogProgress(ref, { exec, probeTimeoutMs }) {
+  try {
+    const { stdout } = await exec(`kaggle kernels logs ${ref} 2>&1`, {
+      timeout: probeTimeoutMs,
+      killSignal: "SIGKILL",
+      // A real kernel log (pip + model + inference) is routinely >1MB, the
+      // child_process.exec default. Without this the probe fails with
+      // ERR_CHILD_PROCESS_STDIO_MAXBUFFER and every RUNNING kernel looks
+      // like it has no log evidence.
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    const parsed = parseKernelLogProgress(stdout);
+    return { ref, ok: true, ...parsed, error: null };
+  } catch (e) {
+    return {
+      ref,
+      ok: false,
+      lastLogSeconds: null,
+      lastHeartbeat: null,
+      lastLine: null,
+      error: firstLine(e.stdout || e.message),
+    };
+  }
+}
+
+/**
+ * Look for the slot owner among own kernels (#1354).
+ *
+ * `kaggle kernels list` does NOT expose a status column in 2.2.4 — the JSON
+ * carries only ref/title/lastRunTime/totalVotes. The status has to be asked
+ * per kernel, so the list is narrowed to the target plus kernels that ran in
+ * the recent window, and the probe count is capped.
+ *
+ * @returns {Promise<{listOk: boolean, listError: string|null, target: object, holders: object[], probes: object[]}>}
+ */
+async function probeOwnKernelSlots({
+  kernelId,
+  exec,
+  now = Date.now,
+  recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
+  maxKernels = KAGGLE_EVIDENCE_MAX_KERNELS,
+  probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
+}) {
+  const probe = async (cmd) => {
+    try {
+      const { stdout } = await exec(cmd, { timeout: probeTimeoutMs, killSignal: "SIGKILL" });
+      return { ok: true, raw: String(stdout ?? "") };
+    } catch (e) {
+      return { ok: false, raw: String(e.stdout || e.message || "unknown") };
+    }
+  };
+
+  const list = await probe(
+    `kaggle kernels list --mine --sort-by dateRun --page-size 200 --format json 2>&1`,
+  );
+  const entries = list.ok ? parseKernelList(list.raw) : [];
+  const targetRef = String(kernelId).toLowerCase();
+  const nowMs = now();
+
+  const ordered = [];
+  const seen = new Set();
+  // The target is probed first even when it has never been pushed: a 404 is
+  // the expected answer for a fresh slug and means "slot free". If the list
+  // does contain it, carry `listed` so the precheck can tell "fresh slug"
+  // (fail-open) from "exists but status unreadable" (fail-closed).
+  const targetEntry = entries.find((entry) => String(entry?.ref ?? "").toLowerCase() === targetRef);
+  ordered.push({
+    ref: kernelId,
+    lastRunTime: targetEntry?.lastRunTime ?? null,
+    listed: Boolean(targetEntry),
+  });
+  seen.add(targetRef);
+  for (const entry of entries) {
+    const ref = String(entry?.ref ?? "").trim();
+    if (!ref) continue;
+    const key = ref.toLowerCase();
+    if (seen.has(key)) continue;
+    const ranAt = parseKaggleTimestamp(entry?.lastRunTime);
+    const recent = Number.isFinite(ranAt) && nowMs - ranAt <= recentWindowMs;
+    if (!recent) continue;
+    seen.add(key);
+    ordered.push({ ref, lastRunTime: entry?.lastRunTime ?? null });
+    if (ordered.length >= maxKernels) break;
+  }
+
+  const probes = [];
+  for (const item of ordered) {
+    const result = await probeKernelStatus(item.ref, { exec, probeTimeoutMs });
+    probes.push({
+      ...result,
+      lastRunTime: item.lastRunTime,
+      listed: Boolean(item.listed),
+    });
+  }
+
+  const holders = probes.filter((p) => p.phase === "running" || p.phase === "queued");
+  return {
+    listOk: list.ok,
+    listError: list.ok ? null : firstLine(list.raw),
+    target: probes[0],
+    holders,
+    probes,
+  };
+}
+
+/**
+ * Pre-push slot precheck (#1354).
+ *
+ * Same-slug RUNNING/QUEUED is the dangerous case: re-pushing stacks a new
+ * version behind the old one and makes the wait longer every retry. Wait for
+ * it, bounded, then refuse. Another own kernel only gets a warning — queuing
+ * behind it is what the 40min queue budget exists for.
+ *
+ * Fail-open applies when the list itself fails: a network hiccup must not block
+ * a push, and the push itself is the authoritative failure if Kaggle is down.
+ * Once the list proves the slug exists, an unreadable status is refused instead
+ * — the version may still be live, and stacking is what this check exists to
+ * stop.
+ *
+ * @param {string} kernelId - e.g. "username/cosyvoice3-cuda-batch"
+ * @param {object} [opts]
+ * @param {number} [opts.waitBudgetMs]
+ * @param {number} [opts.pollIntervalMs]
+ * @param {object} [deps] - injected exec/sleep/now/log for tests
+ * @returns {Promise<{waitedMs: number, target: object, holders: object[], probes: object[], listOk: boolean, listError: string|null}>}
+ * @throws {Error} when the target itself stays RUNNING/QUEUED past the wait budget
+ */
+export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
+  const {
+    waitBudgetMs = KAGGLE_SLOT_WAIT_MS,
+    pollIntervalMs = KAGGLE_SLOT_POLL_INTERVAL_MS,
+    recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
+    probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
+  } = opts;
+  const exec = deps.exec ?? defaultExec;
+  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const now = deps.now ?? Date.now;
+  const log = deps.log ?? ((msg) => console.log(msg));
+
+  let snapshot = await probeOwnKernelSlots({
+    kernelId,
+    exec,
+    now,
+    recentWindowMs,
+    probeTimeoutMs,
+  });
+  const started = now();
+  let waitedMs = 0;
+  const isActive = (probe) => probe?.phase === "running" || probe?.phase === "queued";
+
+  // "Fresh slug" and "existing kernel whose status probe failed" both look
+  // like `unknown`, but only the first is safe to push. The list tells them
+  // apart; an existing target gets one retry, then a refusal. This is the
+  // case that used to be silently fail-open and could stack a version behind
+  // a QUEUED kernel whose status CLI was returning 404 (#250).
+  if (snapshot.target.phase === "unknown" && snapshot.target.listed) {
+    log(
+      `  ⚠️ [Kaggle] Slot precheck: ${kernelId} exists but its status probe failed ` +
+        `(${snapshot.target.error || "unknown"}) — retrying once before refusing`,
+    );
+    await sleep(Math.min(pollIntervalMs, 2000));
+    const retry = await probeKernelStatus(kernelId, { exec, probeTimeoutMs });
+    snapshot = {
+      ...snapshot,
+      target: {
+        ...retry,
+        listed: true,
+        lastRunTime: snapshot.target.lastRunTime,
+      },
+      holders: snapshot.holders
+        .filter((h) => h.ref.toLowerCase() !== kernelId.toLowerCase())
+        .concat(isActive(retry) ? [{ ...retry, lastRunTime: snapshot.target.lastRunTime }] : []),
+    };
+    if (snapshot.target.phase === "unknown") {
+      throw new Error(
+        `Kaggle slot precheck: own kernel ${kernelId} exists in your kernel list but ` +
+          `its status could not be read after 2 probes (${snapshot.target.error || "unknown"}). ` +
+          `Refusing to push another version while its state is unknown — it may still be ` +
+          `RUNNING/QUEUED, and a re-push stacks a new version behind it. Check ` +
+          `\`kaggle kernels status ${kernelId}\` and re-run; the queue budget was not consumed.`,
+      );
+    }
+  }
+
+  if (isActive(snapshot.target)) {
+    log(
+      `  ⏳ [Kaggle] Slot precheck: ${kernelId} is ${snapshot.target.phase.toUpperCase()} — ` +
+        `waiting up to ${fmtDuration(waitBudgetMs)} before pushing ` +
+        `(a re-push would stack a new version behind it)`,
+    );
+    // A probe that fails mid-wait must NOT be read as "the slot is free":
+    // keep the last known active phase and keep waiting. Only COMPLETE /
+    // ERROR / CANCEL release the slot.
+    const isTerminal = (probe) =>
+      probe?.phase === "complete" || probe?.phase === "error" || probe?.phase === "cancel";
+    let lastTarget = snapshot.target;
+    while (!isTerminal(lastTarget) && now() - started < waitBudgetMs) {
+      await sleep(pollIntervalMs);
+      const target = await probeKernelStatus(kernelId, { exec, probeTimeoutMs });
+      if (target.phase !== "unknown") lastTarget = target;
+      snapshot = {
+        ...snapshot,
+        target: lastTarget,
+        holders: snapshot.holders
+          .filter((h) => h.ref.toLowerCase() !== kernelId.toLowerCase())
+          .concat(isActive(lastTarget) ? [{ ...lastTarget, lastRunTime: null }] : []),
+      };
+      waitedMs = now() - started;
+      if (!isTerminal(lastTarget)) {
+        log(
+          `  ⏳ [Kaggle] Slot precheck: ${kernelId} still ` +
+            `${lastTarget.phase.toUpperCase()} (${fmtDuration(waitedMs)}/${fmtDuration(waitBudgetMs)})`,
+        );
+      }
+    }
+    if (!isTerminal(lastTarget)) {
+      throw new Error(
+        `Kaggle slot precheck: own kernel ${kernelId} is still ` +
+          `${lastTarget.phase.toUpperCase()} after ${fmtDuration(waitedMs)}. ` +
+          `Not pushing it again — a re-push stacks a new version behind the running one ` +
+          `and lengthens the queue. Wait for it to finish, then re-run; if it is stuck, ` +
+          `it ends at Kaggle's session cap (kernels pushed with the current template also ` +
+          `have their own wall-clock budget). ` +
+          `The queue budget was not consumed. Status: ${lastTarget.statusLine || "unknown"}`,
+      );
+    }
+    const refreshed = await probeOwnKernelSlots({
+      kernelId,
+      exec,
+      now,
+      recentWindowMs,
+      probeTimeoutMs,
+    });
+    // The refreshed list can itself fail; the terminal status we just saw is
+    // the stronger evidence, so do not let an unknown overwrite it.
+    snapshot = {
+      ...refreshed,
+      target: refreshed.target.phase === "unknown" ? lastTarget : refreshed.target,
+      holders: refreshed.holders.filter((h) => h.ref.toLowerCase() !== kernelId.toLowerCase()),
+    };
+    log(
+      `  ✓ [Kaggle] Slot precheck: ${kernelId} is now ` +
+        `${snapshot.target.phase.toUpperCase()} — safe to push`,
+    );
+  }
+
+  if (!snapshot.listOk) {
+    log(
+      `  ⚠️ [Kaggle] Slot precheck: own-kernel list unavailable ` +
+        `(${snapshot.listError || "unknown error"}) — pushing without the full check`,
+    );
+  }
+  for (const holder of snapshot.holders) {
+    if (holder.ref.toLowerCase() === String(kernelId).toLowerCase()) continue;
+    log(
+      `  ⚠️ [Kaggle] Slot precheck: own kernel ${holder.ref} is ` +
+        `${holder.phase.toUpperCase()} — this push will queue behind Kaggle's single ` +
+        `free-tier GPU session (queue budget ${Math.round(KAGGLE_QUEUE_TIMEOUT_MS / 60000)}min)`,
+    );
+  }
+
+  return {
+    waitedMs,
+    target: snapshot.target,
+    holders: snapshot.holders,
+    probes: snapshot.probes,
+    listOk: snapshot.listOk,
+    listError: snapshot.listError,
+  };
+}
+
+function findQuotaSignal(texts) {
+  // Kaggle does not expose remaining quota. These phrases are the only quota
+  // evidence available: an error the CLI actually printed. A match is still
+  // an inference from wording, not a quota API answer.
+  const re =
+    /\b(quota|gpu\s+limit|session\s+limit|weekly\s+limit|out\s+of\s+gpu|resources?\s+exhausted|exceeded\b.*\b(gpu|session|quota))\b/i;
+  for (const text of texts) {
+    const raw = String(text ?? "").trim();
+    if (!raw) continue;
+    const match = raw.match(re);
+    if (match) return { text: firstLine(raw), match: match[0] };
+  }
+  return null;
+}
+
+/**
+ * Decide the three-way cause from the evidence that was actually observed.
+ *
+ * The conclusion is deliberately not called a Kaggle answer: Kaggle exposes no
+ * queue reason, queue position or remaining quota. `confidence` says whether
+ * the deciding signal was directly observed (`slow` = logs advancing,
+ * `unknown` = no usable evidence) or inferred from status patterns.
+ *
+ * @param {object} input
+ * @returns {{cause: "quota"|"stuck"|"slow"|"congestion"|"unknown", confidence: "observed"|"inferred"|"unknown", reasons: string[]}}
+ */
+export function classifyQueueCause({
+  timeoutKind,
+  kernelId,
+  target,
+  quotaSignal = null,
+  stuck = [],
+  activeOthers = [],
+  targetEvidence = null,
+  stuckWindowMs = KAGGLE_STUCK_WINDOW_MS,
+} = {}) {
+  const reasons = [];
+  if (quotaSignal) {
+    reasons.push(`Kaggle CLI reported a quota-related error: ${quotaSignal.text}`);
+    return { cause: "quota", confidence: "inferred", reasons };
+  }
+  const targetKernel = String(kernelId ?? "").toLowerCase();
+  const stuckReason = (kernel) => {
+    const lastLog =
+      kernel.log?.lastHeartbeat?.phase != null
+        ? `last heartbeat phase=${kernel.log.lastHeartbeat.phase} at ${formatLogClock(
+            kernel.log.lastHeartbeat.logSeconds,
+          )}`
+        : `last log at ${formatLogClock(kernel.log?.lastLogSeconds)}`;
+    return `${kernel.ref} has been RUNNING with no log progress for ${fmtDuration(
+      kernel.stalenessMs,
+    )} (${lastLog}); a RUNNING kernel holds the session and burns quota`;
+  };
+
+  if (timeoutKind === "run") {
+    const targetStuck = stuck.find((k) => String(k.ref).toLowerCase() === targetKernel);
+    if (targetStuck) {
+      return {
+        cause: "stuck",
+        confidence: "inferred",
+        reasons: [
+          stuckReason(targetStuck),
+          "Kaggle has no cancel API; a stuck kernel ends at the 9-12h session cap or at the kernel's own wall-clock budget",
+        ],
+      };
+    }
+    const evidence =
+      targetEvidence ??
+      [...stuck, ...activeOthers].find((k) => String(k.ref).toLowerCase() === targetKernel) ??
+      null;
+    if (evidence?.log?.lastLogSeconds != null && evidence.stalenessMs != null) {
+      if (evidence.stalenessMs <= stuckWindowMs) {
+        reasons.push(
+          `${evidence.ref} was still logging (last log at ${formatLogClock(
+            evidence.log.lastLogSeconds,
+          )}, ${fmtDuration(evidence.stalenessMs)} behind the run clock) when the host run budget expired`,
+        );
+        return { cause: "slow", confidence: "observed", reasons };
+      }
+    }
+    reasons.push(
+      "The RUNNING budget expired without usable log-progress evidence; the kernel may be slow, stuck, or already finished",
+    );
+    return { cause: "unknown", confidence: "unknown", reasons };
+  }
+
+  if (stuck.length > 0) {
+    return {
+      cause: "stuck",
+      confidence: "inferred",
+      reasons: [
+        ...stuck.map(stuckReason),
+        "Kaggle has no cancel API; a stuck kernel ends at the 9-12h session cap or at the kernel's own wall-clock budget",
+      ],
+    };
+  }
+
+  const targetPhase = String(target?.phase ?? "unknown").toUpperCase();
+  if (activeOthers.length > 0) {
+    for (const kernel of activeOthers) {
+      reasons.push(
+        `own kernel ${kernel.ref} is ${kernel.phase.toUpperCase()} and shares Kaggle's single free-tier GPU session`,
+      );
+    }
+    reasons.push(`target ${kernelId} was still ${targetPhase} when the queue budget expired`);
+    return { cause: "congestion", confidence: "inferred", reasons };
+  }
+  if (String(target?.phase ?? "unknown") === "unknown") {
+    reasons.push(
+      `no usable status was observed for ${kernelId} and no own kernel was observed RUNNING or QUEUED — the CLI probes failed, so no cause is claimed`,
+    );
+    return { cause: "unknown", confidence: "unknown", reasons };
+  }
+  reasons.push(
+    `target ${kernelId} stayed ${targetPhase} for the whole queue budget and no own kernel was observed RUNNING or QUEUED`,
+  );
+  return { cause: "congestion", confidence: "inferred", reasons };
+}
+
+/**
+ * Collect the post-timeout evidence bundle (#1354) and classify its cause.
+ *
+ * Everything in `ownKernels` is copied from the API; `conclusion` is the
+ * derived part and is labelled as such. Log progress is only fetched for
+ * RUNNING kernels: `kaggle kernels logs` on a QUEUED kernel can return the
+ * previous version's log, which would attribute progress to the wrong run.
+ *
+ * @returns {Promise<object>} the JSON-serialisable evidence bundle
+ */
+export async function collectQueueAttribution({
+  kernelId,
+  timeoutKind,
+  target = null,
+  attempt = null,
+  probeFailures = 0,
+  probeFailureMs = 0,
+  lastProbeError = null,
+  exec = defaultExec,
+  now = Date.now,
+  probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
+  logProbeTimeoutMs = KAGGLE_LOG_PROBE_TIMEOUT_MS,
+  stuckWindowMs = KAGGLE_STUCK_WINDOW_MS,
+  recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
+} = {}) {
+  const slot = await probeOwnKernelSlots({
+    kernelId,
+    exec,
+    now,
+    recentWindowMs,
+    probeTimeoutMs,
+  });
+  const ownKernels = [];
+  for (const probe of slot.probes) {
+    const entry = {
+      ref: probe.ref,
+      phase: probe.phase,
+      statusLine: probe.statusLine,
+      lastRunTime: probe.lastRunTime ?? null,
+      log: null,
+      stalenessMs: null,
+    };
+    if (probe.phase === "running") {
+      const progress = await probeKernelLogProgress(probe.ref, {
+        exec,
+        probeTimeoutMs: logProbeTimeoutMs,
+      });
+      entry.log = progress.ok
+        ? {
+            lastLogSeconds: progress.lastLogSeconds,
+            lastHeartbeat: progress.lastHeartbeat,
+            lastLine: progress.lastLine,
+          }
+        : { error: progress.error };
+      // The target's RUNNING clock is measured by the poller; another kernel
+      // only has lastRunTime (the start time), which is an upper bound.
+      const runningMs =
+        probe.ref.toLowerCase() === String(kernelId).toLowerCase()
+          ? Number(target?.runningMs ?? 0)
+          : entry.lastRunTime
+            ? Math.max(0, now() - parseKaggleTimestamp(entry.lastRunTime))
+            : null;
+      if (
+        runningMs != null &&
+        Number.isFinite(runningMs) &&
+        progress.ok &&
+        progress.lastLogSeconds != null
+      ) {
+        entry.stalenessMs = Math.max(0, runningMs - progress.lastLogSeconds * 1000);
+      }
+    }
+    ownKernels.push(entry);
+  }
+
+  const quotaSignal = findQuotaSignal([
+    slot.listError,
+    ...ownKernels.map((k) => k.statusLine),
+    ...ownKernels.map((k) => k.log?.error),
+    lastProbeError,
+  ]);
+  const stuck = ownKernels.filter(
+    (k) => k.phase === "running" && k.stalenessMs != null && k.stalenessMs > stuckWindowMs,
+  );
+  const activeOthers = ownKernels.filter(
+    (k) =>
+      k.ref.toLowerCase() !== String(kernelId).toLowerCase() &&
+      (k.phase === "running" || k.phase === "queued"),
+  );
+  const targetEvidence =
+    ownKernels.find((k) => k.ref.toLowerCase() === String(kernelId).toLowerCase()) ?? null;
+  const conclusion = classifyQueueCause({
+    timeoutKind,
+    kernelId,
+    target,
+    quotaSignal,
+    stuck,
+    activeOthers,
+    targetEvidence,
+    stuckWindowMs,
+  });
+
+  return {
+    schemaVersion: 1,
+    kernelId,
+    timeoutKind,
+    observedAt: new Date(now()).toISOString(),
+    attempt: attempt ?? null,
+    target: target ?? null,
+    ownKernels,
+    signals: {
+      listOk: slot.listOk,
+      listError: slot.listError,
+      probeFailures,
+      probeFailureMs,
+      lastProbeError,
+      quotaSignal,
+      stuckWindowMs,
+      activeOwnKernels: activeOthers.length,
+    },
+    conclusion,
+    limits:
+      "Kaggle exposes no queue reason, queue position, or remaining quota. " +
+      "The cause is classified from observable kernel statuses and log progress, not returned by Kaggle.",
+  };
+}
+
+/**
+ * Error text shared by the queue/run timeout paths. The old queue message
+ * asserted "Another kernel holds Kaggle's single free-tier GPU session" from
+ * the single fact that our own kernel was QUEUED — a fabricated cause (#1354).
+ * This formatter only claims what the evidence bundle observed.
+ */
+export function formatKernelTimeoutError({
+  timeoutKind,
+  kernelId,
+  queuedMs = 0,
+  ranMs = 0,
+  queueTimeoutMs = KAGGLE_QUEUE_TIMEOUT_MS,
+  runTimeoutMs = KAGGLE_TIMEOUT_MS,
+  attribution = null,
+  attributionFile = null,
+}) {
+  const conclusion = attribution?.conclusion ?? {
+    cause: "unknown",
+    confidence: "unknown",
+    reasons: ["evidence collection failed"],
+  };
+  const evidence = attributionFile ? `evidence: ${attributionFile}. ` : "";
+  const target = attribution?.target;
+  const targetLine = target
+    ? `target ${kernelId}: ${String(target.phase ?? "unknown").toUpperCase()}` +
+      (target.queuedMs != null
+        ? ` (queued ${fmtDuration(target.queuedMs)}, running ${fmtDuration(target.runningMs ?? 0)})`
+        : "")
+    : `target ${kernelId}: unknown`;
+  const attemptLine = attribution?.attempt?.version
+    ? `kernel version ${attribution.attempt.version}, pushed ${attribution.attempt.pushedAt}, queue started ${attribution.attempt.queueStartedAt}`
+    : attribution?.attempt?.pushedAt
+      ? `kernel version unknown, pushed ${attribution.attempt.pushedAt}, queue started ${attribution.attempt.queueStartedAt}`
+      : null;
+  const reasonLines = (conclusion.reasons ?? []).map((reason) => `  - ${reason}`);
+
+  const head =
+    timeoutKind === "queue"
+      ? `Kaggle kernel waiting for ${fmtDuration(queuedMs)} — exceeded queue timeout ` +
+        `(${Math.round(queueTimeoutMs / 60000)}min). Cause: ${conclusion.cause} ` +
+        `(${conclusion.confidence}); ${evidence}`
+      : `Kaggle kernel timed out after ${fmtDuration(ranMs)} of RUNNING ` +
+        `(run timeout ${Math.round(runTimeoutMs / 60000)}min). Cause: ${conclusion.cause} ` +
+        `(${conclusion.confidence}); ${evidence}`;
+
+  const tail =
+    timeoutKind === "queue"
+      ? `NOT auto-falling back (ADR-0019 quality red line) — decide manually: ` +
+        `wait and re-run, or set TTS_ENGINE explicitly.`
+      : `Do NOT re-push blindly: a RUNNING kernel that is still logging is making progress; ` +
+        `collect it with \`kaggle kernels output ${kernelId} -p <dir>\` when it finishes. ` +
+        `The kernel's own wall-clock budget terminates a genuinely stuck run.`;
+
+  return [
+    head,
+    targetLine,
+    attemptLine,
+    ...reasonLines,
+    attribution?.limits ? `Limits: ${attribution.limits}` : null,
+    tail,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**
@@ -802,6 +1583,11 @@ function fmtDuration(ms) {
  * @param {number} [opts.probeTimeoutMs] - per-probe exec timeout (#808)
  * @param {number} [opts.probeFailureBudgetMs] - dead-probe budget (#808)
  * @param {string|null} [opts.statusFile] - poll-status.json path (visibility)
+ * @param {string|null} [opts.attributionFile] - timeout evidence bundle path (#1354)
+ * @param {object|null} [opts.attempt] - kernel version / queue start (#1354)
+ * @param {number} [opts.stuckWindowMs] - no-log-progress window (#1354)
+ * @param {number} [opts.recentWindowMs] - own-kernel lookback (#1354)
+ * @param {number} [opts.logProbeTimeoutMs] - per-log-fetch bound (#1354)
  * @param {object} [deps] - injected exec/sleep/now/log for tests
  * @returns {Promise<{queuedMs: number, runningMs: number}>}
  * @throws {Error} on kernel failure, queue timeout, or run timeout
@@ -814,11 +1600,20 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
     probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
     probeFailureBudgetMs = KAGGLE_PROBE_FAILURE_BUDGET_MS,
     statusFile = null,
+    // #1354: when set, every timeout first writes an evidence bundle here and
+    // phrases the error from its conclusion instead of the old fabricated
+    // "another kernel holds the slot" line.
+    attributionFile = null,
+    attempt = null,
+    stuckWindowMs = KAGGLE_STUCK_WINDOW_MS,
+    recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
+    logProbeTimeoutMs = KAGGLE_LOG_PROBE_TIMEOUT_MS,
   } = opts;
   const exec = deps.exec ?? defaultExec;
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
   const log = deps.log ?? ((msg) => console.log(msg));
+  const collectAttribution = deps.collectAttribution ?? collectQueueAttribution;
 
   let phase = null; // null until the first status lands (so the first poll logs a transition)
   let waitStart = null; // fake-clock time the current QUEUED/UNKNOWN stretch began
@@ -833,6 +1628,100 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
     queuedMs: waitMs + (waitStart !== null ? now() - waitStart : 0),
     runningMs: runMs + (runStart !== null ? now() - runStart : 0),
   });
+
+  /**
+   * Build the timeout error for `timeoutKind`.
+   *
+   * With no `attributionFile` the historical message is preserved exactly:
+   * direct callers and the existing tests see the same text. The engine always
+   * sets it, so production gets the evidence-backed form (#1354).
+   */
+  const timeoutError = async (timeoutKind, statusLine, waitedMs, ranMs) => {
+    const target = { phase, statusLine, ...snapshot() };
+    if (!attributionFile) {
+      if (timeoutKind === "queue") {
+        return new Error(
+          `Kaggle kernel waiting for ${fmtDuration(waitedMs)} — exceeded queue timeout ` +
+            `(${Math.round(queueTimeoutMs / 60000)}min). Another kernel holds Kaggle's single ` +
+            `free-tier GPU session (${kernelId} still ${String(phase).toUpperCase()}). ` +
+            `NOT auto-falling back (ADR-0019 quality red line) — decide manually: ` +
+            `wait and re-run, or set TTS_ENGINE explicitly.`,
+        );
+      }
+      return new Error(
+        `Kaggle kernel timed out after ${fmtDuration(ranMs)} of RUNNING ` +
+          `(run timeout ${Math.round(runTimeoutMs / 60000)}min)`,
+      );
+    }
+
+    let attribution;
+    try {
+      attribution = await collectAttribution({
+        kernelId,
+        timeoutKind,
+        target,
+        attempt,
+        probeFailures,
+        probeFailureMs,
+        lastProbeError,
+        exec,
+        now,
+        probeTimeoutMs,
+        logProbeTimeoutMs,
+        stuckWindowMs,
+        recentWindowMs,
+      });
+    } catch (e) {
+      // Evidence collection must never hide the timeout itself.
+      attribution = {
+        schemaVersion: 1,
+        kernelId,
+        timeoutKind,
+        observedAt: new Date(now()).toISOString(),
+        attempt,
+        target,
+        ownKernels: [],
+        conclusion: {
+          cause: "unknown",
+          confidence: "unknown",
+          reasons: [`evidence collection failed: ${firstLine(e.message)}`],
+        },
+        limits:
+          "Evidence collection failed before Kaggle status/logs could be read; nothing was inferred.",
+      };
+    }
+    writeJsonFile(attributionFile, attribution);
+    if (statusFile) {
+      writeJsonFile(statusFile, {
+        kernelId,
+        phase,
+        status: statusLine,
+        ...snapshot(),
+        probeFailures,
+        probeFailureMs,
+        lastProbeError,
+        timedOut: timeoutKind,
+        attribution: {
+          cause: attribution.conclusion?.cause ?? "unknown",
+          confidence: attribution.conclusion?.confidence ?? "unknown",
+          evidenceFile: attributionFile,
+        },
+        updatedAt: new Date(now()).toISOString(),
+      });
+    }
+    return new Error(
+      formatKernelTimeoutError({
+        timeoutKind,
+        kernelId,
+        queuedMs: timeoutKind === "queue" ? waitedMs : 0,
+        ranMs: timeoutKind === "run" ? ranMs : 0,
+        queueTimeoutMs,
+        runTimeoutMs,
+        attribution,
+        attributionFile,
+      }),
+    );
+  };
 
   while (true) {
     let raw = "";
@@ -854,7 +1743,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
       probeFailureMs += Math.max(0, now() - probeStart);
       lastProbeError = raw.split("\n")[0];
     }
-    const firstLine = raw.split("\n")[0];
+    const statusLine = raw.split("\n")[0];
     // Non-zero CLI exit (network hiccup, 404 while QUEUED) is not kernel truth
     // (#250 review note) — keep polling. A failed probe also must not reset the
     // RUNNING clock (#808): the kernel is still burning GPU whatever the CLI
@@ -885,7 +1774,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
           waitStart = null;
         }
       }
-      log(`  [Kaggle] Kernel Status → ${next.toUpperCase()} (${firstLine || kernelId})`);
+      log(`  [Kaggle] Kernel Status → ${next.toUpperCase()} (${statusLine || kernelId})`);
       phase = next;
     }
 
@@ -896,15 +1785,15 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
       log(
         `  ⚠️ [Kaggle] status probe failed (${probeFailures} in a row, ` +
           `${fmtDuration(probeFailureMs)}/${fmtDuration(probeFailureBudgetMs)} dead-probe budget) ` +
-          `— staying ${String(phase).toUpperCase()}: ${firstLine}`,
+          `— staying ${String(phase).toUpperCase()}: ${statusLine}`,
       );
     }
 
     if (statusFile) {
-      writeStatusFile(statusFile, {
+      writeJsonFile(statusFile, {
         kernelId,
         phase,
-        status: firstLine,
+        status: statusLine,
         ...snapshot(),
         probeFailures,
         probeFailureMs,
@@ -918,19 +1807,13 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
       return snapshot();
     }
     if (phase === "error" || phase === "cancel") {
-      throw new Error(`Kaggle kernel failed: ${firstLine}`);
+      throw new Error(`Kaggle kernel failed: ${statusLine}`);
     }
 
     if (waitStart !== null) {
       const waited = now() - waitStart;
       if (waited > queueTimeoutMs) {
-        throw new Error(
-          `Kaggle kernel waiting for ${fmtDuration(waited)} — exceeded queue timeout ` +
-            `(${Math.round(queueTimeoutMs / 60000)}min). Another kernel holds Kaggle's single ` +
-            `free-tier GPU session (${kernelId} still ${phase.toUpperCase()}). ` +
-            `NOT auto-falling back (ADR-0019 quality red line) — decide manually: ` +
-            `wait and re-run, or set TTS_ENGINE explicitly.`,
-        );
+        throw await timeoutError("queue", statusLine, waited, 0);
       }
       if (phase === "queued") {
         log(
@@ -938,16 +1821,13 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
             `queue budget ${Math.round(queueTimeoutMs / 60000)}min)`,
         );
       } else {
-        log(`  ⏳ [Kaggle] Kernel Status: ${phase.toUpperCase()} (${firstLine})`);
+        log(`  ⏳ [Kaggle] Kernel Status: ${phase.toUpperCase()} (${statusLine})`);
       }
     }
     if (runStart !== null) {
       const ran = now() - runStart;
       if (ran > runTimeoutMs) {
-        throw new Error(
-          `Kaggle kernel timed out after ${fmtDuration(ran)} of RUNNING ` +
-            `(run timeout ${Math.round(runTimeoutMs / 60000)}min)`,
-        );
+        throw await timeoutError("run", statusLine, 0, ran);
       }
       log(`  ⏳ [Kaggle] Kernel Status: RUNNING (${fmtDuration(ran)} elapsed)`);
     }
@@ -977,8 +1857,12 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
  * @param {object} [deps] - injectable seams for tests (default: real CLI).
  * @param {(cmd: string) => Promise<{stdout: string}>} [deps.exec] - shell command runner
  * @param {typeof pollKernelStatus} [deps.poll] - kernel status poller
+ * @param {typeof preflightKernelSlot} [deps.preflight] - pre-push slot precheck (#1354)
  * @param {typeof postProcessBatch} [deps.postProcess] - per-scene audio post-process
  * @param {(ms: number) => Promise<void>} [deps.sleep] - download-recovery backoff (#581)
+ * @param {number} [deps.stuckWindowMs] - attribution's no-log-progress window (#1354)
+ * @param {number} [deps.recentWindowMs] - how far back `kernels list` counts (#1354)
+ * @param {number} [deps.logProbeTimeoutMs] - per-log-fetch bound (#1354)
  * @returns {Promise<TTSEngine|null>} null if not available.
  */
 export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
@@ -987,6 +1871,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   const username = getKaggleUsername();
   const runCmd = deps.exec ?? defaultExec;
   const poll = deps.poll ?? pollKernelStatus;
+  const preflight = deps.preflight ?? preflightKernelSlot;
   const postProcess = deps.postProcess ?? postProcessBatch;
   // One value for both the engine descriptor (which feeds the cache key) and
   // the per-scene call, so the key can never describe a floor the trim did not
@@ -1090,17 +1975,68 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         ),
       );
 
+      // ── Push precheck (#1354) ──
+      // Never re-push a slug whose previous version is still RUNNING/QUEUED:
+      // each push adds a version to the same queue and makes the wait longer.
+      // Another own kernel only earns a warning; queuing behind it is the
+      // documented 40min queue behaviour.
+      const preflightResult = await preflight(
+        kernelId,
+        {},
+        {
+          exec: runCmd,
+          sleep: deps.sleep,
+          now: deps.now,
+          log: console.log,
+        },
+      );
+
       // ── Push kernel (single push for the whole manifest, #241) ──
       console.log(`  📤 Pushing Kaggle kernel (${manifest.length} segments, 1 push)...`);
-      await runCmd(`kaggle kernels push -p "${tempDir}" 2>&1`);
+      const pushResult = await runCmd(`kaggle kernels push -p "${tempDir}" 2>&1`);
+      const pushedVersion = parseKernelPushVersion(pushResult?.stdout ?? "");
+      const pushedAt = new Date().toISOString();
+      const attempt = {
+        version: pushedVersion,
+        pushedAt,
+        queueStartedAt: pushedAt,
+        requestId,
+      };
+      // Run evidence is the durable answer to "what was pushed, when did it
+      // start queueing, and what did the slot precheck see?" for the next
+      // attribution; it sits beside poll-status.json under .kaggle-kernel/.
+      writeJsonFile(join(tempDir, "kaggle-run-evidence.json"), {
+        schemaVersion: 1,
+        kernelId,
+        ...attempt,
+        preflight: {
+          waitedMs: preflightResult.waitedMs,
+          listOk: preflightResult.listOk,
+          listError: preflightResult.listError,
+          target: preflightResult.target,
+          holders: preflightResult.holders,
+        },
+      });
+      console.log(
+        `  ✓ Kaggle kernel version ${pushedVersion ?? "unknown"} pushed (queue started ${pushedAt})`,
+      );
 
       // ── Poll status ──
       console.log(
         `  ⏳ Waiting for Kaggle kernel (queue budget ${Math.round(KAGGLE_QUEUE_TIMEOUT_MS / 60000)}min, ` +
           `run timeout ${Math.round(KAGGLE_TIMEOUT_MS / 60000)}min)...`,
       );
-      // poll-status.json: QUEUED/RUNNING phase + metering for background runs (#250)
-      await poll(kernelId, { statusFile: join(tempDir, "poll-status.json") });
+      // poll-status.json: QUEUED/RUNNING phase + metering for background runs
+      // (#250). attributionFile (#1354) makes a timeout collect status/log
+      // evidence and phrase the error from the observed cause, not a guess.
+      await poll(kernelId, {
+        statusFile: join(tempDir, "poll-status.json"),
+        attributionFile: join(tempDir, "kaggle-queue-attribution.json"),
+        attempt,
+        stuckWindowMs: deps.stuckWindowMs,
+        recentWindowMs: deps.recentWindowMs,
+        logProbeTimeoutMs: deps.logProbeTimeoutMs,
+      });
 
       // ── Download output into per-call staging (#420) ──
       // The download target MUST be unique per call: `kaggle kernels output`

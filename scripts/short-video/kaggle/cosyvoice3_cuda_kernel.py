@@ -26,6 +26,53 @@ MANIFEST_JSON = r'''__MANIFEST_JSON__'''
 REQUEST_ID = r'''__REQUEST_ID__'''
 EXPECTED_WHEELHOUSE = json.loads(r'''__EXPECTED_WHEELHOUSE__''')
 
+# ── Whole-kernel wall-clock self-termination (#1354) ──────────────────────
+# The inference child already has load/synthesis budgets, but a hang *before*
+# it (pip install, CosyVoice clone, model mount/assembly, wetext seed) used to
+# keep Kaggle's single free-tier GPU session until the 9-12h session cap. This
+# watchdog covers the whole script and emits a heartbeat the host can read
+# back through `kaggle kernels logs`: it proves the kernel is alive and names
+# the phase it is in, instead of leaving one silent gap from push to cap.
+# (A live watchdog does not prove the main thread is making progress; it is
+# liveness evidence, not a progress measurement.)
+#
+# Budget: 90min. A normal batch is ~5-10min. The inference child's worst case
+# is 30min loading + 300s + 60s/scene (~45min for 10 scenes), and setup
+# (pip/clone/model mount) adds ~15-20min, so 90min still leaves headroom over
+# the legitimate worst case and self-heals long before the session cap.
+# Override with KERNEL_WALL_CLOCK_BUDGET_SEC.
+KERNEL_WALL_CLOCK_BUDGET_SEC = int(os.environ.get("KERNEL_WALL_CLOCK_BUDGET_SEC", "5400"))
+KERNEL_HEARTBEAT_SEC = int(os.environ.get("KERNEL_HEARTBEAT_SEC", "60"))
+_KERNEL_STARTED_AT = time.time()
+_KERNEL_PHASE = {"name": "startup"}
+
+def _set_phase(name):
+    _KERNEL_PHASE["name"] = name
+    log(f"KERNEL_PHASE {name}")
+
+def _heartbeat_loop():
+    while True:
+        time.sleep(KERNEL_HEARTBEAT_SEC)
+        elapsed = time.time() - _KERNEL_STARTED_AT
+        log(f"KERNEL_HEARTBEAT phase={_KERNEL_PHASE['name']} elapsed={int(elapsed)}s")
+        if elapsed > KERNEL_WALL_CLOCK_BUDGET_SEC:
+            log(
+                f"ERROR: kernel wall-clock budget {KERNEL_WALL_CLOCK_BUDGET_SEC}s "
+                f"exceeded in phase {_KERNEL_PHASE['name']} — exiting so the GPU "
+                "session stops holding the slot and burning quota"
+            )
+            # os._exit, not sys.exit: the watchdog is a daemon thread and the
+            # main thread may be blocked in a C call; sys.exit only raises in
+            # this thread. 1 marks the kernel ERROR so the host stops polling.
+            os._exit(1)
+
+if os.path.isdir("/kaggle/working"):
+    threading.Thread(target=_heartbeat_loop, daemon=True).start()
+log(
+    f"Wall-clock budget: {KERNEL_WALL_CLOCK_BUDGET_SEC}s "
+    f"(heartbeat every {KERNEL_HEARTBEAT_SEC}s)"
+)
+
 try:
     import torch
     log(f"torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}")
@@ -34,6 +81,7 @@ try:
 except Exception as e:
     log(f"ERROR torch: {e}"); traceback.print_exc(); sys.exit(1)
 
+_set_phase("deps")
 log("\n=== Installing deps ===")
 
 # #231: pre-frozen wheels dataset (xpabloli/cosyvoice3-wheels) makes the
@@ -281,6 +329,7 @@ try:
 except Exception as e:
     log(f"ERROR whisper: {e}")
 
+_set_phase("cosyvoice-source")
 log("\n=== Setting up CosyVoice source ===")
 # Pin to known good commit (2026-09 baseline) to prevent upstream drift
 PINNED_COSYVOICE_COMMIT = "074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc"
@@ -315,6 +364,7 @@ except Exception as e:
 sys.path.insert(0, "/tmp/CosyVoice")
 sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 
+_set_phase("model")
 log("\n=== Downloading model ===")
 model_dir = "/tmp/cosyvoice3-model"
 HF_REPO = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
@@ -433,6 +483,7 @@ except Exception as e:
         except Exception as e3:
             log(f"ERROR model fallback: {e3}"); traceback.print_exc(); sys.exit(1)
 
+_set_phase("ref-audio")
 log("\n=== Preparing ref audio ===")
 _ref_dir = find_input_dir("tts-ref-audio")
 ref_path = os.path.join(_ref_dir, "voice-sample-24k.wav") if _ref_dir else None
@@ -617,9 +668,11 @@ def seed_wetext_cache():
     log(f"wetext cache seeded in {time.time()-t0:.1f}s from {src}")
     return True
 
+_set_phase("wetext-seed")
 log("\n=== Seeding text frontend cache ===")
 seed_wetext_cache()
 
+_set_phase("inference")
 log("\n=== Running inference ===")
 # Two budgets instead of one blanket timer: cold start and synthesis fail for
 # different reasons at different rates. Loading is network-bound and can
@@ -664,4 +717,5 @@ if timed_out:
 if proc.returncode != 0:
     log(f"ERROR: inference exited with {proc.returncode}")
     sys.exit(1)
+_set_phase("complete")
 log("\n=== Kernel complete ===")
