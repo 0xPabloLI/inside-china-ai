@@ -7,6 +7,8 @@ Placeholders (replaced by JS adapter before push):
   __REQUEST_ID__     — per-run identity echoed into summary.json (#420)
   __EXPECTED_WHEELHOUSE__ — kaggle/wheelhouse-manifest.json, checked against
                         the mount before installing anything (#521)
+  __KERNEL_WALL_CLOCK_BUDGET_SEC__ / __KERNEL_HEARTBEAT_SEC__ — watchdog
+                        values baked in by the JS adapter (#1354)
 
 Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
@@ -36,13 +38,16 @@ EXPECTED_WHEELHOUSE = json.loads(r'''__EXPECTED_WHEELHOUSE__''')
 # (A live watchdog does not prove the main thread is making progress; it is
 # liveness evidence, not a progress measurement.)
 #
-# Budget: 90min. A normal batch is ~5-10min. The inference child's worst case
-# is 30min loading + 300s + 60s/scene (~45min for 10 scenes), and setup
-# (pip/clone/model mount) adds ~15-20min, so 90min still leaves headroom over
-# the legitimate worst case and self-heals long before the session cap.
-# Override with KERNEL_WALL_CLOCK_BUDGET_SEC.
-KERNEL_WALL_CLOCK_BUDGET_SEC = int(os.environ.get("KERNEL_WALL_CLOCK_BUDGET_SEC", "5400"))
-KERNEL_HEARTBEAT_SEC = int(os.environ.get("KERNEL_HEARTBEAT_SEC", "60"))
+# Budget: 3h. The documented legitimate worst case is ~2.2h: model load 1800s,
+# model-download fallback 1200s, wetext-download fallback 1265s, inference
+# 1800s + 300s + 60s/scene (~45min for 10 scenes), plus pip/clone. The old
+# 90min value was below that path and could os._exit(1) mid-inference after a
+# legitimate setup; 3h still self-heals long before the 9-12h session cap.
+# Override on the host with KERNEL_WALL_CLOCK_BUDGET_SEC / KERNEL_HEARTBEAT_SEC;
+# the JS adapter bakes them into these placeholders because `kaggle kernels
+# push` has no env-var channel.
+KERNEL_WALL_CLOCK_BUDGET_SEC = int(r'''__KERNEL_WALL_CLOCK_BUDGET_SEC__''')
+KERNEL_HEARTBEAT_SEC = int(r'''__KERNEL_HEARTBEAT_SEC__''')
 _KERNEL_STARTED_AT = time.time()
 _KERNEL_PHASE = {"name": "startup"}
 

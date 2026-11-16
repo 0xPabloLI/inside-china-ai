@@ -175,11 +175,9 @@ describe("kernel timeout — streaming output and split budgets", () => {
 });
 
 describe("kernel wall-clock self-termination (#1354)", () => {
-  it("declares a 90min whole-kernel budget with an env override", () => {
-    expect(KERNEL_SRC).toContain(
-      'KERNEL_WALL_CLOCK_BUDGET_SEC = int(os.environ.get("KERNEL_WALL_CLOCK_BUDGET_SEC", "5400"))',
-    );
-    expect(KERNEL_SRC).toContain("KERNEL_HEARTBEAT_SEC");
+  it("declares the wall-clock placeholders the adapter bakes in", () => {
+    expect(KERNEL_SRC).toContain("__KERNEL_WALL_CLOCK_BUDGET_SEC__");
+    expect(KERNEL_SRC).toContain("__KERNEL_HEARTBEAT_SEC__");
   });
 
   it("arms the watchdog only in a real Kaggle session", () => {
@@ -259,13 +257,27 @@ describe("engine metadata — the wetext dataset rides along with the kernel", (
       postProcess: async () => ({ duration: 3.0 }),
     });
     expect(engine).not.toBeNull();
+    const originalBudget = process.env.KERNEL_WALL_CLOCK_BUDGET_SEC;
+    const originalHeartbeat = process.env.KERNEL_HEARTBEAT_SEC;
+    process.env.KERNEL_WALL_CLOCK_BUDGET_SEC = "7200";
+    process.env.KERNEL_HEARTBEAT_SEC = "30";
     try {
       await engine.generate(scenes, outDir);
       const meta = JSON.parse(
         readFileSync(join(outDir, ".kaggle-kernel", "kernel-metadata.json"), "utf-8"),
       );
       expect(meta.dataset_sources).toContain("xPabloLI/cosyvoice3-wetext");
+      const kernelScript = readFileSync(
+        join(outDir, ".kaggle-kernel", "cosyvoice3_cuda_kernel.py"),
+        "utf-8",
+      );
+      expect(kernelScript).toContain("KERNEL_WALL_CLOCK_BUDGET_SEC = int(r'''7200''')");
+      expect(kernelScript).toContain("KERNEL_HEARTBEAT_SEC = int(r'''30''')");
     } finally {
+      if (originalBudget === undefined) delete process.env.KERNEL_WALL_CLOCK_BUDGET_SEC;
+      else process.env.KERNEL_WALL_CLOCK_BUDGET_SEC = originalBudget;
+      if (originalHeartbeat === undefined) delete process.env.KERNEL_HEARTBEAT_SEC;
+      else process.env.KERNEL_HEARTBEAT_SEC = originalHeartbeat;
       rmSync(outDir, { recursive: true, force: true });
     }
   });

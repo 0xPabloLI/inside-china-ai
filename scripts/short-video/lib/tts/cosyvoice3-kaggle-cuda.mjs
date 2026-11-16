@@ -67,6 +67,21 @@ const defaultExec = (cmd, opts) => execAsync(cmd, opts);
  */
 const defaultExecFile = (file, args, opts) => execFileAsync(file, args, opts);
 
+// Kernel wall-clock defaults (#1354). `kaggle kernels push` has no env-var
+// channel, so the adapter bakes these values into the pushed script; reading
+// them at generate time keeps a test/operator override real.
+const DEFAULT_KERNEL_WALL_CLOCK_BUDGET_SEC = 3 * 60 * 60;
+const DEFAULT_KERNEL_HEARTBEAT_SEC = 60;
+function positiveIntEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw == null || raw.trim() === "") return fallback;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value <= 0 || String(value) !== raw.trim()) {
+    throw new Error(`${name} must be a positive integer, got ${JSON.stringify(raw)}`);
+  }
+  return value;
+}
+
 // ── Config ──
 const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.py");
 // The frozen wheelhouse this repo expects to be mounted (#521). Kaggle cannot
@@ -128,7 +143,7 @@ const KAGGLE_SLOT_POLL_INTERVAL_MS = parseInt(
 // How far back a listed kernel counts as a possible slot holder. One day
 // covers a same-day pipeline retry; older COMPLETE kernels are history.
 const KAGGLE_RECENT_KERNEL_WINDOW_MS = parseInt(
-  process.env.COSYVOICE3_KAGGLE_RECENT_WINDOW_MS || String(24 * 60 * 60 * 1000),
+  process.env.COSYVOICE3_KAGGLE_RECENT_KERNEL_WINDOW_MS || String(24 * 60 * 60 * 1000),
   10,
 );
 // RUNNING but the log clock has not advanced for this long => report stalled.
@@ -1373,7 +1388,46 @@ export function classifyQueueCause({
     };
   }
 
-  const targetPhase = String(target?.phase ?? "unknown").toUpperCase();
+  // The poller's last phase is captured at timeout; the attribution's fresh
+  // probe is a later observation. Prefer it when it changed: a kernel that
+  // finished or started running during a probe-blind stretch must not be
+  // reported as "stayed QUEUED".
+  const freshPhase = String(targetEvidence?.phase ?? "unknown");
+  const pollerPhase = String(target?.phase ?? "unknown");
+  if (freshPhase !== "unknown" && freshPhase !== pollerPhase) {
+    if (freshPhase === "complete") {
+      reasons.push(
+        `target ${kernelId} is COMPLETE in the fresh probe after the queue timeout — collect its output with \`kaggle kernels output ${kernelId} -p <dir>\` instead of re-pushing`,
+      );
+      return { cause: "unknown", confidence: "observed", reasons };
+    }
+    if (freshPhase === "running") {
+      if (
+        targetEvidence.log?.lastLogSeconds != null &&
+        targetEvidence.stalenessMs != null &&
+        targetEvidence.stalenessMs <= stuckWindowMs
+      ) {
+        reasons.push(
+          `target ${kernelId} started RUNNING after the poller's last status and is still logging (last log at ${formatLogClock(
+            targetEvidence.log.lastLogSeconds,
+          )}, ${fmtDuration(targetEvidence.stalenessMs)} behind the run clock); collect it when it finishes`,
+        );
+        return { cause: "slow", confidence: "observed", reasons };
+      }
+      reasons.push(
+        `target ${kernelId} is RUNNING in the fresh probe after the queue timeout but has no usable log-progress evidence; collect it with \`kaggle kernels output ${kernelId} -p <dir>\` when it finishes`,
+      );
+      return { cause: "unknown", confidence: "observed", reasons };
+    }
+    if (isTerminalPhase(freshPhase)) {
+      reasons.push(
+        `target ${kernelId} is ${freshPhase.toUpperCase()} in the fresh probe after the queue timeout — inspect/collect it instead of re-pushing`,
+      );
+      return { cause: "unknown", confidence: "observed", reasons };
+    }
+  }
+
+  const targetPhase = String(freshPhase !== "unknown" ? freshPhase : pollerPhase).toUpperCase();
   if (activeOthers.length > 0) {
     for (const kernel of activeOthers) {
       reasons.push(
@@ -1383,7 +1437,7 @@ export function classifyQueueCause({
     reasons.push(`target ${kernelId} was still ${targetPhase} when the queue budget expired`);
     return { cause: "congestion", confidence: "inferred", reasons };
   }
-  if (String(target?.phase ?? "unknown") === "unknown") {
+  if (targetPhase === "UNKNOWN") {
     reasons.push(
       `no usable status was observed for ${kernelId} and no own kernel was observed RUNNING or QUEUED — the CLI probes failed, so no cause is claimed`,
     );
@@ -1449,13 +1503,17 @@ export async function collectQueueAttribution({
             lastLine: progress.lastLine,
           }
         : { error: progress.error };
-      // The target's RUNNING clock is measured by the poller; another kernel
-      // only has lastRunTime (the start time), which is an upper bound.
-      const runningMs = sameRef(probe.ref, kernelId)
-        ? Number(target?.runningMs ?? 0)
-        : entry.lastRunTime
-          ? Math.max(0, now() - parseKaggleTimestamp(entry.lastRunTime))
-          : null;
+      // The target's RUNNING clock is normally measured by the poller. At a
+      // queue timeout it never observed RUNNING (runningMs=0), yet the fresh
+      // probe can show the kernel running; fall back to the same lastRunTime
+      // upper bound used for other kernels so a stuck target is still caught.
+      const pollerRunningMs = sameRef(probe.ref, kernelId) ? Number(target?.runningMs ?? 0) : null;
+      const runningMs =
+        pollerRunningMs && pollerRunningMs > 0
+          ? pollerRunningMs
+          : entry.lastRunTime
+            ? Math.max(0, now() - parseKaggleTimestamp(entry.lastRunTime))
+            : pollerRunningMs;
       if (
         runningMs != null &&
         Number.isFinite(runningMs) &&
@@ -1540,16 +1598,22 @@ export function formatKernelTimeoutError({
   };
   const evidence = attributionFile ? `evidence: ${attributionFile}. ` : "";
   const target = attribution?.target;
-  const targetLine = target
-    ? `target ${kernelId}: ${String(target.phase ?? "unknown").toUpperCase()}` +
-      (target.queuedMs != null
-        ? ` (queued ${fmtDuration(target.queuedMs)}, running ${fmtDuration(target.runningMs ?? 0)})`
-        : "")
-    : `target ${kernelId}: unknown`;
+  const freshTarget = attribution?.ownKernels?.find((k) => sameRef(k.ref, kernelId)) ?? null;
+  const freshPhase = freshTarget?.phase ?? null;
+  const targetPhase = String(freshPhase ?? target?.phase ?? "unknown").toUpperCase();
+  const targetLine =
+    target || freshTarget
+      ? `target ${kernelId}: ${targetPhase}` +
+        (target?.queuedMs != null
+          ? ` (queued ${fmtDuration(target.queuedMs)}, running ${fmtDuration(target.runningMs ?? 0)})`
+          : "")
+      : `target ${kernelId}: unknown`;
+  // pushedAt is the queue start: the push is what enqueues the version. The
+  // old queueStartedAt field was a plain alias and duplicated the timestamp.
   const attemptLine = attribution?.attempt?.version
-    ? `kernel version ${attribution.attempt.version}, pushed ${attribution.attempt.pushedAt}, queue started ${attribution.attempt.queueStartedAt}`
+    ? `kernel version ${attribution.attempt.version}, queue started ${attribution.attempt.pushedAt}`
     : attribution?.attempt?.pushedAt
-      ? `kernel version unknown, pushed ${attribution.attempt.pushedAt}, queue started ${attribution.attempt.queueStartedAt}`
+      ? `kernel version unknown, queue started ${attribution.attempt.pushedAt}`
       : null;
   const reasonLines = (conclusion.reasons ?? []).map((reason) => `  - ${reason}`);
 
@@ -1564,8 +1628,17 @@ export function formatKernelTimeoutError({
 
   const tail =
     timeoutKind === "queue"
-      ? `NOT auto-falling back (ADR-0019 quality red line) — decide manually: ` +
-        `wait and re-run, or set TTS_ENGINE explicitly.`
+      ? freshPhase === "complete"
+        ? `Do NOT re-push: the target is COMPLETE — collect its output with ` +
+          `\`kaggle kernels output ${kernelId} -p <dir>\`; ADR-0019 still forbids an automatic engine fallback.`
+        : freshPhase === "running"
+          ? `Do NOT re-push blindly: the target is RUNNING — collect it with ` +
+            `\`kaggle kernels output ${kernelId} -p <dir>\` when it finishes; the kernel's own wall-clock budget terminates a stuck run.`
+          : isTerminalPhase(freshPhase)
+            ? `The target is ${String(freshPhase).toUpperCase()} — inspect its log/output before deciding; ` +
+              `ADR-0019 still forbids an automatic engine fallback.`
+            : `NOT auto-falling back (ADR-0019 quality red line) — decide manually: ` +
+              `wait and re-run, or set TTS_ENGINE explicitly.`
       : `Do NOT re-push blindly: a RUNNING kernel that is still logging is making progress; ` +
         `collect it with \`kaggle kernels output ${kernelId} -p <dir>\` when it finishes. ` +
         `The kernel's own wall-clock budget terminates a genuinely stuck run.`;
@@ -1644,7 +1717,6 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
   const log = deps.log ?? ((msg) => console.log(msg));
-  const collectAttribution = deps.collectAttribution ?? collectQueueAttribution;
 
   let phase = null; // null until the first status lands (so the first poll logs a transition)
   let waitStart = null; // fake-clock time the current QUEUED/UNKNOWN stretch began
@@ -1687,7 +1759,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
 
     let attribution;
     try {
-      attribution = await collectAttribution({
+      attribution = await collectQueueAttribution({
         kernelId,
         timeoutKind,
         target,
@@ -1892,9 +1964,6 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
  * @param {typeof preflightKernelSlot} [deps.preflight] - pre-push slot precheck (#1354)
  * @param {typeof postProcessBatch} [deps.postProcess] - per-scene audio post-process
  * @param {(ms: number) => Promise<void>} [deps.sleep] - download-recovery backoff (#581)
- * @param {number} [deps.stuckWindowMs] - attribution's no-log-progress window (#1354)
- * @param {number} [deps.recentWindowMs] - how far back `kernels list` counts (#1354)
- * @param {number} [deps.logProbeTimeoutMs] - per-log-fetch bound (#1354)
  * @returns {Promise<TTSEngine|null>} null if not available.
  */
 export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
@@ -1952,10 +2021,17 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // Per-call identity (#420): the kernel echoes it into summary.json and
       // the download below is only accepted when that echo matches.
       const requestId = buildRunRequestId(manifestJson);
+      const wallClockSec = positiveIntEnv(
+        "KERNEL_WALL_CLOCK_BUDGET_SEC",
+        DEFAULT_KERNEL_WALL_CLOCK_BUDGET_SEC,
+      );
+      const heartbeatSec = positiveIntEnv("KERNEL_HEARTBEAT_SEC", DEFAULT_KERNEL_HEARTBEAT_SEC);
 
       const kernelScript = template
         .replaceAll("__MANIFEST_JSON__", manifestJson)
         .replaceAll("__REQUEST_ID__", requestId)
+        .replaceAll("__KERNEL_WALL_CLOCK_BUDGET_SEC__", String(wallClockSec))
+        .replaceAll("__KERNEL_HEARTBEAT_SEC__", String(heartbeatSec))
         // #521: the expected wheelhouse, so the kernel can refuse a mount that
         // is not what this repo froze. Injected even when the run resolves to
         // the online path — the placeholder has to be gone either way, and the
@@ -2031,7 +2107,6 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       const attempt = {
         version: pushedVersion,
         pushedAt,
-        queueStartedAt: pushedAt,
         requestId,
       };
       // Run evidence is the durable answer to "what was pushed, when did it
@@ -2065,9 +2140,6 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         statusFile: containedPath(tempDir, "poll-status.json"),
         attributionFile: containedPath(tempDir, "kaggle-queue-attribution.json"),
         attempt,
-        stuckWindowMs: deps.stuckWindowMs,
-        recentWindowMs: deps.recentWindowMs,
-        logProbeTimeoutMs: deps.logProbeTimeoutMs,
       });
 
       // ── Download output into per-call staging (#420) ──

@@ -304,6 +304,57 @@ describe("queue attribution — classify from evidence, not from our own status 
     expect(attribution.limits).toContain("no queue reason");
   });
 
+  it("classifies from the fresh probe when the target completed during a probe-blind stretch", async () => {
+    const { execFile } = makeCli({
+      list: JSON.stringify([{ ref: "xpabloli/k", lastRunTime: iso(60_000) }]),
+      statuses: { "xpabloli/k": "k complete: done" },
+    });
+    const attribution = await collectQueueAttribution({
+      kernelId: "xpabloli/k",
+      timeoutKind: "queue",
+      target: { phase: "queued", queuedMs: 2_400_000, runningMs: 0 },
+      execFile,
+      now: () => NOW,
+    });
+    expect(attribution.conclusion.cause).toBe("unknown");
+    expect(attribution.conclusion.confidence).toBe("observed");
+    expect(attribution.conclusion.reasons.join(" ")).toContain("COMPLETE");
+    expect(attribution.conclusion.reasons.join(" ")).not.toContain("stayed QUEUED");
+    const message = formatKernelTimeoutError({
+      timeoutKind: "queue",
+      kernelId: "xpabloli/k",
+      queuedMs: 2_400_000,
+      attribution,
+      attributionFile: "/tmp/e.json",
+    });
+    expect(message).toContain("target xpabloli/k: COMPLETE");
+    expect(message).toContain("collect its output");
+    expect(message).not.toContain("wait and re-run");
+  });
+
+  it("catches a target that started RUNNING during the queue wait and stopped logging", async () => {
+    const { execFile } = makeCli({
+      list: JSON.stringify([{ ref: "xpabloli/k", lastRunTime: iso(3_600_000) }]),
+      statuses: { "xpabloli/k": "k running: now" },
+      logs: {
+        "xpabloli/k": JSON.stringify([
+          { stream_name: "stdout", time: 400, data: "still loading\n" },
+        ]),
+      },
+    });
+    const attribution = await collectQueueAttribution({
+      kernelId: "xpabloli/k",
+      timeoutKind: "queue",
+      target: { phase: "queued", queuedMs: 2_400_000, runningMs: 0 },
+      execFile,
+      now: () => NOW,
+      stuckWindowMs: 20 * 60 * 1000,
+    });
+    expect(attribution.conclusion.cause).toBe("stuck");
+    expect(attribution.conclusion.confidence).toBe("inferred");
+    expect(attribution.conclusion.reasons.join(" ")).toContain("no log progress");
+  });
+
   it("classifies a RUNNING own kernel with a stale log as stuck", async () => {
     const { execFile } = makeCli({
       list: JSON.stringify([
@@ -482,7 +533,6 @@ describe("timeout error text (#1354)", () => {
     attempt: {
       version: 7,
       pushedAt: "2026-11-16T00:00:00.000Z",
-      queueStartedAt: "2026-11-16T00:00:00.000Z",
     },
     conclusion: {
       cause: "congestion",
@@ -507,6 +557,7 @@ describe("timeout error text (#1354)", () => {
     expect(message).toContain("evidence: /tmp/kaggle-queue-attribution.json");
     expect(message).toContain("NOT auto-falling back");
     expect(message).toContain("kernel version 7");
+    expect(message).toContain("queue started 2026-11-16T00:00:00.000Z");
     expect(message).not.toContain("Another kernel holds");
   });
 
@@ -568,9 +619,11 @@ describe("engine wiring — precheck before push and evidence to the poller (#13
     writeFileSync(refAudioPath, wavBytes("ref"));
     const scenes = [{ id: 1, voiceover: "Hook line.", visualType: "hook" }];
     const pollCalls = [];
+    const commands = [];
     const engine = await createCosyVoice3KaggleCudaEngine({
       refAudioPath,
       exec: async (cmd) => {
+        commands.push(cmd);
         if (cmd.includes("kaggle kernels push")) {
           return { stdout: "Kernel version 7 successfully pushed.  Please check progress at x" };
         }
@@ -616,6 +669,14 @@ describe("engine wiring — precheck before push and evidence to the poller (#13
         version: 7,
         requestId: expect.any(String),
       });
+      // The post-push status poll must go through the injected `poll` seam,
+      // not a direct `exec` call. This suite is CI-run; the batch suite is
+      // machine-bound and skipped in CI, so the guard lives here too.
+      const pushIndex = commands.findIndex((c) => c.includes("kaggle kernels push"));
+      expect(pushIndex).toBeGreaterThan(-1);
+      expect(
+        commands.slice(pushIndex + 1).filter((c) => c.includes("kaggle kernels status")),
+      ).toHaveLength(0);
       const runEvidence = JSON.parse(
         readFileSync(join(outDir, ".kaggle-kernel", "kaggle-run-evidence.json"), "utf-8"),
       );
