@@ -14,7 +14,7 @@
  * Comment hooks are AITL-generated (Agent-in-the-Loop) during scene-data
  * production, not template-generated. See spec-caption-format-fix.md.
  */
-import { buildEntityHashtagMap } from "./company-relations.mjs";
+import { buildEntityHashtagMap, buildModelBrandKeys } from "./company-relations.mjs";
 
 // ─── Curated Hashtag Pools (researched 2026-08-08, updated 2026-08-25) ───
 //
@@ -77,6 +77,7 @@ const BLACKLISTED_HASHTAGS = [];
  * + docs/research/company-relations.md (#248).
  */
 const ENTITY_HASHTAG_MAP = buildEntityHashtagMap();
+const MODEL_BRAND_KEYS = buildModelBrandKeys();
 
 /**
  * Pad candidates used when entity-matched tags are insufficient.
@@ -351,8 +352,10 @@ export function normalizeHashtag(value) {
  *
  * Model names in meta.keyEntities.models carry versions and qualifiers
  * (qwen3.8-flash-next, deepseek_v4.1-flash, kimi_k3) — those are bad
- * hashtags. We only emit a tag when the normalized brand is a known SSOT
- * entity; unknown models (lingbot-world-2, gpt_5_5) produce no tag.
+ * hashtags. We only emit a tag when the normalized brand is in the SSOT's
+ * curated `modelBrand: true` whitelist — NOT any ENTITY_HASHTAG_MAP key,
+ * which also contains company matchKeys (`lingbot` → #alibaba). Unknown
+ * models (lingbot-world-2, gpt_5_5) must produce no tag.
  *
  * @param {string} model
  * @returns {string|null} key into ENTITY_HASHTAG_MAP, or null
@@ -362,12 +365,12 @@ function modelBrandKey(model) {
     .toLowerCase()
     .trim();
   if (!raw) return null;
-  if (ENTITY_HASHTAG_MAP[raw]) return raw;
+  if (MODEL_BRAND_KEYS.has(raw) && ENTITY_HASHTAG_MAP[raw]) return raw;
   // First brand token: strip version suffixes after _ - . or whitespace,
   // then strip trailing digits (qwen3 → qwen, deepseek-v4.1 → deepseek).
   const first = raw.split(/[_\-.\s]+/)[0];
   const brand = first.replace(/\d+.*$/, "");
-  return brand && ENTITY_HASHTAG_MAP[brand] ? brand : null;
+  return brand && MODEL_BRAND_KEYS.has(brand) && ENTITY_HASHTAG_MAP[brand] ? brand : null;
 }
 
 /**

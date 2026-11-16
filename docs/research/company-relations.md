@@ -1,6 +1,8 @@
 # 中国 AI 公司关系图谱（#248，2026-09-12）
 
-> **机器可读 SSOT**：`scripts/short-video/lib/data/company-relations.json`（68 实体）。管线消费经 `lib/company-relations.mjs`：`resolveEntityHashtag` / `howToPresent` / `buildEntityHashtagMap`（caption-utils）/ `buildEntityColorAliases`（prompt-injection）。本文件是人读视图与裁决依据，不重复存数据。
+> **机器可读 SSOT**：`scripts/short-video/lib/data/company-relations.json`（68 实体）。管线消费经 `lib/company-relations.mjs`：`resolveEntityHashtag` / `howToPresent` / `buildEntityHashtagMap`（caption-utils）/ `buildModelBrandKeys`（caption 模型品牌白名单）/ `buildEntityColorAliases`（prompt-injection）。本文件是人读视图与裁决依据，不重复存数据。
+>
+> **下游票**：无下游：本文件是 #248 的裁决记录，本次仅同步既有的模型品牌标签双锚裁决，无需新票承接。
 
 ## 数据来源
 
@@ -16,8 +18,9 @@
 沿用 #245 确立的规则：**自身 hashtag 有流量就用自身，否则继承母公司**。已在 JSON 的 `hashtag` 字段中解析为最终值：
 
 - 有自有流量的子公司保留自身 tag：`kling→#kling`、`doubao→#doubao`、`gemini→#gemini`、`sora→#sora`
-- 海外无认知的子公司继承母公司：`ant-group→#alibaba`、`mimo→#xiaomi`、`lingbot→#alibaba`、`glm→#zhipu`、`longcat→#meituan`
+- 海外无认知的子公司继承母公司：`ant-group→#alibaba`、`mimo→#xiaomi`、`lingbot→#alibaba`、`longcat→#meituan`
 - 特例（映射文档既有裁决）：`openai→#chatgpt`（流量 tag）、`llama→#meta`、`moonshot→#kimi`
+- 模型品牌双锚例外（2026-11-16 用户裁决）：`glm→#glm`，JSON 以 `modelBrand: true` 标记该实体可作为模型品牌标签源。母公司标签 `#zhipu` 仍由 `zhipu` 实体独立产出，两者并列出现在 caption；继承规则对其余实体不变。适用于 caption 标签派生，不改变写稿表述（glm 仍按低认知度用 "Parent's Brand" 句式）。
 
 ### 写稿表述（怎么称呼它）
 

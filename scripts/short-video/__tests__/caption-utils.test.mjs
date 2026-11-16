@@ -813,9 +813,9 @@ describe("S17: model brand hashtags from keyEntities.models", () => {
       keyEntitiesModels: ["lingbot-world-2-13b", "gpt_5_5"],
     };
     const tags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
-    expect(tags).not.toContain("#lingbot");
-    expect(tags).not.toContain("#gpt");
-    expect(tags).toContain("#zhipu");
+    // The dangerous failure mode is `lingbot` matching the company entity key
+    // for #alibaba — assert the full list, not just the expected-absent tags.
+    expect(tags).toEqual(["#ainews", "#chinaai", "#zhipu"]);
   });
 
   it("deduplicates when the company and model share a brand", () => {

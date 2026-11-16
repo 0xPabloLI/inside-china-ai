@@ -237,7 +237,8 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 | `#nvidia`     | —      | nvidia, 黄仁勋                                           |
 | `#kimi`       | —      | moonshot, kimi, 月之暗面                                 |
 | `#huawei`     | —      | huawei, 华为, pangu, 盘古                                |
-| `#zhipu`      | —      | zhipu, 智谱, glm                                         |
+| `#zhipu`      | —      | zhipu, 智谱                                              |
+| `#glm`        | —      | glm, GLM（2026-11-16 公司+模型双锚，独立于 #zhipu）      |
 | `#futuretech` | 2.9B   | future, 未来, 前沿                                       |
 | `#chinanews`  | —      | china, chinese, 中国                                     |
 | `#opensource` | —      | open source, 开源                                        |
