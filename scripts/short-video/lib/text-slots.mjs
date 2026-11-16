@@ -431,7 +431,7 @@ export function isMediaLedHook(scene) {
  * `scene.layout`; the remaining templates do not (narrative has its own set,
  * hook only the media-led variant, cta/quote are single-layout).
  */
-export const INFO_LAYOUT_TYPES = new Set([
+const INFO_LAYOUT_TYPES = new Set([
   "stat-reveal",
   "data",
   "contrast",
