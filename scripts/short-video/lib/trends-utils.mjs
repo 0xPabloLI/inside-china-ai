@@ -6,8 +6,20 @@
  */
 
 import { canonicalizeUrl } from "./url-normalizer.mjs";
+import { loadCompanyRelations } from "./company-relations.mjs";
 
 // ─── China AI filter keywords ───
+
+// English/full Chinese aliases for these companies live in
+// data/company-relations.json (the caption SSOT); derive them so a naming
+// change there reaches trend filtering too.
+const ROBOTICS_SSOT_ENTITIES = new Set(["unitree", "ubtech", "agibot", "fourier"]);
+
+function ssotRoboticsAliases() {
+  return loadCompanyRelations()
+    .entities.filter((entity) => ROBOTICS_SSOT_ENTITIES.has(entity.entity))
+    .flatMap((entity) => entity.aliases ?? []);
+}
 
 const CHINA_AI_KEYWORDS = [
   // English
@@ -107,19 +119,15 @@ const CHINA_AI_KEYWORDS = [
   // text ("对AI的") is missed by the old whole-word matcher. These are the most
   // video-ready topics in the pool. Company names keep recall up without a
   // bare "robot" / "机器人" keyword, which would also pull in non-China
-  // robotics stories. This is a recall aid, not an exhaustive registry:
-  // unlisted companies can still enter through other keywords or a manual
-  // addition. See trend-selection-dedup-scoring.md §4.
+  // robotics stories. The English/full Chinese aliases for Unitree, UBTECH,
+  // AgiBot and Fourier are derived from company-relations.json; the short
+  // forms and companies the SSOT lacks stay inline. This is a recall aid, not
+  // an exhaustive registry. See trend-selection-dedup-scoring.md §4.
   "宇树",
-  "Unitree",
   "智元",
-  "AgiBot",
-  "优必选",
-  "UBTECH",
+  "傅利叶",
   "银河通用",
   "Galbot",
-  "傅利叶",
-  "Fourier Intelligence",
   "云深处",
   "Deep Robotics",
   "星动纪元",
@@ -131,6 +139,7 @@ const CHINA_AI_KEYWORDS = [
   "松延动力",
   "达闼",
   "CloudMinds",
+  ...ssotRoboticsAliases(),
   // #51 V1a: Product/Model names
   "豆包",
   "元宝",
@@ -541,6 +550,11 @@ export function buildOutputJson(articles) {
 /**
  * Extract China AI keywords from a title for the "keywords" field.
  *
+ * Substring matching is intentional here: model names carry version suffixes
+ * ("Qwen3", "DeepSeekV3", "KimiK2") and plurals ("agents"), and the filter's
+ * stricter boundary matcher would drop them. The filter uses boundaries to
+ * avoid "ai" matching "training"; keyword tagging keeps the broader recall.
+ *
  * @param {string} title
  * @returns {string[]} Array of matched keywords
  */
@@ -548,7 +562,7 @@ function extractKeywords(title) {
   const lower = title.toLowerCase();
   const matched = [];
   for (const kw of CHINA_AI_KEYWORDS) {
-    if (titleMatchesKeyword(lower, kw) && !matched.includes(kw)) {
+    if (lower.includes(kw.toLowerCase()) && !matched.includes(kw)) {
       matched.push(kw);
     }
   }

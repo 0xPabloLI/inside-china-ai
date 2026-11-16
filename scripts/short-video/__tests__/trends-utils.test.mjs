@@ -851,17 +851,19 @@ describe("extractKeywords — enhanced coverage (#51 S8)", () => {
     expect(keywords).toContain("ai");
   });
 
-  it("does not tag AI inside an ASCII word", () => {
+  it("keeps product-name suffixes in topic keywords", () => {
     const articles = [
-      {
-        title: "Dog training tips for beginners",
-        source: "blog",
-        url: "http://1",
-        category: "fermenting",
-      },
+      { title: "阿里发布Qwen3-Max并开源", source: "36kr", url: "http://1", category: "fermenting" },
+      { title: "DeepSeekV3 正式发布", source: "36kr", url: "http://2", category: "fermenting" },
+      { title: "KimiK2 上线", source: "36kr", url: "http://3", category: "fermenting" },
+      { title: "AI agents 教程", source: "36kr", url: "http://4", category: "fermenting" },
     ];
     const result = buildOutputJson(articles);
-    expect(result.topics.fermenting[0].keywords).not.toContain("ai");
+    const keywords = result.topics.fermenting.flatMap((topic) => topic.keywords);
+    expect(keywords).toContain("qwen");
+    expect(keywords).toContain("deepseek");
+    expect(keywords).toContain("kimi");
+    expect(keywords).toContain("agent");
   });
 });
 

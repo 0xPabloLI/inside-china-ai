@@ -65,6 +65,16 @@
 - `format`（视频形态）：`demo-led` / `chart-led` / `data-reveal` / `explainer` / `text-led`。
 - `hook`：一句话写前 1-2 秒给观众看什么。写不出来，分数上限 2。
 
+`format` 是选题阶段的画面抓手，不替代 `skills/short-video-pipeline/SKILL.md` 的新闻形式判断；最终形式仍按该 skill 的 Decision framework 决定。对应关系：
+
+| `format`      | 对应形式 / 用途                                       |
+| ------------- | ----------------------------------------------------- |
+| `demo-led`    | 第一方 demo 驱动（通常落在 Breaking / Deep Analysis） |
+| `chart-led`   | 图表驱动（通常落在 Data Reveal）                      |
+| `data-reveal` | Data Reveal                                           |
+| `explainer`   | Explainer                                             |
+| `text-led`    | 纯文字/版式（通常落在 Deep Analysis / Explainer）     |
+
 核实第一方素材时看官方 X / YouTube / Bilibili / 视频号 / 官网 newsroom。`trending-topics.json` 的 `videos[]` 是页面级信号（整页视频会赋给每条文章），只能当线索，不能当「这条有官方 demo」的证据。
 
 ### 两条列表
@@ -80,8 +90,8 @@
 
 把两条列表写到 `scripts/short-video/output/topic-selection.md`（与 `trending-topics.json` 同目录，gitignored），两张表共用字段：
 
-| Topic | 0-10 | videoFit | assetEvidence | format | hook | 理由 |
-| ----- | ---- | -------- | ------------- | ------ | ---- | ---- |
+| 去重组归属 | Topic | 0-10 | videoFit | assetEvidence | format | hook | 理由 |
+| ---------- | ----- | ---- | -------- | ------------- | ------ | ---- | ---- |
 
 Agent 在选话题的回复里贴出两张表，并给出文件路径。
 
