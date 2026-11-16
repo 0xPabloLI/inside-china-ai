@@ -112,7 +112,7 @@ describe("derived ENTITY_HASHTAG_MAP", () => {
     deepseek: "#deepseek",
     zhipu: "#zhipu",
     "z.ai": "#zhipu",
-    glm: "#zhipu",
+    glm: "#glm",
     moonshot: "#kimi",
     kimi: "#kimi",
     minimax: "#minimax",

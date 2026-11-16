@@ -101,10 +101,14 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
   // ─── Enrich metadata (primary entity + keyEntities + manual hashtag override) ───
   let primaryEntity = null;
   let keyEntitiesCompanies = [];
+  let keyEntitiesModels = [];
   let metaHashtags = null;
   if (meta?.keyEntities?.companies?.length > 0) {
     primaryEntity = formatEntityName(meta.keyEntities.companies[0]);
     keyEntitiesCompanies = meta.keyEntities.companies;
+  }
+  if (Array.isArray(meta?.keyEntities?.models)) {
+    keyEntitiesModels = meta.keyEntities.models;
   }
   if (meta?.hashtags && Array.isArray(meta.hashtags) && meta.hashtags.length > 0) {
     metaHashtags = meta.hashtags;
@@ -113,6 +117,7 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
     ...(metadata || {}),
     primaryEntity,
     keyEntitiesCompanies,
+    keyEntitiesModels,
     ...(metaHashtags ? { hashtags: metaHashtags } : {}),
   };
 

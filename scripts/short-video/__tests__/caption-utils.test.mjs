@@ -787,3 +787,53 @@ describe("classifyHashtags", () => {
     expect(result.trending).toEqual([]);
   });
 });
+
+// ─── S17: model-brand hashtags (company + model double anchor) ───
+describe("S17: model brand hashtags from keyEntities.models", () => {
+  it("adds the curated model brand alongside the company tag", () => {
+    const meta = { keyEntitiesCompanies: ["zhipu"], keyEntitiesModels: ["glm"] };
+    const tags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(tags).toEqual(["#ainews", "#chinaai", "#zhipu", "#glm"]);
+  });
+
+  it("normalizes versioned model names to a curated brand", () => {
+    const meta = {
+      keyEntitiesCompanies: ["alibaba"],
+      keyEntitiesModels: ["qwen3.8-flash-next", "deepseek_v4.1-flash"],
+    };
+    const tags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(tags).toContain("#qwen");
+    expect(tags).toContain("#deepseek");
+    expect(tags).not.toContain("#qwen3");
+  });
+
+  it("skips models without a curated brand (no junk version hashtags)", () => {
+    const meta = {
+      keyEntitiesCompanies: ["zhipu"],
+      keyEntitiesModels: ["lingbot-world-2-13b", "gpt_5_5"],
+    };
+    const tags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(tags).not.toContain("#lingbot");
+    expect(tags).not.toContain("#gpt");
+    expect(tags).toContain("#zhipu");
+  });
+
+  it("deduplicates when the company and model share a brand", () => {
+    const meta = {
+      keyEntitiesCompanies: ["deepseek"],
+      keyEntitiesModels: ["deepseek_v3", "deepseek_r1"],
+    };
+    const tags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(tags.filter((t) => t === "#deepseek")).toHaveLength(1);
+  });
+
+  it("manual override still wins over model derivation", () => {
+    const meta = {
+      keyEntitiesCompanies: ["zhipu"],
+      keyEntitiesModels: ["glm"],
+      hashtags: ["#ainews", "#chinaai", "#manual"],
+    };
+    const tags = deriveHashtags(mockScenes, meta, HASHTAGS_LIMITS);
+    expect(tags).toEqual(["#ainews", "#chinaai", "#manual"]);
+  });
+});

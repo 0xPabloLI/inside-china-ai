@@ -946,7 +946,7 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 **Agent should design the title explicitly in scene-data** (via `metadata.title`), not rely on `generate-caption.mjs` auto-derivation. `generate-caption.mjs` uses `metadata.title` when available (see `deriveTitle()` in `caption-utils.mjs`).
 
-**Hashtag 手动覆盖**：在 `meta.mjs` 中设置 `hashtags` 数组（3-5 个）可锁定 hashtag 输出，跳过自动推导。`generate-caption.mjs` 读取 `meta.mjs.hashtags`（非空时优先于 `keyEntities` 自动匹配）。锁定模式下 trending hashtags 不隐式注入——如需 trending tag，手动加入数组。未设置时 `deriveHashtags()` 从 `keyEntities.companies` 自动匹配 + 默认流量标签。
+**Hashtag 手动覆盖**：在 `meta.mjs` 中设置 `hashtags` 数组（3-5 个）可锁定 hashtag 输出，跳过自动推导。`generate-caption.mjs` 读取 `meta.mjs.hashtags`（非空时优先于 `keyEntities` 自动匹配）。锁定模式下 trending hashtags 不隐式注入——如需 trending tag，手动加入数组。未设置时 `deriveHashtags()` 从 `keyEntities.companies` 自动匹配 + `keyEntities.models` 的**品牌名**匹配（公司+模型双锚，如 `zhipu` + `glm`）+ 默认流量标签。模型名先归一到 SSOT 白名单品牌（`qwen3.8-flash-next` → `#qwen`、`deepseek_v4.1-flash` → `#deepseek`）；未收录的品牌（如 `gpt_5_5`、`lingbot-world-2-13b`）**不出标签**——版本号做 hashtag 只会引来错误受众。标签总数仍受平台 profile 上限（TikTok 3–5）截断，模型标签与次级公司标签同级，可被 trending 标签替换，主公司标签不可替换。
 
 > Enforcement: `verify-video.mjs` runs automated checks after every video — do NOT publish until all checks pass. Post-render PASS 也会自动生成各平台发布包到 `output/{pipelineId}/publish/{platform}/` 并按各平台 Profile 上限校验（#219）。TikTok best practices, analytics, series strategy and scaffold guides: see "Design Decisions & References" at the bottom.
 

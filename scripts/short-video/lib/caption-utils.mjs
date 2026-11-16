@@ -347,6 +347,30 @@ export function normalizeHashtag(value) {
 }
 
 /**
+ * Normalize a model entity string to a curated SSOT brand key, or null.
+ *
+ * Model names in meta.keyEntities.models carry versions and qualifiers
+ * (qwen3.8-flash-next, deepseek_v4.1-flash, kimi_k3) — those are bad
+ * hashtags. We only emit a tag when the normalized brand is a known SSOT
+ * entity; unknown models (lingbot-world-2, gpt_5_5) produce no tag.
+ *
+ * @param {string} model
+ * @returns {string|null} key into ENTITY_HASHTAG_MAP, or null
+ */
+function modelBrandKey(model) {
+  const raw = String(model ?? "")
+    .toLowerCase()
+    .trim();
+  if (!raw) return null;
+  if (ENTITY_HASHTAG_MAP[raw]) return raw;
+  // First brand token: strip version suffixes after _ - . or whitespace,
+  // then strip trailing digits (qwen3 → qwen, deepseek-v4.1 → deepseek).
+  const first = raw.split(/[_\-.\s]+/)[0];
+  const brand = first.replace(/\d+.*$/, "");
+  return brand && ENTITY_HASHTAG_MAP[brand] ? brand : null;
+}
+
+/**
  * Derive hashtags from scene data.
  *
  * Strategy (researched 2026-08-08, updated 2026-08-26):
@@ -358,19 +382,23 @@ export function normalizeHashtag(value) {
  * 1. Always include #ainews (core traffic, best ROI)
  * 2. Always include #chinaai (brand niche)
  * 3. Match entity hashtags from keyEntities (primary = companies[0], secondary = companies[1+])
- * 4. Pad with #ai/#artificialintelligence/#technews if < 3
- * 5. Merge trending hashtags from metadata.trendingHashtags (max 1):
+ * 4. Model brands from keyEntities.models become secondary vertical tags — but only
+ *    after normalization to a curated SSOT brand key (qwen3.8-flash-next → qwen).
+ *    Unlisted models produce NO tag: version strings make poor hashtags and
+ *    would attract the wrong audience. Never tags from voiceover full-text.
+ * 5. Pad with #ai/#artificialintelligence/#technews if < 3
+ * 6. Merge trending hashtags from metadata.trendingHashtags (max 1):
  *    - If tags.length < 5: add trending tag directly
  *    - If tags.length >= 5: replace the last secondary vertical or pad candidate
  *    - Primary entity tag is never replaced
- * 6. Truncate to max 5
+ * 7. Truncate to max 5
  *
  * Manual override: if metadata.hashtags is non-empty, it is a locked override.
  * trendingHashtags is NOT injected into the manual override path.
  * To use trending tags with manual override, add them to metadata.hashtags directly.
  *
  * @param {Array} scenes - Scene array from scene-data.mjs
- * @param {Object} [metadata] - Optional metadata { title, description, hashtags, trendingHashtags, keyEntitiesCompanies }
+ * @param {Object} [metadata] - Optional metadata { title, description, hashtags, trendingHashtags, keyEntitiesCompanies, keyEntitiesModels }
  * @param {Object} limits - Platform hashtag limits (injected from the profile)
  * @param {number} limits.min - min hashtag count
  * @param {number} limits.max - max hashtag count
@@ -403,6 +431,7 @@ export function deriveHashtags(scenes, metadata, limits) {
 
   // ─── Auto-derive from keyEntities (NOT from voiceover full-text) ───
   const companies = metadata?.keyEntitiesCompanies || [];
+  const models = metadata?.keyEntitiesModels || [];
 
   // Layer 1: Core traffic (always include)
   const coreTags = ["#ainews"];
@@ -425,6 +454,15 @@ export function deriveHashtags(scenes, metadata, limits) {
         }
       }
     }
+  }
+
+  // Layer 4b: model brands (secondary, replaceable by trending). Only curated
+  // brand keys are emitted — versioned model names are deliberately skipped.
+  for (const model of models) {
+    const key = modelBrandKey(model);
+    if (!key) continue;
+    const tag = ENTITY_HASHTAG_MAP[key];
+    if (!secondaryVerticalTags.includes(tag)) secondaryVerticalTags.push(tag);
   }
 
   // Build ordered tag list: core + brand + primary + secondary

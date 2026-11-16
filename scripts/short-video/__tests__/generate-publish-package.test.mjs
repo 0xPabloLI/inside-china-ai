@@ -92,6 +92,17 @@ describe("buildPublishPackage", () => {
     expect(pkg.violations).toEqual([]);
   });
 
+  it("derives a model-brand tag from meta.keyEntities.models (double anchor)", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: { ...METADATA, primaryEntity: "Zhipu", entities: ["Zhipu"] },
+      meta: { keyEntities: { companies: ["zhipu"], models: ["glm"] } },
+    });
+    expect(pkg.hashtags).toContain("#zhipu");
+    expect(pkg.hashtags).toContain("#glm");
+    expect(pkg.violations).toEqual([]);
+  });
+
   it("truncates at the PROFILE's limits, not a local copy", () => {
     // Derive functions enforce the limit by truncation (violations are only a
     // dead-last guard), so injection is proven with a shrunken profile: the
