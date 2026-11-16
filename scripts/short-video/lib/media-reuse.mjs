@@ -50,7 +50,7 @@ import { normalizeMediaPatch } from "./media-patch-format.mjs";
 import { DEFAULT_RELEVANCE_THRESHOLD } from "./relevance-verdict.mjs";
 
 /** Envelope metadata layout written under `reuse` in media-patch.json. */
-export const MEDIA_PATCH_REUSE_VERSION = 1;
+const MEDIA_PATCH_REUSE_VERSION = 1;
 
 /**
  * Bump when a change in sourcing/assignment could change a verdict for an
