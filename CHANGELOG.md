@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.81.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.80.0...tanstack_start_ts-v1.81.0) (2026-11-16)
+
+
+### Features
+
+* **short-video:** [#1215](https://github.com/0xPabloLI/inside-china-ai/issues/1215) PR-C empty-field gate fail + pack migration ([#1393](https://github.com/0xPabloLI/inside-china-ai/issues/1393)) ([b030be7](https://github.com/0xPabloLI/inside-china-ai/commit/b030be7f8fb6e7bac0c234688be02173634ab020))
+* **short-video:** add videoFit triage and robotics trend keywords ([6794d14](https://github.com/0xPabloLI/inside-china-ai/commit/6794d1434a0120037480f1dc03780d272c9c151d))
+* **short-video:** add videoFit triage and robotics trend keywords ([d798bb3](https://github.com/0xPabloLI/inside-china-ai/commit/d798bb3e3ba7c52b9f560fba89a166e7f6d11cbe))
+
+
+### Bug Fixes
+
+* **short-video:** address review findings ([e507f12](https://github.com/0xPabloLI/inside-china-ai/commit/e507f1294b96e16aa9d9bef85a3fdc1779dbab44))
+* **short-video:** avoid dynamic keyword regex ([85be3a7](https://github.com/0xPabloLI/inside-china-ai/commit/85be3a788fa5708bfcfef656324fab4c4cdece24))
+
 ## [1.80.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.79.0...tanstack_start_ts-v1.80.0) (2026-11-16)
 
 
