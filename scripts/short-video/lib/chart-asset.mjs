@@ -332,15 +332,36 @@ export function probeChartHydration(buf) {
     const i = (y * w + x) * 4;
     return [data[i], data[i + 1], data[i + 2]];
   };
-  // Background = a quiet plot-band sample (grid lines and candles are far
-  // from it; the watermark is not, but it cannot carry a column alone —
-  // see MIN_ROWS).
-  const bg = at(Math.floor(w * 0.5), Math.floor(h * 0.16));
-  const diff = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+  // Background = the modal quantized colour of a coarse subsample of the
+  // plot band. A single fixed sample point would invert the probe when it
+  // lands ON a candle (tall-bull charts put candles there): the contaminated
+  // reference makes painted columns read as background and empty ones as
+  // content — exactly the failure this probe exists to catch (droid-review
+  // P2, 2026-11-16). Candles/watermark are a minority of band pixels, so the
+  // mode is always the true background; grid lines quantize into it, which
+  // only costs a few rows per column against MIN_ROWS=10.
   const top = Math.floor(h * CHART_HYDRATION_BAND.top);
   const bottom = Math.floor(h * CHART_HYDRATION_BAND.bottom);
   const left = Math.floor(w * CHART_HYDRATION_BAND.left);
   const right = Math.floor(w * CHART_HYDRATION_BAND.right);
+  const bgCounts = new Map();
+  for (let y = top; y < bottom; y += 8) {
+    for (let x = left; x < right; x += 8) {
+      const px = at(x, y);
+      const key = ((px[0] >> 3) << 10) | ((px[1] >> 3) << 5) | (px[2] >> 3);
+      if (!bgCounts.has(key)) bgCounts.set(key, { count: 0, px });
+      bgCounts.get(key).count++;
+    }
+  }
+  let bg = [0, 0, 0];
+  let best = 0;
+  for (const { count, px } of bgCounts.values()) {
+    if (count > best) {
+      best = count;
+      bg = px;
+    }
+  }
+  const diff = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
   const colW = Math.floor((right - left) / CHART_HYDRATION_COLS);
   const covered = [];
   for (let c = 0; c < CHART_HYDRATION_COLS; c++) {

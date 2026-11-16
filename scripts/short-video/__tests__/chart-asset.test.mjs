@@ -668,3 +668,36 @@ describe("chart.annotations pass through as chart-img drawings (#1378)", () => {
 function writeTemp(path, obj) {
   writeFileSync(path, JSON.stringify(obj, null, 2));
 }
+
+describe("probeChartHydration background robustness (droid-review P2)", () => {
+  it("stays FAIL when a candle sits on the legacy fixed sample point", () => {
+    // (400, 96) is the sample point the probe used before the mode-based fix.
+    // A tall candle painted over it would poison that reference and invert
+    // the verdict; the modal background must not care.
+    const png = new PNGImage({ width: 800, height: 600 });
+    for (let i = 0; i < png.data.length; i += 4) {
+      png.data[i] = 255;
+      png.data[i + 1] = 255;
+      png.data[i + 2] = 255;
+      png.data[i + 3] = 255;
+    }
+    const paint = (x0, x1, y0, y1) => {
+      for (let x = x0; x < x1; x++) {
+        for (let y = y0; y < y1; y++) {
+          const i = (y * 800 + x) * 4;
+          png.data[i] = 200;
+          png.data[i + 1] = 30;
+          png.data[i + 2] = 30;
+        }
+      }
+    };
+    paint(16, 192, 100, 400); // columns 0-3 painted
+    paint(720 - 44 * 4 + 4, 720, 100, 400); // columns 12-15 painted
+    paint(380, 420, 73, 400); // tall candle covering (400, 96)
+    const bad = probeChartHydration(PNGImage.sync.write(png));
+    expect(bad.ok).toBe(false);
+    // 8 painted columns + the tall candle spanning cols 8-9 = 10 covered;
+    // still below the 75% floor with an empty run of 4.
+    expect(bad.coveredCount).toBe(10);
+  });
+});
