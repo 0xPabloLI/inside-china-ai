@@ -205,10 +205,11 @@ function titleMatchesKeyword(title, kw) {
   if (kw.includes(" ")) {
     return title.includes(lowerKw);
   }
-  // Single ASCII word — match at ASCII word boundaries
+  // Single ASCII word — split on any non-alphanumeric boundary, so CJK text
+  // separates the word without a space
   if (/^[a-z0-9]+$/i.test(kw)) {
-    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(title);
+    const words = title.split(/[^a-z0-9]+/);
+    return words.includes(lowerKw);
   }
   // Chinese or mixed — substring match
   return title.includes(lowerKw);
