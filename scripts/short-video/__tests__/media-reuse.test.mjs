@@ -136,6 +136,52 @@ describe("planPatchReuse", () => {
     expect(plan.stale).toEqual([]);
   });
 
+  it("re-sources a scene whose verdicts only record a tool outage", () => {
+    const root = makeRoot();
+    writeFile(root, "assets/winner.png");
+    const scenes = [scene(1), scene(2)];
+    const patch = makePatch({
+      scenes,
+      entries: [
+        { sceneId: 1, status: "assigned", media: { path: "assets/winner.png" } },
+        {
+          claimSceneId: 2,
+          status: "unassigned",
+          reason:
+            "VLM relevance unavailable (analysis failed or score unparseable) — fail-closed, not a content verdict (宁缺毋滥)",
+          relevanceBand: "unavailable",
+        },
+      ],
+    });
+
+    const plan = planPatchReuse({ scenes, rawPatch: patch, contentDirAbs: root });
+    expect(plan.reusable.map((entry) => entry.sceneId)).toEqual([1]);
+    expect(plan.stale).toEqual([
+      expect.objectContaining({ sceneId: 2, reason: "previous search hit a tool outage" }),
+    ]);
+  });
+
+  it("reuses a structural unavailability verdict instead of treating it as an outage", () => {
+    const root = makeRoot();
+    writeFile(root, "assets/winner.png");
+    const scenes = [scene(1), scene(2)];
+    const patch = makePatch({
+      scenes,
+      entries: [
+        { sceneId: 1, status: "assigned", media: { path: "assets/winner.png" } },
+        {
+          claimSceneId: 2,
+          status: "unassigned",
+          reason: "claim scene 2 unavailable (occupied/manual media/no-media type)",
+        },
+      ],
+    });
+
+    const plan = planPatchReuse({ scenes, rawPatch: patch, contentDirAbs: root });
+    expect(plan.stale).toEqual([]);
+    expect(plan.reusable.map((entry) => entry.sceneId)).toEqual([1, 2]);
+  });
+
   it("re-sources only the scene whose claim changed", () => {
     const root = makeRoot();
     writeFile(root, "assets/one.png");
@@ -170,6 +216,25 @@ describe("planPatchReuse", () => {
     const plan = planPatchReuse({ scenes, rawPatch: patch, contentDirAbs: root });
     expect(plan.stale).toEqual([]);
     expect(plan.reusable.map((entry) => entry.sceneId)).toEqual([1, 2]);
+  });
+
+  it("reports claim scenes that disappeared from scene-data", () => {
+    const root = makeRoot();
+    writeFile(root, "assets/one.png");
+    const previous = [scene(1), scene(2)];
+    const patch = makePatch({
+      scenes: previous,
+      searched: [1, 2],
+      entries: [{ sceneId: 1, status: "assigned", media: { path: "assets/one.png" } }],
+    });
+
+    const plan = planPatchReuse({
+      scenes: [scene(1)],
+      rawPatch: patch,
+      contentDirAbs: root,
+    });
+    expect(plan.stale).toEqual([]);
+    expect(plan.removedSceneIds).toEqual([2]);
   });
 
   it("does not trust a previous run that assigned no usable media", () => {
@@ -364,6 +429,34 @@ describe("asset-sourcer main — cross-run reuse", () => {
     expect(readFileSync(join(root, "output", slug, "media-patch.json"), "utf8")).toBe(before);
   });
 
+  it("prunes a removed claim scene without re-sourcing", async () => {
+    const root = makeRoot();
+    const slug = "prune-fixture";
+    const contentRoot = writeContent(root, slug, [scene(1)]);
+    const outputRoot = join(root, "output");
+    writeFile(root, "content/prune-fixture/assets/one.png");
+    writeFile(root, "content/prune-fixture/assets/two.png");
+
+    const patch = makePatch({
+      scenes: [scene(1), scene(2)],
+      entries: [
+        { sceneId: 1, status: "assigned", media: { path: "assets/one.png" } },
+        { sceneId: 2, status: "assigned", media: { path: "assets/two.png" } },
+      ],
+    });
+    writeFile(root, "output/prune-fixture/media-patch.json", JSON.stringify(patch));
+
+    const result = await sourcerMain(["--content", slug], { contentRoot, outputRoot });
+
+    expect(result?.reused).toBe(true);
+    const written = readPatch(root, slug);
+    expect(written.patches).toEqual([
+      { sceneId: 1, status: "assigned", media: { path: "assets/one.png" } },
+    ]);
+    expect(Object.keys(written.reuse.signatures)).toEqual(["1"]);
+    expect(written.reuse.searched).toEqual([1]);
+  });
+
   it("merges reused verdicts when a changed scene has no usable queries", async () => {
     const root = makeRoot();
     const slug = "partial-fixture";
@@ -381,6 +474,7 @@ describe("asset-sourcer main — cross-run reuse", () => {
       ],
     });
     writeFile(root, "output/partial-fixture/media-patch.json", JSON.stringify(patch));
+    writeFile(root, "output/asset-report.json", '{"sentinel":"whole-package report"}\n');
 
     // Rewrite scene 1 so it has a changed claim and no searchable tokens.
     const currentScenes = [scene(1, { voiceover: "the and of" }), scene(2)];
@@ -401,5 +495,9 @@ describe("asset-sourcer main — cross-run reuse", () => {
     expect(written.reuse.signatures["1"]).toBeDefined();
     expect(written.reuse.signatures["2"]).toBeDefined();
     expect(written.reuse.searched).toEqual([1, 2]);
+    // The package-level report is not replaced by this subset run.
+    expect(readFileSync(join(root, "output", "asset-report.json"), "utf8")).toBe(
+      '{"sentinel":"whole-package report"}\n',
+    );
   });
 });

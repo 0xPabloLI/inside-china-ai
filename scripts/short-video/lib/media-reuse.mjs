@@ -20,9 +20,15 @@
  *
  * What counts as a reusable verdict:
  *   - an `assigned` entry whose media file still exists;
- *   - an `unassigned` entry (a content verdict — the same search would most
- *     likely reject the same candidates again);
+ *   - an `unassigned` entry that records a content verdict (the same search
+ *     would most likely reject the same candidates again);
  *   - a searched scene with no entries at all (nothing matched).
+ *
+ * An unassigned entry left by a tool outage is not a content verdict and is
+ * never replayed: a VLM batch failure writes "VLM relevance unavailable" and
+ * flips the whole run fail-closed, so caching it would turn a transient local
+ * failure into a permanent empty scene. Such a scene is re-sourced on the next
+ * run, when the analyzer may be healthy again.
  *
  * The whole patch is only trusted when the previous run assigned at least one
  * usable file (#1361): a patch where assignment never produced anything is
@@ -34,9 +40,10 @@
  * A bump invalidates every previous verdict; a per-scene claim edit only
  * invalidates that scene.
  *
- * Leaf module: no I/O beyond `existsSync` on the patch's media paths, no
- * network, no CLI parsing, so the same decision serves the pipeline, the
- * standalone sourcer and the tests.
+ * Leaf module: no network, no CLI parsing, and no filesystem I/O beyond the
+ * patch read in `readMediaPatchFile` and the `existsSync` checks on the patch's
+ * media paths, so the same decision serves the pipeline, the standalone
+ * sourcer and the tests.
  *
  * @module media-reuse
  */
@@ -47,7 +54,7 @@ import { join } from "node:path";
 
 import { extractSceneClaims } from "./claim-keywords.mjs";
 import { normalizeMediaPatch } from "./media-patch-format.mjs";
-import { DEFAULT_RELEVANCE_THRESHOLD } from "./relevance-verdict.mjs";
+import { DEFAULT_RELEVANCE_THRESHOLD, POOL_VERDICT, RELEVANCE_BAND } from "./relevance-verdict.mjs";
 
 /** Envelope metadata layout written under `reuse` in media-patch.json. */
 const MEDIA_PATCH_REUSE_VERSION = 1;
@@ -216,6 +223,24 @@ function assignedFileExists(entry, contentDirAbs) {
 }
 
 /**
+ * Whether an unassigned entry records a tool outage rather than a content
+ * verdict. The sourcer's fail-closed VLM paths write "VLM relevance
+ * unavailable" / a pool verdict of UNAVAILABLE; replaying those would cache a
+ * transient analyzer failure as a permanent empty scene.
+ *
+ * @param {object} entry
+ * @returns {boolean}
+ */
+const TOOL_OUTAGE_REASON =
+  /(?:VLM relevance unavailable|scene pool unavailable|second-pass subject check: unavailable|no VLM relevance available)/i;
+
+function isToolOutageEntry(entry) {
+  if (entry?.relevanceBand === RELEVANCE_BAND.UNAVAILABLE) return true;
+  if (entry?.poolVerdict === POOL_VERDICT.UNAVAILABLE) return true;
+  return typeof entry?.reason === "string" && TOOL_OUTAGE_REASON.test(entry.reason);
+}
+
+/**
  * Whether two settings objects describe the same run conditions.
  *
  * @param {object|null|undefined} left
@@ -244,6 +269,7 @@ function sameSettings(left, right) {
  *   searchedBefore: Set<number>,
  *   reusable: Array<{sceneId:number, signature:string, entries:Array<object>}>,
  *   stale: Array<{sceneId:number, signature:string, reason:string}>,
+ *   removedSceneIds: number[],
  *   previousRunUsable: boolean,
  *   metadataUsable: boolean,
  * }}
@@ -274,6 +300,15 @@ export function planPatchReuse({
   const previousRunUsable = previousPatches.some(
     (entry) => entry?.status === "assigned" && assignedFileExists(entry, contentDirAbs),
   );
+  // Claim scenes that the previous metadata knew and the current scene-data no
+  // longer claims. Reported so the short-circuit can prune their entries and
+  // signatures instead of preserving a verdict forever.
+  const previousSignatureIds = metadataUsable
+    ? Object.keys(reuse.signatures)
+        .map((raw) => Number(raw))
+        .filter((sceneId) => Number.isInteger(sceneId))
+    : [];
+  const removedSceneIds = previousSignatureIds.filter((sceneId) => !signatures.has(sceneId));
 
   const entriesByScene = new Map();
   for (const entry of previousPatches) {
@@ -303,6 +338,7 @@ export function planPatchReuse({
       searchedBefore,
       reusable: [],
       stale,
+      removedSceneIds,
       previousRunUsable,
       metadataUsable,
     };
@@ -339,9 +375,15 @@ export function planPatchReuse({
       continue;
     }
 
-    // No assignment: unassigned entries are a content verdict; zero entries
-    // means the search ran and found nothing. Both are reusable only when the
-    // previous metadata says this scene was actually searched.
+    // No assignment: a tool outage is not a content verdict — re-source so a
+    // healthy analyzer gets another chance. Otherwise unassigned entries are a
+    // content verdict; zero entries means the search ran and found nothing.
+    // Both are reusable only when the previous metadata says this scene was
+    // actually searched.
+    if (entries.some(isToolOutageEntry)) {
+      stale.push({ sceneId, signature, reason: "previous search hit a tool outage" });
+      continue;
+    }
     if (searchedBefore.has(sceneId) || entries.length > 0) {
       reusable.push({ sceneId, signature, entries });
     } else {
@@ -355,6 +397,7 @@ export function planPatchReuse({
     searchedBefore,
     reusable,
     stale,
+    removedSceneIds,
     previousRunUsable,
     metadataUsable,
   };

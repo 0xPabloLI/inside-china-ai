@@ -3513,9 +3513,25 @@ export async function main(args = process.argv.slice(2), options = {}) {
   };
 
   if (reusePlan.signatures.size > 0 && reusePlan.stale.length === 0) {
-    console.log(
-      `♻️  Sourcing skipped: ${reusePlan.reusable.length} scene claim(s) unchanged — reusing media-patch.json\n`,
-    );
+    const removedCount = reusePlan.removedSceneIds.length;
+    if (removedCount > 0) {
+      // Removing a claim scene leaves its assigned entry and signature behind;
+      // prune both so the artifact keeps matching the current pack.
+      const mergedPatches = mergePatchEntries({
+        scenes,
+        previousPatches: reusePlan.previousPatches,
+        freshPatches: [],
+        reusableSceneIds: reusePlan.reusable.map((entry) => entry.sceneId),
+      });
+      writeMediaPatch(mergedPatches, nextSearchedSceneIds(reusePlan));
+      console.log(
+        `♻️  Sourcing skipped: ${reusePlan.reusable.length} scene claim(s) unchanged — pruned ${removedCount} removed claim scene(s) from media-patch.json\n`,
+      );
+    } else {
+      console.log(
+        `♻️  Sourcing skipped: ${reusePlan.reusable.length} scene claim(s) unchanged — reusing media-patch.json\n`,
+      );
+    }
     return { reused: true, reuse: reusePlan, sourceYield: null, strictYield };
   }
 
@@ -4397,11 +4413,19 @@ export async function main(args = process.argv.slice(2), options = {}) {
     resourcedScenes: reusePlan.stale.length,
     stale: reusePlan.stale.map(({ sceneId, reason }) => ({ sceneId, reason })),
   };
+  // #1362: a partial run sources one or two scenes, so its report covers only
+  // those scenes. Overwriting the whole-package asset-report.json with that
+  // subset would silently replace the last full report; keep the old one.
+  const partialReuseRun = reusePlan.reusable.length > 0 && reusePlan.stale.length > 0;
   const outputDir = dirname(outputPath);
   if (!existsSync(outputDir)) {
     mkdirSync(outputDir, { recursive: true });
   }
-  writeFileSync(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+  if (partialReuseRun) {
+    console.log("   Report: skipped (partial reuse run — keeping whole-package report)");
+  } else {
+    writeFileSync(outputPath, JSON.stringify(report, null, 2) + "\n", "utf8");
+  }
   // #1362: keep reused verdicts, replace only the scenes this run sourced.
   const mergedPatches = mergePatchEntries({
     scenes,
@@ -4426,15 +4450,14 @@ export async function main(args = process.argv.slice(2), options = {}) {
   console.log(`   Total assets: ${allAssets.length}`);
   console.log(`   Failed: ${failed.length}`);
   console.log(`   Skipped: ${skipped.length}`);
-  console.log(`   Report: ${outputPath}`);
+  console.log(`   Report: ${partialReuseRun ? "skipped (partial reuse run)" : outputPath}`);
   console.log(
     `   Media patch: ${patchPath} (${assignedCount} assigned, ${unassignedCount} unassigned)`,
   );
 
   // #1362: a partial run sources one or two scenes. Comparing its asset count
   // with whole-package baselines would manufacture a source-yield drop (#779),
-  // so this run neither writes a report nor feeds the history.
-  const partialReuseRun = reusePlan.reusable.length > 0 && reusePlan.stale.length > 0;
+  // so this run does not write the report or feed the history.
   if (partialReuseRun) {
     console.log(
       "   Source yield: skipped (partial reuse run — whole-package baselines do not apply)",
