@@ -13,8 +13,40 @@ import {
 } from "../lib/chart-asset.mjs";
 import { admissionSource, isRelevanceAdmitted } from "../lib/relevance-verdict.mjs";
 import { assignAssetsToScenes } from "../lib/asset-sourcer.mjs";
+import { probeChartHydration } from "../lib/chart-asset.mjs";
+import { PNG as PNGImage } from "pngjs";
 
-const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
+/**
+ * Build a real 800×600 chart PNG with vertical bars painted in the given
+ * plot-band columns (probe band: x 16-720 → 16 columns of 44px, y 72-552).
+ * The background is white; bars are strong red so they clear the 90 diff.
+ */
+function chartPng(paintedColumns) {
+  const png = new PNGImage({ width: 800, height: 600 });
+  for (let i = 0; i < png.data.length; i += 4) {
+    png.data[i] = 255;
+    png.data[i + 1] = 255;
+    png.data[i + 2] = 255;
+    png.data[i + 3] = 255;
+  }
+  for (const c of paintedColumns) {
+    const x0 = 16 + c * 44 + 4;
+    for (let x = x0; x < x0 + 36; x++) {
+      for (let y = 100; y < 400; y++) {
+        const i = (y * 800 + x) * 4;
+        png.data[i] = 200;
+        png.data[i + 1] = 30;
+        png.data[i + 2] = 30;
+      }
+    }
+  }
+  return PNGImage.sync.write(png);
+}
+
+/** Every column painted — passes the hydration probe. */
+const GOOD_PNG = chartPng([...Array(16).keys()]);
+/** Middle run of 8 empty columns — fails coverage AND empty-run thresholds. */
+const BAD_PNG = chartPng([0, 1, 2, 3, 12, 13, 14, 15]);
 
 const symbolMap = (over = {}) => ({
   version: "test",
@@ -127,7 +159,7 @@ describe("fetchChartAsset", () => {
   };
 
   it("POSTs the v2 JSON body with the key as query param and writes the PNG", async () => {
-    globalThis.fetch = mockFetch(200, PNG_BYTES);
+    globalThis.fetch = mockFetch(200, GOOD_PNG);
     const asset = await fetchChartAsset({
       entity,
       sceneId: 3,
@@ -160,11 +192,14 @@ describe("fetchChartAsset", () => {
     expect(asset.chart.delayed).toBe(true); // HKEX is Delayed on v2
     expect(asset.chart.label).toBe("Zhipu (Z. AI Co., Ltd.)");
     expect(existsSync(asset.path)).toBe(true);
-    expect(readFileSync(asset.path).subarray(0, 8)).toEqual(PNG_BYTES.subarray(0, 8));
+    expect(readFileSync(asset.path).subarray(0, 8)).toEqual(GOOD_PNG.subarray(0, 8));
+    // Charts opt out of the render-stage Real-ESRGAN pass (#1382: it drops
+    // tiles on line-art charts).
+    expect(asset.upscale).toBe(false);
   });
 
   it("honors map defaults for omitted chart fields (single source of truth)", async () => {
-    globalThis.fetch = mockFetch(200, PNG_BYTES);
+    globalThis.fetch = mockFetch(200, GOOD_PNG);
     const asset = await fetchChartAsset({
       entity,
       sceneId: 5,
@@ -179,7 +214,7 @@ describe("fetchChartAsset", () => {
   });
 
   it("serializes an object range ({from,to}) verbatim into the request body", async () => {
-    globalThis.fetch = mockFetch(200, PNG_BYTES);
+    globalThis.fetch = mockFetch(200, GOOD_PNG);
     const range = { from: "2026-06-01T00:00:00.000Z", to: "2026-11-14T00:00:00.000Z" };
     await fetchChartAsset({
       entity,
@@ -207,6 +242,49 @@ describe("fetchChartAsset", () => {
       fetchChartAsset({ entity, sceneId: 1, assetsDir: dir, apiKey: "k" }),
     ).rejects.toThrow(/non-PNG/);
   });
+
+  it("retries once and succeeds when the first frame is unhydrated", async () => {
+    const bodies = [BAD_PNG, GOOD_PNG];
+    globalThis.fetch = async (url, init) => {
+      fetchCalls.push({ url, init });
+      const body = bodies[Math.min(fetchCalls.length - 1, bodies.length - 1)];
+      return {
+        ok: true,
+        status: 200,
+        text: async () => "",
+        arrayBuffer: async () => new Uint8Array(body).buffer,
+      };
+    };
+    const asset = await fetchChartAsset({
+      entity,
+      sceneId: 7,
+      assetsDir: dir,
+      apiKey: "k",
+    });
+    expect(fetchCalls).toHaveLength(2); // exactly one retry, quota is 50/day
+    expect(existsSync(asset.path)).toBe(true);
+  });
+
+  it("throws after both attempts fail the hydration probe", async () => {
+    globalThis.fetch = mockFetch(200, BAD_PNG);
+    await expect(
+      fetchChartAsset({ entity, sceneId: 8, assetsDir: dir, apiKey: "k" }),
+    ).rejects.toThrow(/hydration probe/);
+    expect(fetchCalls).toHaveLength(2);
+  });
+});
+
+// ── hydration probe (unit) ──
+
+describe("probeChartHydration", () => {
+  it("passes a fully-painted chart and fails one with a mid-band empty run", () => {
+    const good = probeChartHydration(GOOD_PNG);
+    expect(good).toMatchObject({ ok: true, coveredCount: 16, cols: 16, maxRun: 0 });
+    const bad = probeChartHydration(BAD_PNG);
+    expect(bad.ok).toBe(false);
+    expect(bad.coveredCount).toBe(8);
+    expect(bad.maxRun).toBe(8);
+  });
 });
 
 // ── buildChartAssets ──
@@ -222,7 +300,7 @@ describe("buildChartAssets", () => {
       ok: true,
       status: 200,
       text: async () => "",
-      arrayBuffer: async () => new Uint8Array(PNG_BYTES).buffer,
+      arrayBuffer: async () => new Uint8Array(GOOD_PNG).buffer,
     });
     try {
       const scenes = [
@@ -266,7 +344,7 @@ describe("buildChartAssets", () => {
         ok: true,
         status: 200,
         text: async () => "",
-        arrayBuffer: async () => new Uint8Array(PNG_BYTES).buffer,
+        arrayBuffer: async () => new Uint8Array(GOOD_PNG).buffer,
       };
     };
     try {
@@ -296,7 +374,7 @@ describe("buildChartAssets", () => {
         ok: true,
         status: 200,
         text: async () => "",
-        arrayBuffer: async () => new Uint8Array(PNG_BYTES).buffer,
+        arrayBuffer: async () => new Uint8Array(GOOD_PNG).buffer,
       };
     };
     try {
@@ -438,7 +516,7 @@ describe("chart.annotations pass through as chart-img drawings (#1378)", () => {
         ok: true,
         status: 200,
         text: async () => "",
-        arrayBuffer: async () => new Uint8Array(PNG_BYTES).buffer,
+        arrayBuffer: async () => new Uint8Array(GOOD_PNG).buffer,
       };
     };
   });
@@ -590,3 +668,36 @@ describe("chart.annotations pass through as chart-img drawings (#1378)", () => {
 function writeTemp(path, obj) {
   writeFileSync(path, JSON.stringify(obj, null, 2));
 }
+
+describe("probeChartHydration background robustness (droid-review P2)", () => {
+  it("stays FAIL when a candle sits on the legacy fixed sample point", () => {
+    // (400, 96) is the sample point the probe used before the mode-based fix.
+    // A tall candle painted over it would poison that reference and invert
+    // the verdict; the modal background must not care.
+    const png = new PNGImage({ width: 800, height: 600 });
+    for (let i = 0; i < png.data.length; i += 4) {
+      png.data[i] = 255;
+      png.data[i + 1] = 255;
+      png.data[i + 2] = 255;
+      png.data[i + 3] = 255;
+    }
+    const paint = (x0, x1, y0, y1) => {
+      for (let x = x0; x < x1; x++) {
+        for (let y = y0; y < y1; y++) {
+          const i = (y * 800 + x) * 4;
+          png.data[i] = 200;
+          png.data[i + 1] = 30;
+          png.data[i + 2] = 30;
+        }
+      }
+    };
+    paint(16, 192, 100, 400); // columns 0-3 painted
+    paint(720 - 44 * 4 + 4, 720, 100, 400); // columns 12-15 painted
+    paint(380, 420, 73, 400); // tall candle covering (400, 96)
+    const bad = probeChartHydration(PNGImage.sync.write(png));
+    expect(bad.ok).toBe(false);
+    // 8 painted columns + the tall candle spanning cols 8-9 = 10 covered;
+    // still below the 75% floor with an empty run of 4.
+    expect(bad.coveredCount).toBe(10);
+  });
+});
