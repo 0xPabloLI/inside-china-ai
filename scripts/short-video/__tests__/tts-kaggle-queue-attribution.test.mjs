@@ -13,7 +13,7 @@
  * These tests pin the classification and the evidence file, and assert the
  * error no longer states a cause Kaggle never returned. No real Kaggle calls.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -33,6 +33,12 @@ import { wavBytes } from "./fixtures/wav-fixture.mjs";
 
 const NOW = Date.parse("2026-11-16T00:00:00.000Z");
 const iso = (msAgo) => new Date(NOW - msAgo).toISOString();
+const ORIGINAL_KAGGLE_USER = process.env.COSYVOICE3_KAGGLE_USER;
+
+afterEach(() => {
+  if (ORIGINAL_KAGGLE_USER === undefined) delete process.env.COSYVOICE3_KAGGLE_USER;
+  else process.env.COSYVOICE3_KAGGLE_USER = ORIGINAL_KAGGLE_USER;
+});
 
 /**
  * Route the three CLI families the precheck/attribution use.
@@ -46,7 +52,7 @@ function makeCli({ list = "[]", statuses = {}, logs = {} } = {}) {
     commands.push(cmd);
     if (cmd.includes("kaggle kernels list")) {
       if (list instanceof Error) throw list;
-      return { stdout: typeof list === "function" ? list() : list };
+      return { stdout: list };
     }
     const statusMatch = cmd.match(/kaggle kernels status (\S+)/);
     if (statusMatch) {

@@ -795,6 +795,21 @@ export function classifyKernelStatus(raw) {
   return "unknown";
 }
 
+/** Kernel refs are case-insensitive on Kaggle; compare them one way. */
+function sameRef(a, b) {
+  return String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
+}
+
+/** A phase that holds the single free-tier GPU session. */
+function isActivePhase(phase) {
+  return phase === "running" || phase === "queued";
+}
+
+/** A phase that has released the slot; UNKNOWN is neither active nor terminal. */
+function isTerminalPhase(phase) {
+  return phase === "complete" || phase === "error" || phase === "cancel";
+}
+
 /**
  * Best-effort JSON artifact write (poll-status / run evidence / attribution).
  * Fail-open: a missing directory or a read-only checkout must not turn an
@@ -1036,7 +1051,7 @@ async function probeOwnKernelSlots({
   // the expected answer for a fresh slug and means "slot free". If the list
   // does contain it, carry `listed` so the precheck can tell "fresh slug"
   // (fail-open) from "exists but status unreadable" (fail-closed).
-  const targetEntry = entries.find((entry) => String(entry?.ref ?? "").toLowerCase() === targetRef);
+  const targetEntry = entries.find((entry) => sameRef(entry?.ref, kernelId));
   ordered.push({
     ref: kernelId,
     lastRunTime: targetEntry?.lastRunTime ?? null,
@@ -1066,7 +1081,7 @@ async function probeOwnKernelSlots({
     });
   }
 
-  const holders = probes.filter((p) => p.phase === "running" || p.phase === "queued");
+  const holders = probes.filter((p) => isActivePhase(p.phase));
   return {
     listOk: list.ok,
     listError: list.ok ? null : firstLine(list.raw),
@@ -1119,7 +1134,8 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
   });
   const started = now();
   let waitedMs = 0;
-  const isActive = (probe) => probe?.phase === "running" || probe?.phase === "queued";
+  const isActive = (probe) => isActivePhase(probe?.phase);
+  const isTerminal = (probe) => isTerminalPhase(probe?.phase);
 
   // "Fresh slug" and "existing kernel whose status probe failed" both look
   // like `unknown`, but only the first is safe to push. The list tells them
@@ -1141,7 +1157,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
         lastRunTime: snapshot.target.lastRunTime,
       },
       holders: snapshot.holders
-        .filter((h) => h.ref.toLowerCase() !== kernelId.toLowerCase())
+        .filter((h) => !sameRef(h.ref, kernelId))
         .concat(isActive(retry) ? [{ ...retry, lastRunTime: snapshot.target.lastRunTime }] : []),
     };
     if (snapshot.target.phase === "unknown") {
@@ -1164,8 +1180,6 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
     // A probe that fails mid-wait must NOT be read as "the slot is free":
     // keep the last known active phase and keep waiting. Only COMPLETE /
     // ERROR / CANCEL release the slot.
-    const isTerminal = (probe) =>
-      probe?.phase === "complete" || probe?.phase === "error" || probe?.phase === "cancel";
     let lastTarget = snapshot.target;
     while (!isTerminal(lastTarget) && now() - started < waitBudgetMs) {
       await sleep(pollIntervalMs);
@@ -1175,7 +1189,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
         ...snapshot,
         target: lastTarget,
         holders: snapshot.holders
-          .filter((h) => h.ref.toLowerCase() !== kernelId.toLowerCase())
+          .filter((h) => !sameRef(h.ref, kernelId))
           .concat(isActive(lastTarget) ? [{ ...lastTarget, lastRunTime: null }] : []),
       };
       waitedMs = now() - started;
@@ -1209,7 +1223,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
     snapshot = {
       ...refreshed,
       target: refreshed.target.phase === "unknown" ? lastTarget : refreshed.target,
-      holders: refreshed.holders.filter((h) => h.ref.toLowerCase() !== kernelId.toLowerCase()),
+      holders: refreshed.holders.filter((h) => !sameRef(h.ref, kernelId)),
     };
     log(
       `  ✓ [Kaggle] Slot precheck: ${kernelId} is now ` +
@@ -1224,7 +1238,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
     );
   }
   for (const holder of snapshot.holders) {
-    if (holder.ref.toLowerCase() === String(kernelId).toLowerCase()) continue;
+    if (sameRef(holder.ref, kernelId)) continue;
     log(
       `  ⚠️ [Kaggle] Slot precheck: own kernel ${holder.ref} is ` +
         `${holder.phase.toUpperCase()} — this push will queue behind Kaggle's single ` +
@@ -1283,7 +1297,6 @@ export function classifyQueueCause({
     reasons.push(`Kaggle CLI reported a quota-related error: ${quotaSignal.text}`);
     return { cause: "quota", confidence: "inferred", reasons };
   }
-  const targetKernel = String(kernelId ?? "").toLowerCase();
   const stuckReason = (kernel) => {
     const lastLog =
       kernel.log?.lastHeartbeat?.phase != null
@@ -1297,7 +1310,7 @@ export function classifyQueueCause({
   };
 
   if (timeoutKind === "run") {
-    const targetStuck = stuck.find((k) => String(k.ref).toLowerCase() === targetKernel);
+    const targetStuck = stuck.find((k) => sameRef(k.ref, kernelId));
     if (targetStuck) {
       return {
         cause: "stuck",
@@ -1309,9 +1322,7 @@ export function classifyQueueCause({
       };
     }
     const evidence =
-      targetEvidence ??
-      [...stuck, ...activeOthers].find((k) => String(k.ref).toLowerCase() === targetKernel) ??
-      null;
+      targetEvidence ?? [...stuck, ...activeOthers].find((k) => sameRef(k.ref, kernelId)) ?? null;
     if (evidence?.log?.lastLogSeconds != null && evidence.stalenessMs != null) {
       if (evidence.stalenessMs <= stuckWindowMs) {
         reasons.push(
@@ -1417,12 +1428,11 @@ export async function collectQueueAttribution({
         : { error: progress.error };
       // The target's RUNNING clock is measured by the poller; another kernel
       // only has lastRunTime (the start time), which is an upper bound.
-      const runningMs =
-        probe.ref.toLowerCase() === String(kernelId).toLowerCase()
-          ? Number(target?.runningMs ?? 0)
-          : entry.lastRunTime
-            ? Math.max(0, now() - parseKaggleTimestamp(entry.lastRunTime))
-            : null;
+      const runningMs = sameRef(probe.ref, kernelId)
+        ? Number(target?.runningMs ?? 0)
+        : entry.lastRunTime
+          ? Math.max(0, now() - parseKaggleTimestamp(entry.lastRunTime))
+          : null;
       if (
         runningMs != null &&
         Number.isFinite(runningMs) &&
@@ -1445,12 +1455,9 @@ export async function collectQueueAttribution({
     (k) => k.phase === "running" && k.stalenessMs != null && k.stalenessMs > stuckWindowMs,
   );
   const activeOthers = ownKernels.filter(
-    (k) =>
-      k.ref.toLowerCase() !== String(kernelId).toLowerCase() &&
-      (k.phase === "running" || k.phase === "queued"),
+    (k) => !sameRef(k.ref, kernelId) && isActivePhase(k.phase),
   );
-  const targetEvidence =
-    ownKernels.find((k) => k.ref.toLowerCase() === String(kernelId).toLowerCase()) ?? null;
+  const targetEvidence = ownKernels.find((k) => sameRef(k.ref, kernelId)) ?? null;
   const conclusion = classifyQueueCause({
     timeoutKind,
     kernelId,

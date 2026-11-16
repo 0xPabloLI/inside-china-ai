@@ -50,13 +50,24 @@ def _set_phase(name):
     _KERNEL_PHASE["name"] = name
     log(f"KERNEL_PHASE {name}")
 
+def _log_safe(msg):
+    # The watchdog must never die on a full/broken log file: print first (the
+    # stream is what `kaggle kernels logs` reads), then try the file. If the
+    # file write raises and kills this thread, the kernel would never reach
+    # the budget check below — the exact silent session-cap hang this guards.
+    print(msg, flush=True)
+    try:
+        _logfile.write(str(msg) + "\n"); _logfile.flush()
+    except Exception:
+        pass
+
 def _heartbeat_loop():
     while True:
         time.sleep(KERNEL_HEARTBEAT_SEC)
         elapsed = time.time() - _KERNEL_STARTED_AT
-        log(f"KERNEL_HEARTBEAT phase={_KERNEL_PHASE['name']} elapsed={int(elapsed)}s")
+        _log_safe(f"KERNEL_HEARTBEAT phase={_KERNEL_PHASE['name']} elapsed={int(elapsed)}s")
         if elapsed > KERNEL_WALL_CLOCK_BUDGET_SEC:
-            log(
+            _log_safe(
                 f"ERROR: kernel wall-clock budget {KERNEL_WALL_CLOCK_BUDGET_SEC}s "
                 f"exceeded in phase {_KERNEL_PHASE['name']} — exiting so the GPU "
                 "session stops holding the slot and burning quota"

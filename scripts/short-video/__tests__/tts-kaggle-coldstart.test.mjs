@@ -193,6 +193,15 @@ describe("kernel wall-clock self-termination (#1354)", () => {
     expect(KERNEL_SRC).toContain("kernel wall-clock budget");
   });
 
+  it("keeps the watchdog alive when the log file itself fails", () => {
+    // A full/broken /kaggle/working/log.txt must not kill the daemon thread
+    // before it reaches the budget check; the stream is the primary sink.
+    expect(KERNEL_SRC).toContain("def _log_safe(");
+    expect(KERNEL_SRC).toContain(
+      "_log_safe(f\"KERNEL_HEARTBEAT phase={_KERNEL_PHASE['name']} elapsed={int(elapsed)}s\")",
+    );
+  });
+
   it("marks every setup phase so a stalled setup is attributable", () => {
     for (const phase of [
       "deps",
