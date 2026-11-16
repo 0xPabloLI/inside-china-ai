@@ -174,6 +174,47 @@ describe("kernel timeout — streaming output and split budgets", () => {
   });
 });
 
+describe("kernel wall-clock self-termination (#1354)", () => {
+  it("declares the wall-clock placeholders the adapter bakes in", () => {
+    expect(KERNEL_SRC).toContain("__KERNEL_WALL_CLOCK_BUDGET_SEC__");
+    expect(KERNEL_SRC).toContain("__KERNEL_HEARTBEAT_SEC__");
+  });
+
+  it("arms the watchdog only in a real Kaggle session", () => {
+    expect(KERNEL_SRC).toContain('if os.path.isdir("/kaggle/working"):');
+    expect(KERNEL_SRC).toContain("threading.Thread(target=_heartbeat_loop, daemon=True).start()");
+  });
+
+  it("emits heartbeats and exits the process when the budget fires", () => {
+    expect(KERNEL_SRC).toContain("KERNEL_HEARTBEAT phase=");
+    expect(KERNEL_SRC).toContain("os._exit(1)");
+    expect(KERNEL_SRC).toContain("kernel wall-clock budget");
+  });
+
+  it("keeps the watchdog alive when the log file itself fails", () => {
+    // A full/broken /kaggle/working/log.txt must not kill the daemon thread
+    // before it reaches the budget check; the stream is the primary sink.
+    expect(KERNEL_SRC).toContain("def _log_safe(");
+    expect(KERNEL_SRC).toContain(
+      "_log_safe(f\"KERNEL_HEARTBEAT phase={_KERNEL_PHASE['name']} elapsed={int(elapsed)}s\")",
+    );
+  });
+
+  it("marks every setup phase so a stalled setup is attributable", () => {
+    for (const phase of [
+      "deps",
+      "cosyvoice-source",
+      "model",
+      "ref-audio",
+      "wetext-seed",
+      "inference",
+      "complete",
+    ]) {
+      expect(KERNEL_SRC).toContain(`_set_phase("${phase}")`);
+    }
+  });
+});
+
 describe("engine metadata — the wetext dataset rides along with the kernel", () => {
   it("declares xPabloLI/cosyvoice3-wetext in dataset_sources", async () => {
     process.env.COSYVOICE3_KAGGLE_USER = "test-kaggle-user";
@@ -204,17 +245,39 @@ describe("engine metadata — the wetext dataset rides along with the kernel", (
         }
         return { stdout: "" };
       },
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async () => ({ queuedMs: 0, runningMs: 0 }),
       postProcess: async () => ({ duration: 3.0 }),
     });
     expect(engine).not.toBeNull();
+    const originalBudget = process.env.KERNEL_WALL_CLOCK_BUDGET_SEC;
+    const originalHeartbeat = process.env.KERNEL_HEARTBEAT_SEC;
+    process.env.KERNEL_WALL_CLOCK_BUDGET_SEC = "7200";
+    process.env.KERNEL_HEARTBEAT_SEC = "30";
     try {
       await engine.generate(scenes, outDir);
       const meta = JSON.parse(
         readFileSync(join(outDir, ".kaggle-kernel", "kernel-metadata.json"), "utf-8"),
       );
       expect(meta.dataset_sources).toContain("xPabloLI/cosyvoice3-wetext");
+      const kernelScript = readFileSync(
+        join(outDir, ".kaggle-kernel", "cosyvoice3_cuda_kernel.py"),
+        "utf-8",
+      );
+      expect(kernelScript).toContain("KERNEL_WALL_CLOCK_BUDGET_SEC = int(r'''7200''')");
+      expect(kernelScript).toContain("KERNEL_HEARTBEAT_SEC = int(r'''30''')");
     } finally {
+      if (originalBudget === undefined) delete process.env.KERNEL_WALL_CLOCK_BUDGET_SEC;
+      else process.env.KERNEL_WALL_CLOCK_BUDGET_SEC = originalBudget;
+      if (originalHeartbeat === undefined) delete process.env.KERNEL_HEARTBEAT_SEC;
+      else process.env.KERNEL_HEARTBEAT_SEC = originalHeartbeat;
       rmSync(outDir, { recursive: true, force: true });
     }
   });

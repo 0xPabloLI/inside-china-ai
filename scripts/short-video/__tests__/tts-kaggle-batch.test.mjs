@@ -88,6 +88,14 @@ describe("engine generate — one kernel push for the whole manifest (#241)", ()
     const pollCalls = [];
     const engine = await createCosyVoice3KaggleCudaEngine({
       exec,
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
       poll: async (kernelId, opts) => {
         pollCalls.push({ kernelId, opts });
         return { queuedMs: 0, runningMs: 0 };
@@ -102,10 +110,16 @@ describe("engine generate — one kernel push for the whole manifest (#241)", ()
     const results = await engine.generate(SCENES, outDir);
 
     const pushes = commands.filter((c) => c.includes("kaggle kernels push"));
-    const polls = commands.filter((c) => c.includes("kaggle kernels status"));
     const downloads = commands.filter((c) => c.includes("kaggle kernels output"));
     expect(pushes).toHaveLength(1);
-    expect(polls).toHaveLength(0); // status polling goes through the injected poll seam
+    // #1354: the pre-push slot check probes `kaggle kernels status` before the
+    // push. After the push, status polling must still go through the injected
+    // poll seam — a bypass here would reintroduce the #808 silent wait.
+    const pushIndex = commands.findIndex((c) => c.includes("kaggle kernels push"));
+    const statusAfterPush = commands
+      .slice(pushIndex + 1)
+      .filter((c) => c.includes("kaggle kernels status"));
+    expect(statusAfterPush).toHaveLength(0);
     expect(downloads).toHaveLength(1);
 
     // The single push embeds ALL scenes in the manifest.
