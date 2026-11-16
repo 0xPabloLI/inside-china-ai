@@ -17,10 +17,10 @@
  * @module upscale
  */
 
-import { existsSync, mkdirSync, rmSync } from "fs";
+import { existsSync, mkdirSync, realpathSync, rmSync } from "fs";
 import { join, dirname, basename, extname } from "path";
 import { execFileSync, execSync, spawnSync } from "child_process";
-import { pathToFileURL } from "url";
+import { fileURLToPath } from "url";
 import { homedir, tmpdir } from "os";
 import { FFMPEG_BIN, FFPROBE_BIN } from "./ffmpeg-bins.mjs";
 
@@ -624,6 +624,6 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   process.exit(main(process.argv));
 }
