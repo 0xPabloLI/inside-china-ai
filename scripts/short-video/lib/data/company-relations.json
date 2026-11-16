@@ -27,6 +27,7 @@
     },
     {
       "entity": "qwen",
+      "modelBrand": true,
       "parent": "alibaba",
       "tier": 1,
       "hashtag": "qwen",
@@ -116,6 +117,7 @@
     },
     {
       "entity": "doubao",
+      "modelBrand": true,
       "parent": "bytedance",
       "tier": 1,
       "hashtag": "doubao",
@@ -239,6 +241,7 @@
     },
     {
       "entity": "hunyuan",
+      "modelBrand": true,
       "parent": "tencent",
       "tier": 1,
       "hashtag": "hunyuan",
@@ -365,6 +368,7 @@
 
     {
       "entity": "deepseek",
+      "modelBrand": true,
       "parent": null,
       "tier": 2,
       "hashtag": "deepseek",
@@ -387,9 +391,10 @@
     },
     {
       "entity": "glm",
+      "modelBrand": true,
       "parent": "zhipu",
       "tier": 2,
-      "hashtag": "zhipu",
+      "hashtag": "glm",
       "matchKeys": ["glm"],
       "aliases": ["GLM", "GLM series"],
       "overseasAwareness": "low",
@@ -409,6 +414,7 @@
     },
     {
       "entity": "kimi",
+      "modelBrand": true,
       "parent": "moonshot",
       "tier": 2,
       "hashtag": "kimi",
@@ -420,6 +426,7 @@
     },
     {
       "entity": "minimax",
+      "modelBrand": true,
       "parent": null,
       "tier": 2,
       "hashtag": "minimax",
@@ -699,6 +706,7 @@
     },
     {
       "entity": "claude",
+      "modelBrand": true,
       "parent": "anthropic",
       "tier": 6,
       "hashtag": "claude",

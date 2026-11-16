@@ -237,7 +237,8 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 | `#nvidia`     | —      | nvidia, 黄仁勋                                           |
 | `#kimi`       | —      | moonshot, kimi, 月之暗面                                 |
 | `#huawei`     | —      | huawei, 华为, pangu, 盘古                                |
-| `#zhipu`      | —      | zhipu, 智谱, glm                                         |
+| `#zhipu`      | —      | zhipu, 智谱                                              |
+| `#glm`        | —      | glm, GLM（2026-11-16 公司+模型双锚，独立于 #zhipu）      |
 | `#futuretech` | 2.9B   | future, 未来, 前沿                                       |
 | `#chinanews`  | —      | china, chinese, 中国                                     |
 | `#opensource` | —      | open source, 开源                                        |
@@ -301,7 +302,7 @@ Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行�
 #### 代码实现
 
 - 标签池定义：`scripts/short-video/lib/caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` + `ENTITY_HASHTAG_MAP` + `PAD_CANDIDATES` + `BLACKLISTED_HASHTAGS`
-- 自动推导：`deriveHashtags()` 函数 — 总是包含 `#ainews` + `#chinaai`，根据内容匹配实体标签，不足时用 `PAD_CANDIDATES`（#ai → #artificialintelligence → #news）补位，黑名单标签自动过滤
+- 自动推导：`deriveHashtags()` 函数 — 总是包含 `#ainews` + `#chinaai`，根据内容匹配实体标签（`keyEntities.companies` + 归一到 SSOT 品牌白名单的 `keyEntities.models`，公司+模型双锚），不足时用 `PAD_CANDIDATES`（#ai → #artificialintelligence → #news）补位，黑名单标签自动过滤；未收录的模型品牌不输出，避免版本号垃圾标签
 - 分类输出：`classifyHashtags()` 函数 — 将最终标签分类为 traffic/brand/vertical/trending，返回 `selectionMode`（auto/manual）
 - 输出分类：`generate-caption.mjs` → `tiktok-metadata.json` 中的 `hashtagStrategy` 字段（含 `selectionMode`）
 - Apify 调研客户端：`scripts/short-video/lib/apify-client.mjs` → `createApifyClient()` + `fetchHashtagVideos()`（默认 dry-run， `--live` 启用远端请求）

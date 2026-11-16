@@ -100,6 +100,24 @@ export function buildEntityHashtagMap() {
 }
 
 /**
+ * Curated model-brand keys for caption hashtags. Only SSOT entities explicitly
+ * flagged `modelBrand: true` may emit a tag from keyEntities.models — the
+ * general ENTITY_HASHTAG_MAP also contains company matchKeys (e.g. `lingbot`
+ * → #alibaba) which are NOT model brands and must not be picked up by a
+ * first-token fallback.
+ * @returns {Set<string>} lowercase keys
+ */
+export function buildModelBrandKeys() {
+  const keys = new Set();
+  for (const record of loadCompanyRelations().entities) {
+    if (record.modelBrand !== true) continue;
+    keys.add(String(record.entity).toLowerCase());
+    for (const key of record.matchKeys ?? []) keys.add(String(key).toLowerCase());
+  }
+  return keys;
+}
+
+/**
  * ENTITY_ALIASES for prompt-injection color inheritance: matchKey →
  * ENTITY_COLORS key. A record inherits its parent-chain color: own
  * colorKey if present, else the nearest ancestor's, else the record is not

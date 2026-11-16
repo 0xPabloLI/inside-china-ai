@@ -18,6 +18,7 @@ import {
   resolveEntityHashtag,
   howToPresent,
   buildEntityHashtagMap,
+  buildModelBrandKeys,
   buildEntityColorAliases,
 } from "../lib/company-relations.mjs";
 import { deriveHashtags } from "../lib/caption-utils.mjs";
@@ -112,7 +113,7 @@ describe("derived ENTITY_HASHTAG_MAP", () => {
     deepseek: "#deepseek",
     zhipu: "#zhipu",
     "z.ai": "#zhipu",
-    glm: "#zhipu",
+    glm: "#glm",
     moonshot: "#kimi",
     kimi: "#kimi",
     minimax: "#minimax",
@@ -223,5 +224,26 @@ describe("howToPresent", () => {
   it("returns null for unknown entities", () => {
     expect(howToPresent("nonexistent-corp")).toBeNull();
     expect(resolveEntityHashtag("nonexistent-corp")).toBeNull();
+  });
+});
+
+describe("model-brand whitelist (SSOT modelBrand flag)", () => {
+  it("includes curated model brands and excludes company-only matchKeys", () => {
+    const keys = buildModelBrandKeys();
+    for (const key of [
+      "glm",
+      "qwen",
+      "deepseek",
+      "kimi",
+      "minimax",
+      "doubao",
+      "hunyuan",
+      "claude",
+    ]) {
+      expect(keys.has(key), `model brand ${key}`).toBe(true);
+    }
+    // lingbot resolves to #alibaba via the company map — it is not a model brand.
+    expect(keys.has("lingbot")).toBe(false);
+    expect(keys.has("gpt")).toBe(false);
   });
 });
