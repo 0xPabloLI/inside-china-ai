@@ -122,7 +122,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 档位数值、竖屏重算过程与「第二主角形式」不采纳的理由见本文件 `## Design Decisions & References`；来源规则与许可分档见 `docs/research/repo-survey-tracking.md` §C，代码侧推导记在 `lib/type-scale.mjs` 模块头。
 
-**空场判据**：`checkEmptyField`（`lib/scene-rules.mjs`）对 `data` / `stat-reveal` / `contrast` / `info-card` / `context` 五种信息类 scene 取「已声明文本对象的最大 `preferredSize`」，低于 110px（supporting 档上限）且持续超过 45 帧即 **WARN**——镜头没有主角，只有小字与小 chip。判的是声明尺寸而不是渲染像素；渲染 `media` 层的镜头直接跳过（素材本身就是内容区最大物体；`data`/`stat-reveal` 不渲染媒体、声明了也照判，缺素材归 `final-media-gate`）。持续窗口在 post-render 用 `audio/scene-durations.json` 换算成**成片 clip 帧数**（`sceneClipFrames()`，含 0.5s 录音缓冲）；preflight 在 TTS 之前，以整镜为窗口。由版式定义的 focal object 不按文本尺寸判（见下节）；已违反模板契约的 scene 也跳过——它先被模板门禁拦住，空场判据不重复报同一条不可渲染的债。
+**空场判据**：`checkEmptyField`（`lib/scene-rules.mjs`）对 `data` / `stat-reveal` / `contrast` / `info-card` / `context` 五种信息类 scene 取「已声明文本对象的最大 `preferredSize`」，低于 110px（supporting 档上限）且持续超过 45 帧即 **FAIL**——镜头没有主角，只有小字与小 chip。判的是声明尺寸而不是渲染像素；渲染 `media` 层的镜头直接跳过（素材本身就是内容区最大物体；`data`/`stat-reveal` 不渲染媒体、声明了也照判，缺素材归 `final-media-gate`）。持续窗口在 post-render 用 `audio/scene-durations.json` 换算成**成片 clip 帧数**（`sceneClipFrames()`，含 0.5s 录音缓冲）；preflight 在 TTS 之前，以整镜为窗口。由版式定义的 focal object 不按文本尺寸判（见下节）；已违反模板契约的 scene 也跳过——它先被模板门禁拦住，空场判据不重复报同一条不可渲染的债。
 
 **2026-11-16 版式拓扑（#1215 PR-B）**：五种信息模板现在读 `resolveRenderLayout(scene)`，即 `scene.layout ?? "hero-center"`；`REMOTION_SLOT_MAP` 注册六个新变体，`lib/type-scale.mjs` 的 `LAYOUT_FOCAL` 声明每个变体的 focal object 几何。宽度型主角判据为 `max(widthPx) ≥ 360`（画布 1/3）**或**面积占比 ≥8%，不用模板名白名单；`isWidthProtagonist()` 与 `layoutFocalFor()` 同时被 preflight 和测试读取。六个变体：
 
@@ -135,7 +135,9 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 | `context.flow` | ContextScene | 480×600 因果节点列（Pill / Box + 3px 箭头） | `badge` / `title` / `context` / `detail` |
 | `info-card.array` | InfoCardScene | 672×324 卡片阵列 + 节拍点阵 | `title` / `subtitle` / `points`；≥12 张转序号计数矩阵，标签交给口播 |
 
-「多」不再撒氛围小图标：`DotMatrix` 用 ≥6px 方点按节拍点亮。真实包 2026-11-16 复测：`checkEmptyField` 的 WARN 从 **43 条 / 16 包** 归零；9 个契约本就不合法的旧 scene 被跳过，留给后续内容清理，不由本版式票改写。PR-C 才把 WARN 翻成 FAIL。
+「多」不再撒氛围小图标：`DotMatrix` 用 ≥6px 方点按节拍点亮。真实包 2026-11-16 复测：`checkEmptyField` 的 WARN 从 **43 条 / 16 包** 归零；9 个契约本就不合法的旧 scene 被跳过，留给后续内容清理，不由本版式票改写。
+
+**2026-11-16 PR-C 翻档**：`checkEmptyField` 的 finding 由 WARN 升为 FAIL，四条翻档条件（PR-B 已合入、真实包 finding 归零、合法空白镜不误伤、契约测试覆盖）均已满足。同轮迁移四个 PR-B 之前创建的包（`baidu-token-exchange` / `baidu-token-market` / `zhipu-valuation` 的 9 个 `context` → `flow`，`zhipu-valuation` 的 1 个 `contrast` → `split`）；37 包复测 `Empty field` 0 FAIL / 0 WARN。
 
 **作者侧纪律**：写 `scene-data.mjs` 的信息类 scene 时，按类型指定主角——`data` / `stat-reveal` 用 `stat` / `bigNumber`（hero 档 240px；这两类不渲染媒体，`media.path` 无效）；`contrast` / `info-card` / `context` 可以选上面的文本侧拓扑（由 `LAYOUT_FOCAL` 判主角），也可以继续用会渲染的 `media.path` 作满幅环境底（hero-center 回退）。`title` 的 60px 属配角档，只有落在带 focal object 的拓扑里才成立。`verify-video.mjs --pre` 在 TTS 之前用同一条判据点名缺主角的镜头。
 
@@ -152,7 +154,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 **2026-11-15 装饰层判据**：恒定全屏装饰若在 8-bit 下贡献 ≤2 亮度级即不画。九张真实静帧实测 `GridBg` +1.88 级、`Scanlines` +1.95 级（对比已退役的 `FrameGlow` +46 级），两者随 `#1215` 延伸清理一并删除；`<Glow>` +5.46 级、900px 大面积，属可见底色，保留。判据用对比度而非缩放——3x DPR 设备可能把 1080 视频像素 1:1 映射到物理屏。防复发靠 `__tests__/decorative-layer-contrast.test.mjs` 的源码契约。
 
-- **「受光主角」与「空场判据的主角对象」是两个问题**：这里的主角是「光跟谁走」，由模板声明，可以是一个 60–110px 的标题；空场判据问的是「内容区最大物体够不够大」。`#1215` PR-B 之后，`contrast.split` / `context.flow` / `info-card.array` 的文本侧主角由布局 focal object（380px 卡列 / 480px 节点列 / 672px 阵列）成立；仍走 `hero-center` 的旧 scene 继续判债。光跟着它，不等于宣称它是 hero 档。
+- **「受光主角」与「空场判据的主角对象」是两个问题**：这里的主角是「光跟谁走」，由模板声明，可以是一个 60–110px 的标题；空场判据问的是「内容区最大物体够不够大」。`#1215` PR-B 之后，`contrast.split` / `context.flow` / `info-card.array` 的文本侧主角由布局 focal object（380px 卡列 / 480px 节点列 / 672px 阵列）成立；仍走 `hero-center` 且无媒体层的旧 scene 自 PR-C 起直接 FAIL。光跟着它，不等于宣称它是 hero 档。
 - **主角必带光，配角默认不发光**：主角由**模板显式声明**（`LIGHT_PLANS[visualType].protagonist`，HITL 2026-11-09 裁定「scene 显式声明」，不作 `focusAnalysis` 自动判定）。互斥变体（hook 的 `bigNumber` / `hookText`）按优先级取第一个实际声明的字段。
 - **一帧内重点 ≤1**：每个模板的 `beats` 按时间排序、每个 target 只出现一次；拍点之间的间隔必须 ≥ `FOCUS_LIGHT.transferOffFrames`（8 帧），因此任一帧最多一个 target 处于 `level 1`。违反即 `resolveLightTimeline()` 抛错——渲染失败，而不是「风格不佳」。
 - **转移灭灯 8 帧**：新拍点亮起的那一帧，前一处已经离开 `level 1`，并在 8 帧内线性退回它的静止值（主角退回 0.55，配角退回 0）。衰减跑在 shadow alpha 上，内容本身不降透明度。
@@ -188,7 +190,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 | 工具               | 路径                                                          | 作用                                                      |
 | ------------------ | ------------------------------------------------------------- | --------------------------------------------------------- |
 | TextGate           | `scripts/short-video/remotion/src/` + `lib/text-geometry.mjs` | 渲染时几何强制（安全区、溢出、换词）                      |
-| `checkEmptyField`  | `scripts/short-video/lib/scene-rules.mjs`                     | 信息类 scene 空场判据（最大对象 <110px 且 >45 帧 → WARN；布局 focal object 直接通过） |
+| `checkEmptyField`  | `scripts/short-video/lib/scene-rules.mjs`                     | 信息类 scene 空场判据（最大对象 <110px 且 >45 帧 → FAIL；布局 focal object 直接通过） |
 | `useFocusLight`    | `remotion/src/components/focus-light.tsx`                     | 主角光/重点光/白闪的唯一取光入口（读 `LIGHT_PLANS`）      |
 | `checkFocusLight`  | `scripts/short-video/lib/scene-rules.mjs`                     | 主角光判据（无受光主体 → WARN；plan 违预算 → FAIL）       |
 | `render-only.mjs`  | `scripts/short-video/`                                        | 快速渲染验证（`--content _gate-smoke`）                   |

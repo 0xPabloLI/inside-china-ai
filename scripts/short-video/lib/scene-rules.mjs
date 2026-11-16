@@ -2108,9 +2108,12 @@ function largestDeclaredObject(scene) {
  * which is the same condition for every clip longer than 45 frames (voiceover
  * over ~1 s).
  *
- * Severity is WARN, matching the source's "mid-level defect": the layouts that
- * fix these scenes (the infographic layout topologies, #1215) are the deferred half
- * of #739, so this is a named design debt until they land, not a render block.
+ * Severity is FAIL since #1215 PR-C: the six infographic topologies are the
+ * supported way out (layout focal object or a rendered media layer), so a
+ * governed information scene with neither is a shot that cannot be written
+ * any more — not named design debt. The 2026-11-14 HITL ruling fixed the
+ * flip conditions (PR-B merged, real packs at zero findings, legitimate blank
+ * shots unaffected); this gate is the enforcement of that ruling.
  *
  * @param {object[]} scenes
  * @param {{sceneDurations?: Array<{sceneId: number, duration: number}>}} [opts]
@@ -2125,7 +2128,7 @@ export function checkEmptyField(scenes, opts = {}) {
       .filter((row) => row && Number.isFinite(row.duration))
       .map((row) => [row.sceneId, row.duration]),
   );
-  const warns = [];
+  const failures = [];
   /** @type {Array<{px: number, field: string, frames: number|null}>} */
   const heroClear = [];
   /** Scenes carried by a layout-declared focal object (#1215). */
@@ -2193,8 +2196,8 @@ export function checkEmptyField(scenes, opts = {}) {
     }
     const tier = tierForSize(largest.px);
     const persistence = frames === null ? "whole-scene persistence" : `persists ${frames} frames`;
-    warns.push({
-      level: "warn",
+    failures.push({
+      level: "fail",
       category: "Layout",
       check: `Empty field — ${scene.visualType} ${scene.id}`,
       detail:
@@ -2202,15 +2205,15 @@ export function checkEmptyField(scenes, opts = {}) {
         `against the ${EMPTY_FIELD.maxObjectPx}px hero line, ${persistence}`,
       fix:
         `Give the shot a hero object at the hero tier (${TYPE_TIERS.hero.min}px+: stat / bigNumber / ` +
-        "full-band media) and demote the small copy to supporting; the infographic layout topologies " +
-        "(#1215, the deferred half of #739) — until they land this is named design debt, not a render block.",
+        "full-band media) or an infographic layout with a focal object (`split` / `flow` / `array` / " +
+        "`set-piece` / `year-source` / `chart-card`), and demote the small copy to supporting (#1215).",
     });
   });
   // One pass row for the whole check, not one per scene: the gate reports what
   // needs action, and a clean 29-scene pack should not add 12 rows (#763).
   // Each clause states what it actually knows — a scene skipped by the
   // persistence window did NOT clear the hero line, so it must not say so.
-  if (warns.length > 0) return warns;
+  if (failures.length > 0) return failures;
   const parts = [];
   if (heroClear.length > 0) {
     const smallest = heroClear.reduce((a, b) => (b.px < a.px ? b : a));

@@ -3,10 +3,11 @@
  *
  * The gate judges the DECLARED type scale of the five information templates:
  * a scene whose largest object sits below the 110px hero line has no hero and
- * warns. Scenes carried by a media layer are skipped — the footage is the
- * object. Data and stat-reveal carry a 240px focal number and must pass; the
- * contrast / context / info-card families are the known "small copy + small
- * chip" shapes until the deferred topologies land.
+ * fails (#1215 PR-C flipped the rule from WARN to FAIL once the layout
+ * topologies landed). Scenes carried by a media layer are skipped — the
+ * footage is the object. Data and stat-reveal carry a 240px focal number and
+ * must pass; contrast / context / info-card pass only with a layout focal
+ * object or a rendered media layer.
  */
 import { describe, it, expect } from "vitest";
 import { checkEmptyField, runAllSceneDataChecks } from "../lib/scene-rules.mjs";
@@ -55,18 +56,18 @@ const quoteScene = {
   texts: { quote: "A QUOTE", source: "SOURCE" },
 };
 
-const warns = (results) => results.filter((r) => r.level === "warn");
+const failures = (results) => results.filter((r) => r.level === "fail");
 
 describe("checkEmptyField — largest declared object", () => {
   it("passes a data scene: the stat anchor is hero tier", () => {
     const results = checkEmptyField([dataScene]);
-    expect(warns(results)).toEqual([]);
+    expect(failures(results)).toEqual([]);
     expect(results[0].detail).toContain("240px stat");
   });
 
   it("passes a stat-reveal scene: the big number is hero tier", () => {
     const results = checkEmptyField([statRevealScene]);
-    expect(warns(results)).toEqual([]);
+    expect(failures(results)).toEqual([]);
     expect(results[0].detail).toContain("240px bigNumber");
   });
 
@@ -81,13 +82,13 @@ describe("checkEmptyField — largest declared object", () => {
     const results = checkEmptyField([
       { ...contrastScene, media: { type: "video", path: "assets/clips/a.mp4" } },
     ]);
-    expect(warns(results)).toEqual([]);
+    expect(failures(results)).toEqual([]);
     expect(results[0].detail).toContain("media layer");
   });
 
   it("does not exempt an empty media object (nothing is drawn)", () => {
     const results = checkEmptyField([{ ...contrastScene, media: {} }]);
-    expect(warns(results)).toHaveLength(1);
+    expect(failures(results)).toHaveLength(1);
   });
 
   it("does not exempt a media layer the template never draws", () => {
@@ -100,22 +101,22 @@ describe("checkEmptyField — largest declared object", () => {
         media: { path: "a.png" },
       },
     ]);
-    expect(warns(results)).toHaveLength(1);
+    expect(failures(results)).toHaveLength(1);
     expect(results[0].check).toContain("Empty field — data");
   });
 
-  it("warns on contrast: the title is supporting tier, so there is no hero", () => {
-    const found = warns(checkEmptyField([contrastScene]));
+  it("fails on contrast: the title is supporting tier, so there is no hero", () => {
+    const found = failures(checkEmptyField([contrastScene]));
     expect(found).toHaveLength(1);
     expect(found[0].check).toBe("Empty field — contrast 3");
     expect(found[0].detail).toContain("60px (title");
     expect(found[0].detail).toContain("tier supporting");
-    expect(found[0].fix).toContain("#739");
+    expect(found[0].fix).toContain("#1215");
   });
 
-  it("warns on context and info-card (the small-copy shapes)", () => {
-    expect(warns(checkEmptyField([contextScene]))).toHaveLength(1);
-    expect(warns(checkEmptyField([infoCardScene]))).toHaveLength(1);
+  it("fails on context and info-card (the small-copy shapes)", () => {
+    expect(failures(checkEmptyField([contextScene]))).toHaveLength(1);
+    expect(failures(checkEmptyField([infoCardScene]))).toHaveLength(1);
   });
 
   // #1215: the new layouts carry a layout-declared focal object (a 380px
@@ -124,19 +125,19 @@ describe("checkEmptyField — largest declared object", () => {
   // geometry is the measurable width protagonist from the 2026-11-14 ruling.
   it("passes a contrast scene in the split layout: the column pair is the hero", () => {
     const results = checkEmptyField([{ ...contrastScene, layout: "split" }]);
-    expect(warns(results)).toEqual([]);
+    expect(failures(results)).toEqual([]);
     expect(results[0].detail).toContain("layout focal object");
   });
 
   it("passes context.flow and info-card.array by their declared geometry", () => {
     const flow = checkEmptyField([{ ...contextScene, layout: "flow" }]);
-    expect(warns(flow)).toEqual([]);
+    expect(failures(flow)).toEqual([]);
     const array = checkEmptyField([{ ...infoCardScene, layout: "array" }]);
-    expect(warns(array)).toEqual([]);
+    expect(failures(array)).toEqual([]);
     const yearSource = checkEmptyField([
       { ...dataScene, layout: "year-source", texts: { stat: "2026", subtext: "THE ROUND" } },
     ]);
-    expect(warns(yearSource)).toEqual([]);
+    expect(failures(yearSource)).toEqual([]);
   });
 
   it("skips a scene that already fails its template contract", () => {
@@ -145,7 +146,7 @@ describe("checkEmptyField — largest declared object", () => {
     const results = checkEmptyField([
       { ...contrastScene, texts: { ...contrastScene.texts, leftTitle: "TYPO" } },
     ]);
-    expect(warns(results)).toEqual([]);
+    expect(failures(results)).toEqual([]);
     expect(results[0].detail).toContain("skipped (template contract fails)");
   });
 
@@ -153,14 +154,14 @@ describe("checkEmptyField — largest declared object", () => {
     const results = checkEmptyField([
       { ...dataScene, texts: { stat: "", statLabel: "ONLY A LABEL" } },
     ]);
-    const found = warns(results);
+    const found = failures(results);
     expect(found).toHaveLength(1);
     expect(found[0].detail).toContain("60px (label");
   });
 
   it("ignores visualTypes outside the information grammar", () => {
     const results = checkEmptyField([quoteScene]);
-    expect(warns(results)).toEqual([]);
+    expect(failures(results)).toEqual([]);
     expect(results[0].detail).toContain("no governed information scenes");
   });
 });
@@ -171,7 +172,7 @@ describe("checkEmptyField — persistence window", () => {
       // 1.0s of voiceover + the 0.5s recording buffer = exactly 45 frames @30fps.
       sceneDurations: [{ sceneId: 3, duration: 1.0 }],
     });
-    expect(warns(results)).toEqual([]);
+    expect(failures(results)).toEqual([]);
     expect(results[0].detail).toContain("stayed under the line");
     expect(results[0].detail).not.toContain("carry a hero object");
     expect(results[0].detail).toContain("45 frames");
@@ -183,7 +184,7 @@ describe("checkEmptyField — persistence window", () => {
     const results = checkEmptyField([contrastScene], {
       sceneDurations: [{ sceneId: 3, duration: 1.03 }],
     });
-    expect(warns(results)).toHaveLength(1);
+    expect(failures(results)).toHaveLength(1);
     expect(results[0].detail).toContain("46 frames");
   });
 
@@ -191,7 +192,7 @@ describe("checkEmptyField — persistence window", () => {
     const results = checkEmptyField([contrastScene], {
       sceneDurations: [{ sceneId: 3, duration: 1.5 }], // 60 frames once buffered
     });
-    expect(warns(results)).toHaveLength(1);
+    expect(failures(results)).toHaveLength(1);
     expect(results[0].detail).toContain("60 frames");
   });
 
@@ -206,29 +207,25 @@ describe("checkEmptyField — persistence window", () => {
     const results = checkEmptyField([contrastScene], {
       sceneDurations: { scenes: [{ sceneId: 3, duration: 3 }] },
     });
-    expect(warns(results)).toHaveLength(1);
+    expect(failures(results)).toHaveLength(1);
     expect(results[0].detail).toContain("whole-scene persistence");
   });
 });
 
 describe("checkEmptyField — preflight wiring", () => {
-  it("is included in runAllSceneDataChecks results", () => {
+  it("is included in runAllSceneDataChecks results as a fail", () => {
     const results = runAllSceneDataChecks([contrastScene], null);
-    const empty = results.warn.find((r) => r.check.startsWith("Empty field"));
+    const empty = results.fail.find((r) => r.check.startsWith("Empty field"));
     expect(empty).toBeDefined();
     expect(empty.detail).toContain("60px (title");
-  });
-
-  it("does not turn the empty-field finding into a fail", () => {
-    const results = runAllSceneDataChecks([contrastScene], null);
-    expect(results.fail.find((r) => r.check.startsWith("Empty field"))).toBeUndefined();
+    expect(results.warn.find((r) => r.check.startsWith("Empty field"))).toBeUndefined();
   });
 
   it("accepts scene durations through opts", () => {
     const results = runAllSceneDataChecks([contrastScene], null, {
       sceneDurations: [{ sceneId: 3, duration: 0.8 }], // 39 frames once buffered
     });
-    expect(results.warn.find((r) => r.check.startsWith("Empty field"))).toBeUndefined();
+    expect(results.fail.find((r) => r.check.startsWith("Empty field"))).toBeUndefined();
     const passing = results.pass.find((r) => r.check.startsWith("Empty field"));
     expect(passing).toBeDefined();
     expect(passing.detail).toContain("39 frames");
