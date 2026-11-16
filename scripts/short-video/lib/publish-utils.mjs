@@ -206,14 +206,20 @@ export function validateVideoFile(videoPath) {
  *
  * @param {string} postGroupId - Publora post group ID
  * @param {string} publishedAt - ISO timestamp of publish time
- * @returns {{ postGroupId: string, publishedAt: string, suggestedAnalysisTime: string, status: string }}
+ * @param {{slug?: string|null, layoutSignature?: string|null, infoLayoutVersion?: string|null, experimentId?: string|null, variant?: string|null}} [opts]
+ * @returns {{ postGroupId: string, slug: string|null, layoutSignature: string|null, infoLayoutVersion: string|null, experimentId: string|null, variant: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string }}
  */
-export function buildPendingAnalysis(postGroupId, publishedAt) {
+export function buildPendingAnalysis(postGroupId, publishedAt, opts = {}) {
   const publishedDate = new Date(publishedAt);
   const suggestedDate = new Date(publishedDate.getTime() + 48 * 60 * 60 * 1000); // +48h
 
   return {
     postGroupId,
+    slug: opts.slug ?? null,
+    layoutSignature: opts.layoutSignature ?? null,
+    infoLayoutVersion: opts.infoLayoutVersion ?? null,
+    experimentId: opts.experimentId ?? null,
+    variant: opts.variant ?? null,
     publishedAt,
     suggestedAnalysisTime: suggestedDate.toISOString(),
     status: "pending",
@@ -232,14 +238,18 @@ export function buildPendingAnalysis(postGroupId, publishedAt) {
  *
  * suggestedAnalysisTime = publishedAt + 48 hours.
  *
- * @param {{ slug?: string|null, videoPath?: string|null, publishedAt: string, publishMethod?: string }} opts
- * @returns {{ postGroupId: null, slug: string|null, videoPath: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string, publishMethod: string }}
+ * @param {{ slug?: string|null, videoPath?: string|null, publishedAt: string, publishMethod?: string, layoutSignature?: string|null, infoLayoutVersion?: string|null, experimentId?: string|null, variant?: string|null }} opts
+ * @returns {{ postGroupId: null, slug: string|null, videoPath: string|null, layoutSignature: string|null, infoLayoutVersion: string|null, experimentId: string|null, variant: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string, publishMethod: string }}
  */
 export function buildManualPendingAnalysis({
   slug = null,
   videoPath = null,
   publishedAt,
   publishMethod = "manual-guide",
+  layoutSignature = null,
+  infoLayoutVersion = null,
+  experimentId = null,
+  variant = null,
 }) {
   const publishedDate = new Date(publishedAt);
   const suggestedDate = new Date(publishedDate.getTime() + 48 * 60 * 60 * 1000); // +48h
@@ -248,6 +258,10 @@ export function buildManualPendingAnalysis({
     postGroupId: null,
     slug,
     videoPath,
+    layoutSignature,
+    infoLayoutVersion,
+    experimentId,
+    variant,
     publishedAt,
     suggestedAnalysisTime: suggestedDate.toISOString(),
     status: "pending",

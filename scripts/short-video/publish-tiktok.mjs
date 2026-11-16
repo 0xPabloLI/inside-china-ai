@@ -34,7 +34,7 @@
 
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 import {
   buildCaption,
@@ -51,6 +51,7 @@ import {
   buildAutoPublishWarning,
 } from "./lib/publish-utils.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
+import { INFO_LAYOUT_VERSION, layoutSignature } from "./lib/layout-signature.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
 import {
   detectPinnedCommentPromise,
@@ -103,6 +104,26 @@ const nextUrl = getArg("next-url");
 
 // TikTok URL auto-save arg
 const postSlug = getArg("slug");
+const experimentId = getArg("experiment-id");
+const experimentVariant = getArg("variant");
+
+/**
+ * Best-effort layout identity for the published pack. A missing or unreadable
+ * scene-data leaves the core pending-analysis schema intact; the caller still
+ * gets slug + null identity fields.
+ */
+async function layoutMetaForSlug(slug) {
+  if (!slug) return {};
+  const scenePath = join(__dirname, "content", slug, "scene-data.mjs");
+  if (!existsSync(scenePath)) return {};
+  try {
+    const mod = await import(pathToFileURL(scenePath).href);
+    const scenes = mod.scenes || mod.default?.scenes || [];
+    return { layoutSignature: layoutSignature(scenes), infoLayoutVersion: INFO_LAYOUT_VERSION };
+  } catch {
+    return {};
+  }
+}
 
 // ─── Shared: load metadata + build caption + validate video ───
 
@@ -258,6 +279,9 @@ async function runManualMode() {
       slug: postSlug || null,
       videoPath: resolve(videoPath),
       publishedAt: new Date().toISOString(),
+      ...(await layoutMetaForSlug(postSlug)),
+      experimentId: experimentId || null,
+      variant: experimentVariant || null,
     });
     const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -388,7 +412,12 @@ async function runAutoMode() {
   // 8. Write pending-analysis.json — only for non-draft
   if (!isDraft) {
     const publishedAt = new Date().toISOString();
-    const pending = buildPendingAnalysis(postGroupId, publishedAt);
+    const pending = buildPendingAnalysis(postGroupId, publishedAt, {
+      slug: postSlug || null,
+      ...(await layoutMetaForSlug(postSlug)),
+      experimentId: experimentId || null,
+      variant: experimentVariant || null,
+    });
     const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
     if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
     writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
