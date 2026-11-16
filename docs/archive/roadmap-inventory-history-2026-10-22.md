@@ -16,6 +16,8 @@
 
 ## 逐轮盘点（Round CCI → LV；Round CC 见一句话档案）
 
+（**Round CCII：`#1362` 交付闭票，Track 1B ① 段清空**——`media-patch.json` 按 claim 签名跨 run 复用：同包重跑 claim 未变时 sourcing 短路（真实数据实测 2ms、patch 字节不变），改一个场景口播只重搜该场景；上一轮 0 分配、recipe/settings 变化、`--no-reuse` 均回退全量。产品验证门：**无产出差异（enabling fix）**——解除「voice 轨失败即丢 sourcing 成果」的结构性排除，旧包首跑仍全量、次跑起复用。由 PR #1385 交付。`--gate` 复跑归零。frontier 复算：Track 1A **空**、① **空**、② `#541 → #1215`、③④ 空。）
+
 （**Round CCI：`#1354` 交付闭票、`#1353` 补登退场、Track 1B ① 队首换 `#1362`**——Kaggle 排队超时先落 `kaggle-queue-attribution.json` 再按拥堵/配额/卡死/慢归因；push 前同 slug 槽位预检；kernel 90min 墙钟自尽 + 60s 心跳。产品验证门：**无产出差异（enabling fix）**，产出变化待 `#1362`。`#1353` 由 PR #1380（squash `5465edc2`）交付；`#1354` 由 PR #1383 交付；`--gate` 复跑归零。frontier 复算：Track 1A **空**、① `#1362`、② `#541 → #1215`、③④ 空。）
 
 （**Round CXCIX：`#1361` 交付闭票、Track 1A 出清、`PR #1370` 消账**——Tier-3 触发信号从「候选数量」改为「相关性判决后仍未满足的场景」：`selectTier3Scenes(scenes, patches)` 只数 `!media` + `!skipsMediaSourcing` + `shouldSourceStock` 且无 `assigned` patch 的场景，后置到 VLM 判分与分配之后、`MAX_TIER3_PASSES = 1` 一次重试（产品验证门：**有产出差异**——zhipu-valuation 旧规则按「65 资产 ≥ 7 场景」判充足、跳过五家引擎，新规则触发 SearXNG 等四家、scene 2 得 relevance 80 素材，余 6 场告警收敛）；`PR #1370` 落 archive，`--gate` 复跑归零。frontier 复算：Track 1A **空**（`#1360`/`#1361` 双双出清）、① `#1355 → #1353 → #1354 → #1362`、② `#541 → #1215`、③④ 空。）
@@ -288,6 +290,8 @@
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
 ## 近轮一句话档案（Round CXCVI → J）
+
+**Round CC**（`#1355` 交付闭票——dedup 记 `refs` 并由 refs 派生 `urls`/`sources`，`urls[0]` 恒为标题来源、单 token 实体不再被吞并，PR #1373 `46c90273`；`--gate` 归零；**有产出差异**：232 topic / 0 错配；frontier 1A 空、① `#1353 → #1354 → #1362`）
 
 **Round CXCVIII**（`#1360` 交付出清 Track 1A 队首——视频候选接上二轮主体复查，PR #1367 `92653227`；PR #1365 `94ae1b54` 与 #1367 逐条消账、`--gate` 归零；订正 `#294` 过期口径；无产出差异；frontier 1A `#1361`、① `#1355 → #1353 → #1354 → #1362`）
 
@@ -821,3 +825,7 @@ PR #1379 — `748bbfe4` — `#1378` chart.annotations 原样透传为 chart-img 
 
 PR #1382 — `36b411bb` — zhipu 成片 K 线残缺根因：chart 资产跳过 Real-ESRGAN auto-upscale（`-t 256` 分块在 tile 边界丢图）+ fetch 水合探针（16 列网格 ≥75% 覆盖、最长空段 ≤3，双失败抛错走既有 per-scene 降级）；两张已知坏图 FAIL、三张好图 PASS，属**有产出差异**（已生成的残图需重跑 chart 资产才修复）
 
+
+## Round CCIV 补登：施工 PR 消账（roadmap-ledger）
+
+PR #1389 — `be555959` — caption 公司名+模型品牌双标签自动派生（SSOT 白名单：`modelBrandKey()` 按 exact → 首 token → 去尾部数字归一，未收录品牌不出标签；`glm` 的 hashtag 归 `glm`、公司仍 `#zhipu`；`meta.keyEntities.models` 透传 `deriveHashtags`）；6 组测试 166 例全绿。未开票、由本 PR 直接交付，**无 tracker 行可删**；属**有产出差异**（发布包自动带 `#glm` 等模型标签，手动 override 仍优先）。
