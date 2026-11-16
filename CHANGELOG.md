@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.78.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.77.1...tanstack_start_ts-v1.78.0) (2026-11-16)
+
+
+### Features
+
+* **short-video:** [#1362](https://github.com/0xPabloLI/inside-china-ai/issues/1362) reuse media-patch across runs when claims are unchanged ([#1385](https://github.com/0xPabloLI/inside-china-ai/issues/1385)) ([0670d05](https://github.com/0xPabloLI/inside-china-ai/commit/0670d05ef04264e014b82713578b239cd7ee20db))
+
 ## [1.77.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.77.0...tanstack_start_ts-v1.77.1) (2026-11-16)
 
 
