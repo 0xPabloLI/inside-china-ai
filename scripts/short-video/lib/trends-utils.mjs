@@ -102,6 +102,35 @@ const CHINA_AI_KEYWORDS = [
   "Enflame",
   "Biren",
   "Moore Threads",
+  // 2026-11-16: China robotics companies. A demo headline ("Unitree H2
+  // backflip") often carries no "AI" token, and a token embedded in Chinese
+  // text ("对AI的") is missed by the old whole-word matcher. These are the most
+  // video-ready topics in the pool. Company names keep recall up without a
+  // bare "robot" / "机器人" keyword, which would also pull in non-China
+  // robotics stories. This is a recall aid, not an exhaustive registry:
+  // unlisted companies can still enter through other keywords or a manual
+  // addition. See trend-selection-dedup-scoring.md §4.
+  "宇树",
+  "Unitree",
+  "智元",
+  "AgiBot",
+  "优必选",
+  "UBTECH",
+  "银河通用",
+  "Galbot",
+  "傅利叶",
+  "Fourier Intelligence",
+  "云深处",
+  "Deep Robotics",
+  "星动纪元",
+  "Robot Era",
+  "众擎",
+  "EngineAI",
+  "逐际动力",
+  "LimX Dynamics",
+  "松延动力",
+  "达闼",
+  "CloudMinds",
   // #51 V1a: Product/Model names
   "豆包",
   "元宝",
@@ -166,7 +195,8 @@ const CLASSIFY_KEYWORDS = {
 /**
  * Check if a title contains a keyword.
  * - Multi-word keywords: substring match
- * - Single English words: whole-word match (avoids 'ai' matching 'training')
+ * - Single English words: whole-word match at ASCII word boundaries, so "AI"
+ *   matches "对AI的" but not "training" or "OpenAI"
  * - Chinese keywords: substring match
  */
 function titleMatchesKeyword(title, kw) {
@@ -175,10 +205,10 @@ function titleMatchesKeyword(title, kw) {
   if (kw.includes(" ")) {
     return title.includes(lowerKw);
   }
-  // Single ASCII word — match as whole word
+  // Single ASCII word — match at ASCII word boundaries
   if (/^[a-z0-9]+$/i.test(kw)) {
-    const words = title.split(/[\s,.;:!?'"\-()\[\]{}]+/);
-    return words.includes(lowerKw);
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(title);
   }
   // Chinese or mixed — substring match
   return title.includes(lowerKw);
@@ -517,7 +547,7 @@ function extractKeywords(title) {
   const lower = title.toLowerCase();
   const matched = [];
   for (const kw of CHINA_AI_KEYWORDS) {
-    if (lower.includes(kw.toLowerCase()) && !matched.includes(kw)) {
+    if (titleMatchesKeyword(lower, kw) && !matched.includes(kw)) {
       matched.push(kw);
     }
   }

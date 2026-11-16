@@ -755,6 +755,61 @@ describe("filterChinaAI — enhanced keywords", () => {
     const result = filterChinaAI(articles);
     expect(result).toEqual([]);
   });
+
+  // 2026-11-16: robotics demo headlines are the most video-ready topics but
+  // often carry no "AI" token (or carry it embedded in Chinese text, which the
+  // whole-word matcher misses). The filter is title-only, so the company names
+  // must be in the keyword list or the topics never reach scoring.
+  it("matches China robotics companies without an AI token", () => {
+    const articles = [
+      {
+        title: "宇树科技发布 H2 人形机器人，原地后空翻演示曝光",
+        source: "36kr",
+        url: "http://1",
+      },
+      {
+        title: "Unitree G1 humanoid robot nails backflip in new demo video",
+        source: "youtube",
+        url: "http://2",
+      },
+      { title: "智元机器人发布新一代灵犀 X2，量产视频公开", source: "qbitai", url: "http://3" },
+      { title: "优必选 Walker S2 进厂拧螺丝，官方演示视频刷屏", source: "36kr", url: "http://4" },
+      { title: "银河通用发布 Galbot 新品", source: "qbitai", url: "http://5" },
+      { title: "傅利叶智能发布新一代康复机器人", source: "36kr", url: "http://6" },
+      { title: "云深处科技机器狗在工厂巡检", source: "36kr", url: "http://7" },
+      {
+        title: "宇树王兴兴：全世界对AI的信仰都还不够，包括我自己",
+        source: "36kr",
+        url: "http://8",
+      },
+      { title: "星动纪元发布新一代人形机器人", source: "36kr", url: "http://9" },
+      { title: "众擎机器人完成新一轮融资", source: "36kr", url: "http://10" },
+      { title: "逐际动力展示双足机器人越野", source: "qbitai", url: "http://11" },
+      { title: "松延动力人形机器人首次亮相", source: "36kr", url: "http://12" },
+    ];
+    expect(filterChinaAI(articles)).toHaveLength(12);
+  });
+
+  it("matches ASCII keywords at CJK boundaries", () => {
+    const articles = [
+      { title: "AgiBot发布新一代机器人", source: "36kr", url: "http://1" },
+      { title: "Unitree发布H2人形机器人", source: "36kr", url: "http://2" },
+      { title: "全世界对AI的信仰都还不够", source: "36kr", url: "http://3" },
+    ];
+    expect(filterChinaAI(articles)).toHaveLength(3);
+  });
+
+  it("does not match non-China robot companies", () => {
+    const articles = [
+      {
+        title: "Boston Dynamics humanoid robot backflip demo",
+        source: "theverge",
+        url: "http://1",
+      },
+      { title: "Figure humanoid robot demo in factory", source: "techcrunch", url: "http://2" },
+    ];
+    expect(filterChinaAI(articles)).toEqual([]);
+  });
 });
 
 describe("extractKeywords — enhanced coverage (#51 S8)", () => {
@@ -766,6 +821,47 @@ describe("extractKeywords — enhanced coverage (#51 S8)", () => {
     const topic = result.topics.fermenting[0];
     expect(topic.keywords).toContain("梁文锋");
     expect(topic.keywords).toContain("信创");
+  });
+
+  it("includes robotics company keywords in topic output", () => {
+    const articles = [
+      {
+        title: "Unitree H2 humanoid robot demo",
+        source: "youtube",
+        url: "http://1",
+        category: "fermenting",
+      },
+    ];
+    const result = buildOutputJson(articles);
+    expect(result.topics.fermenting[0].keywords).toContain("Unitree");
+  });
+
+  it("extracts ASCII keywords at CJK boundaries", () => {
+    const articles = [
+      {
+        title: "AgiBot发布新一代AI机器人",
+        source: "36kr",
+        url: "http://1",
+        category: "fermenting",
+      },
+    ];
+    const result = buildOutputJson(articles);
+    const keywords = result.topics.fermenting[0].keywords;
+    expect(keywords).toContain("AgiBot");
+    expect(keywords).toContain("ai");
+  });
+
+  it("does not tag AI inside an ASCII word", () => {
+    const articles = [
+      {
+        title: "Dog training tips for beginners",
+        source: "blog",
+        url: "http://1",
+        category: "fermenting",
+      },
+    ];
+    const result = buildOutputJson(articles);
+    expect(result.topics.fermenting[0].keywords).not.toContain("ai");
   });
 });
 

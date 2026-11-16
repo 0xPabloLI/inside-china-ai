@@ -2,7 +2,7 @@
 
 > 来源：Thysrael/Horizon（MIT）的两个纯提示词机制，2026-09-06 由 #203 移植。不安装 Horizon 本体、不引入定时任务；只在 Agent 交叉比对选题时手动执行。原文参考：去重 prompt 源码 https://github.com/Thysrael/Horizon/blob/main/src/ai/prompting/deduplication.py 、打分 rubric https://github.com/Thysrael/Horizon/blob/main/docs/scoring.md 。
 
-选题交叉比对（`search-sources.mjs` → trending-topics.json + last30days → Agent）的固定三步：**去重 → 打分 → 按阈值过滤**。产物（选中的 topic 记录）必须为每条留痕：去重组归属 + 分数 + 一句理由。
+选题交叉比对（`search-sources.mjs` → trending-topics.json + last30days → Agent）的固定四步：**去重 → 打分 → 按阈值过滤 → 视频适配度标注与两条列表**。产物（选中的 topic 记录）必须为每条留痕：去重组归属 + 0-10 分数 + `videoFit` + `assetEvidence` + `format` + `hook` + 一句理由。
 
 ## 1. 同事件判定去重
 
@@ -44,9 +44,51 @@
 - 阈值按类型独立配置，**可复盘可调整**：调整时在本文件下方的调参记录表追加一行，注明日期与理由。
 - 低于阈值的条目不入选题，但保留在产物附注中（score + 弃选理由），供回溯。
 
+## 4. 视频适配度（videoFit）
+
+0-10 分只回答「这条新闻有多重要」，不回答「能不能做成好看的短视频」。两者分开打分：既避免把「重要但纯文字」的新闻系统性压低，也避免把「有 demo 但新闻价值一般」的 topic 抬进 Big News（9-10 档）。
+
+对每个达到阈值的 topic 追加 `videoFit`（0-5）。它只判一件事：**能不能用第一方画面在 1-2 秒内展示核心结果**。
+
+| 分  | 判据                                                                                        |
+| --- | ------------------------------------------------------------------------------------------- |
+| 5   | 有第一方动态素材，素材本身能当 hook（官方机器人后空翻、产品实测、现场动作）                 |
+| 4   | 有第一方静态素材/短片段，但结果要靠字幕或口播解释（官方产品图、发布会现场、benchmark 截图） |
+| 3   | 没有第一方素材，但能用真实图表或精准匹配的 stock 画面承载（融资数据、K 线、工厂/产线实拍）  |
+| 2   | 只有 logo、通用 stock、抽象图（人事变动、政策解读）                                         |
+| 1   | 基本纯文字，只能靠版式或 AI 生成图（观点分析、传闻）                                        |
+| 0   | 可视化会误导观众（未证实爆料、法律纠纷）                                                    |
+
+`videoFit` 必须带三个字段：
+
+- `assetEvidence`：官方 demo/产品页 URL，或 `none`。4-5 分没有 URL 不算数。
+- `format`（视频形态）：`demo-led` / `chart-led` / `data-reveal` / `explainer` / `text-led`。
+- `hook`：一句话写前 1-2 秒给观众看什么。写不出来，分数上限 2。
+
+核实第一方素材时看官方 X / YouTube / Bilibili / 视频号 / 官网 newsroom。`trending-topics.json` 的 `videos[]` 是页面级信号（整页视频会赋给每条文章），只能当线索，不能当「这条有官方 demo」的证据。
+
+### 两条列表
+
+阈值不变，选题报告同时输出两条列表：
+
+- **News-first**：按 0-10 分降序；分数相同时 `videoFit` 高的在前。跨分不翻转——视频优先的跨分排序由 Video-ready 承担。
+- **Video-ready**：只收达到类型阈值的 topic，按 `videoFit` 降序、0-10 分降序。这是「本周最适合做视频」的短名单，不替代 News-first 的编辑判断。
+
+每条 topic 的留痕至少包含：去重组归属、0-10 分、`videoFit`、`assetEvidence`、`format`、`hook`、一句理由。低于阈值的 topic 仍保留在附注中，不进入两条列表。
+
+### 选题报告位置
+
+把两条列表写到 `scripts/short-video/output/topic-selection.md`（与 `trending-topics.json` 同目录，gitignored），两张表共用字段：
+
+| Topic | 0-10 | videoFit | assetEvidence | format | hook | 理由 |
+| ----- | ---- | -------- | ------------- | ------ | ---- | ---- |
+
+Agent 在选话题的回复里贴出两张表，并给出文件路径。
+
 ## 调参记录
 
-| 日期       | 类型      | 变更     | 理由                              |
-| ---------- | --------- | -------- | --------------------------------- |
-| 2026-09-06 | tech-news | 初始 7.0 | Horizon 默认 8.0 对起步期选题过严 |
-| 2026-09-06 | tech-blog | 初始 4.0 | Horizon 默认                      |
+| 日期       | 类型      | 变更                    | 理由                                                 |
+| ---------- | --------- | ----------------------- | ---------------------------------------------------- |
+| 2026-09-06 | tech-news | 初始 7.0                | Horizon 默认 8.0 对起步期选题过严                    |
+| 2026-09-06 | tech-blog | 初始 4.0                | Horizon 默认                                         |
+| 2026-11-16 | videoFit  | 新增 0-5 标注与同分调序 | 官方 demo 类选题在同等新闻价值下优先；不改 0-10 阈值 |

@@ -123,7 +123,7 @@
   last30days --emit=json → JSON（西方社媒 + 学术，API）
   Agent 读两个 JSON → 交叉比对 → 选 topic → 写文章 → 做视频
   ```
-  交叉比对执行固定的三步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）。产物须为每条留痕：去重组归属 + 分数 + 理由。
+  交叉比对执行固定的四步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）；④ 对达到阈值的 topic 标 `videoFit`（0-5，第一方画面能否在 1-2 秒内展示核心结果）与 `assetEvidence`/`format`/`hook`，并输出 **News-first**（同分看 `videoFit`）/ **Video-ready** 两条列表。`videoFit` 不折进 0-10 分，判据见该文档 §4。产物须为每条留痕：去重组归属 + 0-10 分数 + `videoFit` + `assetEvidence` + `format` + `hook` + 理由。
 - **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据访问），也是 5 个西方源的主要搜索方式。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`
 - **Fallback 链**：CDP → googleSiteFallback (Google site: 搜索) → mcpFallback (mcp-search-bridge/Grok)
 - **何时用**：做视频前找话题，或文章前找中文平台趋势
@@ -585,7 +585,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
   ```
 - **何时用**：需要西方社媒趋势、学术信号（arXiv）、跨平台热度对比
 - **何时不用**：中文平台趋势（用 CDP 登录态趋势源）
-- **与中文平台趋势源的协作**：跨源交叉比对的三步口径（同事件去重 / 0-10 评分 / 按类阈值）与留痕要求属项目侧集成决策，见第一部分「已集成工具（项目耦合）→ search-sources.mjs」
+- **与中文平台趋势源的协作**：跨源交叉比对的四步口径（同事件去重 / 0-10 评分 / 按类阈值 / videoFit 标注与两条列表）与留痕要求属项目侧集成决策，见第一部分「已集成工具（项目耦合）→ search-sources.mjs」
 - **安全审计**：⚠️ skills.sh Gen:Fail / Snyk:Fail / Socket:Warn（LAW 1-7 指令覆盖，Agent 语义审查通过——良性格式控制，非恶意行为）
 - **安装日期**：2026-08-12
 
