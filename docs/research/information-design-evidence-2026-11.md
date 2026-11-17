@@ -248,7 +248,7 @@ n=20、ρ=.5 的 95% CI 半宽约 ±19%。所以 20 对只能检测结构性差�
 | 一镜一个注意力提示 | `lib/attention.mjs` 的 `auditAttentionBudget` | advisory |
 | 图表 pin 合法 | `lib/chart-pin-contract.mjs` | FAIL |
 | 布局身份 | `lib/layout-signature.mjs` | 已实现 |
-| 配对实验 | `experiment.mjs` + `experiment-stats.mjs` | 已实现 |
+| 配对实验 | `experiment.mjs` + `experiment-stats.mjs` | 已实现（T+72h / 发布间隔与顺序 / 3s 时长差 / 双主指标 / 固定 n 不出推断由工具强制） |
 | 盲评包 | `experiment-review.mjs` | 已实现 |
 
 **真实包审计（2026-11-16）**：

@@ -53,7 +53,10 @@ scripts/short-video/content/**/pending-analysis.json
 scripts/short-video/voice-samples/
 
 # Experiments (disposable test outputs)
-scripts/short-video/experiments/
+# Runtime experiment records; only the frozen pre-registration is tracked.
+scripts/short-video/experiments/**
+!scripts/short-video/experiments/*/
+!scripts/short-video/experiments/*/experiment.json
 scripts/youtube-thumbnail.png
 scripts/youtube-thumbnail-2x.png
 scripts/short-video/*.bak

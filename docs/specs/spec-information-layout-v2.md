@@ -130,15 +130,23 @@ Three tiers:
 
 - **L0 static contracts**: `checkInfoSpec`, render fixtures, text fit, source/unit. Must be green before L1.
 - **L1 internal blind pairwise review**: `experiment-review.mjs` builds a static HTML packet from still pairs, randomizes left/right by seed, records four 1–7 dimensions (clarity, credibility, memorability, hierarchy), exports JSON. `--analyze <export.json>` joins that export with `key.json` and reports the A−B difference per dimension with a seeded bootstrap CI, sign / Wilcoxon p-values, preference votes with a Wilson interval, and ICC(2,1) once there are two or more raters (a single rater has no agreement to measure). Below 8 pairs the report stays descriptive. No external panel in v1.
-- **L2 organic matched-pair field test**: `experiment.mjs` pre-registers, assigns variants by hash within a topic block, ingests TikTok details, runs paired permutation / Wilcoxon / bootstrap, reports MDE and limitations.
+- **L2 organic matched-pair field test**: `experiment.mjs` pre-registers, assigns variants by hash within a topic block, ingests TikTok details, runs paired permutation / Wilcoxon / bootstrap, reports MDE and limitations. The protocol below is enforced by the tool, not left to the operator:
+  - `create` pre-registers **two co-primary metrics** and the decision rule is an intersection-union test (the treatment must win **both**; no multiplicity correction is needed). A metric cannot be both primary and secondary.
+  - `assign --duration <sec>` records each pack's duration and refuses a partner whose gap exceeds 3s: an incomparable pair never enters the log.
+  - `ingest` skips a post younger than **T+72h**. Post dates carry day precision (`M/D/YYYY`), so the age used is the **latest plausible posting moment** (end of that UTC day) and the stored `ageHoursLower` is a lower bound.
+  - `ingest` also skips a pair whose posts are under **48h apart** (with day-precision dates that is only provable from three calendar days) or whose publish order contradicts the seeded `order`. `--allow-protocol-violations` keeps such a pair but stamps `protocolViolations` on the observation for a labelled sensitivity read.
+  - `report` withholds **p-values, confidence intervals and the decision** until the pre-registered pair count is complete (fixed n, no peeking). The two co-primaries share **one** gate: while either is short of the target, neither prints inference — the win-rate Wilson interval included. Interim reports print n, means and the MDE only. A pilot whose target sits below the 8-pair floor reports `descriptive-only`, never `mixed`.
+  - The sign-flip permutation is **exact through n=20**, the planned sample, so the planned read carries no Monte Carlo error.
+  - `check` audits the record before a read (unassigned or duplicated observations, a post stored below T+72h, a block whose durations drifted) and exits non-zero; `report` refuses to run on a record that fails it.
+  - The pre-registration is `scripts/short-video/experiments/<id>/experiment.json`, committed before the first pair. `.gitignore` ignores `experiments/**` and re-includes only `*/experiment.json`, so assignments and observations stay out of git while the frozen record is tracked.
 
 Field-test protocol:
 
 - 20 pairs target (40 posts), 2 pairs/week, 10 weeks; 6-pair pilot estimates σ and ρ.
-- Same topic, same script, same audio, duration gap ≤3s; only the layout factor changes.
-- Randomize which variant publishes first; ≥48h apart; same weekday/time window; avoid major news days.
-- Primary metrics: `full_video_watched_rate` and `ln(average_time_watched)`; secondary: retention@50% duration, shares/reach, comments/reach (BH-FDR).
-- Read at T+72h; T+7d only sensitivity. Fixed n; no peeking. Report n, effect, 95% CI, p, MDE, and limitations.
+- Same topic, same script, same audio, duration gap ≤3s; only the layout factor changes. (Gap: `assign --duration`.)
+- Randomize which variant publishes first; ≥48h apart; same weekday/time window; avoid major news days. (Order and interval: `ingest`.)
+- Primary metrics: `full_video_watched_rate` and `ln(average_time_watched)`; secondary: retention@50% duration, shares/reach, comments/reach (BH-FDR). (Co-primaries: `create`.)
+- Read at T+72h; T+7d only sensitivity. Fixed n; no peeking. Report n, effect, 95% CI, p, MDE, and limitations. (Maturity and peeking: `ingest` / `report`.)
 - n<8: descriptive only, no conclusion. At n=20, ρ≈0.5, MDE ≈ +28% (ln scale 0.25); this is a structural decision tool, not a micro-optimizer.
 
 ### 6. Layout signature and attribution

@@ -64,6 +64,30 @@ describe("signTest", () => {
   });
 });
 
+describe("signTest on a mixed sample", () => {
+  it("counts both tails from the larger side (C(n,k) is symmetric)", () => {
+    // n=6, 4 positive / 2 negative: P(X>=4) = (15+6+1)/64, doubled.
+    const diffs = [0.3, 0.2, 0.1, 0.05, -0.04, -0.02];
+    const result = signTest(diffs);
+    expect(result.n).toBe(6);
+    expect(result.positive).toBe(4);
+    expect(result.negative).toBe(2);
+    expect(result.p).toBeCloseTo((2 * 22) / 64, 10);
+  });
+
+  it("matches the exact binomial at n=18", () => {
+    // 7 positive / 11 negative: 2 * P(X>=11) at n=18.
+    const diffs = [
+      ...Array.from({ length: 7 }, (_, i) => 0.1 + i / 100),
+      ...Array.from({ length: 11 }, (_, i) => -(0.1 + i / 100)),
+    ];
+    const result = signTest(diffs);
+    expect(result.positive).toBe(7);
+    // sum C(18,11..18) = 63004 over 2^18, doubled: 0.480682...
+    expect(result.p).toBeCloseTo(0.480682373, 6);
+  });
+});
+
 describe("wilcoxonSignedRank", () => {
   it("is significant for six same-direction pairs", () => {
     const result = wilcoxonSignedRank([1, 2, 3, 4, 5, 6]);

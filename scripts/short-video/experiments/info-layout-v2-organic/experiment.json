@@ -1,0 +1,22 @@
+{
+  "id": "info-layout-v2-organic",
+  "createdAt": "2026-11-17T22:44:11.493Z",
+  "hypothesis": "Native-chart screens raise completion and watch time versus chart-card screenshots on the same script",
+  "factor": "native-chart-vs-chart-card",
+  "primaryMetrics": [
+    "fullVideoWatchedRate",
+    "logAvgWatchTimeSec"
+  ],
+  "secondaryMetrics": [],
+  "design": "matched-pair",
+  "targetPairs": 20,
+  "alpha": 0.05,
+  "power": 0.8,
+  "seed": 20261117,
+  "variants": {
+    "A": "chart-card screenshot",
+    "B": "native chart"
+  },
+  "status": "registered",
+  "notes": "Pre-registered before any pair is published (#1398 L2). First 6 pairs act as the sigma/rho pilot and are read descriptively; inference appears only at 20 pairs. Block = one topic published twice; same script and audio, duration gap <=3s; publish order seeded at assignment."
+}
