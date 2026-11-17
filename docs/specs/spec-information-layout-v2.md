@@ -127,6 +127,7 @@ Field-test protocol:
 - New: `lib/info-grammar.mjs`, `lib/experiment-stats.mjs`, `lib/layout-signature.mjs`, `remotion/src/components/charts/*`, `experiment.mjs`, `experiment-review.mjs`, tests, spec/research docs.
 - Modified: `remotion/src/types.ts` (SceneData + InfoSpec), `remotion/src/scenes/DataScene.tsx` (`chart` layout), `remotion/src/components/charts/*` (native chart renderer, panel, tokens, formatters), `lib/text-slots.mjs` (`info` layout slot map), `lib/type-scale.mjs` (`data.chart` focal), `lib/scene-rules.mjs` (gates + runner), `lib/publish-utils.mjs` / `publish-tiktok.mjs` (pending metadata), `scene-gate-fixture.tsx` + `scene-gate-render.test.mjs` (new baselines), docs.
 - Existing consumers: `ShortVideo.tsx` dispatch unchanged; `checkEmptyField` sees `data.chart` focal; `cohort-report` ignores new fields until extended; `tiktok-upload-prep` writes pending analysis via shared builder.
+- R3 follow-up (blind-review payoff): new `lib/blind-review-analysis.mjs`; modified `experiment-review.mjs` (`--analyze` / `--key` / `--labels` / `--out`; `--manifest` unchanged) and `lib/experiment-stats.mjs` (`icc21`). Risk: an under-powered analysis gets quoted as a verdict. Mitigation: single rater reports `n/a` instead of ICC; a dimension under 8 pairs withholds its p-values; the report always prints the pair count it used.
 - Worst consequence of a mistake: a native chart renders wrong data/units or a gate blocks a legal pack. Mitigation: schema fail-closed at preflight; `chart-card` path untouched; new layout only opt-in; pixel fixtures cover each chart type; `checkInfoSpec` tests against real packs.
 
 ## Behavioral Scenarios（R3）
@@ -145,6 +146,9 @@ Field-test protocol:
 | S10 | experiment all pairs same direction, n=6 | sign/permutation p≈0.031; report calls it "directional, small n" |
 | S11 | publish a v2 pack | `pending-analysis.json` carries slug + layoutSignature + v2 version |
 | S12 | old pack re-render | no visual change; layout signature still computed |
+| S13 | reviewer export + `key.json`，某对左右已翻转 | `--analyze` 按 key 还原变体：left 偏好记给 key 的 left 变体，A−B 差值符号随 key 翻转 |
+| S14 | 只有一位评分者 | 报告写 `single rater: agreement needs at least two`，不打印 ICC 行，不伪造一致性数字 |
+| S15 | 某对只有一侧打分，或某维度不足 8 对 | 该对不进配对差值（不跨评分者拼 A/B）；该维度 p 值留空并标 `*`，报告只作描述 |
 
 ## Testing Decisions
 
@@ -152,6 +156,7 @@ Field-test protocol:
 - Render: add `topology-chart-bar`, `topology-chart-deviation`, `topology-chart-line`, `topology-chart-slope`, `topology-chart-proportion` to `BASELINE_SCENES` and `BASELINES`; each is a legal 1080×1920 still. Keep existing `topology-chart-card` untouched.
 - Real data: 4 packs; `verify-video --pre` 0 FAIL; render stills; inspect labels/units/highlight.
 - Experiment: fixture JSONL observations; CLI `create/assign/ingest/report`; golden report with n=20 synthetic rows.
+- Blind review: `blind-review-analysis.test.mjs` (key mapping incl. flipped pairs, tie/unrated accounting, single-rater ICC refusal, identical vs mirrored raters, per-dimension floor suppression, cross-rater A/B mixing guard) plus a CLI run that writes `report.json`; `experiment-stats.test.mjs` covers `icc21` degenerate inputs.
 - Docs: `lint:docs`.
 
 ## Out of Scope

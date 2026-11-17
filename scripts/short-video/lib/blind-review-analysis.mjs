@@ -11,13 +11,16 @@
  *   - ICC(2,1) across raters on the A−B difference, when there is more than one
  *     rater (a single rater has no agreement to measure).
  *
- * Everything above the pair count floor is descriptive: with fewer than 8 pairs
- * the tests cannot separate a real effect from noise, so the report says so
- * instead of naming a winner. Pure functions only — the CLI does the file I/O.
+ * Everything below the pair count floor is descriptive: with fewer than 8 pairs
+ * the tests cannot separate a real effect from noise, so a dimension is marked
+ * non-reportable instead of printed as if it settled anything. Pure functions
+ * only — the CLI does the file I/O.
  */
 
 import {
   bootstrapCI,
+  icc21,
+  mean,
   pairedSummary,
   signTest,
   wilcoxonSignedRank,
@@ -61,41 +64,24 @@ function preferenceVariant(record, keyPair) {
 }
 
 /**
- * Two-way random-effects, absolute-agreement, single-measure ICC: ICC(2,1).
- *
- * @param {number[][]} columns one column per rater, one row per pair
+ * The packet always writes a record per pair, with `null`s when untouched, so
+ * "rated" cannot mean "record exists". A pair counts as rated once it carries a
+ * preference or at least one score on either side.
  */
-export function icc21(columns) {
-  const raters = columns.length;
-  const rows = columns[0]?.length ?? 0;
-  if (raters < 2 || rows < 2) return null;
-  const grand =
-    columns.reduce((sum, column) => sum + column.reduce((a, b) => a + b, 0), 0) / (raters * rows);
-  const rowMeans = [];
-  for (let i = 0; i < rows; i++) {
-    let sum = 0;
-    for (const column of columns) sum += column[i];
-    rowMeans.push(sum / raters);
+function isRated(record, keyPair) {
+  if (!record) return false;
+  if (
+    record.preference === "left" ||
+    record.preference === "right" ||
+    record.preference === "tie"
+  ) {
+    return true;
   }
-  const raterMeans = columns.map((column) => column.reduce((a, b) => a + b, 0) / rows);
-  let ssRows = 0;
-  for (const value of rowMeans) ssRows += (value - grand) ** 2;
-  ssRows *= raters;
-  let ssRaters = 0;
-  for (const value of raterMeans) ssRaters += (value - grand) ** 2;
-  ssRaters *= rows;
-  let ssError = 0;
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < raters; j++) {
-      ssError += (columns[j][i] - rowMeans[i] - raterMeans[j] + grand) ** 2;
-    }
-  }
-  const msRows = ssRows / (rows - 1);
-  const msRaters = ssRaters / (raters - 1);
-  const msError = ssError / ((rows - 1) * (raters - 1));
-  const denominator = msRows + (raters - 1) * msError + (raters * (msRaters - msError)) / rows;
-  if (!Number.isFinite(denominator) || denominator === 0) return null;
-  return (msRows - msError) / denominator;
+  return DIMENSIONS.some(
+    (dimension) =>
+      scoreFor(record, keyPair, dimension, "A") !== null ||
+      scoreFor(record, keyPair, dimension, "B") !== null,
+  );
 }
 
 function formatNumber(value, digits = 2) {
@@ -137,7 +123,9 @@ export function analyzeBlindReview({ exports, key, labels = {} } = {}) {
   }
 
   const warnings = [];
-  const unrated = key.pairs.filter((pair) => exports.every((entry) => !entry.pairs?.[pair.pairId]));
+  const unrated = key.pairs.filter((pair) =>
+    exports.every((entry) => !isRated(entry.pairs?.[pair.pairId], pair)),
+  );
   if (unrated.length > 0) {
     warnings.push(`${unrated.length} pair(s) unrated: ${unrated.map((p) => p.pairId).join(", ")}`);
   }
@@ -147,32 +135,38 @@ export function analyzeBlindReview({ exports, key, labels = {} } = {}) {
     const a = [];
     const b = [];
     for (const pair of key.pairs) {
-      const scores = { A: [], B: [] };
+      // A pair only counts when one rater scored both sides: pulling A from one
+      // rater and B from another would compare different people, not layouts.
+      const pairA = [];
+      const pairB = [];
       for (const entry of exports) {
         const record = entry.pairs?.[pair.pairId];
         const scoreA = scoreFor(record, pair, dimension, "A");
         const scoreB = scoreFor(record, pair, dimension, "B");
-        if (scoreA !== null) scores.A.push(scoreA);
-        if (scoreB !== null) scores.B.push(scoreB);
+        if (scoreA === null || scoreB === null) continue;
+        pairA.push(scoreA);
+        pairB.push(scoreB);
       }
-      if (scores.A.length === 0 || scores.B.length === 0) continue;
-      a.push(scores.A.reduce((sum, value) => sum + value, 0) / scores.A.length);
-      b.push(scores.B.reduce((sum, value) => sum + value, 0) / scores.B.length);
+      if (pairA.length === 0) continue;
+      a.push(mean(pairA));
+      b.push(mean(pairB));
     }
     const summary = pairedSummary(a, b);
     const diffs = summary.diffs;
-    const ci = bootstrapCI(diffs, { seed: key.seed ?? 20261116 });
+    const hasPairs = summary.n > 0;
+    const ci = hasPairs ? bootstrapCI(diffs, { seed: key.seed ?? 20261116 }) : null;
     dimensions.push({
       dimension,
       n: summary.n,
-      meanA: summary.meanA,
-      meanB: summary.meanB,
-      meanDiff: summary.meanDiff,
-      sdDiff: summary.sdDiff,
+      reportable: summary.n >= MIN_PAIRS_FOR_TEST,
+      meanA: hasPairs ? summary.meanA : null,
+      meanB: hasPairs ? summary.meanB : null,
+      meanDiff: hasPairs ? summary.meanDiff : null,
+      sdDiff: hasPairs ? summary.sdDiff : null,
       wins: summary.wins,
       losses: summary.losses,
       ties: summary.ties,
-      ci: { low: ci.low, high: ci.high, level: ci.level },
+      ci: ci ? { low: ci.low, high: ci.high, level: ci.level } : null,
       signTest: signTest(diffs),
       wilcoxon: wilcoxonSignedRank(diffs),
     });
@@ -201,7 +195,6 @@ export function analyzeBlindReview({ exports, key, labels = {} } = {}) {
   const shareCi = decisive === 0 ? null : wilsonInterval(votes.A, decisive);
 
   const iccByDimension = {};
-  const iccNotes = [];
   for (const dimension of DIMENSIONS) {
     const columns = [];
     for (const entry of exports) {
@@ -221,7 +214,7 @@ export function analyzeBlindReview({ exports, key, labels = {} } = {}) {
     const value = columns.length >= 2 ? icc21(columns) : null;
     iccByDimension[dimension] = value;
     if (columns.length >= 2 && value === null) {
-      iccNotes.push(`${dimension}: ICC undefined (zero variance across raters)`);
+      warnings.push(`${dimension}: ICC undefined (zero variance across raters)`);
     }
   }
   const iccAvailable = Object.values(iccByDimension).some((value) => isFiniteNumber(value));
@@ -235,10 +228,10 @@ export function analyzeBlindReview({ exports, key, labels = {} } = {}) {
     byDimension: iccByDimension,
   };
 
-  const pairCount = Math.max(...dimensions.map((entry) => entry.n), 0);
-  if (pairCount < MIN_PAIRS_FOR_TEST) {
+  const pairsRated = key.pairs.length - unrated.length;
+  if (pairsRated < MIN_PAIRS_FOR_TEST) {
     warnings.push(
-      `n=${pairCount} pairs < ${MIN_PAIRS_FOR_TEST}: report descriptively, no test-based winner`,
+      `n=${pairsRated} rated pairs < ${MIN_PAIRS_FOR_TEST}: report descriptively, no test-based winner`,
     );
   }
   if (exports.length > 1) {
@@ -251,7 +244,7 @@ export function analyzeBlindReview({ exports, key, labels = {} } = {}) {
     experimentId,
     seed: key.seed ?? null,
     raters: exports.length,
-    pairsRated: key.pairs.length - unrated.length,
+    pairsRated,
     pairsTotal: key.pairs.length,
     variants: { A: labels.A || "A", B: labels.B || "B" },
     dimensions,
@@ -269,7 +262,8 @@ export function analyzeBlindReview({ exports, key, labels = {} } = {}) {
 
 /**
  * Human-readable report for the terminal. Numbers stay at 2 decimals; a
- * non-finite value prints as an em-free dash so the table stays aligned.
+ * non-finite value prints as a dash so the table stays aligned. Dimensions with
+ * fewer than 8 pairs keep their p-values but get a `*` and suppressed columns.
  */
 export function formatBlindReviewReport(report) {
   const { variants } = report;
@@ -284,7 +278,7 @@ export function formatBlindReviewReport(report) {
   lines.push("");
   lines.push(
     [
-      "dimension".padEnd(14),
+      "dimension".padEnd(15),
       "A mean".padStart(7),
       "B mean".padStart(7),
       "A−B".padStart(7),
@@ -293,20 +287,25 @@ export function formatBlindReviewReport(report) {
       "wilcox p".padStart(9),
     ].join(" "),
   );
+  let suppressed = false;
   for (const entry of report.dimensions) {
-    const ci = `[${formatNumber(entry.ci.low)}, ${formatNumber(entry.ci.high)}]`;
+    const name = entry.reportable ? entry.dimension : `${entry.dimension}*`;
+    if (!entry.reportable) suppressed = true;
+    const ci = entry.ci ? `[${formatNumber(entry.ci.low)}, ${formatNumber(entry.ci.high)}]` : "—";
     lines.push(
       [
-        entry.dimension.padEnd(14),
+        name.padEnd(15),
         formatNumber(entry.meanA).padStart(7),
         formatNumber(entry.meanB).padStart(7),
         formatNumber(entry.meanDiff).padStart(7),
         ci.padStart(16),
-        formatP(entry.signTest.p).padStart(8),
-        formatP(entry.wilcoxon.p).padStart(9),
+        (entry.reportable ? formatP(entry.signTest.p) : "—").padStart(8),
+        (entry.reportable ? formatP(entry.wilcoxon.p) : "—").padStart(9),
       ].join(" "),
     );
   }
+  if (suppressed)
+    lines.push(`* fewer than ${MIN_PAIRS_FOR_TEST} pairs in that dimension: descriptive only`);
   lines.push("");
   const { votes, decisive, shareA, ci } = report.preference;
   const shareText =

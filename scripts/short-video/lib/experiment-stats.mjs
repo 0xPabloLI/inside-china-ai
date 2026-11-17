@@ -432,3 +432,45 @@ export function pairedSummary(a, b) {
     diffs,
   };
 }
+
+/**
+ * Two-way random-effects, absolute-agreement, single-measure ICC: ICC(2,1).
+ *
+ * Used for rater agreement on the same quantity (the A−B difference in the
+ * blind review); a single rater has no agreement to measure and returns null.
+ *
+ * @param {number[][]} columns one column per rater, one row per item
+ * @returns {number|null}
+ */
+export function icc21(columns) {
+  const raters = Array.isArray(columns) ? columns.length : 0;
+  const rows = columns?.[0]?.length ?? 0;
+  if (raters < 2 || rows < 2) return null;
+  const grand =
+    columns.reduce((sum, column) => sum + column.reduce((a, b) => a + b, 0), 0) / (raters * rows);
+  const rowMeans = [];
+  for (let i = 0; i < rows; i++) {
+    let sum = 0;
+    for (const column of columns) sum += column[i];
+    rowMeans.push(sum / raters);
+  }
+  const raterMeans = columns.map((column) => column.reduce((a, b) => a + b, 0) / rows);
+  let ssRows = 0;
+  for (const value of rowMeans) ssRows += (value - grand) ** 2;
+  ssRows *= raters;
+  let ssRaters = 0;
+  for (const value of raterMeans) ssRaters += (value - grand) ** 2;
+  ssRaters *= rows;
+  let ssError = 0;
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < raters; j++) {
+      ssError += (columns[j][i] - rowMeans[i] - raterMeans[j] + grand) ** 2;
+    }
+  }
+  const msRows = ssRows / (rows - 1);
+  const msRaters = ssRaters / (raters - 1);
+  const msError = ssError / ((rows - 1) * (raters - 1));
+  const denominator = msRows + (raters - 1) * msError + (raters * (msRaters - msError)) / rows;
+  if (!Number.isFinite(denominator) || denominator === 0) return null;
+  return (msRows - msError) / denominator;
+}

@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   analyzeBlindReview,
   formatBlindReviewReport,
-  icc21,
   REVIEW_DIMENSIONS,
 } from "../lib/blind-review-analysis.mjs";
 import { parseLabels } from "../experiment-review.mjs";
@@ -26,8 +25,8 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-/** A key with `count` pairs; even pairs are flipped so left is variant B. */
-function makeKey(count = 6, extras = {}) {
+/** A key with `count` pairs; every other pair is flipped so left is variant B. */
+function makeKey(count = 6) {
   const pairs = [];
   for (let i = 0; i < count; i++) {
     const flipped = i % 2 === 0;
@@ -38,16 +37,16 @@ function makeKey(count = 6, extras = {}) {
       right: flipped ? "A" : "B",
     });
   }
-  return { experimentId: "info-layout-v2", seed: 20261116, pairs, ...extras };
+  return { experimentId: "info-layout-v2", seed: 20261116, pairs };
 }
 
-function rating(value) {
-  const ratings = {};
-  for (const dimension of DIMENSIONS) ratings[dimension] = { left: value, right: value };
-  return ratings;
+function nullRatings() {
+  return Object.fromEntries(
+    DIMENSIONS.map((dimension) => [dimension, { left: null, right: null }]),
+  );
 }
 
-/** Build an export from per-pair specs; `A`/`B` are written to the matching side. */
+/** Build an export from per-pair specs; `A`/`B` land on the side the key names. */
 function makeExport(
   specs,
   { experimentId = "info-layout-v2", source = "export.json", key = makeKey() } = {},
@@ -78,7 +77,7 @@ describe("analyzeBlindReview", () => {
     const key = makeKey(2);
     const scores = { clarity: { A: 3, B: 7 } };
     const result = analyzeBlindReview({
-      exports: [makeExport([{ pairId: "p1", preference: "left", scores }])],
+      exports: [makeExport([{ pairId: "p1", preference: "left", scores }], { key })],
       key,
       labels: { A: "old", B: "new" },
     });
@@ -102,14 +101,13 @@ describe("analyzeBlindReview", () => {
       exports: [makeExport(specs)],
       key: makeKey(),
     });
-    // p1/p3 are flipped, p2/p4 are not: two left votes split A/B, one right vote,
-    // one tie. Six pairs in the key, two of them unrated.
+    // p1/p3 are flipped, p2/p4 are not: the two left votes split A/B, one right
+    // vote lands on A, one tie. Six pairs in the key, two of them unrated.
+    expect(result.preference.votes.A).toBe(2);
+    expect(result.preference.votes.B).toBe(1);
     expect(result.preference.votes.tie).toBe(1);
-    expect(result.preference.decisive).toBe(result.preference.votes.A + result.preference.votes.B);
-    expect(result.preference.shareA).toBeCloseTo(
-      result.preference.votes.A / result.preference.decisive,
-      12,
-    );
+    expect(result.preference.decisive).toBe(3);
+    expect(result.preference.shareA).toBeCloseTo(2 / 3, 12);
     expect(result.pairsRated).toBe(4);
     expect(result.pairsTotal).toBe(6);
     expect(result.warnings.join(" ")).toMatch(/2 pair\(s\) unrated/);
@@ -135,12 +133,13 @@ describe("analyzeBlindReview", () => {
       preference: diff < 0 ? "left" : "right",
       scores: { clarity: { A: 4, B: 4 - diff } },
     }));
+    const key = makeKey();
     const result = analyzeBlindReview({
       exports: [
-        makeExport(specs, { source: "rater-1.json" }),
-        makeExport(specs, { source: "rater-2.json" }),
+        makeExport(specs, { key, source: "rater-1.json" }),
+        makeExport(specs, { key, source: "rater-2.json" }),
       ],
-      key: makeKey(),
+      key,
     });
     expect(result.raters).toBe(2);
     expect(result.icc.available).toBe(true);
@@ -150,6 +149,7 @@ describe("analyzeBlindReview", () => {
   it("scores disagreeing raters as poor agreement", () => {
     const forwards = [-4, -2, 0, 2, 4, 1];
     const backwards = forwards.map((value) => -value);
+    const key = makeKey();
     const build = (diffs, source) =>
       makeExport(
         diffs.map((diff, index) => ({
@@ -157,11 +157,11 @@ describe("analyzeBlindReview", () => {
           preference: diff < 0 ? "left" : "right",
           scores: { clarity: { A: 4, B: 4 - diff } },
         })),
-        { source },
+        { key, source },
       );
     const result = analyzeBlindReview({
       exports: [build(forwards, "rater-1.json"), build(backwards, "rater-2.json")],
-      key: makeKey(),
+      key,
     });
     expect(result.icc.available).toBe(true);
     expect(result.icc.byDimension.clarity).toBeLessThan(0.5);
@@ -174,7 +174,58 @@ describe("analyzeBlindReview", () => {
       ],
       key: makeKey(2),
     });
-    expect(result.warnings.join(" ")).toMatch(/n=1 pairs < 8/);
+    expect(result.warnings.join(" ")).toMatch(/n=1 rated pairs < 8/);
+    expect(result.dimensions.every((entry) => entry.reportable === false)).toBe(true);
+  });
+
+  it("treats an all-null packet record as unrated", () => {
+    const key = makeKey(2);
+    const exported = makeExport([], { key, source: "untouched.json" });
+    // The packet writes a record for every pair, with nulls when untouched.
+    exported.pairs.p1 = { block: "p1", preference: null, ratings: nullRatings() };
+    const result = analyzeBlindReview({ exports: [exported], key });
+    expect(result.pairsRated).toBe(0);
+    expect(result.warnings.join(" ")).toMatch(/2 pair\(s\) unrated/);
+  });
+
+  it("never pairs one rater's A with another rater's B", () => {
+    const key = makeKey(2);
+    const leftOnly = makeExport([], { key, source: "rater-1.json" });
+    leftOnly.pairs.p1 = {
+      block: "p1",
+      preference: null,
+      ratings: Object.fromEntries(
+        DIMENSIONS.map((dimension) => [dimension, { left: 7, right: null }]),
+      ),
+    };
+    const rightOnly = makeExport([], { key, source: "rater-2.json" });
+    rightOnly.pairs.p1 = {
+      block: "p1",
+      preference: null,
+      ratings: Object.fromEntries(
+        DIMENSIONS.map((dimension) => [dimension, { left: null, right: 1 }]),
+      ),
+    };
+    const result = analyzeBlindReview({ exports: [leftOnly, rightOnly], key });
+    expect(result.dimensions.every((entry) => entry.n === 0)).toBe(true);
+    expect(result.dimensions.every((entry) => entry.meanA === null)).toBe(true);
+    expect(result.dimensions.every((entry) => entry.ci === null)).toBe(true);
+    expect(formatBlindReviewReport(result)).toMatch(/clarity\* +— +— +— +—/);
+  });
+
+  it("suppresses p-values per dimension below the floor", () => {
+    const specs = [1, 2, 3].map((index) => ({
+      pairId: `p${index}`,
+      preference: "left",
+      scores: { clarity: { A: 1, B: 7 } },
+    }));
+    const result = analyzeBlindReview({ exports: [makeExport(specs)], key: makeKey(6) });
+    const clarity = result.dimensions.find((entry) => entry.dimension === "clarity");
+    expect(clarity.n).toBe(3);
+    expect(clarity.reportable).toBe(false);
+    const table = formatBlindReviewReport(result);
+    expect(table).toMatch(/clarity\*/);
+    expect(table).toMatch(/fewer than 8 pairs in that dimension/);
   });
 
   it("rejects an export from another experiment", () => {
@@ -188,17 +239,10 @@ describe("analyzeBlindReview", () => {
 
   it("rejects a pair that is not in the key", () => {
     const exported = makeExport([], { source: "rogue.json" });
-    exported.pairs.ghost = { preference: "left", ratings: {} };
+    exported.pairs.ghost = { preference: "left", ratings: nullRatings() };
     expect(() => analyzeBlindReview({ exports: [exported], key: makeKey() })).toThrow(
       /not in the key/,
     );
-  });
-});
-
-describe("icc21", () => {
-  it("returns null when there is nothing to compare", () => {
-    expect(icc21([[1, 2, 3]])).toBeNull();
-    expect(icc21([[1], [2]])).toBeNull();
   });
 });
 
@@ -216,10 +260,13 @@ describe("experiment-review --analyze", () => {
     const dir = tempDir();
     const key = makeKey(2);
     writeFileSync(join(dir, "key.json"), `${JSON.stringify(key)}\n`, "utf8");
-    const exported = makeExport([
-      { pairId: "p1", preference: "left", scores: { clarity: { A: 3, B: 6 } } },
-      { pairId: "p2", preference: "tie", scores: { clarity: { A: 5, B: 5 } } },
-    ]);
+    const exported = makeExport(
+      [
+        { pairId: "p1", preference: "left", scores: { clarity: { A: 3, B: 6 } } },
+        { pairId: "p2", preference: "tie", scores: { clarity: { A: 5, B: 5 } } },
+      ],
+      { key },
+    );
     const exportPath = join(dir, "export.json");
     writeFileSync(exportPath, `${JSON.stringify(exported)}\n`, "utf8");
 
