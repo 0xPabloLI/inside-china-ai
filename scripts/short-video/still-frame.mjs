@@ -137,6 +137,7 @@ const { manifestPath } = writeRenderArtifacts({
   bgmPath: null,
   subject: null,
   command: argv,
+  kind: "still",
 });
 
 const remotionDir = join(__dirname, "remotion");

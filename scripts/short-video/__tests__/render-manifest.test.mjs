@@ -164,6 +164,32 @@ describe("writeRenderArtifacts", () => {
     );
     expect(() => readRenderArtifacts(manifestPath)).toThrow(/props/i);
   });
+
+  it("refuses a manifest missing the fields a replay needs", () => {
+    // An undefined rawPath used to reach finalize as both the ffmpeg input and
+    // output, so the field check is part of the contract, not politeness.
+    const { manifestPath, manifest } = writeRenderArtifacts({
+      outputDir: join(root, "pack"),
+      version: "v1",
+      props: PROPS,
+      pipelineId: "pack",
+      contentDir: "/content/pack",
+      rawPath: "/out/raw.mp4",
+      finalPath: "/out/final.mp4",
+      subtitlesPath: null,
+      bgmPath: null,
+      subject: null,
+      command: [REMOTION_BIN],
+    });
+
+    for (const field of ["rawPath", "finalPath", "pipelineId", "propsPath"]) {
+      writeFileSync(manifestPath, JSON.stringify({ ...manifest, [field]: undefined }));
+      expect(() => readRenderArtifacts(manifestPath), field).toThrow(new RegExp(field));
+    }
+
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, command: [] }));
+    expect(() => readRenderArtifacts(manifestPath)).toThrow(/command/);
+  });
 });
 
 describe("render command", () => {

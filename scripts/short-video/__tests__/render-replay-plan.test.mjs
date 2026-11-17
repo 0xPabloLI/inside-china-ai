@@ -15,6 +15,7 @@ import {
   REMOTION_BIN,
   assertReplayableCommand,
   buildRemotionRenderArgs,
+  buildStillRenderArgs,
   planReplay,
   propsPathFor,
   renderArtifactDir,
@@ -136,7 +137,7 @@ describe("planReplay", () => {
     expect(text).toContain(join(audioDir, "scene-2.wav"));
   });
 
-  it("does not block on a missing subtitle or BGM file, but reports it", () => {
+  it("blocks when a recorded subtitle is gone", () => {
     const outputDir = join(root, "output", "pack");
     const propsPath = propsPathFor(renderArtifactDir(outputDir, "v2"));
     const { manifestPath: other } = writeRenderArtifacts({
@@ -149,14 +150,60 @@ describe("planReplay", () => {
       rawPath: join(root, "raw.mp4"),
       finalPath: join(root, "final.mp4"),
       subtitlesPath: join(root, "gone.ass"),
-      bgmPath: join(root, "gone.mp3"),
+      bgmPath: null,
       subject: null,
       command: buildRemotionRenderArgs({ rawPath: join(root, "raw.mp4"), propsPath }),
     });
     const plan = planReplay({ manifestPath: other, publicDir, remotionDir: "/remotion" });
+    expect(plan.ok).toBe(false);
+    expect(plan.blocking.join("\n")).toContain("subtitle missing");
+    expect(plan.blocking.join("\n")).toContain("gone.ass");
+  });
+
+  it("notes when no audio was recorded, because finalize then skips realign", () => {
+    const outputDir = join(root, "output", "pack");
+    const propsPath = propsPathFor(renderArtifactDir(outputDir, "v3"));
+    const rawPath = join(root, "raw.mp4");
+    const { manifestPath: other } = writeRenderArtifacts({
+      outputDir,
+      version: "v3",
+      props: { scenes: [{ id: 1 }], audioPaths: [], durations: [3], contentDir: "/c" },
+      pipelineId: "pack",
+      contentDir: "/c",
+      audioDir,
+      rawPath,
+      finalPath: join(root, "final.mp4"),
+      subtitlesPath: null,
+      bgmPath: null,
+      subject: null,
+      command: buildRemotionRenderArgs({ rawPath, propsPath }),
+    });
+    const plan = planReplay({ manifestPath: other, publicDir, remotionDir: "/remotion" });
     expect(plan.ok).toBe(true);
-    expect(plan.notes.join("\n")).toContain("gone.ass");
-    expect(plan.notes.join("\n")).toContain("gone.mp3");
+    expect(plan.notes.join("\n")).toContain("no audio recorded");
+  });
+
+  it("reports a still manifest as a still, not a video", () => {
+    const outputDir = join(root, "output", "pack");
+    const propsPath = propsPathFor(renderArtifactDir(outputDir, "still-30"));
+    const { manifestPath: still } = writeRenderArtifacts({
+      outputDir,
+      version: "still-30",
+      props: { scenes: [{ id: 1 }], audioPaths: [], durations: [3], contentDir: "/c" },
+      pipelineId: "pack",
+      contentDir: "/c",
+      audioDir,
+      rawPath: "/tmp/still.png",
+      finalPath: "/tmp/still.png",
+      subtitlesPath: null,
+      bgmPath: null,
+      subject: null,
+      command: buildStillRenderArgs({ out: "/tmp/still.png", frame: 30, propsPath }),
+      kind: "still",
+    });
+    const plan = planReplay({ manifestPath: still, publicDir, remotionDir: "/remotion" });
+    expect(plan.kind).toBe("still");
+    expect(plan.ok).toBe(true);
   });
 
   it("refuses a recorded command that is not a render", () => {
@@ -176,8 +223,38 @@ describe("planReplay", () => {
         "--props=/elsewhere.json",
       ],
       propsPath: "/x/props.json",
+      rawPath: "/o.mp4",
     };
     expect(() => assertReplayableCommand(manifest)).toThrow(/does not match/);
+  });
+
+  it("refuses a command that renders another composition or output", () => {
+    const propsPath = "/x/props.json";
+    const base = [REMOTION_BIN, "remotion", "render", "src/Root.tsx"];
+    expect(() =>
+      assertReplayableCommand({
+        command: [...base, "Other", "/o.mp4", `--props=${propsPath}`],
+        propsPath,
+        rawPath: "/o.mp4",
+      }),
+    ).toThrow(/not src\/Root.tsx ShortVideo/);
+    expect(() =>
+      assertReplayableCommand({
+        command: [...base, "ShortVideo", "/elsewhere.mp4", `--props=${propsPath}`],
+        propsPath,
+        rawPath: "/o.mp4",
+      }),
+    ).toThrow(/recorded output/);
+  });
+
+  it("refuses a still without a numeric frame", () => {
+    const propsPath = "/x/props.json";
+    const command = buildStillRenderArgs({ out: "/tmp/x.png", frame: 30, propsPath }).map((arg) =>
+      arg === "--frame=30" ? "--frame=../.." : arg,
+    );
+    expect(() => assertReplayableCommand({ command, propsPath, rawPath: "/tmp/x.png" })).toThrow(
+      /numeric --frame/,
+    );
   });
 
   it("fails readably when the manifest itself is missing", () => {

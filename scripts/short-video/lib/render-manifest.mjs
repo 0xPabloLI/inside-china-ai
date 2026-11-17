@@ -33,9 +33,8 @@ import { shellQuote } from "./shell-quote.mjs";
 const RENDER_MANIFEST_SCHEMA = 1;
 
 /**
- * The executable the recorded commands start with. Exported so tests assert
- * against the same constant the render door uses instead of a literal that
- * the render-suite policy reads as a CLI spawn.
+ * The executable both command builders start with. Exported so the replay
+ * allowlist and the tests agree on one definition of it.
  */
 export const REMOTION_BIN = "npx";
 
@@ -83,6 +82,7 @@ function sha256(text) {
  * @param {string|null} input.bgmPath
  * @param {string|null} input.subject
  * @param {string[]} input.command - exact argv, no shell quoting
+ * @param {"render"|"still"} [input.kind] - a still has no finalize pass
  * @returns {{dir: string, propsPath: string, manifestPath: string, manifest: object}}
  */
 export function writeRenderArtifacts({
@@ -98,6 +98,7 @@ export function writeRenderArtifacts({
   bgmPath = null,
   subject = null,
   command,
+  kind = "render",
 }) {
   const dir = renderArtifactDir(outputDir, version);
   mkdirSync(dir, { recursive: true });
@@ -109,6 +110,7 @@ export function writeRenderArtifacts({
 
   const manifest = {
     schema: RENDER_MANIFEST_SCHEMA,
+    kind,
     createdAt: new Date().toISOString(),
     pipelineId,
     version: version ?? null,
@@ -129,8 +131,14 @@ export function writeRenderArtifacts({
   return { dir, propsPath, manifestPath, manifest };
 }
 
+/** Values `kind` may carry; older manifests have none and mean "render". */
+const MANIFEST_KINDS = new Set(["render", "still"]);
+
 /**
  * Read a manifest and verify the props it points at are the ones it recorded.
+ *
+ * Validation is part of the contract: a manifest missing `rawPath` used to flow
+ * into finalize, where `undefined` became both the ffmpeg input and output.
  *
  * @param {string} manifestPath
  * @returns {{manifest: object, props: Record<string, unknown>}}
@@ -147,9 +155,23 @@ export function readRenderArtifacts(manifestPath) {
       `render manifest schema ${JSON.stringify(manifest.schema)} is not supported (expected ${RENDER_MANIFEST_SCHEMA}): ${manifestPath}`,
     );
   }
+  for (const field of ["pipelineId", "rawPath", "finalPath", "propsPath"]) {
+    if (typeof manifest[field] !== "string" || manifest[field].length === 0) {
+      throw new Error(`render manifest is missing "${field}": ${manifestPath}`);
+    }
+  }
+  if (!Array.isArray(manifest.command) || manifest.command.length === 0) {
+    throw new Error(`render manifest is missing its recorded command: ${manifestPath}`);
+  }
+  const kind = manifest.kind ?? "render";
+  if (!MANIFEST_KINDS.has(kind)) {
+    throw new Error(`render manifest kind ${JSON.stringify(manifest.kind)} is not supported`);
+  }
+  manifest.kind = kind;
+
   const propsPath = manifest.propsPath;
-  if (!propsPath || !existsSync(propsPath)) {
-    throw new Error(`render manifest points at a missing props file: ${propsPath || "(unset)"}`);
+  if (!existsSync(propsPath)) {
+    throw new Error(`render manifest points at a missing props file: ${propsPath}`);
   }
   const text = readFileSync(propsPath, "utf8");
   if (manifest.propsSha256 && sha256(text) !== manifest.propsSha256) {
@@ -257,7 +279,7 @@ export function planFinalize({ manifest, props, exists = existsSync }) {
     manifest.subtitlesPath && exists(manifest.subtitlesPath) ? manifest.subtitlesPath : null;
   const bgmPath = manifest.bgmPath && exists(manifest.bgmPath) ? manifest.bgmPath : null;
   const audioPaths = (props.audioPaths ?? []).map((rel) =>
-    join(manifest.audioDir || dirname(manifest.rawPath), basename(rel)),
+    join(resolveAudioDir(manifest), basename(rel)),
   );
   const realign = audioPaths.every((path) => exists(path))
     ? {
@@ -282,26 +304,39 @@ export function planFinalize({ manifest, props, exists = existsSync }) {
 
 /**
  * A manifest is data on disk, so the command it carries is untrusted input.
- * Only the two shapes this module writes may run, and the props path must be
- * the manifest's own props file — a replay can not be retargeted by editing a
- * JSON file to point at something else.
+ * A replay may only run the shape this module writes for that manifest: the
+ * same composition, the recorded output, this manifest's props file, and (for
+ * a still) a numeric frame.
  *
  * @param {object} manifest
  * @returns {string[]}
  */
 export function assertReplayableCommand(manifest) {
   const command = Array.isArray(manifest.command) ? manifest.command : [];
-  const [bin, sub, action] = command;
+  const [bin, sub, action, entry, composition] = command;
   const propsArg = command.find((arg) => typeof arg === "string" && arg.startsWith("--props="));
   if (bin !== REMOTION_BIN || sub !== "remotion" || !["render", "still"].includes(action)) {
     throw new Error(
       `refusing to replay: recorded command is not a remotion render/still call: ${JSON.stringify(command.slice(0, 3))}`,
     );
   }
+  if (entry !== "src/Root.tsx" || composition !== "ShortVideo") {
+    throw new Error(
+      `refusing to replay: recorded command renders ${JSON.stringify([entry, composition])}, not src/Root.tsx ShortVideo`,
+    );
+  }
+  if (command[5] !== manifest.rawPath) {
+    throw new Error(
+      `refusing to replay: recorded output ${JSON.stringify(command[5])} is not the manifest's ${manifest.rawPath}`,
+    );
+  }
   if (!propsArg || propsArg.slice("--props=".length) !== manifest.propsPath) {
     throw new Error(
       `refusing to replay: the recorded --props path does not match the manifest's props file (${manifest.propsPath})`,
     );
+  }
+  if (action === "still" && !command.some((arg) => /^--frame=\d+$/.test(String(arg)))) {
+    throw new Error("refusing to replay: a still command must carry a numeric --frame");
   }
   return [...command];
 }
@@ -317,6 +352,21 @@ function collectStagedAssets(props) {
 }
 
 /**
+ * Where a pipeline keeps the audio a manifest refers to.
+ *
+ * The render door writes `output/<id>/audio/*`; the manifest records that path
+ * because a replay needs it after the door deletes its `public/audio/` copies.
+ * Older manifests have no `audioDir`, so fall back to the sibling `audio/` of
+ * the recorded output.
+ *
+ * @param {object} manifest
+ * @returns {string}
+ */
+function resolveAudioDir(manifest) {
+  return manifest.audioDir || join(dirname(manifest.rawPath), "audio");
+}
+
+/**
  * Decide whether a recorded render can run again, and say what is missing.
  *
  * Audio is recoverable: the render door copies `output/<id>/audio/*` into
@@ -326,8 +376,11 @@ function collectStagedAssets(props) {
  * means "render this content again", and the plan says so instead of letting
  * Remotion fail mid-frame.
  *
+ * A recorded subtitle or BGM that is gone blocks the replay too: finalizing
+ * without them would ship a different file under the same name.
+ *
  * @param {{manifestPath: string, publicDir: string, remotionDir: string, audioDir?: string}} input
- * @returns {{ok: boolean, blocking: string[], recoverable: Array<{rel: string, from: string, to: string}>, notes: string[], command: string[], cwd: string}}
+ * @returns {{ok: boolean, kind: string, blocking: string[], recoverable: Array<{rel: string, from: string, to: string}>, notes: string[], command: string[], cwd: string}}
  */
 export function planReplay({ manifestPath, publicDir, remotionDir, audioDir }) {
   const { manifest, props } = readRenderArtifacts(manifestPath);
@@ -343,31 +396,40 @@ export function planReplay({ manifestPath, publicDir, remotionDir, audioDir }) {
     }
   }
 
-  const sourceAudioDir = audioDir || manifest.audioDir || "";
+  const sourceAudioDir = audioDir || resolveAudioDir(manifest);
   for (const rel of props.audioPaths ?? []) {
     const publicPath = join(publicDir, rel);
     if (existsSync(publicPath)) continue;
-    const candidate = sourceAudioDir ? join(sourceAudioDir, basename(rel)) : null;
-    if (candidate && existsSync(candidate)) {
+    const candidate = join(sourceAudioDir, basename(rel));
+    if (existsSync(candidate)) {
       recoverable.push({ rel, from: candidate, to: publicPath });
       continue;
     }
-    blocking.push(
-      `audio missing: ${rel}\n    looked in ${publicPath}${candidate ? `\n    and in ${candidate}` : ""}`,
-    );
+    blocking.push(`audio missing: ${rel}\n    looked in ${publicPath}\n    and in ${candidate}`);
   }
 
   for (const [label, path] of [
     ["subtitle", manifest.subtitlesPath],
     ["bgm", manifest.bgmPath],
   ]) {
-    if (path && !existsSync(path)) notes.push(`${label} missing: ${path} (finalize will skip it)`);
+    if (path && !existsSync(path)) {
+      blocking.push(
+        `${label} missing: ${path}\n    it was part of this render; replaying without it would write a different file`,
+      );
+    }
+  }
+
+  if ((props.audioPaths ?? []).length === 0) {
+    notes.push(
+      "no audio recorded: finalize runs without head-trim realign, so the file can differ by a few ms",
+    );
   }
 
   const command = assertReplayableCommand(manifest);
 
   return {
     ok: blocking.length === 0,
+    kind: manifest.kind,
     blocking,
     recoverable,
     notes,

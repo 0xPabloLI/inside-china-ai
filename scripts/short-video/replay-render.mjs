@@ -16,7 +16,7 @@
  *
  * Usage:
  *   node scripts/short-video/replay-render.mjs --manifest <path> [--plan]
- *       [--public-dir <dir>] [--remotion-dir <dir>]
+ *       [--public-dir <dir>] [--remotion-dir <dir>] [--audio-dir <dir>]
  *
  *   --plan   print the plan (missing artifacts, command, cwd) and stop
  */
@@ -42,6 +42,7 @@ function getArg(args, name) {
 
 function printPlan(manifestPath, plan) {
   console.log(`replay — ${manifestPath}`);
+  console.log(`  kind:    ${plan.kind}`);
   console.log(`  command: ${formatRenderCommand(plan.command)}`);
   console.log(`  cwd:     ${plan.cwd}`);
   for (const item of plan.recoverable) {
@@ -61,7 +62,7 @@ export function main(args) {
   const manifestPath = getArg(args, "manifest");
   if (!manifestPath) {
     console.error(
-      "usage: replay-render.mjs --manifest <path> [--plan] [--public-dir <dir>] [--remotion-dir <dir>]",
+      "usage: replay-render.mjs --manifest <path> [--plan] [--public-dir <dir>] [--remotion-dir <dir>] [--audio-dir <dir>]",
     );
     return 1;
   }
@@ -72,10 +73,11 @@ export function main(args) {
 
   const remotionDir = getArg(args, "remotion-dir") || join(__dirname, "remotion");
   const publicDir = getArg(args, "public-dir") || join(remotionDir, "public");
+  const audioDir = getArg(args, "audio-dir") || undefined;
 
   let plan;
   try {
-    plan = planReplay({ manifestPath, publicDir, remotionDir });
+    plan = planReplay({ manifestPath, publicDir, remotionDir, audioDir });
   } catch (e) {
     console.error(`❌ ${e.message}`);
     return 1;
@@ -103,16 +105,17 @@ export function main(args) {
   }
 
   const { manifest, props } = readRenderArtifacts(manifestPath);
+  // A still has no finalize pass and no raw file to delete: the render door
+  // never runs ffmpeg on a PNG. Treating one as a video would both run
+  // loudnorm on an image and then unlink the image itself.
+  if (plan.kind === "still") {
+    console.log(`\n✅ still: ${manifest.rawPath}`);
+    return 0;
+  }
+
   // Mirror the render door exactly: finalize always runs (loudnorm + head
   // trim), and the raw file is removed when no subtitles were burned.
   const finalize = planFinalize({ manifest, props });
-  if (!finalize.assPath && manifest.subtitlesPath) {
-    console.log(`   subtitle missing, finalizing without it: ${manifest.subtitlesPath}`);
-  }
-  if (!finalize.bgmPath && manifest.bgmPath) {
-    console.log(`   bgm missing, finalizing without it: ${manifest.bgmPath}`);
-  }
-
   finalizeRenderedVideo({
     videoPath: finalize.videoPath,
     assPath: finalize.assPath,

@@ -1086,7 +1086,7 @@ node scripts/short-video/replay-render.mjs --manifest <manifest> --plan   # 先�
 node scripts/short-video/replay-render.mjs --manifest <manifest>          # 真重放
 ```
 
-重放跳过 TTS、对齐与门禁，重跑 manifest 里那条 argv，并走同一 finalize（loudnorm + 头尾对齐），产出与直跑一致；`--plan` 只打印计划、不渲染。`remotion/public/audio/` 的副本在成功渲染后会被删，重放会从 `output/<id>/audio/` 拷回；`_staged` 素材缺失说明 staging 源路径已不可复原，重跑一次该内容的渲染即可。manifest 记录 props 的 sha256，props 被改过会拒绝重放。
+重放跳过 TTS、对齐与门禁，重跑 manifest 里那条 argv，并走同一 finalize（loudnorm + 头尾对齐），产出与直跑一致；`--plan` 只打印计划、不渲染。`remotion/public/audio/` 的副本在成功渲染后会被删，重放会从 `output/<id>/audio/` 拷回；staged 素材、字幕或 BGM 缺失说明这一场已无法原样复现，`replay-render.mjs` 会点名缺哪一项并 exit 1，而不是渲染一个不同的文件。`_staged` 素材缺失时重跑一次该内容的渲染即可；still 的 manifest 带 `kind: "still"`，重放只重出那一帧，不跑 finalize、也不删图。manifest 记录 props 的 sha256，props 被改过会拒绝重放。
 
 ### Pipeline Steps
 
