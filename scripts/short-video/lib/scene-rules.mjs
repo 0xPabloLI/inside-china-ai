@@ -86,6 +86,7 @@ import { checkInfoSpec } from "./info-grammar.mjs";
 import { checkChartPinContract } from "./chart-pin-contract.mjs";
 import { auditNarrativeArc } from "./narrative.mjs";
 import { auditAttentionBudget } from "./attention.mjs";
+import { auditChartClaimAgreement } from "./chart-claim-agreement.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
 export { NO_MEDIA_TYPES };
@@ -1905,6 +1906,8 @@ export {
   auditAttentionBudget as checkAttentionBudget,
 } from "./attention.mjs";
 
+export { auditChartClaimAgreement as checkChartClaimAgreement } from "./chart-claim-agreement.mjs";
+
 // ─── Aggregate runner ───
 
 /**
@@ -3382,6 +3385,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     () => checkTextWidthBudget(scenes),
     () => auditNarrativeArc(scenes, opts),
     () => auditAttentionBudget(scenes),
+    () => auditChartClaimAgreement(scenes),
     () => checkNoAIVocabulary(scenes),
     () => checkNoWrittenOpener(scenes),
     () => checkNoDeadClosers(scenes),
