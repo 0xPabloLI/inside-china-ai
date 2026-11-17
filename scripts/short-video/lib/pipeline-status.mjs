@@ -14,7 +14,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 
-export const STATUS_FILENAME = "pipeline-status.json";
+const STATUS_FILENAME = "pipeline-status.json";
 
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);

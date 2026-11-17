@@ -24,8 +24,11 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "show" || arg === "migrate") options.command = arg;
     else if (arg === "--apply") options.apply = true;
-    else if (arg === "--root") options.root = resolve(argv[++i] ?? "");
-    else throw new Error(`unknown argument: ${arg}`);
+    else if (arg === "--root") {
+      const value = argv[++i];
+      if (!value) throw new Error("--root requires a path");
+      options.root = resolve(value);
+    } else throw new Error(`unknown argument: ${arg}`);
   }
   return options;
 }
