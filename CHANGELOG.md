@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.84.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.83.1...tanstack_start_ts-v1.84.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** self-render candles from baked HKEX closes ([#1405](https://github.com/0xPabloLI/inside-china-ai/issues/1405)) ([#1411](https://github.com/0xPabloLI/inside-china-ai/issues/1411)) ([3d8c339](https://github.com/0xPabloLI/inside-china-ai/commit/3d8c3397c8ef435b75dda49d442f2d5c844630e3))
+
 ## [1.83.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.83.0...tanstack_start_ts-v1.83.1) (2026-11-17)
 
 
