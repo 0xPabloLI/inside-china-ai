@@ -978,6 +978,8 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 scripts/short-video/
 ├── main.mjs                # Pipeline orchestrator (--content, --bgm, --skip-verify, --max-retries)
 ├── render-only.mjs         # Re-render from existing audio (no TTS) — fast visual/subtitle iteration
+├── replay-render.mjs       # Replay one recorded render from its manifest (no TTS/alignment/gates)
+├── still-frame.mjs         # One-frame still through the same props/manifest contract (--content/--frame)
 ├── tts-only.mjs             # TTS-only driver (Step 0.5/0.6: voice gen + alignment + gate) — no render
 ├── generate-broll.mjs      # Standalone B-roll generation entrypoint (--help)
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
@@ -990,6 +992,7 @@ scripts/short-video/
 │   ├── subtitles/          # cues.mjs (chunking + Netflix timing) / ass.mjs (\kt anchors, 1ms) / generate.mjs
 │   ├── assemble.mjs        # Output-path resolution for the final video (rendering lives in render-remotion.mjs)
 │   ├── render-remotion.mjs # Remotion render driver (React → frame-by-frame → final MP4)
+│   ├── render-manifest.mjs # props.json + manifest.json per render; command builders; replay plan
 │   ├── renderer-guard.mjs  # Fails fast on the retired --playwright flag / meta.renderer opt-out
 │   ├── generate-bgm.mjs    # Procedural cyber-ambient BGM
 │   ├── verify-retry.mjs    # Verify-retry loop: classify failure → repair → re-verify (--max-retries)
@@ -1068,6 +1071,22 @@ node scripts/short-video/rerender.mjs [--content <dir>]        # media-patch + r
 node scripts/short-video/rerender-full.mjs [--content <dir>]   # normalize → TTS → align → render
 node scripts/short-video/realign-render.mjs [--content <dir>]  # forced realign + render (no TTS)
 ```
+
+### Render artifacts 与重放（#1412）
+
+每次渲染（`main.mjs` / `render-only.mjs` / `rerender*.mjs` / `realign-render.mjs` / `still-frame.mjs`）都把这一场的输入落盘：
+
+- `output/<pipelineId>/render/<version>/props.json` — Remotion 实际读的那份 props，命令只用 `--props=<绝对路径>` 指过来，不再内联 JSON
+- `output/<pipelineId>/render/<version>/manifest.json` — 同一场的 `command` argv、输出路径、字幕/BGM 输入、props sha256
+
+渲染失败时错误信息给出 manifest 路径与一条可粘贴的重放命令（不再截断成 200 字符）：
+
+```bash
+node scripts/short-video/replay-render.mjs --manifest <manifest> --plan   # 先看缺什么
+node scripts/short-video/replay-render.mjs --manifest <manifest>          # 真重放
+```
+
+重放跳过 TTS、对齐与门禁，重跑 manifest 里那条 argv，并走同一 finalize（loudnorm + 头尾对齐），产出与直跑一致；`--plan` 只打印计划、不渲染。`remotion/public/audio/` 的副本在成功渲染后会被删，重放会从 `output/<id>/audio/` 拷回；`_staged` 素材缺失说明 staging 源路径已不可复原，重跑一次该内容的渲染即可。manifest 记录 props 的 sha256，props 被改过会拒绝重放。
 
 ### Pipeline Steps
 

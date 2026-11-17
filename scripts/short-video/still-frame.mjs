@@ -22,6 +22,13 @@ import { existsSync } from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { readSceneDurationsForTimeline } from "./lib/avatar-frame-audit.mjs";
+import {
+  buildStillRenderArgs,
+  propsPathFor,
+  renderArtifactDir,
+  replayInstruction,
+  writeRenderArtifacts,
+} from "./lib/render-manifest.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -103,24 +110,33 @@ const props = {
   contentDir,
 };
 
-const remotionDir = join(__dirname, "remotion");
-const cmd = [
-  "npx",
-  "remotion",
-  "still",
-  "src/Root.tsx",
-  "ShortVideo",
-  out,
-  `--frame=${frame}`,
-  `--props=${JSON.stringify(props)}`,
-  // Boolean flag (no value): `--bundle-cache=false` parses as truthy and keeps
-  // the cache, which silently serves a stale bundle after a gate edit.
-  "--no-bundle-cache",
-];
+// Same artifact contract as a full render (lib/render-manifest.mjs): props to
+// disk, the command carries a path. A still failure is exactly the moment you
+// want to re-run without redoing TTS, so it gets a replayable manifest too.
+const outputDir = join(__dirname, "output", contentId);
+const version = `still-${frame}`;
+const artifactDir = renderArtifactDir(outputDir, version);
+const argv = buildStillRenderArgs({ out, frame, propsPath: propsPathFor(artifactDir) });
+const { manifestPath } = writeRenderArtifacts({
+  outputDir,
+  version,
+  props,
+  pipelineId: contentId,
+  contentDir,
+  audioDir,
+  rawPath: out,
+  finalPath: out,
+  subtitlesPath: null,
+  bgmPath: null,
+  subject: null,
+  command: argv,
+});
 
+const remotionDir = join(__dirname, "remotion");
 console.log(`Rendering still: content=${contentId} frame=${frame} -> ${out}`);
+console.log(`   artifacts: ${manifestPath}`);
 try {
-  const stdout = execFileSync(cmd[0], cmd.slice(1), {
+  const stdout = execFileSync(argv[0], argv.slice(1), {
     cwd: remotionDir,
     stdio: ["pipe", "pipe", "pipe"],
     encoding: "utf8",
@@ -132,5 +148,7 @@ try {
   const fitError = [...stderr.matchAll(/\[TextFitError\] (\{.*\})/g)].pop()?.[1];
   console.error(`\n❌ Still failed for frame ${frame}`);
   console.error(fitError ? `TextFitError: ${fitError}` : stderr.slice(-1200));
+  console.error(`   manifest: ${manifestPath}`);
+  console.error(`   replay:   ${replayInstruction(manifestPath)}`);
   process.exit(1);
 }
