@@ -80,9 +80,7 @@ describe("chart claim agreement", () => {
   });
 
   it("warns when the declared time window is absent from the voiceover", () => {
-    const rows = auditChartClaimAgreement([
-      native({ time: { from: "2026-01", to: "2026-07" } }),
-    ]);
+    const rows = auditChartClaimAgreement([native({ time: { from: "2026-01", to: "2026-07" } })]);
     expect(warnings(rows)[0].detail).toContain("never names its year or month");
   });
 

@@ -143,7 +143,8 @@ function auditNative(scene, index) {
   const findings = [];
   const haystack = sceneText(scene);
   const anchor = data.some(
-    (datum) => containsLabel(haystack, datum.label) || containsNumber(haystack, datum.value, info.decimals),
+    (datum) =>
+      containsLabel(haystack, datum.label) || containsNumber(haystack, datum.value, info.decimals),
   );
 
   if (!anchor) {
@@ -152,7 +153,7 @@ function auditNative(scene, index) {
       row(
         "warn",
         `Scene ${scene.id ?? index + 1} plots ${labels.join(", ")} but neither a label nor a value appears in the voiceover or scene text.`,
-        "Name one chart value in the voiceover (e.g. \"from 35 to 50\") or repeat the reading in `texts.subtext`; the viewer should not have to infer which number the shot is about.",
+        'Name one chart value in the voiceover (e.g. "from 35 to 50") or repeat the reading in `texts.subtext`; the viewer should not have to infer which number the shot is about.',
       ),
     );
   }
@@ -164,7 +165,7 @@ function auditNative(scene, index) {
         row(
           "warn",
           `Scene ${scene.id ?? index + 1} declares a ${info.time.from} to ${info.time.to} window, but the voiceover never names its year or month.`,
-          "Say the window in the voiceover (e.g. \"between January and July\") or remove `info.time` if the chart is not making a time claim.",
+          'Say the window in the voiceover (e.g. "between January and July") or remove `info.time` if the chart is not making a time claim.',
         ),
       );
     }
@@ -192,7 +193,7 @@ function auditPin(scene, index) {
     row(
       "warn",
       `Scene ${scene.id ?? index + 1} pins a chart image but neither \`texts.subtext\` nor \`texts.source\` names its unit or claim window.`,
-      "Add the unit and window (e.g. \"HK$ 2,980 → 454, JUN–NOV\") to `texts.subtext` or `texts.source`; a K-line without a readable window cannot be checked against the script.",
+      'Add the unit and window (e.g. "HK$ 2,980 → 454, JUN–NOV") to `texts.subtext` or `texts.source`; a K-line without a readable window cannot be checked against the script.',
     ),
   ];
 }
