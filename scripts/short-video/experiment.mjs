@@ -9,11 +9,29 @@
  *
  * Usage:
  *   node scripts/short-video/experiment.mjs create --id <id> --hypothesis <text> --factor <text>
+ *       [--primary-metric <key>]... [--pairs 20] [--seed 20260101]
+ *       [--variant-a <label>] [--variant-b <label>]
  *   node scripts/short-video/experiment.mjs assign --experiment <id> --block <topic> --pack <slug>
- *   node scripts/short-video/experiment.mjs ingest --experiment <id> --details <path> [--map videoId=slug]
+ *       [--duration <sec>]
+ *   node scripts/short-video/experiment.mjs ingest --experiment <id> --details <path>
+ *       [--map videoId=slug]... [--allow-protocol-violations]
+ *   node scripts/short-video/experiment.mjs check --experiment <id>
  *   node scripts/short-video/experiment.mjs report --experiment <id> [--out <path>]
  *   node scripts/short-video/experiment.mjs power [--pairs 20] [--rho 0.5]
  *   node scripts/short-video/experiment.mjs status
+ *
+ * Protocol gates (this file enforces them, not the operator):
+ *   - The two pre-registered primary metrics are co-primaries: the treatment has
+ *     to win both (intersection-union), so no multiplicity correction is needed.
+ *   - A pair only enters the analysis when both posts are at least 72h old at
+ *     the capture time. Post dates carry day precision, so the age used is a
+ *     lower bound.
+ *   - A pair only enters the analysis when its posts are at least two calendar
+ *     days apart and were published in the seeded order. Violations are skipped
+ *     (and named) unless --allow-protocol-violations is passed for a sensitivity
+ *     read, in which case they are recorded on the observation.
+ *   - Inference (p, CI) is withheld until the pre-registered n is reached: fixed
+ *     n, no peeking.
  */
 
 import {
@@ -46,7 +64,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 export const EXPERIMENTS_DIR = join(__dirname, "experiments");
 export const CONTENT_DIR = join(__dirname, "content");
-const REPORT_FLOOR = 8;
 
 function readJson(file) {
   return JSON.parse(readFileSync(file, "utf8"));
@@ -86,6 +103,80 @@ function assertNonEmpty(value, name) {
   return value.trim();
 }
 
+/** Below this many complete pairs the report stays descriptive (no p, no CI). */
+const REPORT_FLOOR = 8;
+/** Both posts must be this old at capture time (T+72h read). */
+const MATURITY_HOURS = 72;
+/** Date-only post times: 48h is only guaranteed from two calendar days apart. */
+const MIN_PAIR_INTERVAL_DAYS = 2;
+/** Same-topic pairs may differ by at most this much in duration (seconds). */
+const MAX_DURATION_GAP_SEC = 3;
+/** The spec's two primaries; a treatment has to win both to count as a win. */
+const DEFAULT_PRIMARY_METRICS = ["fullVideoWatchedRate", "logAvgWatchTimeSec"];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The primaries a record declares. Older records carry a single
+ * `primaryMetric`; reading both shapes keeps a disposable experiments dir
+ * usable across this change.
+ *
+ * @param {object} experiment
+ * @returns {string[]}
+ */
+export function primaryMetricsOf(experiment) {
+  const list =
+    Array.isArray(experiment?.primaryMetrics) && experiment.primaryMetrics.length > 0
+      ? experiment.primaryMetrics
+      : experiment?.primaryMetric
+        ? [experiment.primaryMetric]
+        : [];
+  const cleaned = list.map((item) => String(item ?? "").trim()).filter(Boolean);
+  if (cleaned.length === 0) throw new Error("experiment declares no primary metric");
+  if (cleaned.length > 2) {
+    throw new Error(
+      "at most two co-primary metrics are supported (the decision rule is an intersection-union test)",
+    );
+  }
+  if (new Set(cleaned).size !== cleaned.length) throw new Error("duplicate primary metric");
+  return cleaned;
+}
+
+/**
+ * When a post went out, at the precision the export offers.
+ *
+ * TikTok's detail page shows `M/D/YYYY`; API-shaped inputs pass an ISO string.
+ * Day precision means the returned `lowerMs` is the *latest* plausible posting
+ * moment (end of that UTC day), so an age computed from it is a lower bound.
+ *
+ * @param {{postedAt?: string, postedOn?: string}} video
+ * @returns {{atMs: number, lowerMs: number, precision: "exact"|"day"}|null}
+ */
+export function parsePostedWhen(video) {
+  const exact = [video?.postedAt, video?.postedOn].find(
+    (value) => typeof value === "string" && /T\d{2}:\d{2}/.test(value),
+  );
+  if (exact) {
+    const ms = Date.parse(exact);
+    return Number.isFinite(ms) ? { atMs: ms, lowerMs: ms, precision: "exact" } : null;
+  }
+  const raw = [video?.postedOn, video?.postedAt].find(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+  if (!raw) return null;
+  const text = raw.trim();
+  let startMs = null;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  const slash = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
+  if (iso) {
+    startMs = Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  } else if (slash) {
+    // TikTok renders US order (M/D/YYYY); ambiguous days are read that way too.
+    startMs = Date.UTC(Number(slash[3]), Number(slash[1]) - 1, Number(slash[2]));
+  }
+  if (startMs === null || Number.isNaN(startMs)) return null;
+  return { atMs: startMs, lowerMs: startMs + DAY_MS, precision: "day" };
+}
+
 /**
  * Create a pre-registered experiment record. Idempotence is the caller's job:
  * the CLI refuses to overwrite an existing registration.
@@ -94,8 +185,9 @@ export function createExperiment({
   id,
   hypothesis,
   factor,
-  primaryMetric = "fullVideoWatchedRate",
-  secondaryMetrics = ["logAvgWatchTimeSec"],
+  primaryMetrics,
+  primaryMetric,
+  secondaryMetrics = [],
   targetPairs = 20,
   alpha = 0.05,
   power = 0.8,
@@ -118,13 +210,26 @@ export function createExperiment({
   if (!variants || typeof variants !== "object" || !variants.A || !variants.B) {
     throw new Error("variants must provide A and B labels");
   }
+  // The spec pre-registers two co-primaries; a single metric stays supported for
+  // older records, but a new record defaults to both.
+  const declaredPrimaries =
+    primaryMetrics ?? (primaryMetric ? [String(primaryMetric)] : DEFAULT_PRIMARY_METRICS);
+  const primaries = primaryMetricsOf({ primaryMetrics: declaredPrimaries });
+  const secondaries = Array.isArray(secondaryMetrics)
+    ? secondaryMetrics.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+  const overlap = secondaries.filter((item) => primaries.includes(item));
+  if (overlap.length > 0) {
+    throw new Error(`a metric cannot be both primary and secondary: ${overlap.join(", ")}`);
+  }
   return {
     id: cleanId,
     createdAt: now,
     hypothesis: cleanHypothesis,
     factor: cleanFactor,
-    primaryMetric,
-    secondaryMetrics: Array.isArray(secondaryMetrics) ? [...secondaryMetrics] : [],
+    primaryMetric: primaries[0],
+    primaryMetrics: primaries,
+    secondaryMetrics: secondaries,
     design: "matched-pair",
     targetPairs: pairs,
     alpha,
@@ -149,6 +254,7 @@ export function chooseAssignment({
   block,
   packSlug,
   variant = null,
+  durationSec = null,
   now = new Date().toISOString(),
 } = {}) {
   const cleanBlock = assertNonEmpty(block, "block");
@@ -161,11 +267,27 @@ export function chooseAssignment({
   }
   const override = variant == null ? null : String(variant).toUpperCase();
   if (override && !["A", "B"].includes(override)) throw new Error("variant must be A or B");
+  const duration = durationSec == null || durationSec === "" ? null : Number(durationSec);
+  if (duration !== null && (!Number.isFinite(duration) || duration <= 0)) {
+    throw new Error("duration must be a positive number of seconds");
+  }
 
   if (current.length === 1) {
     const other = current[0].variant === "A" ? "B" : "A";
     if (override && override !== other) {
       throw new Error(`the second pack in "${cleanBlock}" must be the opposite variant (${other})`);
+    }
+    const siblingsDuration = Number.isFinite(current[0].durationSec)
+      ? current[0].durationSec
+      : null;
+    if (siblingsDuration !== null && duration !== null) {
+      const gap = Math.abs(siblingsDuration - duration);
+      if (gap > MAX_DURATION_GAP_SEC) {
+        throw new Error(
+          `duration gap ${gap.toFixed(2)}s exceeds ${MAX_DURATION_GAP_SEC}s: the pair is not comparable ` +
+            `(${current[0].packSlug} ${siblingsDuration}s vs ${cleanPack} ${duration}s)`,
+        );
+      }
     }
     return {
       experimentId: experiment.id,
@@ -173,6 +295,7 @@ export function chooseAssignment({
       packSlug: cleanPack,
       variant: other,
       order: current[0].order === 1 ? 2 : 1,
+      durationSec: duration,
       assignedAt: now,
     };
   }
@@ -187,6 +310,7 @@ export function chooseAssignment({
     packSlug: cleanPack,
     variant: chosen,
     order,
+    durationSec: duration,
     assignedAt: now,
   };
 }
@@ -197,7 +321,7 @@ function normalizeRate(value) {
   return Math.max(0, Math.min(1, rate));
 }
 
-function normalizeObservation(video, assignment, capturedAt) {
+function normalizeObservation(video, assignment, capturedAt, meta = {}) {
   const avgWatchTimeSec = Number.isFinite(video.avgWatchTimeSec) ? video.avgWatchTimeSec : null;
   const fullVideoWatchedRate = normalizeRate(video.watchedFullVideoPct);
   return {
@@ -208,6 +332,10 @@ function normalizeObservation(video, assignment, capturedAt) {
     videoId: String(video.videoId),
     title: video.title || "",
     postedOn: video.postedOn || null,
+    postedAt: meta.postedAt ?? null,
+    postedPrecision: meta.precision ?? null,
+    ageHoursLower: meta.ageHoursLower ?? null,
+    protocolViolations: meta.protocolViolations ?? [],
     capturedAt,
     metrics: {
       videoViews: Number.isFinite(video.videoViews) ? video.videoViews : null,
@@ -222,11 +350,48 @@ function normalizeObservation(video, assignment, capturedAt) {
   };
 }
 
+/** Lower-bound age of a post at capture time, in hours. */
+export function observationAge(video, capturedAt) {
+  const posted = parsePostedWhen(video);
+  if (!posted) return null;
+  const capturedMs = Date.parse(capturedAt);
+  if (!Number.isFinite(capturedMs)) return null;
+  return {
+    precision: posted.precision,
+    postedAt: new Date(posted.atMs).toISOString(),
+    ageHoursLower: Math.max(0, (capturedMs - posted.lowerMs) / 3_600_000),
+  };
+}
+
+/**
+ * The interval a pair's posts must clear, in hours, at the export's precision.
+ *
+ * With day-only post times the earliest possible second post is the next
+ * midnight, so 48h is only *provable* from three calendar days apart. Exact
+ * timestamps are compared directly.
+ */
+export function pairIntervalHours(earlier, later) {
+  const first = parsePostedWhen(earlier);
+  const second = parsePostedWhen(later);
+  if (!first || !second) return null;
+  const exact = first.precision === "exact" && second.precision === "exact";
+  const gapMs = Math.abs(second.atMs - first.atMs);
+  // Day precision: subtract the day of slack the timestamps hide.
+  const guaranteedMs = exact ? gapMs : gapMs - DAY_MS;
+  return { hoursLower: guaranteedMs / 3_600_000, exact, days: gapMs / DAY_MS };
+}
+
 /**
  * Map a TikTok details export onto experiment observations.
  *
  * `overrides` is the operator's explicit videoId -> pack map. Without an
  * override, `matchPack(title)` may resolve the pack from caption tokens.
+ *
+ * Three protocol gates run here rather than in the report, so a pair that
+ * breaks the design never reaches the analysis by accident: T+72h maturity,
+ * the >=48h publish interval, and the seeded publish order. A violation skips
+ * the whole pair and is named in `skipped`; `allowProtocolViolations` records it
+ * on the observation instead, for a sensitivity read that stays labelled.
  */
 export function ingestDetails({
   experiment,
@@ -234,11 +399,13 @@ export function ingestDetails({
   details,
   overrides = {},
   matchPack: matcher = null,
+  allowProtocolViolations = false,
+  maturityHours = MATURITY_HOURS,
 } = {}) {
   const capturedAt = details?.fetchedAt || new Date().toISOString();
   const videos = Array.isArray(details?.videos) ? details.videos : [];
   const byPack = new Map(assignments.map((item) => [item.packSlug, item]));
-  const observations = [];
+  const candidates = [];
   const skipped = [];
   const seen = new Set();
 
@@ -266,9 +433,97 @@ export function ingestDetails({
       });
       continue;
     }
-    observations.push(normalizeObservation(video, assignment, capturedAt));
+    const age = observationAge(video, capturedAt);
+    if (!age) {
+      skipped.push({
+        videoId,
+        title: video.title || "",
+        packSlug: matched,
+        reason: "post date unknown: cannot verify the T+72h read",
+      });
+      continue;
+    }
+    if (age.ageHoursLower < maturityHours) {
+      skipped.push({
+        videoId,
+        title: video.title || "",
+        packSlug: matched,
+        reason: `too early: lower-bound age ${age.ageHoursLower.toFixed(1)}h < ${maturityHours}h`,
+      });
+      continue;
+    }
+    candidates.push({ video, assignment, age });
   }
-  return { observations, skipped };
+
+  const observations = [];
+  const protocolViolations = [];
+  const blocks = [...new Set(candidates.map((item) => item.assignment.block))].sort();
+  for (const block of blocks) {
+    const sides = ["A", "B"]
+      .map((variant) =>
+        candidates.find(
+          (item) => item.assignment.block === block && item.assignment.variant === variant,
+        ),
+      )
+      .filter(Boolean);
+    const violations = [];
+    if (sides.length === 2) {
+      const [first, second] = sides
+        .slice()
+        .sort((x, y) => x.age.postedAt.localeCompare(y.age.postedAt));
+      const interval = pairIntervalHours(first.video, second.video);
+      const requiredHours = interval?.exact ? 48 : 72;
+      if (interval && interval.hoursLower < requiredHours) {
+        violations.push(
+          `posts are ${interval.hoursLower.toFixed(1)}h apart (lower bound); the design needs 48h` +
+            (interval.exact ? "" : " and day-precision dates only prove it from 3 calendar days"),
+        );
+      }
+      const expectedFirst = first.assignment.order === 1 ? first : second;
+      if (first.assignment.packSlug !== expectedFirst.assignment.packSlug) {
+        violations.push(
+          `publish order violated: ${first.assignment.packSlug} (order ${first.assignment.order}) published before ${second.assignment.packSlug} (order ${second.assignment.order})`,
+        );
+      }
+      const durations = sides
+        .map((item) => item.assignment.durationSec)
+        .filter((value) => Number.isFinite(value));
+      if (durations.length === 2) {
+        const gap = Math.abs(durations[0] - durations[1]);
+        if (gap > MAX_DURATION_GAP_SEC) {
+          violations.push(`duration gap ${gap.toFixed(2)}s exceeds ${MAX_DURATION_GAP_SEC}s`);
+        }
+      }
+    }
+    if (violations.length > 0 && !allowProtocolViolations) {
+      for (const side of sides) {
+        skipped.push({
+          videoId: String(side.video.videoId),
+          title: side.video.title || "",
+          packSlug: side.assignment.packSlug,
+          block,
+          reason: violations.join("; "),
+        });
+      }
+      continue;
+    }
+    if (violations.length > 0) {
+      protocolViolations.push({ block, violations: [...violations] });
+    }
+    // A block with one mature side stays ingestable: the report names it as an
+    // excluded, incomplete block instead of pairing it with nothing.
+    for (const side of sides) {
+      observations.push(
+        normalizeObservation(side.video, side.assignment, capturedAt, {
+          postedAt: side.age.postedAt,
+          precision: side.age.precision,
+          ageHoursLower: side.age.ageHoursLower,
+          protocolViolations: violations.length > 0 ? [...violations] : [],
+        }),
+      );
+    }
+  }
+  return { observations, skipped, protocolViolations };
 }
 
 function latestObservation(observations, packSlug) {
@@ -320,49 +575,96 @@ export function buildReport({
     pairs.push({ block, a, b });
   }
 
-  const primary = valuesFromPairs(pairs, experiment.primaryMetric);
-  const summary = pairedSummary(primary.a, primary.b);
-  const reportable = summary.n >= REPORT_FLOOR;
-  const fixedSampleReached = summary.n >= experiment.targetPairs;
-  const tests = reportable
-    ? {
-        permutation: pairedPermutation(summary.diffs, { seed: experiment.seed }),
-        wilcoxon: wilcoxonSignedRank(summary.diffs),
-        sign: signTest(summary.diffs),
-        bootstrap: bootstrapCI(summary.diffs, { seed: experiment.seed, iterations: 5000 }),
-      }
-    : null;
-
+  const primaryMetrics = primaryMetricsOf(experiment);
   const zAlpha = normalQuantile(1 - experiment.alpha / 2);
   const zPower = normalQuantile(experiment.power);
-  const mdeRaw =
-    summary.n > 0
-      ? ((zAlpha + zPower) * summary.sdDiff) / Math.sqrt(summary.n)
-      : mdeContinuous({
-          pairs: experiment.targetPairs,
-          alpha: experiment.alpha,
-          power: experiment.power,
-        }).mdeLog;
-  const mde = {
-    observedSd: summary.sdDiff,
-    alpha: experiment.alpha,
-    power: experiment.power,
-    raw: mdeRaw,
-    pct: /log/i.test(experiment.primaryMetric) ? Math.exp(mdeRaw) - 1 : null,
-    planned: mdeContinuous({
-      pairs: experiment.targetPairs,
-      alpha: experiment.alpha,
-      power: experiment.power,
-    }),
-  };
+
+  const primaries = primaryMetrics.map((metric) => {
+    const values = valuesFromPairs(pairs, metric);
+    const summary = pairedSummary(values.a, values.b);
+    const reportable = summary.n >= REPORT_FLOOR;
+    // Fixed n, no peeking: the inferential output appears only once the
+    // pre-registered pair count is complete. An interim report carries no p,
+    // no CI and no decision, so it cannot be read as a stopping rule.
+    const fixedSampleReached = summary.n >= experiment.targetPairs;
+    const logged = /log/i.test(metric);
+    const mdeRaw =
+      summary.n > 0
+        ? ((zAlpha + zPower) * summary.sdDiff) / Math.sqrt(summary.n)
+        : mdeContinuous({
+            pairs: experiment.targetPairs,
+            alpha: experiment.alpha,
+            power: experiment.power,
+          }).mdeLog;
+    const tests =
+      reportable && fixedSampleReached
+        ? {
+            permutation: pairedPermutation(summary.diffs, { seed: experiment.seed }),
+            wilcoxon: wilcoxonSignedRank(summary.diffs),
+            sign: signTest(summary.diffs),
+            bootstrap: bootstrapCI(summary.diffs, { seed: experiment.seed, iterations: 5000 }),
+          }
+        : null;
+    const rejects = tests
+      ? Math.max(tests.permutation.p, tests.wilcoxon.p, tests.sign.p) <= experiment.alpha
+      : false;
+    const decision = tests
+      ? rejects && summary.meanDiff < 0
+        ? "treatment-better"
+        : rejects && summary.meanDiff > 0
+          ? "control-better"
+          : "no-difference"
+      : null;
+    return {
+      metric,
+      n: summary.n,
+      reportable,
+      fixedSampleReached,
+      summary,
+      tests,
+      decision,
+      mde: {
+        observedSd: summary.sdDiff,
+        alpha: experiment.alpha,
+        power: experiment.power,
+        raw: mdeRaw,
+        pct: logged ? Math.exp(mdeRaw) - 1 : null,
+        planned: logged
+          ? mdeContinuous({
+              pairs: experiment.targetPairs,
+              alpha: experiment.alpha,
+              power: experiment.power,
+            })
+          : null,
+      },
+    };
+  });
+
+  const nPairs = Math.min(...primaries.map((item) => item.n));
+  const reportable = primaries.every((item) => item.reportable);
+  const fixedSampleReached =
+    primaries.length > 0 && primaries.every((item) => item.fixedSampleReached);
+  // Intersection-union: a treatment has to win every co-primary, which is why
+  // two primaries need no multiplicity correction.
+  const decision = !fixedSampleReached
+    ? "interim"
+    : primaries.every((item) => item.decision === "treatment-better")
+      ? "treatment-better"
+      : primaries.every((item) => item.decision === "control-better")
+        ? "control-better"
+        : primaries.every((item) => item.decision === "no-difference")
+          ? "no-difference"
+          : "mixed";
+  const lead = primaries[0];
 
   const secondary = (experiment.secondaryMetrics || []).map((metric) => {
     const values = valuesFromPairs(pairs, metric);
     const paired = pairedSummary(values.a, values.b);
     // A secondary metric may have fewer complete pairs than the primary. It
-    // earns a p-value on its own sample size, never on the primary's.
+    // earns a p-value on its own sample size, never on the primary's, and only
+    // once the fixed sample has been read.
     const p =
-      paired.n >= REPORT_FLOOR
+      paired.n >= REPORT_FLOOR && fixedSampleReached
         ? pairedPermutation(paired.diffs, { seed: experiment.seed }).p
         : null;
     return {
@@ -398,7 +700,7 @@ export function buildReport({
   const limitations = [
     "Matched-pair blocks are not an RCT: assignment is within-topic, and the unit of analysis is the video pair, not the view.",
     "TikTok has no organic post A/B surface; this is a matched-pair field comparison, not a platform randomized experiment.",
-    "Read the primary outcome at T+72h; T+7d is a sensitivity check, not a second chance to find significance.",
+    "T+72h is enforced at ingest: a post younger than 72h (lower bound, post dates carry day precision) is skipped, not read early. T+7d stays a sensitivity check, not a second chance to find significance.",
     "Small n detects structural differences only. At n=20, rho=.5, the planning MDE is about +28% on log watch time; +10% would need roughly 80 pairs.",
   ];
   if (!reportable)
@@ -407,7 +709,7 @@ export function buildReport({
     );
   if (reportable && !fixedSampleReached) {
     limitations.unshift(
-      `Pre-registered n is ${experiment.targetPairs}; this report is at n=${summary.n}. It is directional and cannot close the experiment.`,
+      `Pre-registered n is ${experiment.targetPairs}; this report is at n=${nPairs}. Inference is withheld until the fixed sample is complete: fixed n, no peeking.`,
     );
   }
 
@@ -417,42 +719,68 @@ export function buildReport({
     design: experiment.design,
     hypothesis: experiment.hypothesis,
     factor: experiment.factor,
-    primaryMetric: experiment.primaryMetric,
+    primaryMetric: lead.metric,
+    primaryMetrics,
     variants: experiment.variants,
     targetPairs: experiment.targetPairs,
-    nPairs: summary.n,
+    nPairs,
     nAssignments: assignments.length,
     excludedBlocks,
     reportable,
     fixedSampleReached,
     status,
+    decision,
+    primaries: primaries.map((item) => ({
+      metric: item.metric,
+      n: item.n,
+      reportable: item.reportable,
+      fixedSampleReached: item.fixedSampleReached,
+      decision: item.decision,
+      tests: item.tests,
+      mde: item.mde,
+      summary: {
+        meanA: item.summary.meanA,
+        meanB: item.summary.meanB,
+        meanDiff: item.summary.meanDiff,
+        medianDiff: item.summary.medianDiff,
+        sdDiff: item.summary.sdDiff,
+        wins: item.summary.wins,
+        losses: item.summary.losses,
+        ties: item.summary.ties,
+        winRate: item.summary.n > 0 ? item.summary.wins / item.summary.n : 0,
+        winRateCI: item.reportable ? wilsonInterval(item.summary.wins, item.summary.n) : null,
+        relativeEffect:
+          item.summary.meanB !== 0 ? item.summary.meanDiff / item.summary.meanB : null,
+      },
+    })),
+    // The lead primary stays at the top level so existing readers keep working.
     summary: {
-      meanA: summary.meanA,
-      meanB: summary.meanB,
-      meanDiff: summary.meanDiff,
-      medianDiff: summary.medianDiff,
-      sdDiff: summary.sdDiff,
-      wins: summary.wins,
-      losses: summary.losses,
-      ties: summary.ties,
-      winRate: summary.n > 0 ? summary.wins / summary.n : 0,
-      winRateCI: reportable ? wilsonInterval(summary.wins, summary.n) : null,
-      relativeEffect: summary.meanB !== 0 ? summary.meanDiff / summary.meanB : null,
+      meanA: lead.summary.meanA,
+      meanB: lead.summary.meanB,
+      meanDiff: lead.summary.meanDiff,
+      medianDiff: lead.summary.medianDiff,
+      sdDiff: lead.summary.sdDiff,
+      wins: lead.summary.wins,
+      losses: lead.summary.losses,
+      ties: lead.summary.ties,
+      winRate: lead.summary.n > 0 ? lead.summary.wins / lead.summary.n : 0,
+      winRateCI: lead.reportable ? wilsonInterval(lead.summary.wins, lead.summary.n) : null,
+      relativeEffect: lead.summary.meanB !== 0 ? lead.summary.meanDiff / lead.summary.meanB : null,
     },
-    tests,
-    mde,
+    tests: lead.tests,
+    mde: lead.mde,
     secondary,
     pairs: pairs.map((pair) => ({
       block: pair.block,
       a: {
         videoId: pair.a.videoId,
         postedOn: pair.a.postedOn,
-        value: pair.a.metrics[experiment.primaryMetric],
+        value: pair.a.metrics[lead.metric],
       },
       b: {
         videoId: pair.b.videoId,
         postedOn: pair.b.postedOn,
-        value: pair.b.metrics[experiment.primaryMetric],
+        value: pair.b.metrics[lead.metric],
       },
     })),
     limitations,
@@ -467,6 +795,128 @@ function num(value, digits = 3) {
   return Number.isFinite(value) ? value.toFixed(digits) : "—";
 }
 
+/**
+ * Structural audit of an experiment directory, meant to run before a read.
+ *
+ * The report already refuses to infer at an interim n, but a record can go
+ * wrong *before* that: an observation for a pack that was never assigned, the
+ * same video ingested twice, a post stored while younger than T+72h, a block
+ * whose durations drifted apart. `check` turns those into a non-zero exit so a
+ * read is never built on a broken record.
+ *
+ * @returns {{experimentId: string, ok: boolean, findings: object[], completeBlocks: number, targetPairs: number}}
+ */
+export function checkExperiment({
+  experiment,
+  assignments = [],
+  observations = [],
+  maturityHours = MATURITY_HOURS,
+} = {}) {
+  if (!experiment || !experiment.id) throw new Error("experiment is required");
+  const findings = [];
+  const push = (level, code, detail, ref = null) => findings.push({ level, code, detail, ref });
+  const primaries = primaryMetricsOf(experiment);
+
+  const byBlock = new Map();
+  for (const assignment of assignments) {
+    const list = byBlock.get(assignment.block) ?? [];
+    list.push(assignment);
+    byBlock.set(assignment.block, list);
+  }
+  for (const [block, list] of byBlock) {
+    if (list.length > 2) {
+      push("error", "block-overflow", `${list.length} packs in one block`, block);
+    }
+    if (new Set(list.map((item) => item.variant)).size !== list.length) {
+      push("error", "variant-collision", "two packs share a variant", block);
+    }
+    if (list.length < 2) push("warn", "incomplete-block", "block has one pack", block);
+    const durations = list
+      .map((item) => item.durationSec)
+      .filter((value) => Number.isFinite(value));
+    if (durations.length === 2) {
+      const gap = Math.abs(durations[0] - durations[1]);
+      if (gap > MAX_DURATION_GAP_SEC) {
+        push(
+          "error",
+          "duration-gap",
+          `gap ${gap.toFixed(2)}s exceeds ${MAX_DURATION_GAP_SEC}s`,
+          block,
+        );
+      }
+    }
+  }
+
+  const assignmentKeys = new Set(assignments.map((item) => `${item.block}\u0000${item.packSlug}`));
+  const seenVideos = new Set();
+  for (const observation of observations) {
+    const ref = String(observation.videoId ?? "");
+    if (seenVideos.has(ref)) push("error", "duplicate-video", "video ingested twice", ref);
+    seenVideos.add(ref);
+    const key = `${observation.block}\u0000${observation.packSlug}`;
+    if (!assignmentKeys.has(key)) {
+      push("error", "unassigned-observation", "no assignment for this block/pack", ref);
+    }
+    const age = observationAge(
+      { postedAt: observation.postedAt, postedOn: observation.postedOn },
+      observation.capturedAt,
+    );
+    const ageHours = age ? age.ageHoursLower : observation.ageHoursLower;
+    if (!Number.isFinite(ageHours)) {
+      push("warn", "age-unknown", "post time missing; maturity cannot be verified", ref);
+    } else if (ageHours < maturityHours) {
+      push(
+        "error",
+        "immature-observation",
+        `stored at a lower-bound age of ${ageHours.toFixed(1)}h < ${maturityHours}h`,
+        ref,
+      );
+    }
+    if (
+      Array.isArray(observation.protocolViolations) &&
+      observation.protocolViolations.length > 0
+    ) {
+      push("warn", "protocol-violation", observation.protocolViolations.join("; "), ref);
+    }
+    for (const metric of primaries) {
+      if (!Number.isFinite(observation.metrics?.[metric])) {
+        push("warn", "missing-primary-value", `no \`${metric}\` value`, ref);
+      }
+    }
+  }
+
+  let completeBlocks = 0;
+  const blocks = [...byBlock.keys()].sort();
+  for (const block of blocks) {
+    const list = byBlock.get(block);
+    const has = (variant) =>
+      list.some(
+        (item) =>
+          item.variant === variant &&
+          observations.some(
+            (observation) => observation.block === block && observation.packSlug === item.packSlug,
+          ),
+      );
+    if (has("A") && has("B")) completeBlocks++;
+  }
+  const targetPairs = Number(experiment.targetPairs) || 0;
+  if (completeBlocks < targetPairs) {
+    push(
+      "warn",
+      "fixed-sample-incomplete",
+      `${completeBlocks}/${targetPairs} complete pairs: inference stays withheld`,
+    );
+  }
+
+  return {
+    experimentId: experiment.id,
+    ok: !findings.some((item) => item.level === "error"),
+    findings,
+    completeBlocks,
+    targetPairs,
+  };
+}
+
 /** Markdown report, written next to the experiment. */
 export function renderReportMarkdown(report) {
   const lines = [];
@@ -476,7 +926,15 @@ export function renderReportMarkdown(report) {
   lines.push("");
   lines.push(`- **Hypothesis**: ${report.hypothesis}`);
   lines.push(`- **Factor**: ${report.factor}`);
-  lines.push(`- **Primary metric**: \`${report.primaryMetric}\``);
+  const primaries = Array.isArray(report.primaries) ? report.primaries : [];
+  const primaryList =
+    primaries.length > 0 ? primaries.map((item) => item.metric) : [report.primaryMetric];
+  lines.push(
+    primaryList.length > 1
+      ? `- **Primary metrics** (co-primary, both must win): ${primaryList.map((metric) => `\`${metric}\``).join(", ")}`
+      : `- **Primary metric**: \`${primaryList[0]}\``,
+  );
+  if (report.decision) lines.push(`- **Decision**: \`${report.decision}\``);
   lines.push(`- **Variants**: A = ${report.variants.A}; B = ${report.variants.B}`);
   lines.push(`- **Status**: \`${report.status}\``);
   lines.push(
@@ -489,38 +947,45 @@ export function renderReportMarkdown(report) {
   lines.push("");
   lines.push("## Primary result");
   lines.push("");
-  lines.push("| | A | B | A − B |");
-  lines.push("| --- | ---: | ---: | ---: |");
-  lines.push(
-    `| mean | ${num(report.summary.meanA)} | ${num(report.summary.meanB)} | ${num(report.summary.meanDiff)} |`,
-  );
-  lines.push(`| median paired difference | | | ${num(report.summary.medianDiff)} |`);
-  lines.push(
-    `| wins / losses / ties | ${report.summary.wins} | ${report.summary.losses} | ${report.summary.ties} |`,
-  );
-  lines.push(
-    report.summary.winRateCI
-      ? `| win rate (Wilson 95%) | | | ${pct(report.summary.winRate)} (${pct(report.summary.winRateCI.low)}–${pct(report.summary.winRateCI.high)}) |`
-      : `| win rate | | | ${pct(report.summary.winRate)} |`,
-  );
+  lines.push("| metric | n | mean A | mean B | A − B | wins/losses/ties | win rate (Wilson 95%) |");
+  lines.push("| --- | ---: | ---: | ---: | ---: | --- | --- |");
+  for (const item of primaries) {
+    const summary = item.summary;
+    const winRate = summary.winRateCI
+      ? `${pct(summary.winRate)} (${pct(summary.winRateCI.low)}–${pct(summary.winRateCI.high)})`
+      : pct(summary.winRate);
+    lines.push(
+      `| ${item.metric} | ${item.n} | ${num(summary.meanA)} | ${num(summary.meanB)} | ${num(summary.meanDiff)} | ${summary.wins}/${summary.losses}/${summary.ties} | ${winRate} |`,
+    );
+  }
   lines.push("");
-  if (report.tests) {
-    lines.push("| test | p | method |");
-    lines.push("| --- | ---: | --- |");
+  const tested = primaries.filter((item) => item.tests);
+  if (tested.length > 0) {
+    for (const item of tested) {
+      lines.push(`### Tests — \`${item.metric}\``);
+      lines.push("");
+      lines.push("| test | p | method |");
+      lines.push("| --- | ---: | --- |");
+      lines.push(
+        `| Permutation (sign-flip) | ${num(item.tests.permutation.p)} | ${item.tests.permutation.method} |`,
+      );
+      lines.push(
+        `| Wilcoxon signed-rank | ${num(item.tests.wilcoxon.p)} | ${item.tests.wilcoxon.method} |`,
+      );
+      lines.push(`| Sign test | ${num(item.tests.sign.p)} | exact binomial |`);
+      lines.push(
+        `| Bootstrap 95% CI of mean difference | ${num(item.tests.bootstrap.low)} – ${num(item.tests.bootstrap.high)} | ${item.tests.bootstrap.iterations} resamples |`,
+      );
+      lines.push("");
+    }
+  } else if (!report.reportable) {
     lines.push(
-      `| Permutation (sign-flip) | ${num(report.tests.permutation.p)} | ${report.tests.permutation.method} |`,
-    );
-    lines.push(
-      `| Wilcoxon signed-rank | ${num(report.tests.wilcoxon.p)} | ${report.tests.wilcoxon.method} |`,
-    );
-    lines.push(`| Sign test | ${num(report.tests.sign.p)} | exact binomial |`);
-    lines.push(
-      `| Bootstrap 95% CI of mean difference | ${num(report.tests.bootstrap.low)} – ${num(report.tests.bootstrap.high)} | ${report.tests.bootstrap.iterations} resamples |`,
+      "**No primary test is printed at n<8.** The primary table above is descriptive only; a secondary metric prints a p-value only when its own paired n reaches 8.",
     );
     lines.push("");
   } else {
     lines.push(
-      "**No primary test is printed at n<8.** The primary table above is descriptive only; a secondary metric prints a p-value only when its own paired n reaches 8.",
+      `**Inference withheld at interim.** The pre-registered sample is ${report.targetPairs} pairs; this report holds ${report.nPairs}. Fixed n, no peeking: p-values, confidence intervals and the decision appear only once the fixed sample is complete.`,
     );
     lines.push("");
   }
@@ -556,9 +1021,15 @@ export function renderReportMarkdown(report) {
     `- Observed paired SD: ${num(report.mde.observedSd)}; at alpha=${report.mde.alpha}, power=${report.mde.power}, the detectable effect at this n is ${num(report.mde.raw)} (log/raw scale).`,
   );
   if (report.mde.pct != null) lines.push(`- On a ratio scale: ${pct(report.mde.pct)}.`);
-  lines.push(
-    `- Planned at n=${report.mde.planned.pairs}, rho=${report.mde.planned.rho}: ${num(report.mde.planned.mdeLog)} (${pct(report.mde.planned.pct)}).`,
-  );
+  if (report.mde.planned) {
+    lines.push(
+      `- Planned at n=${report.mde.planned.pairs}, rho=${report.mde.planned.rho}: ${num(report.mde.planned.mdeLog)} (${pct(report.mde.planned.pct)}).`,
+    );
+  } else {
+    lines.push(
+      `- Planned MDE is only modelled for log-scale primaries; this metric is on its own scale.`,
+    );
+  }
   lines.push("");
   lines.push("## Limitations");
   lines.push("");
@@ -645,6 +1116,11 @@ function parseArgs(argv) {
     } else if (arg === "--secondary") {
       options.secondary = options.secondary || [];
       options.secondary.push(rest[++i]);
+    } else if (arg === "--primary-metric") {
+      options.primaries = options.primaries || [];
+      options.primaries.push(rest[++i]);
+    } else if (arg === "--allow-protocol-violations") {
+      options.allowProtocolViolations = true;
     } else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       options[key] = rest[++i];
@@ -674,12 +1150,16 @@ async function main() {
       id: options.id,
       hypothesis: options.hypothesis,
       factor: options.factor,
-      primaryMetric: options["primary-metric"] || "fullVideoWatchedRate",
-      secondaryMetrics: options.secondary || ["logAvgWatchTimeSec"],
+      primaryMetrics: options.primaries,
+      secondaryMetrics: options.secondary || [],
       targetPairs: options.pairs ? Number(options.pairs) : 20,
       alpha: options.alpha ? Number(options.alpha) : 0.05,
       power: options.power ? Number(options.power) : 0.8,
       seed: options.seed ? Number(options.seed) : 20260101,
+      variants:
+        options["variant-a"] || options["variant-b"]
+          ? { A: options["variant-a"] || "control", B: options["variant-b"] || "treatment" }
+          : undefined,
       notes: options.notes || "",
     });
     const file = join(dir, record.id, "experiment.json");
@@ -699,6 +1179,7 @@ async function main() {
       block: options.block,
       packSlug: options.pack,
       variant: options.variant || null,
+      durationSec: options.duration ?? null,
     });
     if (
       !assignments.some(
@@ -724,12 +1205,13 @@ async function main() {
     const contentRoot = options["content-root"] ? resolve(options["content-root"]) : CONTENT_DIR;
     const packs = await loadPackIndex(contentRoot);
     const matcher = (title) => matchPack(title, packs)?.slug ?? null;
-    const { observations, skipped } = ingestDetails({
+    const { observations, skipped, protocolViolations } = ingestDetails({
       experiment,
       assignments,
       details,
       overrides,
       matchPack: matcher,
+      allowProtocolViolations: Boolean(options.allowProtocolViolations),
     });
     const before = loadObservations(dir, id);
     const merged = upsertObservations(before, observations);
@@ -740,6 +1222,32 @@ async function main() {
         `   skip ${item.videoId ?? "(no id)"} — ${item.reason}${item.packSlug ? ` (${item.packSlug})` : ""}`,
       );
     }
+    for (const item of protocolViolations) {
+      console.log(
+        `   ⚠️  ${item.block} ingested as a labelled protocol violation: ${item.violations.join("; ")}`,
+      );
+    }
+    return;
+  }
+
+  if (options.command === "check") {
+    const id = options.experiment;
+    const experiment = loadExperiment(dir, id);
+    const result = checkExperiment({
+      experiment,
+      assignments: loadAssignments(dir, id),
+      observations: loadObservations(dir, id),
+    });
+    const icon = result.ok ? "✅" : "❌";
+    console.log(
+      `${icon} ${id}: ${result.completeBlocks}/${result.targetPairs} complete pairs, ${result.findings.length} finding(s)`,
+    );
+    for (const finding of result.findings) {
+      console.log(
+        `   [${finding.level}] ${finding.code}: ${finding.detail}${finding.ref ? ` (${finding.ref})` : ""}`,
+      );
+    }
+    if (!result.ok) process.exitCode = 1;
     return;
   }
 
@@ -748,6 +1256,17 @@ async function main() {
     const experiment = loadExperiment(dir, id);
     const assignments = loadAssignments(dir, id);
     const observations = loadObservations(dir, id);
+    // A broken record never becomes a readable report: an unassigned,
+    // duplicated or still-immature observation would silently enter the pairing.
+    const audit = checkExperiment({ experiment, assignments, observations });
+    if (!audit.ok) {
+      const errors = audit.findings.filter((item) => item.level === "error");
+      throw new Error(
+        `record fails the integrity check (${errors
+          .map((item) => `${item.code}${item.ref ? ` ${item.ref}` : ""}`)
+          .join(", ")}); run \`check\` for the full list`,
+      );
+    }
     const report = buildReport({ experiment, assignments, observations });
     const out = options.out ? resolve(options.out) : join(dir, id, "report.md");
     mkdirSync(dirname(out), { recursive: true });
