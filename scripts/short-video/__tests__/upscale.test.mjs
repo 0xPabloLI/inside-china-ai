@@ -14,6 +14,9 @@ vi.mock("fs", () => ({
   existsSync: vi.fn(() => true),
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
+  // The module's CLI guard resolves argv[1] with realpathSync (#1399); the mock
+  // must expose it or the import itself throws before any test runs.
+  realpathSync: vi.fn((p) => p),
 }));
 
 vi.mock("child_process", () => ({
