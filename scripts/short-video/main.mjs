@@ -204,14 +204,16 @@ async function main() {
   }
   prof.end("step-0.4-ass-gate");
 
-  // ── Step 0.5: Currency normalization (RMB → USD dual-annotation) ──
-  // Auto-inserts $X (¥Y) format before TTS runs, enforcing the currency
+  // ── Step 0.5: Currency normalization (CNY/HKD → USD dual-annotation) ──
+  // Auto-inserts $X (original) format before TTS runs, enforcing the currency
   // rule by code. Non-blocking: if it fails, scenes pass through unchanged.
   prof.mark("step-0.5-currency");
   try {
-    const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-    normalizeSceneData(scenes, meta);
-    console.log("💱 Step 0.5: Currency normalization complete (RMB → USD dual-annotation)\n");
+    const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+    await normalizeSceneDataWithLiveRates(scenes, meta, {
+      ratesFile: join(__dirname, "output", meta.pipelineId, "currency-rates.json"),
+    });
+    console.log("💱 Step 0.5: Currency normalization complete (CNY/HKD → USD dual-annotation)\n");
   } catch (e) {
     console.warn(`⚠️  Currency normalization skipped: ${e.message}\n`);
   }
