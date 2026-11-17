@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.87.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.86.0...tanstack_start_ts-v1.87.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** enforce the L2 matched-pair protocol ([#1398](https://github.com/0xPabloLI/inside-china-ai/issues/1398)) ([#1428](https://github.com/0xPabloLI/inside-china-ai/issues/1428)) ([dee2872](https://github.com/0xPabloLI/inside-china-ai/commit/dee28720b49080e6431aa6b506c486a24d49f122))
+* **short-video:** isolate pending analysis per slug ([#462](https://github.com/0xPabloLI/inside-china-ai/issues/462) Stage 2) ([#1425](https://github.com/0xPabloLI/inside-china-ai/issues/1425)) ([f01f027](https://github.com/0xPabloLI/inside-china-ai/commit/f01f027523b9b6309acfa0739485f61418ae7ef8))
+
 ## [1.86.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.85.1...tanstack_start_ts-v1.86.0) (2026-11-17)
 
 
