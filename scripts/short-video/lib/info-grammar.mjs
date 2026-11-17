@@ -12,11 +12,12 @@
  * Pure Node: no Remotion, no fs. The renderer consumes `normalizeInfoSpec` and
  * `sortData`; preflight consumes `validateInfoSpec` / `checkInfoSpec`.
  *
- * The candle row check is imported from `quote-fetch.mjs`, the module that
- * bakes the series: one implementation for "a bar is a bar", so the bake gate
- * and the scene gate cannot disagree about what a valid row is.
+ * The candle row check is imported from `ohlc-rows.mjs`, the module the bake
+ * also uses: one implementation for "a bar is a bar", so the bake gate and the
+ * scene gate cannot disagree. It lives outside `quote-fetch.mjs` because this
+ * file is in the render graph, which must stay free of clocks and network.
  */
-import { assertRowShape } from "./quote-fetch.mjs";
+import { assertRowShape } from "./ohlc-rows.mjs";
 
 const RELATIONSHIPS = Object.freeze([
   "magnitude",

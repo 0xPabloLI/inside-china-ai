@@ -26,6 +26,8 @@
  * no TradingView scraping (ToS).
  */
 
+import { assertRowShape } from "./ohlc-rows.mjs";
+
 const EASTMONEY_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get";
 const TENCENT_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get";
 const QUOTE_TIMEOUT_MS = 30000;
@@ -287,34 +289,6 @@ export function compareDailySeries(primary, check) {
     }
   }
   return { ok: divergences.length === 0, divergences };
-}
-
-/**
- * Structural sanity every baked row must satisfy, regardless of source.
- *
- * Exported because `info-grammar.mjs` checks the same rows again at preflight:
- * one implementation, so the bake gate and the scene gate cannot drift apart.
- *
- * @param {Array<object>} rows
- */
-export function assertRowShape(rows) {
-  let previous = "";
-  for (const [index, row] of rows.entries()) {
-    const where = `row ${index} (${row.date ?? "no date"})`;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(row.date))) {
-      throw new Error(`quote ${where}: date is not YYYY-MM-DD`);
-    }
-    for (const field of ["open", "high", "low", "close", "volume"]) {
-      if (!Number.isFinite(row[field])) throw new Error(`quote ${where}: ${field} is not finite`);
-    }
-    if (row.high < Math.max(row.open, row.close) || row.low > Math.min(row.open, row.close)) {
-      throw new Error(`quote ${where}: OHLC is impossible (high/low do not bracket open/close)`);
-    }
-    if (row.date <= previous) {
-      throw new Error(`quote ${where}: dates must be unique and ascending`);
-    }
-    previous = row.date;
-  }
 }
 
 function round(value, digits) {
