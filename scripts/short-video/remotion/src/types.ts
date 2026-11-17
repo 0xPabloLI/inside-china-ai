@@ -173,6 +173,18 @@ export interface InfoSpec {
   panelVariant?: "clean" | "terminal";
 }
 
+/**
+ * Pack-level narrative arc (#1398). Separate from `narrativeRole`, which
+ * already carries the legacy S/T/A/R retention taxonomy.
+ */
+export type NarrativeArcRole = "establisher" | "initial" | "peak" | "release";
+
+/** Declared attention budget for one scene (#1398). */
+export interface AttentionSpec {
+  /** Arrays are accepted only so the advisory audit can report >1 cue. */
+  cue?: string | string[];
+}
+
 /** A single scene definition (from scene-data.mjs). */
 export interface SceneData {
   id: number;
@@ -191,6 +203,12 @@ export interface SceneData {
   layout?: string;
   /** Native chart grammar (#1398), valid only with `layout: "chart"`. */
   info?: InfoSpec;
+  /** E/I/P/R role for the pack-level narrative arc audit (#1398). */
+  arcRole?: NarrativeArcRole;
+  /** Declared attention cue(s) for the advisory attention-budget audit (#1398). */
+  attention?: AttentionSpec;
+  /** Legacy S/T/A/R retention role; consumed by the retention checks, not the arc audit. */
+  narrativeRole?: string;
   /**
    * Original-language source material reference (#185). `sourceText` (the
    * Chinese article excerpt the scene's claim came from) feeds the zh

@@ -79,6 +79,8 @@ import {
 import { checkHookMediaQuality } from "./hook-media.mjs";
 import { checkInfoSpec } from "./info-grammar.mjs";
 import { checkChartPinContract } from "./chart-pin-contract.mjs";
+import { auditNarrativeArc } from "./narrative.mjs";
+import { auditAttentionBudget } from "./attention.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
 export { NO_MEDIA_TYPES };
@@ -1881,6 +1883,23 @@ export function checkTemplateContract(scenes) {
   return results;
 }
 
+// ─── Narrative arc + attention budget (#1398) ───
+
+export {
+  NARRATIVE_ARC_ROLES,
+  NARRATIVE_ROLES,
+  LEGACY_NARRATIVE_ROLES,
+  sceneRole,
+  peakPosition,
+  auditNarrativeArc as checkNarrativeArc,
+} from "./narrative.mjs";
+export {
+  INFORMATION_VISUAL_TYPES,
+  declaredCues,
+  layoutRun,
+  auditAttentionBudget as checkAttentionBudget,
+} from "./attention.mjs";
+
 // ─── Aggregate runner ───
 
 /**
@@ -3350,6 +3369,8 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     () => checkPatternInterrupt(scenes),
     () => checkLoopClosureNarrative(scenes),
     () => checkTextWidthBudget(scenes),
+    () => auditNarrativeArc(scenes, opts),
+    () => auditAttentionBudget(scenes),
     () => checkNoAIVocabulary(scenes),
     () => checkNoWrittenOpener(scenes),
     () => checkNoDeadClosers(scenes),

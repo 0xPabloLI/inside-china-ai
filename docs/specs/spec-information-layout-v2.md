@@ -92,8 +92,10 @@ Rules:
 | `checkInfoSpec` | FAIL | `info` present but layout not `chart`; unknown relationship/chart; chart not allowed for relationship; data length outside range; non-finite value; duplicate labels; missing unit/source; >1 highlight; bar/column baseline ≠ 0 for magnitude/ranking; part-to-whole sum ≤0 or `%` sum not ≈100 |
 | `checkChartPinContract` | FAIL | existing `scene.chart` pin: entity resolves in `config/chart-symbols.json`; annotations array ≤3 and well-formed; range/interval/theme are strings; this replaces the late Step 1.5 throw |
 | `checkChartClaimAgreement` | WARN then FAIL | native chart: at least one data label/number appears in VO or `texts`; if `time` present, a year/month token overlaps the VO; K-line pin: `texts.subtext`/`source` must name the unit or claim window |
-| `checkNarrativeArc` | WARN then FAIL | pack with ≥4 scenes: exactly one explicit `narrativeRole: "peak"`; peak at 35–65% of duration; at least one `info`/`chart` scene before peak for data packs; hook is establisher, CTA is release |
-| `checkAttentionBudget` | WARN | at most one declared `attention.cue` per scene; 3+ consecutive information scenes with the same layout → warn; a `chart` scene with a `terminal` panel plus a second decorated layer → warn |
+| `checkNarrativeArc` | WARN then FAIL | pack with ≥4 scenes: exactly one explicit `arcRole: "peak"`; peak midpoint at 35–65% of duration; if the pack has a chart, at least one chart scene precedes the peak; hook is `establisher`, closing scene is `release` |
+| `checkAttentionBudget` | WARN | at most one declared `attention.cue` per scene; 3+ consecutive information scenes with the same `visualType:layout` → warn; a `chart` scene with a `terminal` panel plus another declared cue → warn |
+
+`arcRole` is deliberately a new field. The existing `narrativeRole` already carries the legacy S/T/A/R retention taxonomy (`S` setup, `T` tease, `A` argument, `R` resolution) consumed by `checkOpenLoop` and friends; reusing it for E/I/P/R would silently change those checks. A pack that only has legacy `narrativeRole` gets one advisory row saying the legacy codes do not encode a peak.
 
 `checkInfoSpec` and `checkChartPinContract` enter the blocking runner immediately. `checkChartClaimAgreement` / `checkNarrativeArc` / `checkAttentionBudget` start in the editorial (advisory) bucket; promotion requires real packs at zero findings, as with `#1215` PR-C.
 
@@ -138,7 +140,7 @@ Field-test protocol:
 | S5 | `layout:"chart"` without `info` | FAIL; no silent fallback to `hero-center` |
 | S6 | existing `data.chart-card` image pack | unchanged render; no new gate failure |
 | S7 | existing `scene.chart` K-line pin with 4 annotations | `checkChartPinContract` FAIL at preflight, not Step 1.5 |
-| S8 | pack with no explicit peak | `checkNarrativeArc` WARN (advisory), not fail |
+| S8 | pack with no explicit peak (including legacy S/T/A/R only) | `checkNarrativeArc` WARN (advisory), not fail |
 | S9 | experiment n=5 | report prints descriptive rows and "no conclusion"; no p-value claim |
 | S10 | experiment all pairs same direction, n=6 | sign/permutation p≈0.031; report calls it "directional, small n" |
 | S11 | publish a v2 pack | `pending-analysis.json` carries slug + layoutSignature + v2 version |
@@ -164,7 +166,7 @@ Field-test protocol:
 
 1. `01-experiment-plumbing`: stats + CLI + layout signature + pending metadata + tests. No render change.
 2. `02-native-charts`: info grammar + schema + 4 native chart components + `data.chart` + gates + fixtures + 2 pack migrations.
-3. `03-narrative-attention`: narrative/attention gates + `narrativeRole` + advisory wiring + real-pack audit.
+3. `03-narrative-attention`: narrative/attention gates + `arcRole` + advisory wiring + real-pack audit.
 4. `04-evidence-author-docs`: research doc + author guide + brand-system chart section + docs index.
 5. `05-migration-blind-review`: remaining pack migrations + blind-review packet + report.
 

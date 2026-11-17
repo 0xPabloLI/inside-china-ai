@@ -5,9 +5,9 @@
  * shape. It exists so "make it a chart" is not an open choice: a magnitude is
  * a bar, a ranking is a sorted bar, change over time is a line, a part-to-whole
  * is a proportion bar, and a deviation needs a declared baseline. The rules
- * trace to the FT Visual Vocabulary / Datawrapper guidance in
- * `docs/research/information-design-evidence-2026-11.md`; they are structural
- * rules, not copied template code.
+ * trace to the FT Visual Vocabulary / Datawrapper guidance recorded in
+ * `docs/specs/spec-information-layout-v2.md`; they are structural rules, not
+ * copied template code.
  *
  * Pure Node: no Remotion, no fs. The renderer consumes `normalizeInfoSpec` and
  * `sortData`; preflight consumes `validateInfoSpec` / `checkInfoSpec`.
