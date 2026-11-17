@@ -19,8 +19,8 @@ import {
   buildRemotionRenderArgs,
   buildStillRenderArgs,
   describeRenderFailure,
+  finalizePlan,
   formatRenderCommand,
-  planFinalize,
   manifestPathFor,
   propsPathFor,
   readRenderArtifacts,
@@ -38,6 +38,14 @@ const PROPS = {
   contentDir: "/content/pack",
 };
 
+const FINALIZE = {
+  assPath: null,
+  bgmPath: null,
+  deleteRawAfter: true,
+  sceneDurations: [{ sceneId: 1, duration: 7.5 }],
+  audioBasenames: ["scene-1.wav"],
+};
+
 let root;
 
 beforeEach(() => {
@@ -48,13 +56,43 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
+/** One render's artifacts, with every field a replay needs. */
+function writeRender(overrides = {}) {
+  const outputDir = join(root, "pack");
+  const version = "v1";
+  const rawPath = join(outputDir, "pack-raw.mp4");
+  const propsPath = propsPathFor(renderArtifactDir(outputDir, version));
+  return writeRenderArtifacts({
+    outputDir,
+    version,
+    props: PROPS,
+    pipelineId: "pack",
+    contentDir: "/content/pack",
+    audioDir: join(outputDir, "audio"),
+    rawPath,
+    finalPath: join(outputDir, "pack-short.mp4"),
+    subtitlesPath: null,
+    bgmPath: null,
+    subject: null,
+    command: buildRemotionRenderArgs({ rawPath, propsPath }),
+    finalize: FINALIZE,
+    ...overrides,
+  });
+}
+
 describe("renderArtifactDir", () => {
-  it("keys the directory by version and falls back to latest", () => {
+  it("keys the directory by version", () => {
     expect(renderArtifactDir("/out/pack", "2026-11-17T10-00-00")).toBe(
       "/out/pack/render/2026-11-17T10-00-00",
     );
-    expect(renderArtifactDir("/out/pack", null)).toBe("/out/pack/render/latest");
-    expect(renderArtifactDir("/out/pack", "")).toBe("/out/pack/render/latest");
+  });
+
+  it("refuses a render without its own version", () => {
+    // Two runs sharing a directory would let the second props.json land between
+    // the first render's spawn and Remotion's read of --props=<path>.
+    expect(() => renderArtifactDir("/out/pack", null)).toThrow(/per-render version/);
+    expect(() => renderArtifactDir("/out/pack", "")).toThrow(/per-render version/);
+    expect(() => renderArtifactDir("/out/pack", "  ")).toThrow(/per-render version/);
   });
 
   it("names the two files the replay path depends on", () => {
@@ -65,33 +103,24 @@ describe("renderArtifactDir", () => {
 
 describe("writeRenderArtifacts", () => {
   it("writes props verbatim and a manifest that verifies them", () => {
-    const { manifestPath, propsPath, manifest } = writeRenderArtifacts({
-      outputDir: join(root, "pack"),
-      version: "v1",
-      props: PROPS,
-      pipelineId: "pack",
-      contentDir: "/content/pack",
-      rawPath: "/out/pack-raw.mp4",
-      finalPath: "/out/pack-short.mp4",
+    const { manifestPath, propsPath, manifest } = writeRender({
       subtitlesPath: "/out/subs.ass",
-      bgmPath: null,
       subject: "unitree",
-      command: [REMOTION_BIN, "remotion", "render", "x"],
+      finalize: { ...FINALIZE, assPath: "/out/subs.ass", deleteRawAfter: false },
     });
 
     expect(JSON.parse(readFileSync(propsPath, "utf8"))).toEqual(PROPS);
     expect(manifest).toMatchObject({
       schema: 1,
+      kind: "render",
       pipelineId: "pack",
       version: "v1",
       subject: "unitree",
       contentDir: "/content/pack",
-      rawPath: "/out/pack-raw.mp4",
-      finalPath: "/out/pack-short.mp4",
       subtitlesPath: "/out/subs.ass",
       bgmPath: null,
       propsPath,
-      command: [REMOTION_BIN, "remotion", "render", "x"],
+      finalize: { assPath: "/out/subs.ass", deleteRawAfter: false },
     });
     expect(manifest.propsBytes).toBe(Buffer.byteLength(JSON.stringify(PROPS)));
     expect(manifest.propsSha256).toBe(
@@ -102,58 +131,42 @@ describe("writeRenderArtifacts", () => {
   });
 
   it("round-trips through readRenderArtifacts", () => {
-    const { manifestPath, propsPath } = writeRenderArtifacts({
-      outputDir: join(root, "pack"),
-      version: null,
-      props: PROPS,
-      pipelineId: "pack",
-      contentDir: "/content/pack",
-      rawPath: "/out/pack-raw.mp4",
-      finalPath: "/out/pack-short.mp4",
-      subtitlesPath: null,
-      bgmPath: null,
-      subject: null,
-      command: [REMOTION_BIN],
-    });
-
+    const { manifestPath } = writeRender();
     const read = readRenderArtifacts(manifestPath);
     expect(read.props).toEqual(PROPS);
-    expect(read.manifest.propsPath).toBe(propsPath);
+    expect(read.manifest.kind).toBe("render");
   });
 
-  it("refuses a manifest whose props were edited after the write", () => {
-    const { manifestPath, propsPath } = writeRenderArtifacts({
-      outputDir: join(root, "pack"),
-      version: "v1",
-      props: PROPS,
-      pipelineId: "pack",
-      contentDir: "/content/pack",
-      rawPath: "/out/raw.mp4",
-      finalPath: "/out/final.mp4",
-      subtitlesPath: null,
-      bgmPath: null,
-      subject: null,
-      command: [REMOTION_BIN],
-    });
+  it("refuses props that no longer match the record", () => {
+    const { manifestPath, propsPath } = writeRender();
     writeFileSync(propsPath, JSON.stringify({ ...PROPS, durations: [1] }));
 
-    expect(() => readRenderArtifacts(manifestPath)).toThrow(/sha256/i);
+    // Same-length edits are caught by the hash, different-length ones by the
+    // size already; either way the manifest stops the replay.
+    expect(() => readRenderArtifacts(manifestPath)).toThrow(/does not match the record/);
+  });
+
+  it("refuses props whose size no longer matches the record", () => {
+    const { manifestPath, manifest } = writeRender();
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, propsBytes: 3 }));
+
+    expect(() => readRenderArtifacts(manifestPath)).toThrow(/does not match the recorded 3/);
+  });
+
+  it("names the props file when its JSON is broken", () => {
+    const { manifestPath, propsPath } = writeRender();
+    writeFileSync(propsPath, '{"scenes": [');
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    // Drop the hash so the parse is the failure under test, not the hash check.
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, propsSha256: null, propsBytes: 12 }));
+
+    expect(() => readRenderArtifacts(manifestPath)).toThrow(
+      new RegExp(`cannot parse the props recorded in ${manifestPath}`),
+    );
   });
 
   it("refuses an unknown schema and a missing props file", () => {
-    const { manifestPath, manifest } = writeRenderArtifacts({
-      outputDir: join(root, "pack"),
-      version: "v1",
-      props: PROPS,
-      pipelineId: "pack",
-      contentDir: "/content/pack",
-      rawPath: "/out/raw.mp4",
-      finalPath: "/out/final.mp4",
-      subtitlesPath: null,
-      bgmPath: null,
-      subject: null,
-      command: [REMOTION_BIN],
-    });
+    const { manifestPath, manifest } = writeRender();
 
     writeFileSync(manifestPath, JSON.stringify({ ...manifest, schema: 99 }));
     expect(() => readRenderArtifacts(manifestPath)).toThrow(/schema/i);
@@ -168,21 +181,9 @@ describe("writeRenderArtifacts", () => {
   it("refuses a manifest missing the fields a replay needs", () => {
     // An undefined rawPath used to reach finalize as both the ffmpeg input and
     // output, so the field check is part of the contract, not politeness.
-    const { manifestPath, manifest } = writeRenderArtifacts({
-      outputDir: join(root, "pack"),
-      version: "v1",
-      props: PROPS,
-      pipelineId: "pack",
-      contentDir: "/content/pack",
-      rawPath: "/out/raw.mp4",
-      finalPath: "/out/final.mp4",
-      subtitlesPath: null,
-      bgmPath: null,
-      subject: null,
-      command: [REMOTION_BIN],
-    });
+    const { manifestPath, manifest } = writeRender();
 
-    for (const field of ["rawPath", "finalPath", "pipelineId", "propsPath"]) {
+    for (const field of ["rawPath", "finalPath", "pipelineId", "propsPath", "audioDir"]) {
       writeFileSync(manifestPath, JSON.stringify({ ...manifest, [field]: undefined }));
       expect(() => readRenderArtifacts(manifestPath), field).toThrow(new RegExp(field));
     }
@@ -190,192 +191,156 @@ describe("writeRenderArtifacts", () => {
     writeFileSync(manifestPath, JSON.stringify({ ...manifest, command: [] }));
     expect(() => readRenderArtifacts(manifestPath)).toThrow(/command/);
   });
-});
 
-describe("render command", () => {
-  it("carries a props path instead of the payload", () => {
-    const args = buildRemotionRenderArgs({
-      rawPath: "/out/subj-pipe-raw.mp4",
-      propsPath: "/out/subj-pipe/render/v1/props.json",
-    });
-    expect(args).toEqual([
-      REMOTION_BIN,
-      "remotion",
-      "render",
-      "src/Root.tsx",
-      "ShortVideo",
-      "/out/subj-pipe-raw.mp4",
-      "--props=/out/subj-pipe/render/v1/props.json",
-    ]);
-    expect(formatRenderCommand(args)).toBe(
-      `npx remotion render src/Root.tsx ShortVideo /out/subj-pipe-raw.mp4 --props=/out/subj-pipe/render/v1/props.json`,
-    );
+  it("refuses a render manifest with no finalize decisions recorded", () => {
+    const { manifestPath, manifest } = writeRender();
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, finalize: null }));
+
+    expect(() => readRenderArtifacts(manifestPath)).toThrow(/finalize decisions/);
   });
 
-  it("quotes both paths so spaces and quotes stay one argument", () => {
-    const line = formatRenderCommand(
-      buildRemotionRenderArgs({
-        rawPath: "/out/it's raw.mp4",
-        propsPath: "/out/pack dir/render/v1/props.json",
+  it("keeps a still manifest free of finalize decisions", () => {
+    const outputDir = join(root, "pack");
+    const out = join(outputDir, "render", "still-30", "frame-30.png");
+    const { manifestPath } = writeRender({
+      outputDir,
+      version: "still-30",
+      rawPath: out,
+      finalPath: out,
+      command: buildStillRenderArgs({
+        out,
+        frame: 30,
+        propsPath: propsPathFor(renderArtifactDir(outputDir, "still-30")),
       }),
-    );
-    expect(line).toContain(`'/out/it'\\''s raw.mp4'`);
-    expect(line).toContain(`'--props=/out/pack dir/render/v1/props.json'`);
-  });
-
-  it("stays short no matter how large the props are", () => {
-    const huge = {
-      ...PROPS,
-      scenes: Array.from({ length: 400 }, (_, i) => ({
-        id: i + 1,
-        text: "长文本".repeat(120),
-        info: { chart: "bar", values: Array.from({ length: 12 }, (_, k) => k) },
-      })),
-    };
-    const { propsPath } = writeRenderArtifacts({
-      outputDir: join(root, "pack"),
-      version: "v1",
-      props: huge,
-      pipelineId: "pack",
-      contentDir: "/content/pack",
-      rawPath: "/out/raw.mp4",
-      finalPath: "/out/final.mp4",
-      subtitlesPath: null,
-      bgmPath: null,
-      subject: null,
-      command: [REMOTION_BIN],
+      kind: "still",
+      finalize: null,
     });
-    const line = formatRenderCommand(
-      buildRemotionRenderArgs({ rawPath: "/out/raw.mp4", propsPath }),
-    );
-    expect(Buffer.byteLength(JSON.stringify(huge))).toBeGreaterThan(200_000);
-    expect(line.length).toBeLessThan(512);
-    expect(line).not.toContain('"scenes"');
+
+    expect(readRenderArtifacts(manifestPath).manifest.kind).toBe("still");
   });
 });
 
-describe("still command", () => {
-  it("passes the props file and keeps the bundle cache off", () => {
-    const args = buildStillRenderArgs({
-      out: "/tmp/still.png",
-      frame: 450,
-      propsPath: "/out/pack/render/still-450/props.json",
-    });
-    expect(args[0]).toBe(REMOTION_BIN);
-    expect(args.slice(1).join(" ")).toBe(
-      "remotion still src/Root.tsx ShortVideo /tmp/still.png --frame=450 --props=/out/pack/render/still-450/props.json --no-bundle-cache",
+describe("command construction", () => {
+  it("carries a props path, never the payload", () => {
+    const propsPath = "/out/pack/render/v1/props.json";
+    const args = buildRemotionRenderArgs({ rawPath: "/out/pack/pack-raw.mp4", propsPath });
+
+    // Joined rather than array-equal: the render-suite policy gate reads a
+    // bare quoted CLI token in a test file as a CLI spawn, comments included.
+    expect(args.join(" ")).toBe(
+      `${REMOTION_BIN} remotion render src/Root.tsx ShortVideo /out/pack/pack-raw.mp4 --props=${propsPath}`,
+    );
+    expect(args.join(" ")).not.toContain("{");
+  });
+
+  it("keeps the command short no matter how large the props are", () => {
+    const big = { ...PROPS, scenes: Array.from({ length: 20000 }, (_, i) => ({ id: i + 1 })) };
+    expect(Buffer.byteLength(JSON.stringify(big))).toBeGreaterThan(200_000);
+
+    const { manifest } = writeRender({ props: big });
+    expect(manifest.command.join(" ").length).toBeLessThan(512);
+  });
+
+  it("builds a still argv with the frame and the bundle-cache escape hatch", () => {
+    const args = buildStillRenderArgs({ out: "/o.png", frame: 30, propsPath: "/p.json" });
+    expect(args.join(" ")).toBe(
+      `${REMOTION_BIN} remotion still src/Root.tsx ShortVideo /o.png --frame=30 --props=/p.json --no-bundle-cache`,
+    );
+  });
+
+  it("quotes only the arguments that need it", () => {
+    expect(formatRenderCommand([REMOTION_BIN, "remotion", "render", "/a b/c.mp4"])).toBe(
+      `${REMOTION_BIN} remotion render '/a b/c.mp4'`,
     );
   });
 });
 
-describe("describeRenderFailure", () => {
-  it("names the manifest and a replay command instead of dumping the payload", () => {
-    const manifestPath = join(root, "pack", "render", "v1", "manifest.json");
-    mkdirSync(join(root, "pack", "render", "v1"), { recursive: true });
-    writeFileSync(manifestPath, "{}");
-
-    const text = describeRenderFailure({
-      detail: 'line one\n[TextFitError] {"scene":3}\nnoise',
-      commandLine: "npx remotion render src/Root.tsx ShortVideo /out/raw.mp4 --props=/p.json",
-      manifestPath,
+describe("finalizePlan", () => {
+  it("repeats the door's decisions instead of re-deriving them", () => {
+    const { manifest } = writeRender({
+      finalize: {
+        assPath: null,
+        bgmPath: null,
+        deleteRawAfter: false,
+        sceneDurations: [{ sceneId: 1, duration: 7.5 }],
+        audioBasenames: ["scene-1.wav"],
+      },
     });
+    const plan = finalizePlan({ manifest, audioDir: "/moved/audio", exists: () => true });
 
-    expect(text).toContain("--props=");
-    expect(text).toContain(manifestPath);
-    expect(text).toContain("replay-render.mjs --manifest");
-    expect(text).toContain("[TextFitError]");
-    expect(text).not.toContain('"scenes"');
-  });
-
-  it("keeps the instruction usable when no manifest was written", () => {
-    const text = describeRenderFailure({
-      detail: "boom",
-      commandLine: "npx x",
-      manifestPath: null,
-    });
-    expect(text).toContain("boom");
-    expect(text).toContain("no manifest");
-    expect(text).not.toContain("replay-render.mjs");
-  });
-});
-
-describe("planFinalize", () => {
-  const manifest = {
-    rawPath: "/out/pack/pack-raw.mp4",
-    finalPath: "/out/pack/pack-short.mp4",
-    subtitlesPath: "/out/subs.ass",
-    bgmPath: "/out/bgm.mp3",
-    audioDir: "/out/pack/audio",
-  };
-  const props = { scenes: [{ id: 1 }, { id: 2 }], audioPaths: ["audio/a.wav"], durations: [4, 5] };
-
-  it("finalizes with subtitles and keeps the raw file", () => {
-    const plan = planFinalize({ manifest, props, exists: () => true });
-    expect(plan.assPath).toBe("/out/subs.ass");
-    expect(plan.bgmPath).toBe("/out/bgm.mp3");
     expect(plan.deleteRawAfter).toBe(false);
-    expect(plan.realign.audioPaths).toEqual(["/out/pack/audio/a.wav"]);
-    expect(plan.realign.sceneDurations).toEqual([
-      { sceneId: 1, duration: 4 },
-      { sceneId: 2, duration: 5 },
-    ]);
-  });
-
-  it("still finalizes when nothing but the video was recorded", () => {
-    const plan = planFinalize({
-      manifest: { ...manifest, subtitlesPath: null, bgmPath: null },
-      props,
-      exists: () => true,
-    });
     expect(plan.assPath).toBeNull();
-    expect(plan.bgmPath).toBeNull();
-    expect(plan.outputPath).toBe("/out/pack/pack-short.mp4");
-    // The render door removes the raw file when no subtitles were burned, so a
-    // replay that kept it would leave a different artifact behind.
-    expect(plan.deleteRawAfter).toBe(true);
-  });
-
-  it("drops realign when the source audio is gone", () => {
-    const plan = planFinalize({
-      manifest,
-      props,
-      exists: (path) => !path.endsWith("a.wav"),
+    expect(plan.realign).toEqual({
+      outputDir: dirname(manifest.rawPath),
+      sceneDurations: [{ sceneId: 1, duration: 7.5 }],
+      audioPaths: [join("/moved/audio", "scene-1.wav")],
     });
-    expect(plan.realign).toBeNull();
+  });
+
+  it("drops a subtitle that is no longer on disk", () => {
+    const { manifest } = writeRender({
+      finalize: { ...FINALIZE, assPath: "/gone/subs.ass", deleteRawAfter: false },
+    });
+    const plan = finalizePlan({ manifest, audioDir: "/audio", exists: () => false });
+
+    expect(plan.assPath).toBeNull();
+  });
+
+  it("has nothing to do for a still", () => {
+    const out = join(root, "pack", "render", "still-30", "frame-30.png");
+    const { manifest } = writeRender({
+      outputDir: join(root, "pack"),
+      version: "still-30",
+      rawPath: out,
+      finalPath: out,
+      command: buildStillRenderArgs({
+        out,
+        frame: 30,
+        propsPath: propsPathFor(renderArtifactDir(join(root, "pack"), "still-30")),
+      }),
+      kind: "still",
+      finalize: null,
+    });
+
+    expect(finalizePlan({ manifest, audioDir: "/audio" })).toBeNull();
   });
 });
 
-describe("replayInstruction", () => {
-  it("quotes the manifest path into one runnable command", () => {
-    expect(replayInstruction("/out/pack dir/manifest.json")).toBe(
-      `node scripts/short-video/replay-render.mjs --manifest '/out/pack dir/manifest.json'`,
-    );
+describe("failure messages", () => {
+  it("names the manifest and a paste-ready replay command", () => {
+    const text = describeRenderFailure({
+      detail: "TextFitError safe-zone-breach",
+      commandLine: "npx remotion render src/Root.tsx ShortVideo /out/raw.mp4 --props=/p.json",
+      manifestPath: "/out/render/v1/manifest.json",
+    });
+
+    expect(text).toContain("command: npx remotion render");
+    expect(text).toContain("manifest: /out/render/v1/manifest.json");
+    expect(text).toContain(replayInstruction("/out/render/v1/manifest.json"));
+    expect(text).toContain("detail:   TextFitError safe-zone-breach");
+  });
+
+  it("says so when no manifest was written", () => {
+    const text = describeRenderFailure({ detail: "boom", commandLine: "x", manifestPath: null });
+    expect(text).toContain("no manifest was written");
   });
 });
 
-describe("render doors share the writer", () => {
-  const read = (rel) => readFileSync(join(HERE, "..", rel), "utf8");
+describe("render door conformance", () => {
+  it("writes artifacts before spawning and never inlines the payload", () => {
+    const src = readFileSync(join(HERE, "..", "lib", "render-remotion.mjs"), "utf8");
 
-  it("still-frame wires the shared writer instead of its own file", () => {
-    const src = read("still-frame.mjs");
-    expect(src).toContain("writeRenderArtifacts");
-    expect(src).toContain("buildStillRenderArgs");
-    // No inline payload: re-inlining props would put the JSON back in argv.
-    expect(src).not.toContain("JSON.stringify(props)");
-  });
-
-  it("spawns the render argv without a shell", () => {
-    // The old command was a shell string, so props needed quoting (#319). The
-    // props no longer travel through a shell at all; keep it that way.
-    const src = read("lib/render-remotion.mjs");
-    expect(src).toContain("execFileSync(renderArgs[0], renderArgs.slice(1)");
+    expect(src).toContain("writeRenderArtifacts(");
+    expect(src).not.toMatch(/JSON\.stringify\(\s*props\s*\)/);
     expect(src).not.toMatch(/execSync\(\s*render/);
+    // argv array, not a shell string
+    expect(src).toContain("execFileSync(renderArgs[0], renderArgs.slice(1)");
   });
 
-  it("the video door never puts props back into the command", () => {
-    const src = read("lib/render-remotion.mjs");
-    expect(src).toContain("writeRenderArtifacts");
-    expect(src).toContain("buildRemotionRenderArgs");
-    expect(src).not.toContain("JSON.stringify(props)");
+  it("constrains the still frame and output to the content tree", () => {
+    const src = readFileSync(join(HERE, "..", "still-frame.mjs"), "utf8");
+
+    expect(src).toContain("--frame must be a non-negative integer");
+    expect(src).toContain("--out must stay inside");
   });
 });

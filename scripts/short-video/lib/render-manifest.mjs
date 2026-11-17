@@ -25,7 +25,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { shellQuote } from "./shell-quote.mjs";
 
@@ -40,16 +40,21 @@ export const REMOTION_BIN = "npx";
 
 /**
  * Directory holding one render's artifacts.
+ *
+ * The version has to be per-render: two runs sharing a directory would have the
+ * second `props.json` land between the first render's spawn and Remotion's read
+ * of `--props=<path>`, so the first render would consume the other run's props.
+ *
  * @param {string} outputDir
  * @param {string|null} version
  * @returns {string}
  */
 export function renderArtifactDir(outputDir, version) {
-  return join(
-    outputDir,
-    "render",
-    version && String(version).length > 0 ? String(version) : "latest",
-  );
+  const name = version == null ? "" : String(version).trim();
+  if (name.length === 0) {
+    throw new Error("render artifacts need a per-render version, got " + JSON.stringify(version));
+  }
+  return join(outputDir, "render", name);
 }
 
 /** @param {string} dir */
@@ -83,6 +88,7 @@ function sha256(text) {
  * @param {string|null} input.subject
  * @param {string[]} input.command - exact argv, no shell quoting
  * @param {"render"|"still"} [input.kind] - a still has no finalize pass
+ * @param {object|null} [input.finalize] - the door's finalize decisions (see finalizePlan)
  * @returns {{dir: string, propsPath: string, manifestPath: string, manifest: object}}
  */
 export function writeRenderArtifacts({
@@ -99,6 +105,7 @@ export function writeRenderArtifacts({
   subject = null,
   command,
   kind = "render",
+  finalize = null,
 }) {
   const dir = renderArtifactDir(outputDir, version);
   mkdirSync(dir, { recursive: true });
@@ -125,6 +132,7 @@ export function writeRenderArtifacts({
     propsBytes: Buffer.byteLength(serialized),
     propsSha256: sha256(serialized),
     command: [...command],
+    finalize: finalize ?? null,
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
@@ -155,7 +163,7 @@ export function readRenderArtifacts(manifestPath) {
       `render manifest schema ${JSON.stringify(manifest.schema)} is not supported (expected ${RENDER_MANIFEST_SCHEMA}): ${manifestPath}`,
     );
   }
-  for (const field of ["pipelineId", "rawPath", "finalPath", "propsPath"]) {
+  for (const field of ["pipelineId", "rawPath", "finalPath", "propsPath", "audioDir"]) {
     if (typeof manifest[field] !== "string" || manifest[field].length === 0) {
       throw new Error(`render manifest is missing "${field}": ${manifestPath}`);
     }
@@ -168,18 +176,42 @@ export function readRenderArtifacts(manifestPath) {
     throw new Error(`render manifest kind ${JSON.stringify(manifest.kind)} is not supported`);
   }
   manifest.kind = kind;
+  if (kind === "render") {
+    const fin = manifest.finalize;
+    if (
+      !fin ||
+      typeof fin.deleteRawAfter !== "boolean" ||
+      !Array.isArray(fin.sceneDurations) ||
+      !Array.isArray(fin.audioBasenames)
+    ) {
+      throw new Error(
+        `render manifest is missing the finalize decisions a replay must repeat: ${manifestPath}`,
+      );
+    }
+  }
 
   const propsPath = manifest.propsPath;
   if (!existsSync(propsPath)) {
     throw new Error(`render manifest points at a missing props file: ${propsPath}`);
   }
   const text = readFileSync(propsPath, "utf8");
+  if (typeof manifest.propsBytes === "number" && Buffer.byteLength(text) !== manifest.propsBytes) {
+    throw new Error(
+      `props size ${Buffer.byteLength(text)} does not match the recorded ${manifest.propsBytes} — the props file was replaced: ${propsPath}`,
+    );
+  }
   if (manifest.propsSha256 && sha256(text) !== manifest.propsSha256) {
     throw new Error(
       `props sha256 does not match the manifest — the props were edited after the render: ${propsPath}`,
     );
   }
-  return { manifest, props: JSON.parse(text) };
+  try {
+    return { manifest, props: JSON.parse(text) };
+  } catch (e) {
+    throw new Error(
+      `cannot parse the props recorded in ${manifestPath} (${propsPath}): ${e.message}`,
+    );
+  }
 }
 
 /**
@@ -263,82 +295,114 @@ export function describeRenderFailure({ detail, commandLine, manifestPath }) {
 }
 
 /**
- * What a replay's finalize pass should do, derived from the manifest alone.
+ * The finalize pass a replayed render should run — read from what the door
+ * recorded, never re-derived.
  *
- * A replay has to land on the same kind of artifact the render door produced:
- * `renderRemotion` always finalizes (loudnorm + head trim), even with no
- * subtitles or BGM, and deletes the raw file when no subtitles were burned.
- * Skipping finalize because the manifest records no subtitles would quietly
- * produce a different file than the one being replayed.
+ * The door owns these decisions (whether to delete the raw file, which scene
+ * windows the head-trim measurement uses). A replay that recomputed them would
+ * be a second source of truth that can drift from the artifact it is supposed
+ * to reproduce, so `manifest.finalize` stores the decision itself and this
+ * function only re-attaches the audio files, which live in a different place
+ * by replay time (the door's `public/audio/` copies are gone).
  *
- * @param {{manifest: object, props: Record<string, unknown>, exists?: (path: string) => boolean}} input
- * @returns {{videoPath: string, assPath: string|null, bgmPath: string|null, outputPath: string, realign: object|null, deleteRawAfter: boolean}}
+ * @param {{manifest: object, audioDir: string, exists?: (path: string) => boolean}} input
+ * @returns {{videoPath: string, assPath: string|null, bgmPath: string|null, outputPath: string, realign: object|null, deleteRawAfter: boolean}|null}
  */
-export function planFinalize({ manifest, props, exists = existsSync }) {
-  const assPath =
-    manifest.subtitlesPath && exists(manifest.subtitlesPath) ? manifest.subtitlesPath : null;
-  const bgmPath = manifest.bgmPath && exists(manifest.bgmPath) ? manifest.bgmPath : null;
-  const audioPaths = (props.audioPaths ?? []).map((rel) =>
-    join(resolveAudioDir(manifest), basename(rel)),
-  );
-  const realign = audioPaths.every((path) => exists(path))
-    ? {
-        outputDir: dirname(manifest.rawPath),
-        sceneDurations: (props.scenes ?? []).map((scene, i) => ({
-          sceneId: scene.id ?? i + 1,
-          duration: props.durations?.[i],
-        })),
-        audioPaths,
-      }
-    : null;
-
+export function finalizePlan({ manifest, audioDir, exists = existsSync }) {
+  const recorded = manifest.finalize;
+  if (!recorded) return null;
+  const audioPaths = (recorded.audioBasenames ?? []).map((name) => join(audioDir, name));
   return {
     videoPath: manifest.rawPath,
-    assPath,
-    bgmPath,
+    assPath: recorded.assPath && exists(recorded.assPath) ? recorded.assPath : null,
+    bgmPath: recorded.bgmPath && exists(recorded.bgmPath) ? recorded.bgmPath : null,
     outputPath: manifest.finalPath,
-    realign,
-    deleteRawAfter: !assPath,
+    realign:
+      audioPaths.length === 0
+        ? null
+        : {
+            outputDir: dirname(manifest.rawPath),
+            sceneDurations: recorded.sceneDurations ?? [],
+            audioPaths,
+          },
+    deleteRawAfter: recorded.deleteRawAfter === true,
   };
 }
 
 /**
- * A manifest is data on disk, so the command it carries is untrusted input.
- * A replay may only run the shape this module writes for that manifest: the
- * same composition, the recorded output, this manifest's props file, and (for
- * a still) a numeric frame.
+ * Refuse a path that leaves the tree a manifest is allowed to write in.
+ *
+ * The manifest is data on disk, so its paths are untrusted: an unchecked
+ * `rawPath` tells Remotion to overwrite any file, and a `finalPath` tells
+ * ffmpeg to do the same. `root` is anchored to where the manifest itself
+ * lives, never to a field inside it.
+ *
+ * @param {string} root
+ * @param {string} target
+ * @param {string} label
+ * @param {string} manifestPath
+ */
+function assertContained(root, target, label, manifestPath) {
+  const rel = relative(resolve(root), resolve(target));
+  if (rel.length === 0 || rel.startsWith("..") || isAbsolute(rel)) {
+    throw new Error(
+      `refusing to replay: ${label} ${target} is outside ${resolve(root)} (manifest ${manifestPath})`,
+    );
+  }
+}
+
+/**
+ * The argv this manifest implies.
+ *
+ * Rebuilt from the manifest rather than trusted from `manifest.command`, so the
+ * recorded array cannot smuggle extra Remotion flags (e.g. a browser binary) or
+ * a second `--props=` that Remotion would honour over the verified one.
+ *
+ * @param {object} manifest
+ * @returns {string[]}
+ */
+function replayCommandFor(manifest) {
+  if (manifest.kind === "still") {
+    const recorded = Array.isArray(manifest.command) ? manifest.command : [];
+    const frames = recorded
+      .filter((arg) => typeof arg === "string" && arg.startsWith("--frame="))
+      .map((arg) => arg.slice("--frame=".length));
+    if (frames.length !== 1 || !/^\d+$/.test(frames[0])) {
+      throw new Error(
+        `refusing to replay: a still manifest must record exactly one numeric --frame, got ${JSON.stringify(frames)}`,
+      );
+    }
+    return buildStillRenderArgs({
+      out: manifest.rawPath,
+      frame: frames[0],
+      propsPath: manifest.propsPath,
+    });
+  }
+  return buildRemotionRenderArgs({ rawPath: manifest.rawPath, propsPath: manifest.propsPath });
+}
+
+/**
+ * Verify the recorded command is the one the manifest implies, and return the
+ * rebuilt one to execute.
  *
  * @param {object} manifest
  * @returns {string[]}
  */
 export function assertReplayableCommand(manifest) {
-  const command = Array.isArray(manifest.command) ? manifest.command : [];
-  const [bin, sub, action, entry, composition] = command;
-  const propsArg = command.find((arg) => typeof arg === "string" && arg.startsWith("--props="));
-  if (bin !== REMOTION_BIN || sub !== "remotion" || !["render", "still"].includes(action)) {
+  const expected = replayCommandFor(manifest);
+  const recorded = Array.isArray(manifest.command) ? manifest.command : [];
+  const same =
+    recorded.length === expected.length && recorded.every((arg, i) => arg === expected[i]);
+  if (!same) {
     throw new Error(
-      `refusing to replay: recorded command is not a remotion render/still call: ${JSON.stringify(command.slice(0, 3))}`,
+      [
+        "refusing to replay: the recorded command is not the one this manifest implies",
+        `    recorded: ${formatRenderCommand(recorded.map(String))}`,
+        `    expected: ${formatRenderCommand(expected)}`,
+      ].join("\n"),
     );
   }
-  if (entry !== "src/Root.tsx" || composition !== "ShortVideo") {
-    throw new Error(
-      `refusing to replay: recorded command renders ${JSON.stringify([entry, composition])}, not src/Root.tsx ShortVideo`,
-    );
-  }
-  if (command[5] !== manifest.rawPath) {
-    throw new Error(
-      `refusing to replay: recorded output ${JSON.stringify(command[5])} is not the manifest's ${manifest.rawPath}`,
-    );
-  }
-  if (!propsArg || propsArg.slice("--props=".length) !== manifest.propsPath) {
-    throw new Error(
-      `refusing to replay: the recorded --props path does not match the manifest's props file (${manifest.propsPath})`,
-    );
-  }
-  if (action === "still" && !command.some((arg) => /^--frame=\d+$/.test(String(arg)))) {
-    throw new Error("refusing to replay: a still command must carry a numeric --frame");
-  }
-  return [...command];
+  return expected;
 }
 
 function collectStagedAssets(props) {
@@ -352,35 +416,21 @@ function collectStagedAssets(props) {
 }
 
 /**
- * Where a pipeline keeps the audio a manifest refers to.
- *
- * The render door writes `output/<id>/audio/*`; the manifest records that path
- * because a replay needs it after the door deletes its `public/audio/` copies.
- * Older manifests have no `audioDir`, so fall back to the sibling `audio/` of
- * the recorded output.
- *
- * @param {object} manifest
- * @returns {string}
- */
-function resolveAudioDir(manifest) {
-  return manifest.audioDir || join(dirname(manifest.rawPath), "audio");
-}
-
-/**
  * Decide whether a recorded render can run again, and say what is missing.
  *
  * Audio is recoverable: the render door copies `output/<id>/audio/*` into
- * `remotion/public/audio/` and deletes its copies afterwards, so a replay can
- * copy them back from the pipeline output. Staged media and avatars are not:
- * their source paths are rewritten during staging, so a missing staged file
- * means "render this content again", and the plan says so instead of letting
- * Remotion fail mid-frame.
+ * `remotion/public/audio/` and deletes its public copies afterwards, so a
+ * replay can copy them back from the pipeline output. Staged media and avatars
+ * are not: their source paths are rewritten during staging, so a missing staged
+ * file means "render this content again", and the plan says so instead of
+ * letting Remotion fail mid-frame.
  *
- * A recorded subtitle or BGM that is gone blocks the replay too: finalizing
- * without them would ship a different file under the same name.
+ * Nothing is optional here: a recorded subtitle, BGM or audio file that is gone
+ * blocks the replay, because finalizing without it would ship a different file
+ * under the same name — including a file with no #176 head trim.
  *
  * @param {{manifestPath: string, publicDir: string, remotionDir: string, audioDir?: string}} input
- * @returns {{ok: boolean, kind: string, blocking: string[], recoverable: Array<{rel: string, from: string, to: string}>, notes: string[], command: string[], cwd: string}}
+ * @returns {{ok: boolean, kind: string, blocking: string[], recoverable: Array<{rel: string, from: string, to: string}>, notes: string[], command: string[], cwd: string, audioDir: string}}
  */
 export function planReplay({ manifestPath, publicDir, remotionDir, audioDir }) {
   const { manifest, props } = readRenderArtifacts(manifestPath);
@@ -388,17 +438,29 @@ export function planReplay({ manifestPath, publicDir, remotionDir, audioDir }) {
   const recoverable = [];
   const notes = [];
 
+  // Where this manifest is allowed to write: `<outputDir>` for the recorded
+  // artifacts, the manifest's own directory for props.json.
+  const manifestDir = dirname(resolve(manifestPath));
+  const outputRoot = dirname(dirname(manifestDir));
+  assertContained(outputRoot, manifest.rawPath, "recorded output", manifestPath);
+  assertContained(outputRoot, manifest.finalPath, "recorded final video", manifestPath);
+  assertContained(manifestDir, manifest.propsPath, "props file", manifestPath);
+
+  const sourceAudioDir = audioDir || manifest.audioDir;
+
   for (const rel of collectStagedAssets(props)) {
-    if (!existsSync(join(publicDir, rel))) {
+    const stagedPath = join(publicDir, rel);
+    assertContained(publicDir, stagedPath, `recorded asset ${JSON.stringify(rel)}`, manifestPath);
+    if (!existsSync(stagedPath)) {
       blocking.push(
-        `staged asset missing: ${rel}\n    looked in ${join(publicDir, rel)}\n    render this content once to stage it again`,
+        `staged asset missing: ${rel}\n    looked in ${stagedPath}\n    render this content once to stage it again`,
       );
     }
   }
 
-  const sourceAudioDir = audioDir || resolveAudioDir(manifest);
   for (const rel of props.audioPaths ?? []) {
     const publicPath = join(publicDir, rel);
+    assertContained(publicDir, publicPath, `recorded audio ${JSON.stringify(rel)}`, manifestPath);
     if (existsSync(publicPath)) continue;
     const candidate = join(sourceAudioDir, basename(rel));
     if (existsSync(candidate)) {
@@ -420,9 +482,7 @@ export function planReplay({ manifestPath, publicDir, remotionDir, audioDir }) {
   }
 
   if ((props.audioPaths ?? []).length === 0) {
-    notes.push(
-      "no audio recorded: finalize runs without head-trim realign, so the file can differ by a few ms",
-    );
+    notes.push("no audio recorded: finalize runs without head-trim realign, as the original did");
   }
 
   const command = assertReplayableCommand(manifest);
@@ -435,5 +495,6 @@ export function planReplay({ manifestPath, publicDir, remotionDir, audioDir }) {
     notes,
     command,
     cwd: remotionDir,
+    audioDir: sourceAudioDir,
   };
 }

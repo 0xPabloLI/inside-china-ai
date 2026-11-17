@@ -27,8 +27,8 @@ import { fileURLToPath } from "node:url";
 
 import { finalizeRenderedVideo } from "./lib/post-process.mjs";
 import {
+  finalizePlan,
   formatRenderCommand,
-  planFinalize,
   planReplay,
   readRenderArtifacts,
 } from "./lib/render-manifest.mjs";
@@ -98,8 +98,16 @@ export function main(args) {
 
   try {
     execFileSync(plan.command[0], plan.command.slice(1), { cwd: plan.cwd, stdio: "inherit" });
-  } catch {
-    console.error(`\n❌ replay failed: the command exited non-zero (see its output above).`);
+  } catch (e) {
+    // A spawn failure (missing npx, bad cwd) is not a render failure: saying
+    // "exited non-zero" there sends the reader looking for output that never
+    // existed.
+    const spawn = typeof e.status !== "number";
+    console.error(
+      spawn
+        ? `\n❌ replay could not start: ${e.code ?? "spawn error"} — ${e.message.split("\n")[0]}`
+        : `\n❌ replay failed: the command exited with ${e.status} (see its output above).`,
+    );
     console.error(`   manifest: ${manifestPath}`);
     return 1;
   }
@@ -114,8 +122,10 @@ export function main(args) {
   }
 
   // Mirror the render door exactly: finalize always runs (loudnorm + head
-  // trim), and the raw file is removed when no subtitles were burned.
-  const finalize = planFinalize({ manifest, props });
+  // trim), and the raw file is removed when no subtitles were burned. The
+  // audio for the #176 head trim comes from the pipeline output, because the
+  // door's public copies are already gone by the time a replay runs.
+  const finalize = finalizePlan({ manifest, audioDir: plan.audioDir });
   finalizeRenderedVideo({
     videoPath: finalize.videoPath,
     assPath: finalize.assPath,

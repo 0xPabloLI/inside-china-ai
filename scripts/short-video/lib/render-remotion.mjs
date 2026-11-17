@@ -393,6 +393,21 @@ export function renderRemotion({
     rawPath,
     propsPath: propsPathFor(artifactDir),
   });
+
+  // The finalize decisions are recorded, not recomputed by whoever replays
+  // this render later: the recorded file is the contract.
+  const hasSubs = Boolean(subtitlesPath && existsSync(subtitlesPath));
+  const finalize = {
+    assPath: hasSubs ? subtitlesPath : null,
+    bgmPath: bgmPath || null,
+    deleteRawAfter: !hasSubs,
+    sceneDurations: scenes.map((s, i) => ({
+      sceneId: s.id ?? i + 1,
+      duration: durations[i],
+    })),
+    audioBasenames: audioPaths.map((p) => basename(p.replace("file://", ""))),
+  };
+
   const { manifestPath } = writeRenderArtifacts({
     outputDir,
     version,
@@ -406,6 +421,7 @@ export function renderRemotion({
     bgmPath,
     subject,
     command: renderArgs,
+    finalize,
   });
   const commandLine = formatRenderCommand(renderArgs);
   console.log(`  📄 Render artifacts: ${manifestPath}`);
@@ -437,18 +453,14 @@ export function renderRemotion({
   // into one -filter_complex pass; the head drift is measured on the RAW
   // output (audio decode only — post-processing preserves timestamps) so the
   // trim rides in the single encode instead of costing its own re-encode.
-  const hasSubs = Boolean(subtitlesPath && existsSync(subtitlesPath));
   finalizeRenderedVideo({
     videoPath: rawPath,
-    assPath: hasSubs ? subtitlesPath : null,
-    bgmPath: bgmPath || null,
+    assPath: finalize.assPath,
+    bgmPath: finalize.bgmPath,
     outputPath: finalPath,
     realign: {
       outputDir, // scene audio for measurement lives here
-      sceneDurations: scenes.map((s, i) => ({
-        sceneId: s.id ?? i + 1,
-        duration: durations[i],
-      })),
+      sceneDurations: finalize.sceneDurations,
       audioPaths: audioPaths.map((p) => p.replace("file://", "")),
     },
   });
@@ -457,7 +469,7 @@ export function renderRemotion({
   // repair path rebuilds the shipped file from it with a corrected ASS.
   // (Without subtitles there is no repair that needs a base.)
   try {
-    if (!hasSubs && existsSync(rawPath)) unlinkSync(rawPath);
+    if (finalize.deleteRawAfter && existsSync(rawPath)) unlinkSync(rawPath);
   } catch {}
 
   // ── 6. Get final duration ──

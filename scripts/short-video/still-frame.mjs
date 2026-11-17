@@ -15,11 +15,11 @@
  * render never produces.
  *
  * Usage:
- *   node scripts/short-video/still-frame.mjs --content unitree-h2x-guardian --frame 450 [--out /tmp/x.png]
+ *   node scripts/short-video/still-frame.mjs --content unitree-h2x-guardian --frame 450 [--out output/<id>/…png]
  */
 import { execFileSync } from "child_process";
 import { existsSync } from "fs";
-import { join, dirname, basename } from "path";
+import { join, dirname, basename, isAbsolute, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { readSceneDurationsForTimeline } from "./lib/avatar-frame-audit.mjs";
 import {
@@ -62,7 +62,18 @@ if (!/^[a-z0-9_][a-z0-9._-]*$/.test(contentId)) {
   );
   process.exit(1);
 }
-const out = getArg("out") || `/tmp/still-${contentId}-${frame}.png`;
+// The still lives next to its manifest: a replay re-runs the recorded command
+// with the recorded output path, and the replay refuses paths outside the
+// content's output tree, so a still written to /tmp would not be replayable.
+const outRoot = join(__dirname, "output", contentId);
+const out = getArg("out") || join(outRoot, "render", `still-${frame}`, `frame-${frame}.png`);
+const outRel = relative(resolve(outRoot), resolve(out));
+if (outRel.length === 0 || outRel.startsWith("..") || isAbsolute(outRel)) {
+  console.error(
+    `❌ --out must stay inside ${outRoot}: the manifest records this path, and a replay only writes there`,
+  );
+  process.exit(1);
+}
 
 const contentDir = join(__dirname, "content", contentId);
 const { scenes } = await import(join(contentDir, "scene-data.mjs"));
