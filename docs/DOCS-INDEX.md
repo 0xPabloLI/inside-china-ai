@@ -295,6 +295,11 @@ Deep research reports with citations.
 | `qwen38-qwen36-tools-support-research.md`          | Qwen3.8 和 Qwen3.6 的 tools 支持确认（2026-09-23）— 本地 `ollama show` + Ollama 官方页面确认两个模型都支持 tools，修正此前"qwen3.8 不支持 tools"的错误说法                                                                                                                                                                                                                                                  |
 | `whisper-repetition-loops-research-2026-10.md`     | Whisper 重复循环的业界处置（#540）— 四轴实测：VAD 门控（FEMA 17→0 段，但音乐/歌唱素材 −74%/−98% 词）、解码参数（whisper.cpp/MLX 无 repetition penalty，`-nf` 关温度回退 / `-tp` 不升温 / `-et` 熵门 / `-nth` 无语音门 均压不住）、检测判据（段级循环 10/143：6 例护栏已修 + 4 例未修，vs 全文 compression ratio 误报 33/143）、下游处置（固定视频/claim 三档 A/B 的 relevance 与描述一致 → 不值得按 `contaminated` 丢 transcript）；裁决：只加检测形状与 provenance，不动生产默认（runbook §⑤ 唯一生产运行时 = whisper.cpp） |
 | `subtitle-min-duration-68px.md`                    | 字幕最短显示时长与 68px 版式的算术边界（#1228）— `layoutCues` 的「下一页起点 − 2 帧」天花板机制、三包 under-0.8s / 最短页实测、`SOFT_PX` 612→720 扫描（证明提高切分阈值无效）、语速 2.44–3.20 词/秒与判定口径 |
+| `ai-product-opportunities-2026-11.md`              | AI 独立产品赛道调研（2026-11-13）— 两个对标竞品完整拆解 + 独立开发者案例 + 可行方向 Top 5；探索性未立项，下游票：无 |
+| `book-reselling-playbook.md`                       | 图书带货（童书套装/诗集/影视原著）落地手册（2026-11-13）— 少碰货前提下的选品、内容与结算路径，数字逐条标来源；未立项 |
+| `douyin-book-rank-shortlist.md`                    | 抖音图书类目带货商品榜实测清单（2026-11-14 19:00 页面实读）— 巨量百应爆款榜·图书教育·近 30 日·佣金≥20% 快照，时效性数据仅作参考 |
+| `short-monetization-path-research.md`              | 视频号/微信生态「变现路径短」赛道深研（2026-11-12，web deep research 6 相）— 收益/分成数字为方向性参考，非审计级 |
+| `xhs-product-selection.md`                         | 小红书买手带货选品清单与打分表（2026-11-13）— 0 粉起步 CPS 路径的类目画像与打分维度，单品需实时核佣金 |
 
 ## Spec/Ticket/Review Lifecycle
 
