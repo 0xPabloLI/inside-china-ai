@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.86.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.85.1...tanstack_start_ts-v1.86.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** isolate pipeline status per slug ([#462](https://github.com/0xPabloLI/inside-china-ai/issues/462) Stage 1) ([#1421](https://github.com/0xPabloLI/inside-china-ai/issues/1421)) ([e16cc5c](https://github.com/0xPabloLI/inside-china-ai/commit/e16cc5c155c720060e3ce85482f9b4d925fc1132))
+
 ## [1.85.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.85.0...tanstack_start_ts-v1.85.1) (2026-11-17)
 
 
