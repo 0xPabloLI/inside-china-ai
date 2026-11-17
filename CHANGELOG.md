@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.82.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.81.0...tanstack_start_ts-v1.82.0) (2026-11-17)
+
+
+### Features
+
+* **upscale:** 确定性重采样——带字形素材不再喂给 Real-ESRGAN ([#1400](https://github.com/0xPabloLI/inside-china-ai/issues/1400)) ([8fd7572](https://github.com/0xPabloLI/inside-china-ai/commit/8fd75728b5bd6a62e5109024f949e9e23c4e6c95))
+
 ## [1.81.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.80.0...tanstack_start_ts-v1.81.0) (2026-11-16)
 
 
