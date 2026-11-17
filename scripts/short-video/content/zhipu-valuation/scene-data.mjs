@@ -23,9 +23,11 @@
 
 import { readBakedCandleSeries } from "../../lib/candle-data.mjs";
 
-/** Baked daily series for HKEX:2513 (see `npm run bake:quotes -- zhipu-valuation`). */
+/** Baked daily series for zhipu (see `npm run bake:quotes -- zhipu-valuation`).
+ * The ticker lives in `config/chart-symbols.json` and is resolved there — the
+ * scene names the entity, not a second copy of the instrument. */
 const candle = readBakedCandleSeries(new URL("./data/2513-daily.json", import.meta.url), {
-  symbol: "HKEX:2513",
+  entity: "zhipu",
 });
 
 export const scenes = [
@@ -53,7 +55,7 @@ export const scenes = [
     info: {
       relationship: "change-over-time",
       chart: "candle",
-      symbol: "HKEX:2513",
+      entity: "zhipu",
       dataFile: "data/2513-daily.json",
       data: candle.rows,
       unit: "HK$",

@@ -17,49 +17,79 @@
  * charts cannot reach a render because that gate is structural, not advisory.
  */
 import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+/** The curated entity → EXCHANGE:SYMBOL map that chart pins already use. */
+const SYMBOL_MAP_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "config",
+  "chart-symbols.json",
+);
+
+/**
+ * Resolve a scene's `info.entity` to the full symbol the bake endpoints need.
+ *
+ * The map is the same file chart pins resolve through, so a pack names one
+ * entity and never hand-writes a ticker twice (`chart-symbols.json` says so
+ * itself: "Add entities here, never hardcode symbols in code").
+ *
+ * @param {string} entity - map key or alias (case-insensitive)
+ * @returns {string} `EXCHANGE:SYMBOL`
+ * @throws when the entity is not in the map
+ */
+export function resolveEntitySymbol(entity) {
+  const wanted = String(entity ?? "")
+    .trim()
+    .toLowerCase();
+  const map = JSON.parse(readFileSync(SYMBOL_MAP_PATH, "utf8"));
+  const hit = (map.entities ?? []).find(
+    (entry) =>
+      entry.key?.toLowerCase() === wanted ||
+      (entry.aliases ?? []).some((alias) => alias.toLowerCase() === wanted),
+  );
+  if (!hit) {
+    throw new Error(
+      `candle entity "${entity}" not in config/chart-symbols.json — add it there rather than hardcoding a symbol`,
+    );
+  }
+  return hit.symbol;
+}
 
 /**
  * Read a baked series for a scene.
  *
  * @param {URL|string} dataFileUrl - resolved with `new URL("./data/x.json", import.meta.url)`
- * @param {{symbol?: string}} [options] - when given, the file's symbol must match
- * @returns {{rows: Array<object>, range: {from: string, to: string}|null,
- *            fetchedAt: string|null, sources: Array<object>, missing: boolean,
- *            error: string|null}}
+ * @param {{symbol?: string, entity?: string}} [options] - `symbol` (or an
+ *        `entity` resolved through the symbol map) must match the file's symbol
+ * @returns {{rows: Array<object>}} - empty rows mean "not baked yet", which the
+ *          info grammar's data floor turns into the `bake:quotes` fix
  */
 export function readBakedCandleSeries(dataFileUrl, options = {}) {
   const path = dataFileUrl instanceof URL ? fileURLToPath(dataFileUrl) : String(dataFileUrl);
-  const missing = {
-    rows: [],
-    range: null,
-    fetchedAt: null,
-    sources: [],
-    missing: true,
-    error: null,
-  };
-  if (!existsSync(path)) return missing;
+  if (!existsSync(path)) return { rows: [] };
   let payload;
   try {
     payload = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    return { ...missing, error: `baked candle file is not valid JSON: ${error.message}` };
+    throw new Error(`baked candle file ${path} is not valid JSON: ${error.message}`);
   }
   if (!payload || !Array.isArray(payload.rows)) {
-    return { ...missing, error: "baked candle file has no rows array" };
+    throw new Error(`baked candle file ${path} has no rows array`);
   }
-  if (options.symbol && payload.symbol !== options.symbol) {
-    return {
-      ...missing,
-      error: `baked candle file is for ${payload.symbol}, scene declares ${options.symbol}`,
-    };
+  const declared = options.symbol
+    ? options.symbol
+    : options.entity
+      ? resolveEntitySymbol(options.entity)
+      : "";
+  if (declared && payload.symbol !== declared) {
+    // A mismatch must not render as "not enough points": say which file and
+    // which instrument disagreed, then let the empty series block preflight.
+    console.warn(
+      `[candle] ${path} holds ${payload.symbol}, scene declares ${declared} — re-bake the right instrument`,
+    );
+    return { rows: [] };
   }
-  return {
-    rows: payload.rows,
-    range: payload.range ?? null,
-    fetchedAt: payload.fetchedAt ?? null,
-    sources: Array.isArray(payload.sources) ? payload.sources : [],
-    missing: false,
-    error: null,
-  };
+  return { rows: payload.rows };
 }

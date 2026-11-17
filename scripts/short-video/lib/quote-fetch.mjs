@@ -41,6 +41,11 @@ const PRICE_TOLERANCE = 0.0015;
 /** Share volume is an integer count on Eastmoney but a 3-decimal string on
  * Tencent ("1684800.000"); sub-share drift is not a disagreement. */
 const VOLUME_TOLERANCE = 0.5;
+/** Tencent returns at most `count` bars per request. The info grammar allows a
+ * 260-bar candle (`DATA_LIMITS.candle.max`), so a hardcoded 200 silently
+ * truncated long windows and then reported it as a data disagreement. Ask for
+ * the ceiling plus a buffer; the endpoint ignores an oversized request. */
+const TENCENT_BAR_REQUEST = 400;
 
 /**
  * A HKEX instrument in the `EXCHANGE:SYMBOL` form the chart map already uses.
@@ -115,6 +120,27 @@ export function toHongKongDate(iso) {
   }).format(parsed);
 }
 
+/**
+ * Minutes since midnight in Hong Kong for an instant.
+ *
+ * @param {Date} instant
+ * @returns {{date: string, minutes: number}}
+ */
+function hongKongClock(instant) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Hong_Kong",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(instant);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return { date: toHongKongDate(instant.toISOString()), minutes: hour * 60 + minute };
+}
+
+/** HKEX continuous trading closes at 16:00, closing auction print by 16:10. */
+const HKEX_SESSION_CLOSE_MINUTES = 16 * 60 + 10;
+
 /** `2026-11-14` → `20261114` for Eastmoney's `beg`/`end` parameters. */
 function compactDate(isoDate) {
   return isoDate.replace(/-/g, "");
@@ -169,7 +195,7 @@ function parseTencentRow(row) {
  *
  * @param {string} symbol - accepted by {@link resolveQuoteSymbol}
  * @param {{from: string, to: string}} range
- * @returns {Promise<{name: string, decimals: number, rows: Array<object>, url: string}>}
+ * @returns {Promise<{name: string, rows: Array<object>, url: string}>}
  */
 export async function fetchEastmoneyDaily(symbol, range) {
   const instrument = resolveQuoteSymbol(symbol);
@@ -193,7 +219,6 @@ export async function fetchEastmoneyDaily(symbol, range) {
   }
   return {
     name: typeof body.data.name === "string" ? body.data.name : "",
-    decimals: Number.isInteger(body.data.decimal) ? body.data.decimal : 3,
     rows: klines.map(parseEastmoneyRow),
     url,
   };
@@ -210,7 +235,7 @@ export async function fetchTencentDaily(symbol, range) {
   const instrument = resolveQuoteSymbol(symbol);
   const from = toHongKongDate(range?.from);
   const to = toHongKongDate(range?.to);
-  const url = `${TENCENT_URL}?param=${instrument.tencentCode},day,${from},${to},200,qfq`;
+  const url = `${TENCENT_URL}?param=${instrument.tencentCode},day,${from},${to},${TENCENT_BAR_REQUEST},qfq`;
   const body = await fetchJson(url, "Tencent");
   if (body.code !== 0 || !body.data) {
     throw new Error(`Tencent refused ${instrument.symbol}: ${JSON.stringify(body).slice(0, 200)}`);
@@ -264,8 +289,15 @@ export function compareDailySeries(primary, check) {
   return { ok: divergences.length === 0, divergences };
 }
 
-/** Structural sanity every baked row must satisfy, regardless of source. */
-function assertRowShape(rows) {
+/**
+ * Structural sanity every baked row must satisfy, regardless of source.
+ *
+ * Exported because `info-grammar.mjs` checks the same rows again at preflight:
+ * one implementation, so the bake gate and the scene gate cannot drift apart.
+ *
+ * @param {Array<object>} rows
+ */
+export function assertRowShape(rows) {
   let previous = "";
   for (const [index, row] of rows.entries()) {
     const where = `row ${index} (${row.date ?? "no date"})`;
@@ -313,10 +345,14 @@ export async function fetchDailyOhlc(symbol, range, options = {}) {
 
   const fetchedAt = options.fetchedAt ? new Date(options.fetchedAt) : new Date();
   if (Number.isNaN(fetchedAt.getTime())) throw new Error("fetchedAt is not a valid timestamp");
-  const fetchedOn = toHongKongDate(fetchedAt.toISOString());
-  if (to >= fetchedOn) {
+  const clock = hongKongClock(fetchedAt);
+  const fetchedOn = clock.date;
+  // A same-day bar is closed once the closing auction has printed: an evening
+  // bake may cite today's close, a morning bake may not.
+  const sameDayClosed = to === fetchedOn && clock.minutes >= HKEX_SESSION_CLOSE_MINUTES;
+  if (to > fetchedOn || (to === fetchedOn && !sameDayClosed)) {
     throw new Error(
-      `quote window ends ${to}, which is not before the fetch date ${fetchedOn}; ` +
+      `quote window ends ${to}, which is not closed at ${fetchedAt.toISOString()}; ` +
         "bake only closed daily bars (the narrative chart must not show an intraday bar)",
     );
   }

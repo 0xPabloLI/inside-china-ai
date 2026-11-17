@@ -96,6 +96,19 @@ function containsNumber(haystack, value, decimals) {
       forms.add(String(value < 0 ? -rounded : rounded));
     }
   }
+  // Prices are read with thousands separators ("2,980"), so each plain form
+  // also matches its comma-grouped spelling. Candle claims are prices, where
+  // four-digit values are the norm; without this the peak the chart highlights
+  // and the narration names verbatim would be reported as missing.
+  for (const form of [...forms]) {
+    const [whole, fraction] = form.split(".");
+    const sign = whole.startsWith("-") ? "-" : "";
+    const digits = sign ? whole.slice(1) : whole;
+    if (digits.length < 4) continue;
+    forms.add(
+      `${sign}${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${fraction ? `.${fraction}` : ""}`,
+    );
+  }
   for (const form of forms) {
     // The only dynamic part is an escaped numeric literal, so the pattern is
     // linear in the haystack rather than attacker-shaped. A trailing sentence

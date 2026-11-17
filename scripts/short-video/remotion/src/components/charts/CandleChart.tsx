@@ -21,6 +21,7 @@ import React from "react";
 import { interpolate, useCurrentFrame } from "remotion";
 import type { CandleBar, InfoSpec } from "../../types";
 import { CHART } from "./chart-tokens";
+import { formatChartValue } from "./format";
 import { ChartSvg } from "./ChartPanel";
 
 const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as const };
@@ -43,12 +44,13 @@ function isBar(value: unknown): value is CandleBar {
   );
 }
 
-function formatPrice(value: number): string {
-  const digits = Math.abs(value) >= 100 ? 0 : 1;
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(value);
+/**
+ * Axis ticks are bare numbers: the shared formatter already applies the same
+ * `autoDecimals` rule as every sibling chart (0 digits at |v| ≥ 100, 1 below),
+ * and the unit lives in the chart's own label rather than on all three ticks.
+ */
+function formatPrice(value: number, decimals: number | null): string {
+  return formatChartValue(value, { decimals, unit: "", prefix: "", suffix: "" });
 }
 
 /** `2026-06-22` → `JUN 22`; the year is carried by the credit line. */
@@ -126,7 +128,7 @@ export const CandleChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
               fontWeight={600}
               textAnchor="start"
             >
-              {formatPrice(value)}
+              {formatPrice(value, info.decimals)}
             </text>
           </g>
         ))}
@@ -151,7 +153,7 @@ export const CandleChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
               fontWeight={700}
               textAnchor="end"
             >
-              {formatPrice(baseline)}
+              {formatPrice(baseline, info.decimals)}
             </text>
           </g>
         )}

@@ -395,6 +395,7 @@ describe("candle series (#1405)", () => {
     unit: "HK$",
     symbol: "HKEX:2513",
     dataFile: "data/2513-daily.json",
+    credit: "HKEX CLOSE VIA EASTMONEY · NOV 12",
     time: { from: "2026-06-01", to: "2026-06-06" },
     ...overrides,
   });
@@ -442,7 +443,7 @@ describe("candle series (#1405)", () => {
       layout: "chart",
     });
     expect(result.ok).toBe(false);
-    expect(result.errors.some((e) => e.message.includes("impossible OHLC"))).toBe(true);
+    expect(result.errors.some((e) => e.message.includes("OHLC is impossible"))).toBe(true);
   });
 
   it("rejects duplicate or descending dates", () => {
@@ -465,6 +466,26 @@ describe("candle series (#1405)", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.errors.some((e) => e.message.includes("after the declared window"))).toBe(true);
+  });
+
+  it("requires provenance in-chart, like the docs promise", () => {
+    const result = validateInfoSpec(candle({ credit: undefined }), {
+      texts,
+      visualType: "data",
+      layout: "chart",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.path === "info.credit")).toBe(true);
+  });
+
+  it("accepts an entity instead of a hand-written symbol", () => {
+    const result = validateInfoSpec(candle({ symbol: undefined, entity: "zhipu" }), {
+      texts,
+      visualType: "data",
+      layout: "chart",
+    });
+    expect(result.ok, JSON.stringify(result.errors)).toBe(true);
+    expect(normalizeInfoSpec(candle({ symbol: undefined, entity: "zhipu" })).entity).toBe("zhipu");
   });
 
   it("requires the bake contract and the claim window", () => {

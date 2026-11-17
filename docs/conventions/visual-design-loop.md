@@ -160,7 +160,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 - 默认 `clean` 面板：`rgba(245,245,245,0.04)` 底、1px `rgba(245,245,245,0.12)` 边框、12px 圆角、无网格。`terminal`（3px 白框 / 黑底 / #4A4A4A 网格）只用于 A/B，不作默认。
 - 直接标注，标签不旋转；标签上限按图型（bar 24 / column 8 / line 8 / slope 12 / proportion 18 / dot 16 字符）。放不下时换图型，不缩字号、不斜排。
 - 最多一个 amber highlight；其余 mark 用品牌蓝/中性色；负值红、正值绿。柱状/柱形的 magnitude/ranking 必须从 0 起，`deviation` 才允许显式非零基线。
-- K 线（`candle`）：每根蜡烛实体 ≥2px、影线 1.4px；涨绿跌红；三档价格刻度在左侧留白（不压图），首末交易日贴在 x 轴；图内左下角必须印 `credit`（来源 + 时点，26px）；峰值用 amber 圆点 + `PEAK · JUN 22`，不重复印价格（价格刻度已有）；序列按日期升序、不排序、不抽样；只用已收盘日线，不画盘中与未来格子。数据由 `npm run bake:quotes -- <pack>` 双源烘焙，渲染期零网络。
+- K 线（`candle`）：每根蜡烛实体 ≥2px、影线 1.4px；涨绿跌红；三档价格刻度在左侧留白（不压图），首末交易日贴在 x 轴；图内左下角必须印 `credit`（来源 + 时点，26px；`validateInfoSpec` 强制，缺即 FAIL）；峰值用 amber 圆点 + `PEAK · JUN 22`，不重复印价格（价格刻度已有）；序列按日期升序、不排序、不抽样；只用已收盘日线，不画盘中与未来格子。数据由 `npm run bake:quotes -- <pack>` 双源烘焙，渲染期零网络。
 - 入场只做一次：bar 从基线生长、line 画一次、proportion 分段 reveal；不叠加环境动效。`texts.source` 必填，`unit` 必填。
 
 门禁：`checkInfoSpec` 是 FAIL（关系/图型不匹配、越界数据、重复标签、缺单位/来源、多 highlight、非零基线等）；`checkChartClaimAgreement` 是 advisory（VO 或屏上文字至少命中一个数据标签/数值；`info.time` 的年月要在 VO 里被点名；K 线 pin 的 subtext/source 要写单位或窗口）。

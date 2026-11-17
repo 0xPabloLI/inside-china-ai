@@ -170,7 +170,7 @@ describe("fetchDailyOhlc", () => {
     expect(quote.rows.map((row) => row.date)).toEqual(["2026-06-01", "2026-06-02", "2026-11-12"]);
   });
 
-  it("blocks a window that is not closed (to >= fetch date)", async () => {
+  it("blocks a same-day window while the HK session is still open", async () => {
     vi.stubGlobal("fetch", stubFetch());
     await expect(
       fetchDailyOhlc(
@@ -178,7 +178,28 @@ describe("fetchDailyOhlc", () => {
         { from: "2026-06-01", to: "2026-11-17" },
         { fetchedAt: "2026-11-17T02:00:00.000Z" },
       ),
-    ).rejects.toThrow(/not before the fetch date/);
+    ).rejects.toThrow(/not closed at/);
+  });
+
+  it("accepts a same-day window after the closing auction (16:10 HKT)", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    const quote = await fetchDailyOhlc(
+      "HKEX:2513",
+      { from: "2026-06-01", to: "2026-11-17" },
+      { fetchedAt: "2026-11-17T10:00:00.000Z" },
+    );
+    expect(quote.rows.at(-1).date).toBe("2026-11-12");
+  });
+
+  it("still blocks tomorrow while it is today in Hong Kong", async () => {
+    vi.stubGlobal("fetch", stubFetch());
+    await expect(
+      fetchDailyOhlc(
+        "HKEX:2513",
+        { from: "2026-06-01", to: "2026-11-18" },
+        { fetchedAt: "2026-11-17T10:00:00.000Z" },
+      ),
+    ).rejects.toThrow(/not closed at/);
   });
 
   it("refuses to pick a winner when the sources disagree", async () => {

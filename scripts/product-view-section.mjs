@@ -87,13 +87,6 @@ function render(body, provenance) {
  */
 
 /**
- * @param {object} options
- * @param {number} options.number - issue or pull-request number (one namespace)
- * @param {string} [options.repo] - `owner/name`; omitted means gh fills `{owner}/{repo}`
- * @param {(args: string[]) => string} [options.runGh] - seam for tests
- * @returns {SectionResult}
- */
-/**
  * Read every comment page.
  *
  * `--slurp` (gh ≥ 2.44) returns the pages as one JSON array. Older gh — 2.43
@@ -121,6 +114,13 @@ export function readAllCommentPages(gh, url) {
   }
 }
 
+/**
+ * @param {object} options
+ * @param {number} options.number - issue or pull-request number (one namespace)
+ * @param {string} [options.repo] - `owner/name`; omitted means gh fills `{owner}/{repo}`
+ * @param {(args: string[]) => string} [options.runGh] - seam for tests
+ * @returns {SectionResult}
+ */
 export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {}) {
   if (!Number.isInteger(number) || number <= 0) {
     throw new Error("issue/PR number must be a positive integer");

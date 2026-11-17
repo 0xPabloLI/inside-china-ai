@@ -8,8 +8,10 @@
  * in scene-data and the rows arrive here, once, as a checked-in JSON file
  * under `content/<pack>/`. Re-running on an unchanged series is a no-op, byte
  * for byte — `fetchedAt` is kept from the previous file so a repeated bake
- * produces no diff (`--force` refreshes the timestamp without refetching
- * identical rows).
+ * produces no diff. Every run refetches (that is the point: the check source
+ * must answer again); `--force` only skips the unchanged comparison, so the
+ * file is rewritten with the new timestamp and an unreadable file is replaced
+ * instead of blocking the bake.
  *
  * The two sources are compared field by field inside `quote-fetch.mjs`; this
  * CLI only decides *where* the result lands and whether anything changed.
@@ -25,6 +27,7 @@ import {
 import { join, dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchDailyOhlc, toHongKongDate } from "./lib/quote-fetch.mjs";
+import { resolveEntitySymbol } from "./lib/candle-data.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -80,15 +83,19 @@ export function candleBakeJobs(scenes) {
   for (const scene of Array.isArray(scenes) ? scenes : []) {
     const info = scene?.info;
     if (!info || info.chart !== "candle") continue;
-    if (typeof info.symbol !== "string" || !info.symbol.trim()) {
-      throw new Error(`scene ${scene.id}: candle chart requires info.symbol (e.g. "HKEX:2513")`);
+    const symbol = typeof info.symbol === "string" && info.symbol.trim() ? info.symbol : "";
+    const entity = typeof info.entity === "string" && info.entity.trim() ? info.entity : "";
+    if (!symbol && !entity) {
+      throw new Error(
+        `scene ${scene.id}: candle chart requires info.symbol (e.g. "HKEX:2513") or info.entity`,
+      );
     }
     if (!info.time || !info.time.from || !info.time.to) {
       throw new Error(`scene ${scene.id}: candle chart requires info.time { from, to }`);
     }
     jobs.push({
       id: scene.id,
-      symbol: info.symbol,
+      symbol: symbol || resolveEntitySymbol(entity),
       from: info.time.from,
       to: info.time.to,
       dataFile: info.dataFile,
@@ -117,11 +124,26 @@ export function bakePayload(quote) {
   };
 }
 
-function readExisting(path) {
+/**
+ * @param {string} path
+ * @param {boolean} [force] - a corrupt file is treated as absent when forcing a rewrite
+ * @returns {object|null}
+ */
+function readExisting(path, force = false) {
   if (!existsSync(path)) return null;
   try {
     return JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
+    // `--force` exists to make a re-bake land no matter what is on disk; a
+    // truncated or hand-edited file is exactly the case it is for. Without the
+    // flag the comparison cannot be trusted, so the bake stops instead of
+    // silently overwriting content it could not read.
+    if (force) {
+      console.warn(
+        `[bake] ignoring unreadable ${path} because --force was given: ${error.message}`,
+      );
+      return null;
+    }
     throw new Error(`existing quote file is not valid JSON (${path}): ${error.message}`);
   }
 }
@@ -171,7 +193,7 @@ async function main() {
     }
 
     const quote = await fetchDailyOhlc(job.symbol, { from: job.from, to: job.to });
-    const existing = readExisting(path);
+    const existing = readExisting(path, flags.has("--force"));
     const payload = bakePayload(quote);
     if (
       existing &&

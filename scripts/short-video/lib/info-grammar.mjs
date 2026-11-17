@@ -11,7 +11,12 @@
  *
  * Pure Node: no Remotion, no fs. The renderer consumes `normalizeInfoSpec` and
  * `sortData`; preflight consumes `validateInfoSpec` / `checkInfoSpec`.
+ *
+ * The candle row check is imported from `quote-fetch.mjs`, the module that
+ * bakes the series: one implementation for "a bar is a bar", so the bake gate
+ * and the scene gate cannot disagree about what a valid row is.
  */
+import { assertRowShape } from "./quote-fetch.mjs";
 
 const RELATIONSHIPS = Object.freeze([
   "magnitude",
@@ -160,6 +165,7 @@ export function normalizeInfoSpec(info) {
     panelVariant: PANEL_VARIANTS.has(source.panelVariant) ? source.panelVariant : "clean",
     credit: text(source.credit) ? source.credit : "",
     symbol: text(source.symbol) ? source.symbol : "",
+    entity: text(source.entity) ? source.entity : "",
     dataFile: text(source.dataFile) ? source.dataFile : "",
   };
 }
@@ -239,51 +245,45 @@ export function formatChartValue(value, info = {}) {
  * @param {Array<object>} errors - pushed into
  */
 function validateCandleRows(data, info, errors) {
-  let previous = "";
-  for (const [index, row] of data.entries()) {
-    const where = `info.data[${index}]`;
-    if (!isPlainObject(row)) {
-      push(errors, "info.data.datum", `${where} must be an object`, where);
-      continue;
-    }
-    const date = typeof row.date === "string" ? row.date : "";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      push(errors, "info.data.date", `${where}.date must be YYYY-MM-DD`, where);
-    } else if (date <= previous) {
-      push(errors, "info.data.order", `${where}.date must be unique and ascending`, where);
-    } else {
-      previous = date;
-    }
-    for (const field of ["open", "high", "low", "close", "volume"]) {
-      if (!finite(row[field])) {
-        push(errors, `info.data.${field}`, `${where}.${field} must be a finite number`, where);
-      }
-    }
-    if (
-      finite(row.open) &&
-      finite(row.high) &&
-      finite(row.low) &&
-      finite(row.close) &&
-      (row.high < Math.max(row.open, row.close) || row.low > Math.min(row.open, row.close))
-    ) {
-      push(
-        errors,
-        "info.data.ohlc",
-        `${where} is an impossible OHLC bar (high/low do not bracket open/close)`,
-        where,
-      );
+  const malformed = data.find((row) => !isPlainObject(row));
+  if (malformed !== undefined) {
+    const where = `info.data[${data.indexOf(malformed)}]`;
+    push(errors, "info.data.datum", `${where} must be an object`, where);
+  } else {
+    try {
+      // Same four invariants as the bake: `YYYY-MM-DD` dates, finite OHLCV,
+      // high/low bracketing open/close, unique ascending dates.
+      assertRowShape(data);
+    } catch (error) {
+      push(errors, "info.data.shape", `info.data ${error.message}`, "info.data");
     }
   }
 
-  for (const field of ["symbol", "dataFile"]) {
-    if (!text(info[field])) {
-      push(
-        errors,
-        `info.${field}`,
-        `a candle chart requires info.${field} so the series can be re-baked (npm run bake:quotes -- <pack>)`,
-        `info.${field}`,
-      );
-    }
+  if (!text(info.symbol) && !text(info.entity)) {
+    push(
+      errors,
+      "info.symbol",
+      "a candle chart requires info.symbol or info.entity so the series can be re-baked (npm run bake:quotes -- <pack>)",
+      "info.symbol",
+    );
+  }
+  if (!text(info.dataFile)) {
+    push(
+      errors,
+      "info.dataFile",
+      "a candle chart requires info.dataFile so the series can be re-baked (npm run bake:quotes -- <pack>)",
+      "info.dataFile",
+    );
+  }
+  // Docs promise provenance in-chart; a quote chart without its source line is
+  // a number with no audit trail, so it blocks like a missing dataFile does.
+  if (!text(info.credit)) {
+    push(
+      errors,
+      "info.credit",
+      "a candle chart requires info.credit (source and quote time, rendered in-chart)",
+      "info.credit",
+    );
   }
 
   if (!isPlainObject(info.time) || !text(info.time.from) || !text(info.time.to)) {
@@ -394,7 +394,10 @@ export function validateInfoSpec(info, context = {}) {
       push(
         errors,
         "info.data.length",
-        `info.data has ${data.length} points; ${chart || relationship} needs ${bounds.min}–${bounds.max}`,
+        `info.data has ${data.length} points; ${chart || relationship} needs ${bounds.min}–${bounds.max}` +
+          (chart === "candle"
+            ? " — bake the series with `npm run bake:quotes -- <pack>` (a missing data file reads as zero rows)"
+            : ""),
         "info.data",
       );
     }

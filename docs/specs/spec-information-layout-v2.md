@@ -84,8 +84,8 @@ K 线不是「12 个以内的已知数值」，而是**一整段已收盘的日�
 info: {
   relationship: "change-over-time",
   chart: "candle",
-  symbol: "HKEX:2513",              // bake 契约：行情标的
-  dataFile: "data/2513-daily.json", // bake 契约：包内数据文件
+  entity: "zhipu",                   // bake 契约：实体的 ticker 由 chart-symbols.json 解析
+  dataFile: "data/2513-daily.json",  // bake 契约：包内数据文件（`symbol` 亦可直接写 EXCHANGE:SYMBOL）
   data: [/* 由 readBakedCandleSeries 读入的 rows */],
   unit: "HK$",
   time: { from: "2026-06-01", to: "2026-11-12" }, // 镜头 claim 的窗口
