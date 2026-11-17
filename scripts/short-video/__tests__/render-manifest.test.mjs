@@ -338,6 +338,14 @@ describe("render doors share the writer", () => {
     expect(src).not.toContain("JSON.stringify(props)");
   });
 
+  it("spawns the render argv without a shell", () => {
+    // The old command was a shell string, so props needed quoting (#319). The
+    // props no longer travel through a shell at all; keep it that way.
+    const src = read("lib/render-remotion.mjs");
+    expect(src).toContain("execFileSync(renderArgs[0], renderArgs.slice(1)");
+    expect(src).not.toMatch(/execSync\(\s*render/);
+  });
+
   it("the video door never puts props back into the command", () => {
     const src = read("lib/render-remotion.mjs");
     expect(src).toContain("writeRenderArtifacts");
