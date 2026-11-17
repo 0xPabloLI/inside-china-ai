@@ -156,17 +156,30 @@ function auditNative(scene, index) {
 
   const findings = [];
   const haystack = sceneText(scene);
-  const anchor = data.some(
-    (datum) =>
-      containsLabel(haystack, datum.label) || containsNumber(haystack, datum.value, info.decimals),
-  );
+  // A candle has no labels or `value` field: its claim is a price the
+  // narration names (the June peak, the latest close), and every bar carries
+  // three candidate anchors — high, low, close (#1405).
+  const anchor =
+    info.chart === "candle"
+      ? data.some((bar) =>
+          [bar?.high, bar?.low, bar?.close].some((value) =>
+            containsNumber(haystack, Number(value), info.decimals),
+          ),
+        )
+      : data.some(
+          (datum) =>
+            containsLabel(haystack, datum.label) ||
+            containsNumber(haystack, datum.value, info.decimals),
+        );
 
   if (!anchor) {
-    const labels = data.map((datum) => datum.label).filter(text);
+    const labels = info.chart === "candle" ? [] : data.map((datum) => datum.label).filter(text);
     findings.push(
       row(
         "warn",
-        `Scene ${scene.id ?? index + 1} plots ${labels.join(", ")} but neither a label nor a value appears in the voiceover or scene text.`,
+        info.chart === "candle"
+          ? `Scene ${scene.id ?? index + 1} draws ${data.length} daily candles but none of their high/low/close prices appears in the voiceover or scene text.`
+          : `Scene ${scene.id ?? index + 1} plots ${labels.join(", ")} but neither a label nor a value appears in the voiceover or scene text.`,
         'Name one chart value in the voiceover (e.g. "from 35 to 50") or repeat the reading in `texts.subtext`; the viewer should not have to infer which number the shot is about.',
       ),
     );

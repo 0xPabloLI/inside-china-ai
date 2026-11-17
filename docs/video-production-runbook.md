@@ -1032,6 +1032,8 @@ node scripts/short-video/verify-video.mjs --pre --content <dir>
 
 `main.mjs` 会在 Step 0 再执行同一检查，失败时拒绝继续。只有用户明确批准本次例外时才可传 `--skip-preflight`。Preflight 位于素材自动补全之前，因此可自动修复的缺媒体只产生待处理信号；素材处理后的 Step 1.6 final media gate 才对最终缺失执行 hard FAIL。
 
+**K 线包先烘焙行情（#1405）**：scene 写了 `info.chart: "candle"` 的包，必须在 preflight 之前跑 `npm run bake:quotes -- <dir>`（东方财富主源 + 腾讯逐根校验，窗口必须已收盘）。数据文件缺失时 `data` 为空，`checkInfoSpec` 以 `info.data` 点数不足直接 FAIL，提示就是这条命令；**不要**为了让 preflight 过而手填行情数字，也不要退回 chart-img 截图。同一窗口重跑是 no-op（文件字节不变），所以渲染前再跑一次没有成本。
+
 ```bash
 # DeepSeek video (default content)
 node scripts/short-video/main.mjs --content deepseek --bgm

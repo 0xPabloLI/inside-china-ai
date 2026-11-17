@@ -108,6 +108,7 @@ const BASELINES = [
   // band) and cover (full-bleed footage). The contain case additionally gets
   // the no-occlusion pixel probe below.
   "baseline-hook-media-led",
+  "baseline-hook-media-led-candle",
   "baseline-hook-media-led-cover",
   "baseline-data",
   "baseline-info-card",
@@ -410,6 +411,51 @@ describe(
         expect(ok, raw).toBe(true);
         expect(payload).toBeNull();
       }
+    });
+
+    it("native candle in the media band: ink is drawn, strip stays on canvas, no watermark band", async () => {
+      // #1405 pixel contract: the baked series must actually paint candles in
+      // the band the raster used to occupy. Three probes:
+      //   1. chart body colour — red and green pixels both exist (a blank band,
+      //      or a chart that renders only one direction, fails);
+      //   2. band ground — the panel sits on the canvas with its own 4% plate,
+      //      so the mean there stays dark: a full-bleed picture would lift it;
+      //   3. strip corner — the text strip never drifts onto the picture.
+      const { PNG } = await import("pngjs");
+      const { ok, raw, out } = await renderScenario("baseline-hook-media-led-candle");
+      expect(ok, raw).toBe(true);
+      const png = PNG.sync.read(readFileSync(out));
+      let redInk = 0;
+      let greenInk = 0;
+      let bright = 0;
+      for (let y = 430; y < 1000; y++) {
+        for (let x = 100; x < 860; x++) {
+          const i = (png.width * y + x) << 2;
+          const r = png.data[i];
+          const g = png.data[i + 1];
+          const b = png.data[i + 2];
+          if (r > 150 && g < 110 && b < 110) redInk++;
+          if (g > 130 && r < 110 && b < 140) greenInk++;
+          if (r + g + b > 240) bright++;
+        }
+      }
+      expect(redInk, "red candle bodies").toBeGreaterThan(40);
+      expect(greenInk, "green candle bodies").toBeGreaterThan(40);
+      // The panel plate is dark; only the candles and labels lift a few
+      // hundred pixels above it. A photo band would cover the window.
+      expect(bright, "bright pixels inside the band").toBeLessThan(20000);
+      const meanAt = (x0, y0, w, h) => {
+        let sum = 0;
+        for (let y = y0; y < y0 + h; y++) {
+          for (let x = x0; x < x0 + w; x++) {
+            const i = (png.width * y + x) << 2;
+            sum += png.data[i] + png.data[i + 1] + png.data[i + 2];
+          }
+        }
+        return sum / (w * h);
+      };
+      // Strip corner: canvas ground, well below the plate's mean.
+      expect(meanAt(80, 1240, 30, 30)).toBeLessThan(140);
     });
 
     it("media-led contain: no picture in the strip, no lane scrim in the picture's bottom", async () => {

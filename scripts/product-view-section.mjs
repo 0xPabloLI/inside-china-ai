@@ -93,6 +93,34 @@ function render(body, provenance) {
  * @param {(args: string[]) => string} [options.runGh] - seam for tests
  * @returns {SectionResult}
  */
+/**
+ * Read every comment page.
+ *
+ * `--slurp` (gh ≥ 2.44) returns the pages as one JSON array. Older gh — 2.43
+ * ships on this Mac — rejects the flag outright, which used to make the whole
+ * delivery gate unusable on the machine that writes the records. The fallback
+ * asks jq for one compact object per line and re-wraps them: same records, same
+ * order, no dependency on a gh version we do not control.
+ *
+ * @param {(args: string[]) => string} gh
+ * @param {string} url
+ * @returns {Array<object>}
+ */
+export function readAllCommentPages(gh, url) {
+  try {
+    return JSON.parse(gh(["api", "--paginate", "--slurp", url])).flat();
+  } catch (error) {
+    if (!String(error?.message ?? "").includes("unknown flag: --slurp")) throw error;
+    const lines = gh(["api", "--paginate", "--jq", ".[]", url]).trim();
+    if (!lines) return [];
+    try {
+      return lines.split("\n").map((line) => JSON.parse(line));
+    } catch (inner) {
+      throw new Error(`could not parse paginated comments without --slurp: ${inner.message}`);
+    }
+  }
+}
+
 export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {}) {
   if (!Number.isInteger(number) || number <= 0) {
     throw new Error("issue/PR number must be a positive integer");
@@ -104,8 +132,7 @@ export function renderProductViewSection({ number, repo, runGh: gh = runGh } = {
   // Every page, not the first: the comments endpoint returns oldest first, so a
   // ticket with more comments than one page holds its newest record on a later
   // page — reading page one would miss the very section the report must quote.
-  const pages = JSON.parse(gh(["api", "--paginate", "--slurp", `${base}/comments?per_page=100`]));
-  const comments = pages.flat();
+  const comments = readAllCommentPages(gh, `${base}/comments?per_page=100`);
 
   // Records only: a section without the marker is not a delivery record, a bot
   // comment is not one either, and a waiver explicitly declines to write one.

@@ -626,6 +626,18 @@ describe("hook media-led layout contract (2026-11-15)", () => {
     expect(isMediaLedHook({ visualType: "hook", layout: "media-led", media: null })).toBe(false);
     expect(isMediaLedHook({ visualType: "narrative", layout: "media-led", media })).toBe(false);
     expect(isMediaLedHook({ visualType: "hook", layout: "hero-center", media })).toBe(false);
+    // #1405: a native candle chart is the hook's picture even with no file.
+    expect(
+      isMediaLedHook({
+        visualType: "hook",
+        layout: "media-led",
+        media: null,
+        info: { chart: "candle" },
+      }),
+    ).toBe(true);
+    expect(isMediaLedHook({ visualType: "hook", layout: "media-led", info: { chart: "line" } })).toBe(
+      false,
+    );
     expect(isMediaLedHook(undefined)).toBe(false);
   });
 

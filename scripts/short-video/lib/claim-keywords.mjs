@@ -61,6 +61,9 @@ export const NO_MEDIA_TYPES = new Set(["cta", "data"]);
 export function skipsMediaSourcing(scene) {
   if (!scene) return true;
   if (NO_MEDIA_TYPES.has(scene.visualType)) return true;
+  // Native candle chart (#1405): the baked series IS the picture. Sourcing a
+  // stock photo here would cover the one object the narration describes.
+  if (scene.info?.chart === "candle") return true;
   if (scene.media === null) return true;
   if (scene.mediaOptOut === true) return true; // deprecated (#191)
   return false;

@@ -8,11 +8,25 @@
  * a measured fall rather than a model name wearing 230px type.
  * Sources: HKEX close, Weibo finance accounts (nov 12), CLS
  *
+ * The hook's K-line is a native candle chart since #1405: the daily series is
+ * baked from Eastmoney (checked row by row against Tencent) into
+ * `data/2513-daily.json`, so the render needs no chart-img call and no
+ * watermark. The window ends 2026-11-12 on purpose: the narration's "454" is
+ * that day's close, and extending to 11-13 would put 408.4 on screen against
+ * the sentence.
+ *
  * NOTE: the reported HK$4B buyback is deliberately NOT used. The scan paired it
  * with a different trading day's "up 8.5%" flash and the Reuters item could not
  * be verified on 2026-11-13, so this pack stays on arithmetic derived from the
  * two verified prices.
  */
+
+import { readBakedCandleSeries } from "../../lib/candle-data.mjs";
+
+/** Baked daily series for HKEX:2513 (see `npm run bake:quotes -- zhipu-valuation`). */
+const candle = readBakedCandleSeries(new URL("./data/2513-daily.json", import.meta.url), {
+  symbol: "HKEX:2513",
+});
 
 export const scenes = [
   {
@@ -32,12 +46,20 @@ export const scenes = [
       // truncated a sentence-final "in June" on six consecutive takes
       // (TTS_ACOUSTIC_HARD_BLOCK x2). Front-loaded tokens survive truncation.
       "In June, Zhipu peaked at 2,980 Hong Kong dollars. Today it trades at 454.",
-    // #1353 follow-up: deterministic chart asset — the hook narrates the exact
-    // peak-to-now window, so pin the real HKEX:2513 K-line over that range
-    // (custom from/to verified live 2026-11-15; candles fill the full frame).
-    chart: {
-      entity: "zhipu",
-      range: { from: "2026-06-01T00:00:00.000Z", to: "2026-11-14T00:00:00.000Z" },
+    // #1405: the chart-img pin is replaced by a native candle chart. The
+    // baked series (Eastmoney primary, Tencent check) ends 2026-11-12, the
+    // close the voiceover names; the June peak 2,980 is highlighted because
+    // the hook says it out loud.
+    info: {
+      relationship: "change-over-time",
+      chart: "candle",
+      symbol: "HKEX:2513",
+      dataFile: "data/2513-daily.json",
+      data: candle.rows,
+      unit: "HK$",
+      time: { from: "2026-06-01", to: "2026-11-12" },
+      highlight: "2026-06-22",
+      credit: "HKEX CLOSE VIA EASTMONEY · NOV 12",
     },
     // 2026-11-14: hooks carry imagery (user ruling, PR #1342 opened sourcing
     // to the opening) — the old `media: null` CSS-only waiver is lifted and

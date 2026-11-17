@@ -3,6 +3,7 @@
  */
 import type { InfoSpec } from "../../types";
 import { BarChart } from "./BarChart";
+import { CandleChart } from "./CandleChart";
 import { ColumnChart } from "./ColumnChart";
 import { DotPlot } from "./DotPlot";
 import { LineChart } from "./LineChart";
@@ -25,9 +26,11 @@ export const ChartRenderer: React.FC<{ info: InfoSpec }> = ({ info }) => {
       return <ProportionBar info={info} />;
     case "dot-plot":
       return <DotPlot info={info} />;
+    case "candle":
+      return <CandleChart info={info} />;
     default:
       throw new Error(
-        `Unsupported native chart "${info.chart}" — use one of bar, column, line, slope, proportion-bar, dot-plot`,
+        `Unsupported native chart "${info.chart}" — use one of bar, column, line, slope, proportion-bar, dot-plot, candle`,
       );
   }
 };

@@ -250,6 +250,11 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
     // must agree — otherwise a render-only path would wave through a hook whose
     // declared layout never renders.
     if (scene.visualType === "hook") {
+      // Native candle chart (#1405): the hook's picture is a baked series the
+      // renderer draws, so there is no landed file for this gate to require.
+      // The info grammar owns its data checks (series length, window, symbol,
+      // dataFile), and preflight runs them before this gate.
+      if (scene.info?.chart === "candle") continue;
       if (scene.media === null) {
         if (layout === HOOK_MEDIA_LED_LAYOUT) {
           failures.push({ sceneId: scene.id, layout, reason: "explicit-null-on-media-led-hook" });

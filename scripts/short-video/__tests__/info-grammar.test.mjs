@@ -375,3 +375,124 @@ describe("checkInfoSpec", () => {
     );
   });
 });
+
+describe("candle series (#1405)", () => {
+  const bars = (count = 6, overrides = {}) =>
+    Array.from({ length: count }, (_, index) => ({
+      date: `2026-06-0${index + 1}`,
+      open: 100 + index,
+      high: 112 + index,
+      low: 90 + index,
+      close: 104 + index,
+      volume: 1000 + index,
+      ...overrides,
+    }));
+
+  const candle = (overrides = {}) => ({
+    relationship: "change-over-time",
+    chart: "candle",
+    data: bars(),
+    unit: "HK$",
+    symbol: "HKEX:2513",
+    dataFile: "data/2513-daily.json",
+    time: { from: "2026-06-01", to: "2026-06-06" },
+    ...overrides,
+  });
+
+  const candleTexts = {
+    badge: "HKEX",
+    subject: "ZHIPU",
+    bigNumber: "-85%",
+    source: "HKEX CLOSE, NOV 12",
+  };
+
+  it("accepts a baked series as a data chart", () => {
+    const result = validateInfoSpec(candle(), {
+      texts,
+      visualType: "data",
+      layout: "chart",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("accepts a candle as the media-led hook's protagonist", () => {
+    const result = validateInfoSpec(candle(), {
+      texts: candleTexts,
+      visualType: "hook",
+      layout: "media-led",
+    });
+    expect(result.ok, JSON.stringify(result.errors)).toBe(true);
+  });
+
+  it("still refuses info on a hero-center hook (the native chart has no band there)", () => {
+    const result = validateInfoSpec(candle(), {
+      texts: candleTexts,
+      visualType: "hook",
+      layout: "hero-center",
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects an impossible OHLC bar", () => {
+    const data = bars(6, { high: 99 });
+    const result = validateInfoSpec(candle({ data }), {
+      texts,
+      visualType: "data",
+      layout: "chart",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("impossible OHLC"))).toBe(true);
+  });
+
+  it("rejects duplicate or descending dates", () => {
+    const data = bars();
+    data[2].date = data[1].date;
+    const result = validateInfoSpec(candle({ data }), {
+      texts,
+      visualType: "data",
+      layout: "chart",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("unique and ascending"))).toBe(true);
+  });
+
+  it("rejects a series that escapes its declared window", () => {
+    const result = validateInfoSpec(candle({ time: { from: "2026-06-01", to: "2026-06-04" } }), {
+      texts,
+      visualType: "data",
+      layout: "chart",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("after the declared window"))).toBe(true);
+  });
+
+  it("requires the bake contract and the claim window", () => {
+    const result = validateInfoSpec(
+      candle({ symbol: undefined, dataFile: undefined, time: undefined }),
+      {
+        texts,
+        visualType: "data",
+        layout: "chart",
+      },
+    );
+    expect(result.ok).toBe(false);
+    const fields = result.errors.map((e) => e.path);
+    expect(fields).toEqual(expect.arrayContaining(["info.symbol", "info.dataFile", "info.time"]));
+  });
+
+  it("rejects a highlight that names no bar", () => {
+    const result = validateInfoSpec(candle({ highlight: "2026-06-30" }), {
+      texts,
+      visualType: "data",
+      layout: "chart",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.message.includes("is not a bar date"))).toBe(true);
+  });
+
+  it("keeps date order when sorting is requested", () => {
+    const normalized = normalizeInfoSpec(candle({ sort: "desc" }));
+    expect(sortData(normalized).map((bar) => bar.date)).toEqual(bars().map((bar) => bar.date));
+  });
+});

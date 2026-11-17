@@ -1,6 +1,6 @@
 # Spec — Information Layout System v2 (#1398)
 
-Status: active（2026-11-16） · Parent issue: #1398 · Planning scale: S2 · Risk: R3（核心管线、Remotion 渲染、发布元数据）
+Status: active（2026-11-17） · Parent issue: #1398 · Planning scale: S2 · Risk: R3（核心管线、Remotion 渲染、发布元数据）
 
 ## Problem Statement
 
@@ -51,8 +51,8 @@ Status: active（2026-11-16） · Parent issue: #1398 · Planning scale: S2 · R
 
 Rules:
 
-- `info` only on `visualType: "data"`; `layout` must be `"chart"`.
-- `info` is additive. Existing `scene.chart` (chart-img K-line pin) keeps its current meaning and schema.
+- `info` only on `visualType: "data"` with `layout: "chart"` — with **one exception**: `chart: "candle"` may also drive a `visualType: "hook"` + `layout: "media-led"` scene, where it fills the 820×619 media band that a chart PNG used to occupy (#1405). A hero-center hook has no band, so it is rejected.
+- `info` is additive. Existing `scene.chart` (chart-img K-line pin) keeps its current meaning and schema, and remains the path for every instrument the bake pipeline does not cover (non-HKEX, intraday, annotated drawings).
 - `texts.label` is the chart title/claim; `texts.subtext` is the reading; `texts.source` is mandatory for a native chart.
 - `data` entries are `{ label, value, value2?, x?, y?, highlight? }`.
 - `unit` is required. Values are numbers; formatting is derived (thousands separators, up to 1 decimal unless `decimals` is set).
@@ -66,7 +66,7 @@ Rules:
 | --- | --- | --- | --- |
 | `magnitude` | `bar`, `column`, `dot-plot` | `bar` | bar labels above the bar, never rotated; column must start at 0 |
 | `ranking` | `bar`, `dot-plot`, `slope` | `bar` | sort `desc` by default; highlight at most one |
-| `change-over-time` | `line`, `column`, `slope` | `line` | preserve input order; 2–6 points in 40–70s |
+| `change-over-time` | `line`, `column`, `slope`, `candle` | `line` | preserve input order; 2–6 points in 40–70s; `candle` is the daily-OHLC variant (5–260 bars) |
 | `part-to-whole` | `proportion-bar` | `proportion-bar` | one stacked bar, direct labels, no pie |
 | `deviation` | `bar`, `column` | `bar` | explicit baseline; diverging around it |
 | `distribution` | `dot-plot`, `column` | `dot-plot` | pre-binned; 5–12 points |
@@ -75,6 +75,31 @@ Rules:
 | `spatial` | — | — | use a real map image; never invent geography |
 
 `scatter` and `histogram` are registered as known-but-not-yet-native; `validateInfoSpec` returns a clear error telling the author to use `chart-card` with a real chart asset.
+
+### 2b. Candle（K 线，#1405）
+
+K 线不是「12 个以内的已知数值」，而是**一整段已收盘的日线**。它走同一套 `info`，但数据形状与门禁不同：
+
+```js
+info: {
+  relationship: "change-over-time",
+  chart: "candle",
+  symbol: "HKEX:2513",              // bake 契约：行情标的
+  dataFile: "data/2513-daily.json", // bake 契约：包内数据文件
+  data: [/* 由 readBakedCandleSeries 读入的 rows */],
+  unit: "HK$",
+  time: { from: "2026-06-01", to: "2026-11-12" }, // 镜头 claim 的窗口
+  highlight: "2026-06-22",          // 只接受数据里的交易日
+  credit: "HKEX CLOSE VIA EASTMONEY · NOV 12", // 画面内署名（必写在图内）
+}
+```
+
+- `data` 条目是 `{ date, open, high, low, close, volume }`；日期必须唯一且升序，`high`/`low` 必须包住 `open`/`close`，序列不得越出 `time` 窗口。
+- `data` 由 `npm run bake:quotes -- <pack>` 从 `content/<pack>/data/*.json` 烘焙：东方财富为主源、腾讯逐根校验，任何一根任何一字段不一致就整体失败（不挑「谁先答」）。渲染期零网络。
+- `symbol` + `dataFile` 是**再烘焙契约**，缺一不可；`time.to` 必须是已收盘的交易日，且应等于旁白引用的最新收盘（多含一天就会把下一个收盘画到屏幕上）。
+- `highlight` 是日期而非 label；最多一个。图内 amber 标记 + `PEAK · JUN 22` 文案，用来把旁白的峰值锚到一个具体蜡烛。
+- 图内必须印 `credit`（来源 + 时点）；`texts.source` 仍必填，但保持短行（长行会把 hook 文本条挤出槽位，TextFit 会拦）。
+- 观点/预测不进 K 线：只画已收盘日线，不做盘中、不做未来格子。
 
 ### 3. Native chart panel
 

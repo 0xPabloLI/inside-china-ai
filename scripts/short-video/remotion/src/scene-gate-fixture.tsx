@@ -196,6 +196,70 @@ const MEDIA_LED_CONTAIN_SCENE: SceneData = {
   },
 };
 
+/**
+ * Synthetic daily bars for the native candle baseline (#1405).
+ *
+ * Deterministic on purpose: the fixture renders in CI without network access
+ * and without the pack's baked file, so the shape has to come from arithmetic.
+ * Four months of a peak-then-decline series — the same story the zhipu pack
+ * tells — with one bar carrying `highlight` so the amber marker path renders.
+ */
+function candleFixtureRows() {
+  const bars: Array<{
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }> = [];
+  const start = new Date("2026-06-01T00:00:00.000Z");
+  let close = 1200;
+  for (let index = 0; index < 40; index++) {
+    const date = new Date(start.getTime() + index * 86400000).toISOString().slice(0, 10);
+    const open = close;
+    const drift = index < 10 ? 60 : index < 18 ? -55 : -12;
+    close = Math.max(300, close + drift + Math.sin(index * 1.7) * 30);
+    bars.push({
+      date,
+      open,
+      high: Math.max(open, close) + 45,
+      low: Math.min(open, close) - 40,
+      close,
+      volume: 1000000 + index * 1000,
+    });
+  }
+  return bars;
+}
+
+const CANDLE_FIXTURE_ROWS = candleFixtureRows();
+
+/** Media-led hook whose protagonist is a native candle chart (#1405). */
+const MEDIA_LED_CANDLE_SCENE: SceneData = {
+  id: 32,
+  visualType: "hook",
+  layout: "media-led",
+  voiceover: "hook",
+  info: {
+    relationship: "change-over-time",
+    chart: "candle",
+    data: CANDLE_FIXTURE_ROWS,
+    unit: "HK$",
+    symbol: "HKEX:2513",
+    dataFile: "data/fixture-daily.json",
+    time: { from: "2026-06-01", to: "2026-07-10" },
+    highlight: "2026-06-11",
+    credit: "HKEX CLOSE VIA EASTMONEY · JUL 10",
+  },
+  texts: {
+    badge: "HKEX LISTING",
+    subject: "ZHIPU",
+    bigNumber: "-85%",
+    numberLabel: "SINCE JUNE PEAK",
+    source: "HKEX CLOSE, NOV 12",
+  },
+};
+
 /** The cover variant: the same generated photo with `fit` omitted. */
 const MEDIA_LED_COVER_MEDIA: NonNullable<SceneData["media"]> = {
   type: "image",
@@ -240,6 +304,7 @@ const BASELINE_SCENES: Record<string, SceneData> = {
   // the same generated photo (`fit` omitted → cover) — a render-OK baseline
   // like the other media baselines.
   "baseline-hook-media-led": MEDIA_LED_CONTAIN_SCENE,
+  "baseline-hook-media-led-candle": MEDIA_LED_CANDLE_SCENE,
   "baseline-hook-media-led-cover": {
     ...MEDIA_LED_CONTAIN_SCENE,
     id: 31,

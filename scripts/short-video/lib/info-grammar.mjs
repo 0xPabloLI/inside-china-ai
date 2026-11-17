@@ -32,6 +32,7 @@ const CHART_TYPES = Object.freeze([
   "slope",
   "proportion-bar",
   "dot-plot",
+  "candle",
   "scatter",
   "histogram",
 ]);
@@ -44,12 +45,13 @@ const NATIVE_CHART_TYPES = Object.freeze([
   "slope",
   "proportion-bar",
   "dot-plot",
+  "candle",
 ]);
 
 const RELATIONSHIP_CHARTS = Object.freeze({
   magnitude: ["bar", "column", "dot-plot"],
   ranking: ["bar", "dot-plot", "slope"],
-  "change-over-time": ["line", "column", "slope"],
+  "change-over-time": ["line", "column", "slope", "candle"],
   "part-to-whole": ["proportion-bar"],
   deviation: ["bar", "column"],
   distribution: ["dot-plot", "column"],
@@ -74,6 +76,9 @@ const DATA_LIMITS = Object.freeze({
   slope: { min: 2, max: 4 },
   "proportion-bar": { min: 2, max: 5 },
   "dot-plot": { min: 2, max: 10 },
+  // A baked daily series is one mark per trading day: the floor keeps a
+  // "trend" from being three candles, the ceiling is a year of HKEX sessions.
+  candle: { min: 5, max: 260 },
 });
 
 // Character ceilings are geometry, not style: 40px type at the chart's real
@@ -153,6 +158,9 @@ export function normalizeInfoSpec(info) {
     suffix: text(source.suffix) ? source.suffix : "",
     axisLabels: Array.isArray(source.axisLabels) ? [...source.axisLabels] : null,
     panelVariant: PANEL_VARIANTS.has(source.panelVariant) ? source.panelVariant : "clean",
+    credit: text(source.credit) ? source.credit : "",
+    symbol: text(source.symbol) ? source.symbol : "",
+    dataFile: text(source.dataFile) ? source.dataFile : "",
   };
 }
 
@@ -167,6 +175,7 @@ export function sortData(info) {
     normalized.sort === "none" ||
     normalized.chart === "line" ||
     normalized.chart === "slope" ||
+    normalized.chart === "candle" ||
     normalized.chart === "proportion-bar" ||
     (normalized.chart === "column" && normalized.relationship === "change-over-time")
   ) {
@@ -211,6 +220,113 @@ export function formatChartValue(value, info = {}) {
 }
 
 /**
+ * Validate a baked OHLC series (#1405).
+ *
+ * A candle is not a category chart: its rows are (date, open, high, low, close,
+ * volume), the x order is the date order, and the claim is the shape rather
+ * than any single value. The checks below are the ones a wrong series can
+ * actually fail — a date that is not a date, an impossible OHLC bar, a series
+ * outside its declared window, a highlight that names no bar — so preflight
+ * catches a mis-baked file before a render ever starts.
+ *
+ * `symbol` + `dataFile` are the bake contract: they are what
+ * `bake-quotes.mjs` reads to decide which endpoint pair to fetch and where to
+ * write. A scene that drops them can render a chart but can never be re-baked,
+ * so they are required here rather than tolerated.
+ *
+ * @param {Array<object>} data
+ * @param {object} info
+ * @param {Array<object>} errors - pushed into
+ */
+function validateCandleRows(data, info, errors) {
+  let previous = "";
+  for (const [index, row] of data.entries()) {
+    const where = `info.data[${index}]`;
+    if (!isPlainObject(row)) {
+      push(errors, "info.data.datum", `${where} must be an object`, where);
+      continue;
+    }
+    const date = typeof row.date === "string" ? row.date : "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      push(errors, "info.data.date", `${where}.date must be YYYY-MM-DD`, where);
+    } else if (date <= previous) {
+      push(errors, "info.data.order", `${where}.date must be unique and ascending`, where);
+    } else {
+      previous = date;
+    }
+    for (const field of ["open", "high", "low", "close", "volume"]) {
+      if (!finite(row[field])) {
+        push(errors, `info.data.${field}`, `${where}.${field} must be a finite number`, where);
+      }
+    }
+    if (
+      finite(row.open) &&
+      finite(row.high) &&
+      finite(row.low) &&
+      finite(row.close) &&
+      (row.high < Math.max(row.open, row.close) || row.low > Math.min(row.open, row.close))
+    ) {
+      push(
+        errors,
+        "info.data.ohlc",
+        `${where} is an impossible OHLC bar (high/low do not bracket open/close)`,
+        where,
+      );
+    }
+  }
+
+  for (const field of ["symbol", "dataFile"]) {
+    if (!text(info[field])) {
+      push(
+        errors,
+        `info.${field}`,
+        `a candle chart requires info.${field} so the series can be re-baked (npm run bake:quotes -- <pack>)`,
+        `info.${field}`,
+      );
+    }
+  }
+
+  if (!isPlainObject(info.time) || !text(info.time.from) || !text(info.time.to)) {
+    push(
+      errors,
+      "info.time",
+      "a candle chart requires info.time { from, to } — the window it claims",
+      "info.time",
+    );
+  } else {
+    const first = data[0]?.date;
+    const last = data[data.length - 1]?.date;
+    if (text(first) && first < info.time.from) {
+      push(
+        errors,
+        "info.data.window",
+        `first bar ${first} is before the declared window ${info.time.from}`,
+      );
+    }
+    if (text(last) && last > info.time.to) {
+      push(
+        errors,
+        "info.data.window",
+        `last bar ${last} is after the declared window ${info.time.to} — the chart would show a close the narration does not claim`,
+      );
+    }
+  }
+
+  const flagged = data.filter((row) => row?.highlight === true).length;
+  const named = text(info.highlight) ? 1 : 0;
+  if (flagged + named > 1) {
+    push(errors, "info.highlight.multiple", "at most one bar may be highlighted");
+  }
+  if (text(info.highlight) && !data.some((row) => row?.date === info.highlight)) {
+    push(
+      errors,
+      "info.highlight.unknown",
+      `highlight ${JSON.stringify(info.highlight)} is not a bar date in this series`,
+    );
+  }
+}
+
+/**
  * Validate one scene's `info`. Errors are blocking; warnings are structural
  * advice (missing highlight, too many categories to compare comfortably).
  *
@@ -227,23 +343,26 @@ export function validateInfoSpec(info, context = {}) {
   }
 
   const { texts = {}, visualType, layout } = context;
-  if (visualType !== undefined && visualType !== "data") {
-    push(
-      errors,
-      "info.visualType",
-      `scene.info is only valid on visualType "data" (got "${visualType}")`,
-    );
-  }
-  if (layout !== undefined && layout !== "chart") {
-    push(errors, "info.layout", `scene.info requires layout "chart" (got "${layout}")`);
-  }
-
   const relationship = info.relationship;
   if (!text(relationship) || !RELATIONSHIPS.includes(relationship)) {
     push(errors, "info.relationship", `unknown relationship ${JSON.stringify(relationship)}`);
   }
   const allowed = allowedChartsFor(relationship);
   const chart = text(info.chart) ? info.chart : defaultChartFor(relationship);
+  // A candle is the one chart that can carry a hook: the K-line is the claim
+  // (the June peak the narration names sits in its pixels), so the media-led
+  // hook renders it in the band its raster predecessor occupied (#1405).
+  const candleHook = chart === "candle" && visualType === "hook" && layout === "media-led";
+  if (visualType !== undefined && visualType !== "data" && !candleHook) {
+    push(
+      errors,
+      "info.visualType",
+      `scene.info is only valid on visualType "data" (got "${visualType}")`,
+    );
+  }
+  if (layout !== undefined && layout !== "chart" && !candleHook) {
+    push(errors, "info.layout", `scene.info requires layout "chart" (got "${layout}")`);
+  }
   if (!text(chart) || !CHART_TYPES.includes(chart)) {
     push(errors, "info.chart", `unknown chart ${JSON.stringify(info.chart)}`);
   } else if (!NATIVE_CHART_TYPES.includes(chart)) {
@@ -279,122 +398,134 @@ export function validateInfoSpec(info, context = {}) {
         "info.data",
       );
     }
-    const labels = new Set();
-    data.forEach((datum, index) => {
-      const where = `info.data[${index}]`;
-      if (!isPlainObject(datum)) {
-        push(errors, "info.data.datum", `${where} must be an object`, where);
-        return;
-      }
-      if (!text(datum.label)) {
-        push(errors, "info.data.label", `${where}.label must be a non-empty string`, where);
-      } else {
-        if (datum.label.length > labelLimitFor(chart)) {
-          push(
-            errors,
-            "info.data.labelLength",
-            `${where}.label is ${datum.label.length} chars; ${chart} allows ${labelLimitFor(chart)}`,
-            where,
-          );
+    if (chart === "candle") {
+      validateCandleRows(data, info, errors);
+    } else {
+      const labels = new Set();
+      data.forEach((datum, index) => {
+        const where = `info.data[${index}]`;
+        if (!isPlainObject(datum)) {
+          push(errors, "info.data.datum", `${where} must be an object`, where);
+          return;
         }
-        if (labels.has(datum.label)) {
-          push(
-            errors,
-            "info.data.duplicateLabel",
-            `${where}.label duplicates ${JSON.stringify(datum.label)}`,
-            where,
-          );
+        if (!text(datum.label)) {
+          push(errors, "info.data.label", `${where}.label must be a non-empty string`, where);
+        } else {
+          if (datum.label.length > labelLimitFor(chart)) {
+            push(
+              errors,
+              "info.data.labelLength",
+              `${where}.label is ${datum.label.length} chars; ${chart} allows ${labelLimitFor(chart)}`,
+              where,
+            );
+          }
+          if (labels.has(datum.label)) {
+            push(
+              errors,
+              "info.data.duplicateLabel",
+              `${where}.label duplicates ${JSON.stringify(datum.label)}`,
+              where,
+            );
+          }
+          labels.add(datum.label);
         }
-        labels.add(datum.label);
-      }
-      if (!finite(datum.value)) {
-        push(errors, "info.data.value", `${where}.value must be a finite number`, where);
-      }
-      if (chart === "slope" && !finite(datum.value2)) {
-        push(errors, "info.data.value2", `${where}.value2 is required for a slope chart`, where);
-      }
-      if (relationship === "part-to-whole" && finite(datum.value) && datum.value <= 0) {
-        push(errors, "info.data.positive", `${where}.value must be > 0 for part-to-whole`, where);
-      }
-      if (datum.value2 !== undefined && !finite(datum.value2)) {
-        push(errors, "info.data.value2", `${where}.value2 must be a finite number`, where);
-      }
-    });
+        if (!finite(datum.value)) {
+          push(errors, "info.data.value", `${where}.value must be a finite number`, where);
+        }
+        if (chart === "slope" && !finite(datum.value2)) {
+          push(errors, "info.data.value2", `${where}.value2 is required for a slope chart`, where);
+        }
+        if (relationship === "part-to-whole" && finite(datum.value) && datum.value <= 0) {
+          push(errors, "info.data.positive", `${where}.value must be > 0 for part-to-whole`, where);
+        }
+        if (datum.value2 !== undefined && !finite(datum.value2)) {
+          push(errors, "info.data.value2", `${where}.value2 must be a finite number`, where);
+        }
+      });
 
-    // 40px type has ~20px average advance. Direct labels must fit the slot the
-    // chart actually grants; a longer label is an error, not a rotation.
-    if (chart === "column" && data.length > 0) {
-      const slot = 700 / data.length;
-      for (const datum of data) {
-        if (text(datum?.label) && datum.label.length * 20 > slot * 0.9) {
-          push(
-            errors,
-            "info.data.labelOverlap",
-            `column label ${JSON.stringify(datum.label)} needs ~${datum.label.length * 20}px but each column has ${slot.toFixed(0)}px; use a bar chart`,
-          );
+      // 40px type has ~20px average advance. Direct labels must fit the slot the
+      // chart actually grants; a longer label is an error, not a rotation.
+      if (chart === "column" && data.length > 0) {
+        const slot = 700 / data.length;
+        for (const datum of data) {
+          if (text(datum?.label) && datum.label.length * 20 > slot * 0.9) {
+            push(
+              errors,
+              "info.data.labelOverlap",
+              `column label ${JSON.stringify(datum.label)} needs ~${datum.label.length * 20}px but each column has ${slot.toFixed(0)}px; use a bar chart`,
+            );
+          }
         }
       }
-    }
-    if (chart === "line" && data.length > 1) {
-      const slot = 700 / (data.length - 1);
-      for (const datum of data) {
-        if (text(datum?.label) && datum.label.length * 20 > slot * 0.9) {
-          push(
-            errors,
-            "info.data.labelOverlap",
-            `line x-label ${JSON.stringify(datum.label)} needs ~${datum.label.length * 20}px but points are ${slot.toFixed(0)}px apart`,
-          );
+      if (chart === "line" && data.length > 1) {
+        const slot = 700 / (data.length - 1);
+        for (const datum of data) {
+          if (text(datum?.label) && datum.label.length * 20 > slot * 0.9) {
+            push(
+              errors,
+              "info.data.labelOverlap",
+              `line x-label ${JSON.stringify(datum.label)} needs ~${datum.label.length * 20}px but points are ${slot.toFixed(0)}px apart`,
+            );
+          }
         }
       }
-    }
-    if (chart === "slope" && data.length > 1) {
-      // Each endpoint draws a label and a value on two stacked lines (~76px).
-      // The plot is 424px tall, so anything closer than ~18% of the domain
-      // span collides on screen even though the numbers differ.
-      const values = data
-        .flatMap((datum) => [datum?.value, datum?.value2])
-        .filter((value) => Number.isFinite(value));
-      const span = Math.max(...values) - Math.min(...values);
-      if (span > 0) {
-        for (const [side, key] of [
-          ["left", "value"],
-          ["right", "value2"],
-        ]) {
-          const sorted = data
-            .map((datum) => datum?.[key])
-            .filter((value) => Number.isFinite(value))
-            .sort((a, b) => a - b);
-          for (let index = 1; index < sorted.length; index++) {
-            if ((sorted[index] - sorted[index - 1]) / span < 0.18) {
-              push(
-                errors,
-                "info.data.labelOverlap",
-                `slope ${side} endpoint labels are within 18% of the plot height; separate the values or use a bar chart`,
-              );
-              break;
+      if (chart === "slope" && data.length > 1) {
+        // Each endpoint draws a label and a value on two stacked lines (~76px).
+        // The plot is 424px tall, so anything closer than ~18% of the domain
+        // span collides on screen even though the numbers differ.
+        const values = data
+          .flatMap((datum) => [datum?.value, datum?.value2])
+          .filter((value) => Number.isFinite(value));
+        const span = Math.max(...values) - Math.min(...values);
+        if (span > 0) {
+          for (const [side, key] of [
+            ["left", "value"],
+            ["right", "value2"],
+          ]) {
+            const sorted = data
+              .map((datum) => datum?.[key])
+              .filter((value) => Number.isFinite(value))
+              .sort((a, b) => a - b);
+            for (let index = 1; index < sorted.length; index++) {
+              if ((sorted[index] - sorted[index - 1]) / span < 0.18) {
+                push(
+                  errors,
+                  "info.data.labelOverlap",
+                  `slope ${side} endpoint labels are within 18% of the plot height; separate the values or use a bar chart`,
+                );
+                break;
+              }
             }
           }
         }
       }
-    }
 
-    const flagged = data.filter((datum) => datum?.highlight === true).length;
-    const named = text(info.highlight) ? 1 : 0;
-    if (flagged + named > 1) {
-      push(errors, "info.highlight.multiple", "at most one point may be highlighted");
-    }
-    if (text(info.highlight) && !labels.has(info.highlight)) {
-      push(
-        errors,
-        "info.highlight.unknown",
-        `highlight ${JSON.stringify(info.highlight)} is not a data label`,
-      );
-    }
-    if (relationship === "ranking" && flagged + named === 0) {
-      push(warnings, "info.highlight.ranking", "a ranking should highlight the point of interest");
-    }
-    if (data.length > 6 && chart !== "dot-plot") {
-      push(warnings, "info.data.density", `${data.length} categories is dense for one 40–70s shot`);
+      const flagged = data.filter((datum) => datum?.highlight === true).length;
+      const named = text(info.highlight) ? 1 : 0;
+      if (flagged + named > 1) {
+        push(errors, "info.highlight.multiple", "at most one point may be highlighted");
+      }
+      if (text(info.highlight) && !labels.has(info.highlight)) {
+        push(
+          errors,
+          "info.highlight.unknown",
+          `highlight ${JSON.stringify(info.highlight)} is not a data label`,
+        );
+      }
+      if (relationship === "ranking" && flagged + named === 0) {
+        push(
+          warnings,
+          "info.highlight.ranking",
+          "a ranking should highlight the point of interest",
+        );
+      }
+      if (data.length > 6 && chart !== "dot-plot") {
+        push(
+          warnings,
+          "info.data.density",
+          `${data.length} categories is dense for one 40–70s shot`,
+        );
+      }
     }
   }
 
@@ -424,6 +555,7 @@ export function validateInfoSpec(info, context = {}) {
   const fixedOrder =
     chart === "line" ||
     chart === "slope" ||
+    chart === "candle" ||
     chart === "proportion-bar" ||
     (chart === "column" && relationship === "change-over-time");
   if (fixedOrder && info.sort && info.sort !== "none") {
@@ -487,7 +619,7 @@ export function validateInfoSpec(info, context = {}) {
   if (!text(texts?.source)) {
     push(errors, "info.source", "native charts require texts.source (the attribution line)");
   }
-  if (!text(texts?.label)) {
+  if (!text(texts?.label) && !candleHook) {
     push(warnings, "info.title", "no texts.label — the chart has no claim heading");
   }
 
