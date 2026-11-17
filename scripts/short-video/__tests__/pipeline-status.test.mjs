@@ -51,9 +51,16 @@ describe("buildPipelineIndex", () => {
     });
   });
 
+  it("allows nested content slugs", () => {
+    const index = buildPipelineIndex("distillation/pt1", "2026-11-17T00:00:00.000Z");
+    expect(index.statusPath).toBe("content/distillation/pt1/pipeline-status.json");
+  });
+
   it("rejects a slug that could escape the content directory", () => {
     expect(() => buildPipelineIndex("../escape")).toThrow(/unsafe articleSlug/);
-    expect(() => buildPipelineIndex("a/b")).toThrow(/unsafe articleSlug/);
+    expect(() => buildPipelineIndex("a//b")).toThrow(/unsafe articleSlug/);
+    expect(() => buildPipelineIndex("/abs")).toThrow(/unsafe articleSlug/);
+    expect(() => buildPipelineIndex("a/../b")).toThrow(/unsafe articleSlug/);
     expect(() => buildPipelineIndex("")).toThrow(/empty/);
   });
 });
@@ -95,7 +102,7 @@ describe("readPipelineStatus", () => {
       `${JSON.stringify({ activeSlug: "qwen4-gamefeel", statusPath: "../escape.json" }, null, 2)}\n`,
       "utf8",
     );
-    expect(() => readPipelineStatus(root)).toThrow(/escapes the short-video root/);
+    expect(() => readPipelineStatus(root)).toThrow(/path segment|escapes its root/);
   });
 });
 
@@ -126,6 +133,18 @@ describe("migratePipelineStatus", () => {
       buildPipelineIndex("qwen4-gamefeel", "2026-11-17T00:00:00.000Z"),
     );
     expect(readPipelineStatus(root)?.kind).toBe("indexed");
+  });
+
+  it("moves a nested slug into its nested content directory", () => {
+    const root = makeRoot();
+    writeLegacy(root, { ...LEGACY, articleSlug: "distillation/pt1" });
+    const result = migratePipelineStatus(root, { apply: true });
+    expect(result.action).toBe("migrated");
+    expect(result.statusPath).toBe(
+      join(root, "content", "distillation", "pt1", "pipeline-status.json"),
+    );
+    expect(readPipelineStatus(root)?.slug).toBe("distillation/pt1");
+    expect(result.backupPath).toContain("pipeline-status.legacy-distillation__pt1.json");
   });
 
   it("is idempotent once the index exists", () => {

@@ -320,7 +320,7 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 | 文件 | 角色 | 字段 |
 | --- | --- | --- |
-| `content/{slug}/pipeline-status.json` | 唯一真值，随内容包归档 | `articleSlug`、`articleTitle`、`startedAt`、`currentStage`、`stages`（各 stage status + completedAt + mrl）、`videoParts`（各集 status + sceneData + mrl）、`nextAction` |
+| `content/{slug}/pipeline-status.json` | 唯一真值（本地运行态，gitignored，不入库） | `articleSlug`、`articleTitle`、`startedAt`、`currentStage`、`stages`（各 stage status + completedAt + mrl）、`videoParts`（各集 status + sceneData + mrl）、`nextAction` |
 | `output/pipeline-status.json` | 薄索引，gitignored，只用于发现 | `activeSlug`、`statusPath`（相对 `scripts/short-video/`）、`updatedAt` |
 
 **Agent 行为**：

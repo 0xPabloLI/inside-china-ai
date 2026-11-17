@@ -12,7 +12,8 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname } from "node:path";
+import { containedPath } from "./path-safety.mjs";
 
 const STATUS_FILENAME = "pipeline-status.json";
 
@@ -23,7 +24,11 @@ function isObject(value) {
 function assertSafeSlug(slug) {
   const clean = String(slug ?? "").trim();
   if (!clean) throw new Error("pipeline status: articleSlug is empty");
-  if (clean === "." || clean === ".." || /[/\\]/u.test(clean)) {
+  if (clean.startsWith("/") || clean.includes("\\") || clean.includes("\0")) {
+    throw new Error(`pipeline status: unsafe articleSlug ${JSON.stringify(clean)}`);
+  }
+  const parts = clean.split("/");
+  if (parts.some((part) => part === "" || part === "." || part === "..")) {
     throw new Error(`pipeline status: unsafe articleSlug ${JSON.stringify(clean)}`);
   }
   return clean;
@@ -56,7 +61,7 @@ export function isLegacyStatus(value) {
 }
 
 export function statusFileFor(root, slug) {
-  return join(root, "content", assertSafeSlug(slug), STATUS_FILENAME);
+  return containedPath(root, "content", assertSafeSlug(slug), STATUS_FILENAME);
 }
 
 export function buildPipelineIndex(slug, updatedAt = new Date().toISOString()) {
@@ -69,16 +74,7 @@ export function buildPipelineIndex(slug, updatedAt = new Date().toISOString()) {
 }
 
 function indexPathFor(root) {
-  return join(root, "output", STATUS_FILENAME);
-}
-
-function resolveInsideRoot(root, relativePath) {
-  const absolute = resolve(root, String(relativePath ?? ""));
-  const prefix = `${resolve(root)}${sep}`;
-  if (!absolute.startsWith(prefix)) {
-    throw new Error(`pipeline status: path escapes the short-video root: ${relativePath}`);
-  }
-  return absolute;
+  return containedPath(root, "output", STATUS_FILENAME);
 }
 
 /**
@@ -104,7 +100,7 @@ export function readPipelineStatus(root) {
   }
   const slug = assertSafeSlug(value.activeSlug);
   const statusPath = value.statusPath
-    ? resolveInsideRoot(root, value.statusPath)
+    ? containedPath(root, String(value.statusPath))
     : statusFileFor(root, slug);
   if (!existsSync(statusPath)) {
     throw new Error(`pipeline status: index points at missing ${statusPath}`);
@@ -134,7 +130,8 @@ export function migratePipelineStatus(root, { apply = false, now = new Date() } 
 
   const slug = assertSafeSlug(value.articleSlug);
   const statusPath = statusFileFor(root, slug);
-  const backupPath = join(root, "output", `pipeline-status.legacy-${slug}.json`);
+  const backupStem = slug.replace(/[/\\]/g, "__");
+  const backupPath = containedPath(root, "output", `pipeline-status.legacy-${backupStem}.json`);
   const index = buildPipelineIndex(slug, now.toISOString());
 
   if (existsSync(statusPath)) {
