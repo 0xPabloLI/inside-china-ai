@@ -347,9 +347,9 @@ export function formatPendingGenerationLog(report) {
  */
 export async function prepareScenesForPlan(scenes, meta = {}) {
   const clone = structuredClone(scenes);
-  const { normalizeSceneData } = await import("../normalize-currency.mjs");
+  const { normalizeSceneDataWithLiveRates } = await import("../normalize-currency.mjs");
   const { normalizeTtsText } = await import("../normalize-tts-text.mjs");
-  normalizeSceneData(clone, meta);
+  await normalizeSceneDataWithLiveRates(clone, meta);
   normalizeTtsText(clone, meta);
   return clone;
 }

@@ -1697,47 +1697,76 @@ function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
 }
 
 /**
- * Currency dual-annotation check: warns when RMB amounts in voiceover/texts
- * do not have a USD equivalent nearby. This is a verify-time safety net —
- * normalizeSceneData() in main.mjs Step 0 should have already fixed them.
- * Detects ¥<number> or <number> (billion|million|thousand) yuan without
- * a $ within 30 chars before the match.
+ * Currency dual-annotation check: warns when RMB/HKD amounts in
+ * voiceover/texts do not have a USD equivalent nearby. This is a verify-time
+ * advisory safety net — `normalizeSceneDataWithLiveRates()` in Step 0.5 should
+ * have already fixed them. It never blocks a render (#763 editorial tier).
+ *
+ * Recognises the same spellings Step 0.5 does (#1415): ¥/￥, "<n> yuan/RMB",
+ * "<n> 亿元/万元/元/亿人民币/万人民币", and the HKD forms (HK$, HKD,
+ * "Hong Kong dollars", 港币/港元). A $ within 30 characters before the match
+ * counts as already annotated.
  */
 function checkCurrencyDualAnnotation(scenes) {
-  const YEN_RE = /¥[\d,.]+/gi;
-  const YUAN_RE = /\d[\d,.]*\s*(?:billion|million|thousand)\s*yuan/gi;
+  const CURRENCY_PATTERNS = [
+    /¥[\d,.]+/g,
+    /￥[\d,.]+/g,
+    /\d[\d,.]*\s*(?:亿|万)?\s*(?:人民币|元(?![素宇旦]))/g,
+    /\d[\d,.]*\s*(?:billion|million|thousand)\s*yuan/gi,
+    /\d[\d,.]*\s*(?:billion|million|thousand|B|M|K)\s*RMB/gi,
+    /HK\$\s*[\d,.]+/gi,
+    /\d[\d,.]*\s*(?:billion|million|thousand|B|M|K)?\s*HKD/gi,
+    /\d[\d,.]*\s*(?:billion|million|thousand)?\s*Hong Kong dollars?/gi,
+    /\d[\d,.]*\s*(?:亿|万)?\s*港[币元]/g,
+  ];
+  const offenders = [];
+  const seen = new Set();
 
   for (const scene of scenes) {
     const vo = scene.voiceover || "";
     const texts = JSON.stringify(scene.texts || "");
     const allText = vo + " " + texts;
+    /** Overlapping matches (e.g. "￥1,200 元" also matching the bare 元 form) count once. */
+    const intervals = [];
 
-    for (const re of [YEN_RE, YUAN_RE]) {
+    for (const re of CURRENCY_PATTERNS) {
       re.lastIndex = 0;
       let m;
       while ((m = re.exec(allText)) !== null) {
-        const windowStart = Math.max(0, m.index - 30);
-        const before = allText.substring(windowStart, m.index);
-        if (!/\$\d/.test(before)) {
-          return [
-            {
-              level: "warn",
-              category: "Content",
-              check: "Currency dual-annotation (¥ → $)",
-              detail: `RMB amount "${m[0]}" without USD equivalent in scene ${scene.id}`,
-              fix: "Run normalizeSceneData() in main.mjs Step 0 to auto-fix, or manually add $X (¥Y) format",
-            },
-          ];
-        }
+        const start = m.index;
+        const end = start + m[0].length;
+        if (intervals.some(([s, e]) => start < e && end > s)) continue;
+        const windowStart = Math.max(0, start - 30);
+        const before = allText.substring(windowStart, start);
+        if (/\$\d/.test(before)) continue;
+        const key = `${scene.id}:${m[0]}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        intervals.push([start, end]);
+        offenders.push({ sceneId: scene.id, amount: m[0] });
       }
     }
   }
 
+  if (offenders.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Content",
+        check: "Currency dual-annotation (CNY/HKD → USD)",
+      },
+    ];
+  }
+
+  const first = offenders[0];
+  const rest = offenders.length > 1 ? `（另有 ${offenders.length - 1} 处，见同包）` : "";
   return [
     {
-      level: "pass",
+      level: "warn",
       category: "Content",
-      check: "Currency dual-annotation (¥ → $)",
+      check: "Currency dual-annotation (CNY/HKD → USD)",
+      detail: `RMB/HKD amount "${first.amount}" without USD equivalent in scene ${first.sceneId}${rest}`,
+      fix: "Step 0.5 auto-fix failed or was skipped: run normalizeSceneDataWithLiveRates(), or manually add $X (original) format",
     },
   ];
 }

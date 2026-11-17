@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeSceneData,
+  normalizeSceneDataWithLiveRates,
   CNY_TO_USD_RATE,
   HKD_TO_USD_RATE,
 } from "../lib/normalize-currency.mjs";
@@ -149,5 +150,148 @@ describe("CNY_TO_USD_RATE", () => {
 describe("HKD_TO_USD_RATE", () => {
   it("is 0.13 (HK$1 ≈ $0.13)", () => {
     expect(HKD_TO_USD_RATE).toBe(0.13);
+  });
+});
+
+// #1415: Chinese spellings — Arabic numerals only, the 亿/万 magnitude maps to
+// 10^8 / 10^4. Rates are injected so the assertions never depend on a live quote.
+describe("Chinese currency spellings", () => {
+  const rates = { CNY: CNY_TO_USD_RATE, HKD: HKD_TO_USD_RATE };
+  const run = (voiceover) => {
+    const scenes = [{ id: 1, voiceover }];
+    normalizeSceneData(scenes, {}, { rates });
+    return scenes[0].voiceover;
+  };
+
+  it("converts '3,500 亿元' to dual-annotation", () => {
+    expect(run("估值为 3,500 亿元")).toBe("估值为 $49 billion (3,500 亿元)");
+  });
+
+  it("converts '3500 亿人民币' to dual-annotation", () => {
+    expect(run("估值 3500 亿人民币")).toBe("估值 $49 billion (3500 亿人民币)");
+  });
+
+  it("converts '120 万元' to dual-annotation", () => {
+    expect(run("成本 120 万元")).toBe("成本 $168,000 (120 万元)");
+  });
+
+  it("converts '500 万人民币' to dual-annotation", () => {
+    expect(run("订单 500 万人民币")).toBe("订单 $700,000 (500 万人民币)");
+  });
+
+  it("converts '1,200 元' to dual-annotation", () => {
+    expect(run("客单价 1,200 元")).toBe("客单价 $168 (1,200 元)");
+  });
+
+  it("converts full-width '￥1,200' to dual-annotation", () => {
+    expect(run("预售价 ￥1,200")).toBe("预售价 $168 (￥1,200)");
+  });
+
+  it("converts '￥3.5亿' with a magnitude suffix", () => {
+    expect(run("营收 ￥3.5亿")).toBe("营收 $49 million (￥3.5亿)");
+  });
+
+  it("does not touch Chinese-number spellings", () => {
+    expect(run("营收三亿五千万")).toBe("营收三亿五千万");
+  });
+
+  it("does not touch non-currency 元 words", () => {
+    expect(run("AI 元数据服务")).toBe("AI 元数据服务");
+    expect(run("1,200 元素")).toBe("1,200 元素");
+  });
+
+  it("does not stack a second annotation on the same amount", () => {
+    expect(run("客单价 $168 (1,200 元)")).toBe("客单价 $168 (1,200 元)");
+  });
+
+  it("uses injected live rates instead of the fallback constants", () => {
+    const scenes = [{ id: 1, voiceover: "估值 3,500 亿元" }];
+    normalizeSceneData(scenes, {}, { rates: { CNY: 0.1, HKD: 0.13 } });
+    expect(scenes[0].voiceover).toBe("估值 $35 billion (3,500 亿元)");
+  });
+});
+
+// #1415: Step 0.5 wrapper — one live quote per run, recorded on meta, with a
+// fallback branch that must never abort the pipeline.
+describe("normalizeSceneDataWithLiveRates", () => {
+  const okFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      result: "success",
+      time_last_update_utc: "Tue, 17 Nov 2026 00:02:31 +0000",
+      rates: { CNY: 7.0, HKD: 7.8 },
+    }),
+  });
+
+  const collectLogger = () => {
+    const lines = [];
+    return {
+      lines,
+      log: (msg) => lines.push({ level: "log", msg }),
+      warn: (msg) => lines.push({ level: "warn", msg }),
+    };
+  };
+
+  it("records a live rate report on meta and annotates with it", async () => {
+    const meta = {};
+    const scenes = [{ id: 1, voiceover: "售价 ¥700" }];
+    const logger = collectLogger();
+
+    const report = await normalizeSceneDataWithLiveRates(scenes, meta, {
+      fetchImpl: okFetch,
+      logger,
+      now: () => new Date("2026-11-17T08:00:00Z"),
+    });
+
+    expect(report.fallback).toBe(false);
+    expect(report.source).toBe("open.er-api.com");
+    expect(report.rates.CNY).toBeCloseTo(1 / 7, 10);
+    expect(meta.currencyRates).toBe(report);
+    expect(meta.currencyAnnotation).toEqual({ annotated: 1 });
+    expect(scenes[0].voiceover).toBe("售价 $100 (¥700)");
+    expect(logger.lines).toHaveLength(1);
+    expect(logger.lines[0].level).toBe("log");
+    expect(logger.lines[0].msg).toContain("CNY 0.1429");
+    expect(logger.lines[0].msg).toContain("2026-11-17T08:00:00.000Z");
+  });
+
+  it("falls back to the constants, marks the log and still annotates", async () => {
+    const meta = {};
+    const scenes = [{ id: 1, voiceover: "售价 ¥700" }];
+    const logger = collectLogger();
+
+    const report = await normalizeSceneDataWithLiveRates(scenes, meta, {
+      fetchImpl: async () => {
+        throw new Error("socket hang up");
+      },
+      logger,
+    });
+
+    expect(report.fallback).toBe(true);
+    expect(report.source).toBe("fallback");
+    expect(report.error).toContain("socket hang up");
+    expect(report.rates).toEqual({ CNY: 0.14, HKD: 0.13 });
+    expect(meta.currencyRates.rates.CNY).toBe(0.14);
+    expect(scenes[0].voiceover).toBe("售价 $98 (¥700)");
+    expect(logger.lines[0].level).toBe("warn");
+    expect(logger.lines[0].msg).toContain("fallback");
+  });
+
+  it("stays silent when logger is null", async () => {
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const calls = [];
+    console.log = (...args) => calls.push(args);
+    console.warn = (...args) => calls.push(args);
+    try {
+      await normalizeSceneDataWithLiveRates([{ id: 1, voiceover: "¥700" }], {}, {
+        fetchImpl: okFetch,
+        logger: null,
+      });
+    } finally {
+      console.log = originalLog;
+      console.warn = originalWarn;
+    }
+    expect(calls).toHaveLength(0);
   });
 });

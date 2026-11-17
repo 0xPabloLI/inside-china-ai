@@ -31,8 +31,8 @@ const { meta } = await import(`./content/${CONTENT_DIR}/meta.mjs`);
 const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 
 // Step 0.5: currency normalize
-const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-normalizeSceneData(scenes, meta);
+const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+await normalizeSceneDataWithLiveRates(scenes, meta);
 
 // Step 0.6: TTS dual-track normalize
 const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");

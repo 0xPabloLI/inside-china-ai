@@ -32,8 +32,8 @@ console.log(`loaded ${scenes.length} scenes from content/${contentDir}`);
 
 // 与 main.mjs Step 0.5/0.6 一致的前处理（否则缓存 key 与 full run 不一致）
 try {
-  const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-  normalizeSceneData(scenes, meta);
+  const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+  await normalizeSceneDataWithLiveRates(scenes, meta);
 } catch (e) {
   console.warn(`currency normalize skipped: ${e.message}`);
 }

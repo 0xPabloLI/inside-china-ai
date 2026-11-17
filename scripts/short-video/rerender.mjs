@@ -34,8 +34,8 @@ const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 // #421 review: same normalization chain as main.mjs (Step 0.5 currency +
 // Step 0.6 TTS dual-track) — the subtitle render boundary below recomputes
 // the alignment signature and must see the text the pipeline aligned against.
-const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-normalizeSceneData(scenes, meta);
+const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+await normalizeSceneDataWithLiveRates(scenes, meta);
 const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
 normalizeTtsText(scenes, meta);
 

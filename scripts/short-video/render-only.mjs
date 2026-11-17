@@ -57,8 +57,8 @@ async function main() {
   // this text, and it must match what main.mjs aligned against — without
   // this, unnormalized scenes would look "stale" while actually being the
   // same content.
-  const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-  normalizeSceneData(scenes, meta);
+  const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+  await normalizeSceneDataWithLiveRates(scenes, meta);
   const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
   normalizeTtsText(scenes, meta);
 

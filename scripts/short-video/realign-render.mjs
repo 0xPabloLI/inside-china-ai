@@ -27,8 +27,8 @@ const audioDir = join(outputDir, "audio");
 const { meta } = await import(`./content/${CONTENT_DIR}/meta.mjs`);
 const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 
-const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-normalizeSceneData(scenes, meta);
+const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+await normalizeSceneDataWithLiveRates(scenes, meta);
 const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
 normalizeTtsText(scenes, meta);
 
