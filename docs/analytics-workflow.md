@@ -448,15 +448,15 @@ Analytics 复盘
 
 ## 文件参考
 
-| 文件                                  | 用途                                                                                                          |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `content/{slug}/pending-analysis.json` | 待分析视频记录（publish-tiktok.mjs 按 slug 写入；manual-guide 档在指南生成时写，`postGroupId` 为 null） |
-| `output/pending-analysis.json`        | legacy 单文件记录（仍被 CLI 读取；无 `--slug` 的 standalone 发布继续写这里）                                           |
-| `output/analytics-export.json`        | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）                                                             |
-| `output/ab-test-results.json`         | A/B 测试追踪（ab-test-tracker.mjs）                                                                           |
-| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（`hashtag-effect-tracker.mjs upsert` 按 videoId 落库）                                 |
-| `output/analytics-conclusions.md`     | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取）                                                        |
-| `output/reference-videos/`            | 用户手动下载的竞品参考视频（按需）                                                                            |
+| 文件                                     | 用途                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `content/{slug}/pending-analysis.json` | 待分析视频记录（publish-tiktok.mjs 按 slug 写入；manual-guide 档在指南生成时写，`postGroupId` 为 null）                              |
+| `output/pending-analysis.json`         | legacy 单文件记录（仍被 CLI 读取；无 `--slug` 的 standalone 发布继续写这里）                                                       |
+| `output/analytics-export.json`         | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）                                                                        |
+| `output/ab-test-results.json`          | A/B 测试追踪（ab-test-tracker.mjs）                                                                                 |
+| `output/hashtag-effect-tracker.jsonl`  | Hashtag 效果追踪记录（`hashtag-effect-tracker.mjs upsert` 按 videoId 落库）                                              |
+| `output/analytics-conclusions.md`      | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取）                                                                      |
+| `output/reference-videos/`             | 用户手动下载的竞品参考视频（按需）                                                                                             |
 
 ## 相关文档
 

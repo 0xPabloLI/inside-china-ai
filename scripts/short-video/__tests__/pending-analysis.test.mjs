@@ -129,13 +129,34 @@ describe("listPendingAnalysis", () => {
     expect(entries[0].record.status).toBe("done");
   });
 
-  it("keeps a legacy record whose slug is null separate", () => {
+  it("keeps a genuinely different slug-less legacy record separate", () => {
     const root = makeRoot();
-    writeLegacy(root, { ...RECORD, slug: null });
+    writeLegacy(root, { ...RECORD, slug: null, publishedAt: "2026-11-01T00:00:00.000Z" });
     writePendingAnalysis(root, { slug: "qwen4-gamefeel", record: RECORD });
     const entries = listPendingAnalysis(root);
     expect(entries).toHaveLength(2);
     expect(entries.some((entry) => entry.kind === "legacy" && entry.slug === null)).toBe(true);
+  });
+
+  it("shadows a slug-less legacy twin after migration", () => {
+    const root = makeRoot();
+    writeLegacy(root, { ...RECORD, slug: null });
+    writePendingAnalysis(root, { slug: "qwen4-gamefeel", record: RECORD });
+    const entries = listPendingAnalysis(root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].kind).toBe("slug");
+    expect(entries[0].slug).toBe("qwen4-gamefeel");
+  });
+
+  it("rejects a per-slug file that is valid JSON but not an object", () => {
+    const root = makeRoot();
+    mkdirSync(join(root, "content", "qwen4-gamefeel"), { recursive: true });
+    writeFileSync(
+      join(root, "content", "qwen4-gamefeel", "pending-analysis.json"),
+      "null\n",
+      "utf8",
+    );
+    expect(() => listPendingAnalysis(root)).toThrow(/is not a JSON object/);
   });
 });
 
@@ -144,6 +165,8 @@ describe("publish-tiktok integration seam", () => {
     const driver = readFileSync(new URL("../publish-tiktok.mjs", import.meta.url), "utf8");
     expect(driver).toContain("writePendingAnalysis(__dirname");
     expect(driver).not.toContain('join(OUTPUT_DIR, "pending-analysis.json")');
+    expect(driver).toContain('assertPathId(contentDir, "--content")');
+    expect(driver).toContain('assertPathId(postSlug, "--slug")');
   });
 });
 
@@ -199,11 +222,31 @@ describe("migratePendingAnalysis", () => {
     expect(() => migratePendingAnalysis(root, { apply: true })).toThrow(/refusing to overwrite/);
   });
 
-  it("reports already-migrated when the per-slug copy matches", () => {
+  it("reports already-migrated when the per-slug copy matches regardless of key order", () => {
     const root = makeRoot();
     writeLegacy(root);
-    writePendingAnalysis(root, { slug: "qwen4-gamefeel", record: RECORD });
+    writePendingAnalysis(root, {
+      slug: "qwen4-gamefeel",
+      record: {
+        status: RECORD.status,
+        slug: RECORD.slug,
+        publishedAt: RECORD.publishedAt,
+        postGroupId: RECORD.postGroupId,
+        videoPath: RECORD.videoPath,
+        suggestedAnalysisTime: RECORD.suggestedAnalysisTime,
+        publishMethod: RECORD.publishMethod,
+      },
+    });
     expect(migratePendingAnalysis(root).action).toBe("already-migrated");
+  });
+
+  it("lists one record after migrating a slug-less legacy record", () => {
+    const root = makeRoot();
+    writeLegacy(root, { ...RECORD, slug: null });
+    migratePendingAnalysis(root, { apply: true, slug: "qwen4-gamefeel" });
+    const entries = listPendingAnalysis(root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].kind).toBe("slug");
   });
 
   it("returns missing when there is no legacy record", () => {

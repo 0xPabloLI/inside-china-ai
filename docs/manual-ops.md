@@ -105,6 +105,8 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 1. 打印 24-48h 分析提醒
 2. 写入 `content/{slug}/pending-analysis.json`（记录待分析状态；无 `--slug` 的 standalone 发布仍写 legacy `output/pending-analysis.json`）
 
+历史 legacy 记录可先 `node scripts/short-video/pending-analysis.mjs migrate` 预演，再加 `--apply --slug <slug>` 落到 per-slug；legacy 文件保留作备份。`list` 会把字段相同、仅 `slug` 为空的 legacy 记录视为同一条已迁移记录，不再重复触发 48h 提醒。
+
 ---
 
 ## 每次发布文章时

@@ -260,22 +260,22 @@ describe("buildPendingAnalysis", () => {
 
 describe("buildAnalyticsGuidance", () => {
   it("includes 24-48h reminder text", () => {
-    const msg = buildAnalyticsGuidance("output");
+    const msg = buildAnalyticsGuidance("output", "output/pending-analysis.json");
     expect(msg).toContain("24-48h");
   });
 
   it("includes fetch-tiktok-analytics command", () => {
-    const msg = buildAnalyticsGuidance("output");
+    const msg = buildAnalyticsGuidance("output", "output/pending-analysis.json");
     expect(msg).toContain("fetch-tiktok-analytics.mjs");
   });
 
   it("includes ab-test-tracker command", () => {
-    const msg = buildAnalyticsGuidance("output");
+    const msg = buildAnalyticsGuidance("output", "output/pending-analysis.json");
     expect(msg).toContain("ab-test-tracker.mjs");
   });
 
   it("includes pending-analysis.json path", () => {
-    const msg = buildAnalyticsGuidance("output");
+    const msg = buildAnalyticsGuidance("output", "output/pending-analysis.json");
     expect(msg).toContain("pending-analysis.json");
   });
 
@@ -285,8 +285,12 @@ describe("buildAnalyticsGuidance", () => {
   });
 
   it("includes analytics.tiktok.com URL", () => {
-    const msg = buildAnalyticsGuidance("output");
+    const msg = buildAnalyticsGuidance("output", "output/pending-analysis.json");
     expect(msg).toContain("analytics.tiktok.com");
+  });
+
+  it("requires the pending path instead of falling back to a stale default", () => {
+    expect(() => buildAnalyticsGuidance("output")).toThrow(/pendingPath is required/);
   });
 });
 

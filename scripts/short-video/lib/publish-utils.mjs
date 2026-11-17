@@ -272,13 +272,14 @@ export function buildManualPendingAnalysis({
 /**
  * Build the analytics guidance message printed after successful publish.
  *
- * `pendingPath` is the record actually written (per-slug or legacy); callers
- * that omit it keep the historical `output/pending-analysis.json` wording.
+ * `pendingPath` is the record actually written (per-slug or legacy). It is
+ * required: both production callers pass the path returned by the writer,
+ * and a stale fallback would point operators at the wrong file.
  */
-export function buildAnalyticsGuidance(
-  outputDir,
-  pendingPath = `${outputDir}/pending-analysis.json`,
-) {
+export function buildAnalyticsGuidance(outputDir, pendingPath) {
+  if (!pendingPath) {
+    throw new Error("buildAnalyticsGuidance: pendingPath is required");
+  }
   return [
     "",
     "📊 Analytics Reminder:",

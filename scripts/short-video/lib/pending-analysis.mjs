@@ -6,47 +6,19 @@
  *
  * The publish step writes one record per slug so two posts published close
  * together cannot overwrite each other's analytics reminder. Reads accept both
- * layouts: `content/<slug>/...` wins over a legacy record with the same slug.
- * There is deliberately no index file — a mutable multi-entry index would be a
- * second copy of the truth, and the discovery surface is the `list` CLI.
+ * layouts: `content/<slug>/...` wins over a legacy record with the same slug,
+ * and a slug-less legacy record is treated as the migrated twin when its
+ * remaining fields match a per-slug record. There is deliberately no index
+ * file — a mutable multi-entry index would be a second copy of the truth, and
+ * the discovery surface is the `list` CLI.
  */
 
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { containedPath } from "./path-safety.mjs";
+import { canonicalJson, isJsonObject, readJsonFile, writeJsonAtomic } from "./json-file.mjs";
 
 const FILENAME = "pending-analysis.json";
-
-function isObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function readJson(filePath) {
-  let text;
-  try {
-    text = readFileSync(filePath, "utf8");
-  } catch (error) {
-    throw new Error(`pending analysis: cannot read ${filePath}: ${error.message}`);
-  }
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new Error(`pending analysis: invalid JSON in ${filePath}: ${error.message}`);
-  }
-}
-
-function writeJsonAtomic(filePath, value) {
-  const temp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  renameSync(temp, filePath);
-}
 
 function normalizeSlug(slug, root) {
   if (slug === null || slug === undefined) return null;
@@ -66,9 +38,17 @@ export function legacyFileFor(root) {
   return containedPath(root, "output", FILENAME);
 }
 
+function withoutSlug(record) {
+  const copy = { ...record };
+  delete copy.slug;
+  return copy;
+}
+
 /**
  * Read every pending-analysis record, merging per-slug files with the legacy
- * single file. Per-slug records win when both carry the same slug.
+ * single file. Per-slug records win when both carry the same slug; a
+ * slug-less legacy twin is skipped when its remaining fields match a
+ * per-slug record (the post-migration shape).
  *
  * @returns {Array<{kind: "slug"|"legacy", slug: string|null, path: string, record: object}>}
  */
@@ -83,11 +63,16 @@ export function listPendingAnalysis(root) {
         if (dirent.isDirectory()) {
           walk(containedPath(contentRoot, nextRel), nextRel);
         } else if (dirent.isFile() && dirent.name === FILENAME) {
+          const recordPath = containedPath(contentRoot, nextRel);
+          const record = readJsonFile(recordPath, "pending analysis");
+          if (!isJsonObject(record)) {
+            throw new Error(`pending analysis: ${recordPath} is not a JSON object`);
+          }
           entries.push({
             kind: "slug",
             slug: rel || null,
-            path: containedPath(contentRoot, nextRel),
-            record: readJson(containedPath(contentRoot, nextRel)),
+            path: recordPath,
+            record,
           });
         }
       }
@@ -97,13 +82,20 @@ export function listPendingAnalysis(root) {
 
   const legacyPath = legacyFileFor(root);
   if (existsSync(legacyPath)) {
-    const record = readJson(legacyPath);
-    if (!isObject(record)) {
+    const record = readJsonFile(legacyPath, "pending analysis");
+    if (!isJsonObject(record)) {
       throw new Error(`pending analysis: ${legacyPath} is not a JSON object`);
     }
     const slug = typeof record.slug === "string" && record.slug.trim() ? record.slug.trim() : null;
     const shadowed = slug && entries.some((entry) => entry.slug === slug);
-    if (!shadowed) entries.push({ kind: "legacy", slug, path: legacyPath, record });
+    const sluglessTwin =
+      slug === null &&
+      entries.some(
+        (entry) => canonicalJson(withoutSlug(entry.record)) === canonicalJson(withoutSlug(record)),
+      );
+    if (!shadowed && !sluglessTwin) {
+      entries.push({ kind: "legacy", slug, path: legacyPath, record });
+    }
   }
 
   return entries.sort((a, b) => {
@@ -119,7 +111,7 @@ export function listPendingAnalysis(root) {
  * standalone publish without `--slug` still behaves like before.
  */
 export function writePendingAnalysis(root, { slug = null, record } = {}) {
-  if (!isObject(record)) throw new Error("pending analysis: record must be a JSON object");
+  if (!isJsonObject(record)) throw new Error("pending analysis: record must be a JSON object");
   const clean = normalizeSlug(slug, root);
   const target = clean ? contentFileFor(root, clean) : legacyFileFor(root);
   mkdirSync(dirname(target), { recursive: true });
@@ -133,14 +125,19 @@ export function writePendingAnalysis(root, { slug = null, record } = {}) {
  * `slug` can supply a slug for a legacy record whose own `slug` is null (the
  * record predates per-slug publishing). If the legacy record already names a
  * slug, an override that disagrees is refused rather than guessed.
+ *
+ * The legacy file is left in place as a read-compatible fallback; `list`
+ * suppresses a slug-less twin whose remaining fields match the per-slug copy.
  */
 export function migratePendingAnalysis(root, { apply = false, slug = null } = {}) {
   const legacyPath = legacyFileFor(root);
   if (!existsSync(legacyPath)) {
     return { action: "missing", legacyPath };
   }
-  const record = readJson(legacyPath);
-  if (!isObject(record)) throw new Error(`pending analysis: ${legacyPath} is not a JSON object`);
+  const record = readJsonFile(legacyPath, "pending analysis");
+  if (!isJsonObject(record)) {
+    throw new Error(`pending analysis: ${legacyPath} is not a JSON object`);
+  }
 
   const legacySlug =
     typeof record.slug === "string" && record.slug.trim() ? record.slug.trim() : null;
@@ -157,8 +154,11 @@ export function migratePendingAnalysis(root, { apply = false, slug = null } = {}
   const targetPath = contentFileFor(root, targetSlug);
   const migrated = { ...record, slug: targetSlug };
   if (existsSync(targetPath)) {
-    const existing = readJson(targetPath);
-    if (JSON.stringify(existing) !== JSON.stringify(migrated)) {
+    const existing = readJsonFile(targetPath, "pending analysis");
+    if (!isJsonObject(existing)) {
+      throw new Error(`pending analysis: ${targetPath} is not a JSON object`);
+    }
+    if (canonicalJson(existing) !== canonicalJson(migrated)) {
       throw new Error(
         `pending analysis: refusing to overwrite ${targetPath} — it already exists with different content`,
       );

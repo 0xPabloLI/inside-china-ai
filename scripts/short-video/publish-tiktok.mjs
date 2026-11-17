@@ -74,6 +74,22 @@ function getArg(name) {
 function hasFlag(name) {
   return args.includes(`--${name}`);
 }
+// --content/--slug become path components later. Reject a path-shaped value
+// here so a typo fails before any publish action, not after an irreversible
+// post when the pending-analysis writer validates the same string.
+function assertPathId(value, flag) {
+  if (!value) return;
+  const clean = String(value);
+  const unsafe =
+    clean.startsWith("/") ||
+    clean.includes("\\") ||
+    clean.includes("\0") ||
+    clean.split("/").some((part) => part === "" || part === "." || part === "..");
+  if (unsafe) {
+    console.error(`❌ ${flag} must be a pipeline id, not a path: ${JSON.stringify(clean)}`);
+    process.exit(1);
+  }
+}
 
 const videoPath = getArg("video");
 if (!videoPath) {
@@ -85,6 +101,7 @@ if (!videoPath) {
 // Package path via the single-source builder (#219 T02): --content <dir> →
 // output/{dir}/publish/tiktok/…; standalone → output/publish/tiktok/…
 const contentDir = getArg("content");
+assertPathId(contentDir, "--content");
 const DEFAULT_METADATA = packageFilePaths({
   outputRoot: OUTPUT_DIR,
   ...(contentDir ? { pipelineId: contentDir } : {}),
@@ -105,6 +122,7 @@ const nextUrl = getArg("next-url");
 
 // TikTok URL auto-save arg
 const postSlug = getArg("slug");
+assertPathId(postSlug, "--slug");
 const experimentId = getArg("experiment-id");
 const experimentVariant = getArg("variant");
 
