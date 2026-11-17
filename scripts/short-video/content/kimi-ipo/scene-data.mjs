@@ -17,6 +17,7 @@ export const scenes = [
     name: "hook",
     visualType: "hook",
     layout: "hero-center",
+    arcRole: "establisher",
     voiceover: "50 billion dollars. Kimi's parent company is pushing for IPO at that valuation.",
     texts: {
       badge: "BREAKING",
@@ -30,15 +31,29 @@ export const scenes = [
   {
     id: 2,
     name: "funding",
-    visualType: "stat-reveal",
-    layout: "set-piece",
+    visualType: "data",
+    layout: "chart",
+    arcRole: "initial",
     voiceover:
       "Moonshot AI raised 3.5 billion in its F round. Valuation jumped from 35 to 50 billion in six months.",
     texts: {
-      bigNumber: "$3.5B",
-      label: "RAISED · 7X IN 6 MONTHS",
-      subtext: "$35B TO $50B VALUATION",
+      label: "VALUATION, $B",
+      subtext: "$35B → $50B IN SIX MONTHS",
       source: "SOURCE: PENGPAI, JULY 29",
+    },
+    info: {
+      relationship: "change-over-time",
+      chart: "line",
+      data: [
+        { label: "JAN 26", value: 35 },
+        { label: "JUL 26", value: 50 },
+      ],
+      unit: "B",
+      prefix: "$",
+      baseline: 0,
+      sort: "none",
+      highlight: "JUL 26",
+      time: { from: "2026-01", to: "2026-07" },
     },
   },
   {
@@ -46,6 +61,7 @@ export const scenes = [
     name: "speed",
     visualType: "narrative",
     layout: "stacked-cards",
+    arcRole: "initial",
     voiceover:
       "Founded in April 2023. Just three years to reach IPO. That is faster than most US AI startups.",
     texts: {
@@ -62,6 +78,7 @@ export const scenes = [
     name: "model",
     visualType: "stat-reveal",
     layout: "hero-center",
+    arcRole: "initial",
     voiceover:
       "Their weapon is Kimi K3. 2.8 trillion parameters. Artificial Analysis says it matches GPT 5.5 and Claude Opus 4.8.",
     texts: {
@@ -76,6 +93,7 @@ export const scenes = [
     name: "revenue",
     visualType: "narrative",
     layout: "stacked-cards",
+    arcRole: "peak",
     voiceover:
       "Reuters says Moonshot is negotiating with Microsoft, Amazon, and Google. It wants 30 percent of cloud revenue from K3.",
     texts: {
@@ -92,6 +110,7 @@ export const scenes = [
     name: "license",
     visualType: "narrative",
     layout: "stacked-cards",
+    arcRole: "initial",
     voiceover:
       "K3 is open weight. But the license has a catch. Make over 20 million from it, and you need a separate deal.",
     texts: {
@@ -108,6 +127,7 @@ export const scenes = [
     name: "us-threat",
     visualType: "narrative",
     layout: "stacked-cards",
+    arcRole: "initial",
     voiceover:
       "The same week, US Treasury Secretary Scott Bessent said they may add Moonshot to a trade blacklist.",
     texts: {
@@ -124,6 +144,7 @@ export const scenes = [
     name: "contrast",
     visualType: "contrast",
     layout: "split",
+    arcRole: "release",
     voiceover:
       "So China's AI unicorn faces US sanctions on one side, and negotiates with US tech giants on the other. All while filing for IPO.",
     texts: {
@@ -137,6 +158,7 @@ export const scenes = [
     id: 9,
     name: "cta",
     visualType: "cta",
+    arcRole: "release",
     voiceover: "That 50 billion dollar IPO bet starts now. Follow China AI News for more.",
     texts: {
       brand: "CHINA AI NEWS",
