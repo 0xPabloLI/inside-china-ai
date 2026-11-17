@@ -107,8 +107,6 @@ function assertNonEmpty(value, name) {
 const REPORT_FLOOR = 8;
 /** Both posts must be this old at capture time (T+72h read). */
 const MATURITY_HOURS = 72;
-/** Date-only post times: 48h is only guaranteed from two calendar days apart. */
-const MIN_PAIR_INTERVAL_DAYS = 2;
 /** Same-topic pairs may differ by at most this much in duration (seconds). */
 const MAX_DURATION_GAP_SEC = 3;
 /** The spec's two primaries; a treatment has to win both to count as a win. */
@@ -356,9 +354,11 @@ export function observationAge(video, capturedAt) {
   if (!posted) return null;
   const capturedMs = Date.parse(capturedAt);
   if (!Number.isFinite(capturedMs)) return null;
+  // `postedAt` is the *latest plausible* posting moment, so re-deriving the age
+  // from a stored observation cannot inflate it the way the day start would.
   return {
     precision: posted.precision,
-    postedAt: new Date(posted.atMs).toISOString(),
+    postedAt: new Date(posted.lowerMs).toISOString(),
     ageHoursLower: Math.max(0, (capturedMs - posted.lowerMs) / 3_600_000),
   };
 }
@@ -466,17 +466,31 @@ export function ingestDetails({
         ),
       )
       .filter(Boolean);
+    // A block has exactly two sides; a re-upload or a repeated export would
+    // otherwise disappear without a trace.
+    for (const candidate of candidates) {
+      if (candidate.assignment.block !== block) continue;
+      if (sides.includes(candidate)) continue;
+      skipped.push({
+        videoId: String(candidate.video.videoId),
+        title: candidate.video.title || "",
+        packSlug: candidate.assignment.packSlug,
+        block,
+        reason: `duplicate side: this block already has a ${candidate.assignment.variant} video`,
+      });
+    }
     const violations = [];
     if (sides.length === 2) {
       const [first, second] = sides
         .slice()
         .sort((x, y) => x.age.postedAt.localeCompare(y.age.postedAt));
       const interval = pairIntervalHours(first.video, second.video);
-      const requiredHours = interval?.exact ? 48 : 72;
-      if (interval && interval.hoursLower < requiredHours) {
+      // hoursLower already removed the day of slack a date-only export hides,
+      // so 48h is the same bar for both precisions.
+      if (interval && interval.hoursLower < 48) {
         violations.push(
           `posts are ${interval.hoursLower.toFixed(1)}h apart (lower bound); the design needs 48h` +
-            (interval.exact ? "" : " and day-precision dates only prove it from 3 calendar days"),
+            (interval.exact ? "" : " — day-precision dates only prove it from 3 calendar days"),
         );
       }
       const expectedFirst = first.assignment.order === 1 ? first : second;
@@ -579,14 +593,9 @@ export function buildReport({
   const zAlpha = normalQuantile(1 - experiment.alpha / 2);
   const zPower = normalQuantile(experiment.power);
 
-  const primaries = primaryMetrics.map((metric) => {
+  const shaped = primaryMetrics.map((metric) => {
     const values = valuesFromPairs(pairs, metric);
     const summary = pairedSummary(values.a, values.b);
-    const reportable = summary.n >= REPORT_FLOOR;
-    // Fixed n, no peeking: the inferential output appears only once the
-    // pre-registered pair count is complete. An interim report carries no p,
-    // no CI and no decision, so it cannot be read as a stopping rule.
-    const fixedSampleReached = summary.n >= experiment.targetPairs;
     const logged = /log/i.test(metric);
     const mdeRaw =
       summary.n > 0
@@ -596,33 +605,12 @@ export function buildReport({
             alpha: experiment.alpha,
             power: experiment.power,
           }).mdeLog;
-    const tests =
-      reportable && fixedSampleReached
-        ? {
-            permutation: pairedPermutation(summary.diffs, { seed: experiment.seed }),
-            wilcoxon: wilcoxonSignedRank(summary.diffs),
-            sign: signTest(summary.diffs),
-            bootstrap: bootstrapCI(summary.diffs, { seed: experiment.seed, iterations: 5000 }),
-          }
-        : null;
-    const rejects = tests
-      ? Math.max(tests.permutation.p, tests.wilcoxon.p, tests.sign.p) <= experiment.alpha
-      : false;
-    const decision = tests
-      ? rejects && summary.meanDiff < 0
-        ? "treatment-better"
-        : rejects && summary.meanDiff > 0
-          ? "control-better"
-          : "no-difference"
-      : null;
     return {
       metric,
-      n: summary.n,
-      reportable,
-      fixedSampleReached,
       summary,
-      tests,
-      decision,
+      logged,
+      reportable: summary.n >= REPORT_FLOOR,
+      fixedSampleReached: summary.n >= experiment.targetPairs,
       mde: {
         observedSd: summary.sdDiff,
         alpha: experiment.alpha,
@@ -640,21 +628,79 @@ export function buildReport({
     };
   });
 
-  const nPairs = Math.min(...primaries.map((item) => item.n));
-  const reportable = primaries.every((item) => item.reportable);
-  const fixedSampleReached =
-    primaries.length > 0 && primaries.every((item) => item.fixedSampleReached);
+  const nPairs = Math.min(...shaped.map((item) => item.summary.n));
+  const reportable = shaped.every((item) => item.reportable);
+  // Fixed n, no peeking: one combined gate, so a completed co-primary cannot
+  // print a p-value while its sibling is still short of the target.
+  const fixedSampleReached = shaped.length > 0 && shaped.every((item) => item.fixedSampleReached);
+
+  const primaries = shaped.map((item) => {
+    const tests =
+      item.reportable && fixedSampleReached
+        ? {
+            permutation: pairedPermutation(item.summary.diffs, { seed: experiment.seed }),
+            wilcoxon: wilcoxonSignedRank(item.summary.diffs),
+            sign: signTest(item.summary.diffs),
+            bootstrap: bootstrapCI(item.summary.diffs, {
+              seed: experiment.seed,
+              iterations: 5000,
+            }),
+          }
+        : null;
+    const rejects = tests
+      ? Math.max(tests.permutation.p, tests.wilcoxon.p, tests.sign.p) <= experiment.alpha
+      : false;
+    const decision = tests
+      ? rejects && item.summary.meanDiff < 0
+        ? "treatment-better"
+        : rejects && item.summary.meanDiff > 0
+          ? "control-better"
+          : "no-difference"
+      : null;
+    return {
+      metric: item.metric,
+      n: item.summary.n,
+      reportable: item.reportable,
+      fixedSampleReached: item.fixedSampleReached,
+      tests,
+      decision,
+      mde: item.mde,
+      summary: {
+        meanA: item.summary.meanA,
+        meanB: item.summary.meanB,
+        meanDiff: item.summary.meanDiff,
+        medianDiff: item.summary.medianDiff,
+        sdDiff: item.summary.sdDiff,
+        wins: item.summary.wins,
+        losses: item.summary.losses,
+        ties: item.summary.ties,
+        winRate: item.summary.n > 0 ? item.summary.wins / item.summary.n : 0,
+        // A win-rate interval is inference too: it waits for the fixed sample.
+        winRateCI:
+          item.reportable && fixedSampleReached
+            ? wilsonInterval(item.summary.wins, item.summary.n)
+            : null,
+        relativeEffect:
+          item.summary.meanB !== 0 ? item.summary.meanDiff / item.summary.meanB : null,
+      },
+    };
+  });
+
   // Intersection-union: a treatment has to win every co-primary, which is why
-  // two primaries need no multiplicity correction.
-  const decision = !fixedSampleReached
-    ? "interim"
-    : primaries.every((item) => item.decision === "treatment-better")
-      ? "treatment-better"
-      : primaries.every((item) => item.decision === "control-better")
-        ? "control-better"
-        : primaries.every((item) => item.decision === "no-difference")
-          ? "no-difference"
-          : "mixed";
+  // two primaries need no multiplicity correction. A pilot below the
+  // descriptive floor never gets a verdict at all.
+  const decision = !reportable
+    ? "descriptive-only"
+    : !fixedSampleReached
+      ? "interim"
+      : primaries.every((item) => item.decision === "treatment-better")
+        ? "treatment-better"
+        : primaries.every((item) => item.decision === "control-better")
+          ? "control-better"
+          : primaries.every((item) => item.decision === "no-difference")
+            ? "no-difference"
+            : "mixed";
+
   const lead = primaries[0];
 
   const secondary = (experiment.secondaryMetrics || []).map((metric) => {
@@ -730,43 +776,9 @@ export function buildReport({
     fixedSampleReached,
     status,
     decision,
-    primaries: primaries.map((item) => ({
-      metric: item.metric,
-      n: item.n,
-      reportable: item.reportable,
-      fixedSampleReached: item.fixedSampleReached,
-      decision: item.decision,
-      tests: item.tests,
-      mde: item.mde,
-      summary: {
-        meanA: item.summary.meanA,
-        meanB: item.summary.meanB,
-        meanDiff: item.summary.meanDiff,
-        medianDiff: item.summary.medianDiff,
-        sdDiff: item.summary.sdDiff,
-        wins: item.summary.wins,
-        losses: item.summary.losses,
-        ties: item.summary.ties,
-        winRate: item.summary.n > 0 ? item.summary.wins / item.summary.n : 0,
-        winRateCI: item.reportable ? wilsonInterval(item.summary.wins, item.summary.n) : null,
-        relativeEffect:
-          item.summary.meanB !== 0 ? item.summary.meanDiff / item.summary.meanB : null,
-      },
-    })),
+    primaries,
     // The lead primary stays at the top level so existing readers keep working.
-    summary: {
-      meanA: lead.summary.meanA,
-      meanB: lead.summary.meanB,
-      meanDiff: lead.summary.meanDiff,
-      medianDiff: lead.summary.medianDiff,
-      sdDiff: lead.summary.sdDiff,
-      wins: lead.summary.wins,
-      losses: lead.summary.losses,
-      ties: lead.summary.ties,
-      winRate: lead.summary.n > 0 ? lead.summary.wins / lead.summary.n : 0,
-      winRateCI: lead.reportable ? wilsonInterval(lead.summary.wins, lead.summary.n) : null,
-      relativeEffect: lead.summary.meanB !== 0 ? lead.summary.meanDiff / lead.summary.meanB : null,
-    },
+    summary: lead.summary,
     tests: lead.tests,
     mde: lead.mde,
     secondary,
@@ -1219,7 +1231,7 @@ async function main() {
     console.log(`✅ ${id}: ${observations.length} observations ingested, ${merged.length} total`);
     for (const item of skipped) {
       console.log(
-        `   skip ${item.videoId ?? "(no id)"} — ${item.reason}${item.packSlug ? ` (${item.packSlug})` : ""}`,
+        `   skip ${item.videoId ?? "(no id)"} — ${item.reason}${item.packSlug ? ` (${item.block ? `${item.block}/` : ""}${item.packSlug})` : ""}`,
       );
     }
     for (const item of protocolViolations) {
@@ -1240,7 +1252,7 @@ async function main() {
     });
     const icon = result.ok ? "✅" : "❌";
     console.log(
-      `${icon} ${id}: ${result.completeBlocks}/${result.targetPairs} complete pairs, ${result.findings.length} finding(s)`,
+      `${icon} ${result.experimentId}: ${result.completeBlocks}/${result.targetPairs} complete pairs, ${result.findings.length} finding(s)`,
     );
     for (const finding of result.findings) {
       console.log(

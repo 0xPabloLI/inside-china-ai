@@ -320,7 +320,8 @@ describe("buildReport", () => {
     expect(report.decision).toBe("interim");
     expect(report.status).toBe("interim-no-decision");
     expect(report.summary.wins).toBe(8);
-    expect(report.summary.winRateCI.high).toBe(1);
+    // The win-rate interval is inference as well, so it waits for the fixed sample.
+    expect(report.summary.winRateCI).toBeNull();
   });
 
   it("runs the paired tests and decides once the fixed sample is complete", () => {
@@ -621,6 +622,17 @@ describe("ingestDetails protocol gates", () => {
     expect(skipped[0].reason).toMatch(/too early: lower-bound age 24\.0h < 72h/);
   });
 
+  it("accepts a day-precision pair three calendar days apart (48h lower bound)", () => {
+    const { observations, skipped } = ingestDetails({
+      experiment: baseExperiment,
+      assignments: pairAssignments,
+      details: pairVideos({ aPosted: "11/14/2026", bPosted: "11/17/2026" }),
+      overrides: { va: "kimi-ipo-a", vb: "kimi-ipo-b" },
+    });
+    expect(skipped).toEqual([]);
+    expect(observations).toHaveLength(2);
+  });
+
   it("skips a pair whose posts are under two calendar days apart", () => {
     const { observations, skipped } = ingestDetails({
       experiment: baseExperiment,
@@ -657,6 +669,19 @@ describe("ingestDetails protocol gates", () => {
     expect(protocolViolations).toHaveLength(1);
     expect(protocolViolations[0].violations[0]).toMatch(/48h/);
     expect(observations[0].protocolViolations).toHaveLength(1);
+  });
+
+  it("reports a repeated side instead of dropping it silently", () => {
+    const videos = [...pairVideos().videos, { ...pairVideos().videos[0], videoId: "va-again" }];
+    const { observations, skipped } = ingestDetails({
+      experiment: baseExperiment,
+      assignments: pairAssignments,
+      details: { ...pairVideos(), videos },
+      overrides: { va: "kimi-ipo-a", vb: "kimi-ipo-b", "va-again": "kimi-ipo-a" },
+    });
+    expect(observations.map((item) => item.videoId).sort()).toEqual(["va", "vb"]);
+    expect(skipped.map((item) => item.videoId)).toEqual(["va-again"]);
+    expect(skipped[0].reason).toMatch(/duplicate side/);
   });
 
   it("skips a post whose date is missing rather than assuming it is mature", () => {
@@ -752,6 +777,45 @@ describe("co-primary decisions", () => {
     expect(report.decision).toBe("no-difference");
   });
 
+  it("withholds every co-primary while one of them is still short of the target", () => {
+    const observations = observationsWith({
+      aRate: 0.2,
+      bRate: 0.5,
+      aLog: Math.log(10),
+      bLog: Math.log(20),
+    });
+    // Drop the log metric from one B side: the rate keeps n=8, the log metric has 7.
+    observations[1].metrics.logAvgWatchTimeSec = null;
+    const report = buildReport({
+      experiment: { ...coPrimary, targetPairs: 8 },
+      assignments: pairedAssignments(8),
+      observations,
+    });
+    expect(report.primaries.map((item) => item.n)).toEqual([8, 7]);
+    expect(report.fixedSampleReached).toBe(false);
+    expect(report.primaries.every((item) => item.tests === null)).toBe(true);
+    // One co-primary below the floor makes the whole family descriptive: the
+    // completed one must not print a p-value on its own.
+    expect(report.decision).toBe("descriptive-only");
+    expect(report.status).toBe("descriptive-only");
+  });
+
+  it("refuses a verdict for a pilot below the descriptive floor", () => {
+    const report = buildReport({
+      experiment: { ...coPrimary, targetPairs: 6 },
+      assignments: pairedAssignments(6),
+      observations: observationsWith({
+        aRate: 0.2,
+        bRate: 0.5,
+        aLog: Math.log(10),
+        bLog: Math.log(20),
+      }),
+    });
+    expect(report.reportable).toBe(false);
+    expect(report.decision).toBe("descriptive-only");
+    expect(report.status).toBe("descriptive-only");
+  });
+
   it("keeps the interim decision out of the winner vocabulary", () => {
     const report = buildReport({
       experiment: baseExperiment,
@@ -827,6 +891,22 @@ describe("checkExperiment", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.findings.some((item) => item.code === "immature-observation")).toBe(true);
+  });
+
+  it("re-derives a day-precision age from the stored lower-bound timestamp", () => {
+    // Ingest stores `postedAt` as the latest plausible posting moment, so the
+    // audit sees 24h here — not 0h (day start) and not 48h.
+    const result = checkExperiment({
+      experiment,
+      assignments,
+      observations: [
+        { ...clean[0], postedOn: "11/23/2026", postedAt: "2026-11-24T00:00:00.000Z" },
+        clean[1],
+      ],
+    });
+    expect(result.ok).toBe(false);
+    const finding = result.findings.find((item) => item.code === "immature-observation");
+    expect(finding.detail).toContain("24.0h");
   });
 
   it("flags a duration gap above 3s recorded at assignment time", () => {

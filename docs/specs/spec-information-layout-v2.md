@@ -135,10 +135,10 @@ Three tiers:
   - `assign --duration <sec>` records each pack's duration and refuses a partner whose gap exceeds 3s: an incomparable pair never enters the log.
   - `ingest` skips a post younger than **T+72h**. Post dates carry day precision (`M/D/YYYY`), so the age used is the **latest plausible posting moment** (end of that UTC day) and the stored `ageHoursLower` is a lower bound.
   - `ingest` also skips a pair whose posts are under **48h apart** (with day-precision dates that is only provable from three calendar days) or whose publish order contradicts the seeded `order`. `--allow-protocol-violations` keeps such a pair but stamps `protocolViolations` on the observation for a labelled sensitivity read.
-  - `report` withholds **p-values, confidence intervals and the decision** until the pre-registered pair count is complete (fixed n, no peeking). Interim reports print n, means and the MDE only.
+  - `report` withholds **p-values, confidence intervals and the decision** until the pre-registered pair count is complete (fixed n, no peeking). The two co-primaries share **one** gate: while either is short of the target, neither prints inference — the win-rate Wilson interval included. Interim reports print n, means and the MDE only. A pilot whose target sits below the 8-pair floor reports `descriptive-only`, never `mixed`.
   - The sign-flip permutation is **exact through n=20**, the planned sample, so the planned read carries no Monte Carlo error.
   - `check` audits the record before a read (unassigned or duplicated observations, a post stored below T+72h, a block whose durations drifted) and exits non-zero; `report` refuses to run on a record that fails it.
-  - The pre-registration is `scripts/short-video/experiments/<id>/experiment.json`, committed before the first pair. That directory is gitignored for assignments and observations; only the frozen record is tracked.
+  - The pre-registration is `scripts/short-video/experiments/<id>/experiment.json`, committed before the first pair. `.gitignore` ignores `experiments/**` and re-includes only `*/experiment.json`, so assignments and observations stay out of git while the frozen record is tracked.
 
 Field-test protocol:
 
