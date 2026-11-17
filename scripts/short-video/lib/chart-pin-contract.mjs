@@ -25,9 +25,10 @@ const DEFAULT_MAP_PATH = join(
  */
 export function checkChartPinContract(scenes, opts = {}) {
   const rows = Array.isArray(scenes) ? scenes : [];
-  const chartScenes = rows.filter(
-    (scene) => scene?.chart && typeof scene.chart === "object" && !Array.isArray(scene.chart),
-  );
+  // Keep malformed pins in scope. The old object/array pre-filter let a scene
+  // with `chart: []` pass this gate and then fail later in Step 1.5, after
+  // research spend — the exact failure mode the gate exists to prevent.
+  const chartScenes = rows.filter((scene) => scene?.chart !== undefined && scene?.chart !== null);
   if (chartScenes.length === 0) {
     return [
       {

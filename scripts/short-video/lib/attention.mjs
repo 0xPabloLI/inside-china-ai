@@ -14,21 +14,10 @@
  * The audit is advisory first. It never blocks a render.
  */
 
-import { resolveRenderLayout } from "./text-slots.mjs";
+import { INFO_LAYOUT_TYPES, resolveRenderLayout } from "./text-slots.mjs";
 
 const CHECK = "Attention budget (one cue per scene, no 3× same layout)";
 const CATEGORY = "Attention";
-
-/** Visual types that own an information layout (#1215). */
-const INFORMATION_VISUAL_TYPES = Object.freeze([
-  "stat-reveal",
-  "data",
-  "contrast",
-  "context",
-  "info-card",
-]);
-
-const INFO_TYPES = new Set(INFORMATION_VISUAL_TYPES);
 
 /**
  * Normalize a scene's declared attention cues.
@@ -72,7 +61,7 @@ export function layoutRun(scenes) {
   const runs = [];
   let current = null;
   for (const [index, scene] of scenes.entries()) {
-    if (!INFO_TYPES.has(scene?.visualType)) {
+    if (!INFO_LAYOUT_TYPES.has(scene?.visualType)) {
       current = null;
       continue;
     }

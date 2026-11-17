@@ -163,10 +163,15 @@ export function normalizeInfoSpec(info) {
 export function sortData(info) {
   const normalized = normalizeInfoSpec(info);
   const data = normalized.data.filter(isPlainObject);
-  if (normalized.sort === "none" || normalized.chart === "line" || normalized.chart === "slope") {
+  if (
+    normalized.sort === "none" ||
+    normalized.chart === "line" ||
+    normalized.chart === "slope" ||
+    normalized.chart === "proportion-bar" ||
+    (normalized.chart === "column" && normalized.relationship === "change-over-time")
+  ) {
     return data;
   }
-  if (normalized.chart === "proportion-bar") return data;
   return [...data].sort((a, b) =>
     normalized.sort === "asc"
       ? Number(a.value) - Number(b.value)
@@ -185,9 +190,9 @@ export function isHighlighted(info, datum) {
 function autoDecimals(value) {
   if (!Number.isFinite(value)) return 0;
   if (Number.isInteger(value)) return 0;
-  if (Math.abs(value) >= 100) return 0;
-  if (Math.abs(value) >= 10) return 1;
-  return 1;
+  // Above 100 a decimal is noise at 40px; below it, one decimal preserves the
+  // difference between adjacent values.
+  return Math.abs(value) >= 100 ? 0 : 1;
 }
 
 /** Render a value with its unit, avoiding false precision. */
@@ -342,6 +347,36 @@ export function validateInfoSpec(info, context = {}) {
         }
       }
     }
+    if (chart === "slope" && data.length > 1) {
+      // Each endpoint draws a label and a value on two stacked lines (~76px).
+      // The plot is 424px tall, so anything closer than ~18% of the domain
+      // span collides on screen even though the numbers differ.
+      const values = data
+        .flatMap((datum) => [datum?.value, datum?.value2])
+        .filter((value) => Number.isFinite(value));
+      const span = Math.max(...values) - Math.min(...values);
+      if (span > 0) {
+        for (const [side, key] of [
+          ["left", "value"],
+          ["right", "value2"],
+        ]) {
+          const sorted = data
+            .map((datum) => datum?.[key])
+            .filter((value) => Number.isFinite(value))
+            .sort((a, b) => a - b);
+          for (let index = 1; index < sorted.length; index++) {
+            if ((sorted[index] - sorted[index - 1]) / span < 0.18) {
+              push(
+                errors,
+                "info.data.labelOverlap",
+                `slope ${side} endpoint labels are within 18% of the plot height; separate the values or use a bar chart`,
+              );
+              break;
+            }
+          }
+        }
+      }
+    }
 
     const flagged = data.filter((datum) => datum?.highlight === true).length;
     const named = text(info.highlight) ? 1 : 0;
@@ -383,11 +418,15 @@ export function validateInfoSpec(info, context = {}) {
   if (info.sort !== undefined && !SORTS.has(info.sort)) {
     push(errors, "info.sort", `info.sort must be one of ${[...SORTS].join(", ")}`);
   }
-  if (
-    (chart === "line" || chart === "slope" || chart === "proportion-bar") &&
-    info.sort &&
-    info.sort !== "none"
-  ) {
+  // A change-over-time column is a scale: its x order is the time order, not a
+  // value ranking. `line`, `slope` and `proportion-bar` have the same fixed
+  // order for the same reason.
+  const fixedOrder =
+    chart === "line" ||
+    chart === "slope" ||
+    chart === "proportion-bar" ||
+    (chart === "column" && relationship === "change-over-time");
+  if (fixedOrder && info.sort && info.sort !== "none") {
     push(errors, "info.sort.fixed", `${chart} keeps authored order; sort must be "none"`);
   }
   if (info.panelVariant !== undefined && !PANEL_VARIANTS.has(info.panelVariant)) {

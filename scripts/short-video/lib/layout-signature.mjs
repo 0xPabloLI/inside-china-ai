@@ -40,17 +40,3 @@ export function layoutSignature(scenes) {
   const keys = (Array.isArray(scenes) ? scenes : []).map(sceneLayoutKey);
   return createHash("sha256").update(keys.join("|")).digest("hex").slice(0, 12);
 }
-
-/**
- * Signature plus the per-scene keys, for reports and debugging.
- *
- * @param {Array<object>} scenes
- */
-export function layoutSignatureDetail(scenes) {
-  const list = Array.isArray(scenes) ? scenes : [];
-  return {
-    version: INFO_LAYOUT_VERSION,
-    signature: layoutSignature(list),
-    scenes: list.map(sceneLayoutKey),
-  };
-}

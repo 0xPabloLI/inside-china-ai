@@ -9,8 +9,21 @@
  * are not independent; treating them as n would inflate significance.
  */
 
+import { createHash } from "node:crypto";
+
 const EPS = 1e-12;
 const DEFAULT_SEED = 20260101;
+
+/**
+ * Deterministic 0/1 bit from a seed and label parts. Assignment and blind
+ * review both need a reproducible coin; they must not each grow their own.
+ */
+export function seededBit(seed, ...parts) {
+  const digest = createHash("sha256")
+    .update([seed, ...parts].join("\u0000"))
+    .digest();
+  return digest[0] % 2;
+}
 
 function finiteSorted(values) {
   return (Array.isArray(values) ? values : [])
@@ -386,51 +399,6 @@ export function mdeContinuous(opts = {}) {
     sdDiff,
     mdeLog,
     pct: Math.exp(mdeLog) - 1,
-  };
-}
-
-/**
- * ICC(2,k): two-way random effects, absolute agreement, average of k raters.
- * Rows are targets (videos/pairs), columns are raters. Incomplete rows are
- * dropped; one rater degenerates to 1 when targets differ, 0 otherwise.
- *
- * @param {Array<Array<number>>} matrix
- */
-export function icc2k(matrix) {
-  const rows = (Array.isArray(matrix) ? matrix : []).filter(
-    (row) => Array.isArray(row) && row.length > 0 && row.every((value) => Number.isFinite(value)),
-  );
-  const n = rows.length;
-  const k = n > 0 ? rows[0].length : 0;
-  const complete = rows.filter((row) => row.length === k);
-  if (complete.length < 1 || k < 1) return { icc: 0, icc21: 0, n: complete.length, k };
-  if (complete.length < 2 || k === 1) {
-    const all = complete.flat();
-    const grand = mean(all);
-    const sst = all.reduce((sum, value) => sum + (value - grand) ** 2, 0);
-    return { icc: sst > 0 ? 1 : 0, icc21: sst > 0 ? 1 : 0, n: complete.length, k };
-  }
-
-  const grand = mean(complete.flat());
-  const rowMeans = complete.map((row) => mean(row));
-  const colMeans = Array.from({ length: k }, (_, col) => mean(complete.map((row) => row[col])));
-  const ssr = k * rowMeans.reduce((sum, value) => sum + (value - grand) ** 2, 0);
-  const ssc = complete.length * colMeans.reduce((sum, value) => sum + (value - grand) ** 2, 0);
-  const sst = complete.flat().reduce((sum, value) => sum + (value - grand) ** 2, 0);
-  const sse = Math.max(0, sst - ssr - ssc);
-  const dfR = complete.length - 1;
-  const dfC = k - 1;
-  const dfE = dfR * dfC;
-  const msr = ssr / dfR;
-  const msc = dfC > 0 ? ssc / dfC : 0;
-  const mse = dfE > 0 ? sse / dfE : 0;
-  const denom21 = msr + (k - 1) * mse + (k * (msc - mse)) / complete.length;
-  const denom2k = msr + (msc - mse) / complete.length;
-  return {
-    icc: denom2k > 0 ? (msr - mse) / denom2k : 0,
-    icc21: denom21 > 0 ? (msr - mse) / denom21 : 0,
-    n: complete.length,
-    k,
   };
 }
 

@@ -207,6 +207,37 @@ describe("validateInfoSpec", () => {
     expect(result.errors.map((e) => e.code)).toContain("info.sort.fixed");
   });
 
+  it("rejects a sort on a change-over-time column", () => {
+    const result = validateInfoSpec(
+      spec({
+        relationship: "change-over-time",
+        chart: "column",
+        sort: "desc",
+        data: [
+          { label: "JAN", value: 2 },
+          { label: "JUL", value: 5 },
+        ],
+      }),
+      { texts, visualType: "data", layout: "chart" },
+    );
+    expect(result.errors.map((e) => e.code)).toContain("info.sort.fixed");
+  });
+
+  it("rejects a slope whose endpoint labels would collide", () => {
+    const result = validateInfoSpec(
+      spec({
+        relationship: "change-over-time",
+        chart: "slope",
+        data: [
+          { label: "A", value: 100, value2: 101 },
+          { label: "B", value: 100.1, value2: 101.1 },
+        ],
+      }),
+      { texts, visualType: "data", layout: "chart" },
+    );
+    expect(result.errors.map((e) => e.code)).toContain("info.data.labelOverlap");
+  });
+
   it("validates the slope contract", () => {
     const result = validateInfoSpec(
       spec({
@@ -282,6 +313,19 @@ describe("sortData", () => {
     const line = spec();
     expect(sortData(line).map((d) => d.label)).toEqual(["JAN", "JUL"]);
   });
+
+  it("keeps a change-over-time column in authored time order", () => {
+    const column = spec({
+      relationship: "change-over-time",
+      chart: "column",
+      sort: "desc",
+      data: [
+        { label: "JAN", value: 2 },
+        { label: "JUL", value: 5 },
+      ],
+    });
+    expect(sortData(column).map((d) => d.label)).toEqual(["JAN", "JUL"]);
+  });
 });
 
 describe("formatChartValue", () => {
@@ -293,6 +337,11 @@ describe("formatChartValue", () => {
 
   it("handles negative values", () => {
     expect(formatChartValue(-3, spec({ unit: "%", prefix: "" }))).toBe("-3%");
+  });
+
+  it("drops decimals at three digits but keeps them below 100", () => {
+    expect(formatChartValue(150.5, spec({ unit: "", prefix: "" }))).toBe("151");
+    expect(formatChartValue(15.5, spec({ unit: "", prefix: "" }))).toBe("15.5");
   });
 });
 

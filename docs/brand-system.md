@@ -342,13 +342,13 @@ Sequential events. Vertical line, colored dots.
 
 Two chart paths, one visual grammar:
 
-- **Native chart** (`visualType: "data"`, `layout: "chart"`, `scene.info`): SVG drawn from 2–10 data points. This is the default when the numbers are known and the relationship is magnitude / ranking / change-over-time / part-to-whole / deviation / distribution.
+- **Native chart** (`visualType: "data"`, `layout: "chart"`, `scene.info`): SVG drawn from 2–12 data points (distribution 5–12; other chart types 2–10). This is the default when the numbers are known and the relationship is magnitude / ranking / change-over-time / part-to-whole / deviation / distribution.
 - **Real chart asset** (`data.chart-card` + `media.path`, or `scene.chart` K-line pin): a real screenshot/PNG for market candles, scatter, maps, or annotated charts that cannot be drawn from `info.data`. Keep the existing 440×300 framed card treatment; do not redraw a real chart by hand.
 
 Native chart grammar:
 
-- **Panel**: 820×620 content box; `clean` is the default — `rgba(255,255,255,0.04)` ground, 1px `rgba(255,255,255,0.12)` border, 12px radius, no grid. `terminal` (3px white border, black ground, #4A4A4A grid) exists only as an A/B variant, never the default.
-- **Type**: title `texts.label` 60px; labels 40px; values 40/48px; source 40px. 40px is the metadata floor — do not shrink a label to fit; switch column → bar instead.
+- **Panel**: 820×620 content box; `clean` is the default — `rgba(245,245,245,0.04)` ground, 1px `rgba(245,245,245,0.12)` border, 12px radius, no grid. `terminal` (3px white border, black ground, #4A4A4A grid) exists only as an A/B variant, never the default.
+- **Type**: title `texts.label` 60px; labels 40px; values 40px; source 40px. 40px is the metadata floor — do not shrink a label to fit; switch column → bar instead.
 - **Labels**: direct labels at the mark, unit attached to the value, no rotated labels, no legend at the far edge. FT Visual Vocabulary / Datawrapper grammar; the source line is mandatory.
 - **Baseline**: bar/column magnitude and ranking start at zero. `deviation` may use an explicit non-zero baseline; never imply a zero baseline that is not there.
 - **Color**: one amber highlight for the point of interest; all other marks use brand blue / neutral. Negative values red, positive green. No gradient fills, no 3D, no pie, no radar.

@@ -119,6 +119,7 @@ const BASELINES = [
   "topology-year-source",
   "topology-chart-card",
   "topology-chart-bar",
+  "topology-chart-deviation",
   "topology-chart-line",
   "topology-chart-slope",
   "topology-chart-proportion",

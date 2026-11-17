@@ -49,11 +49,12 @@ export const DotPlot: React.FC<{ info: InfoSpec }> = ({ info }) => {
                 opacity={interpolate(appear, [0, 1], [0.3, 1], clamp)}
               />
               <text
-                x={700}
+                x={812}
                 y={y}
                 fill={highlighted ? CHART.colors.amber : CHART.colors.text}
                 fontSize={CHART.valueSize}
                 fontWeight={800}
+                textAnchor="end"
                 dominantBaseline="middle"
               >
                 {formatChartValue(datum.value, info)}

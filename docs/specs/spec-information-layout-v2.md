@@ -78,9 +78,9 @@ Rules:
 
 ### 3. Native chart panel
 
-- Geometry: 820×620 content box at `left: 60, top: 340` (safe zone x[60,880], y[340,960]); source line at `bottom: 210`.
-- Default `ChartPanel` is clean: `rgba(255,255,255,0.04)` ground, 1px `rgba(255,255,255,0.12)` border, 12px radius, no grid. A `variant: "terminal"` (3px white border, black ground, #4A4A4A grid) is retained only for A/B tests.
-- Chart labels: 40px; values: 48px; title: `texts.label` 60px; source: `texts.source` 40px. No rotation. No label below the 40px metadata floor.
+- Geometry: 820×620 content box at `left: 60, top: 300` (safe zone x[60,880], y[300,920]); source line at `bottom: 210`.
+- Default `ChartPanel` is clean: `rgba(245,245,245,0.04)` ground, 1px `rgba(245,245,245,0.12)` border, 12px radius, no grid. A `variant: "terminal"` (3px white border, black ground, #4A4A4A grid) is retained only for A/B tests.
+- Chart labels: 40px; values: 40px; title: `texts.label` 60px; source: `texts.source` 40px. No rotation. No label below the 40px metadata floor.
 - At most one highlight; all other marks use `COLOR.brand` / neutral; highlight uses `COLOR.amber`; negative uses `COLOR.red`, positive `COLOR.green`.
 - One entrance cue per chart: bars grow from baseline, line draws once, proportion segments reveal once. No additional ambient motion.
 - SVG only; no third-party chart library. The panel is a pure function of props + `useCurrentFrame()`.
@@ -125,7 +125,7 @@ Field-test protocol:
 ## Modified Files Impact（R3）
 
 - New: `lib/info-grammar.mjs`, `lib/experiment-stats.mjs`, `lib/layout-signature.mjs`, `remotion/src/components/charts/*`, `experiment.mjs`, `experiment-review.mjs`, tests, spec/research docs.
-- Modified: `remotion/src/types.ts` (SceneData + InfoSpec), `remotion/src/scenes/DataScene.tsx` (`chart` layout), `remotion/src/components/topology.tsx` (ChartPanel/variant), `lib/text-slots.mjs` (`info` layout slot map), `lib/type-scale.mjs` (`data.chart` focal), `lib/scene-rules.mjs` (gates + runner), `lib/publish-utils.mjs` / `publish-tiktok.mjs` (pending metadata), `verify-video.mjs` (gate wiring), `scene-gate-fixture.tsx` + `scene-gate-render.test.mjs` (new baselines), docs.
+- Modified: `remotion/src/types.ts` (SceneData + InfoSpec), `remotion/src/scenes/DataScene.tsx` (`chart` layout), `remotion/src/components/charts/*` (native chart renderer, panel, tokens, formatters), `lib/text-slots.mjs` (`info` layout slot map), `lib/type-scale.mjs` (`data.chart` focal), `lib/scene-rules.mjs` (gates + runner), `lib/publish-utils.mjs` / `publish-tiktok.mjs` (pending metadata), `scene-gate-fixture.tsx` + `scene-gate-render.test.mjs` (new baselines), docs.
 - Existing consumers: `ShortVideo.tsx` dispatch unchanged; `checkEmptyField` sees `data.chart` focal; `cohort-report` ignores new fields until extended; `tiktok-upload-prep` writes pending analysis via shared builder.
 - Worst consequence of a mistake: a native chart renders wrong data/units or a gate blocks a legal pack. Mitigation: schema fail-closed at preflight; `chart-card` path untouched; new layout only opt-in; pixel fixtures cover each chart type; `checkInfoSpec` tests against real packs.
 
@@ -148,8 +148,8 @@ Field-test protocol:
 
 ## Testing Decisions
 
-- Pure Node: `info-grammar.test.mjs` (relationship/chart matrix, data bounds, zero baseline, part-to-whole, highlight, errors), `chart-claim-agreement.test.mjs` (value/label anchor, year-vs-small-number boundary, time window, pin window, advisory wiring), `experiment-stats.test.mjs` (n<8, all-same-direction, zero variance, missing values, Wilson CI, BH), `layout-signature.test.mjs` (stable, order-sensitive), `scene-rules-info.test.mjs` (gate severity and message).
-- Render: add `topology-chart-bar`, `topology-chart-line`, `topology-chart-slope`, `topology-chart-proportion` to `BASELINE_SCENES` and `BASELINES`; each is a legal 1080×1920 still. Keep existing `topology-chart-card` untouched.
+- Pure Node: `info-grammar.test.mjs` (relationship/chart matrix, data bounds, zero baseline, part-to-whole, highlight, errors), `chart-claim-agreement.test.mjs` (value/label anchor, year-vs-small-number boundary, time window, pin window, advisory wiring), `experiment-stats.test.mjs` (n<8, all-same-direction, zero variance, missing values, Wilson CI, BH), `layout-signature.test.mjs` (stable, order-sensitive), `narrative-attention.test.mjs` (arc/attention gate severity and message).
+- Render: add `topology-chart-bar`, `topology-chart-deviation`, `topology-chart-line`, `topology-chart-slope`, `topology-chart-proportion` to `BASELINE_SCENES` and `BASELINES`; each is a legal 1080×1920 still. Keep existing `topology-chart-card` untouched.
 - Real data: 4 packs; `verify-video --pre` 0 FAIL; render stills; inspect labels/units/highlight.
 - Experiment: fixture JSONL observations; CLI `create/assign/ingest/report`; golden report with n=20 synthetic rows.
 - Docs: `lint:docs`.
@@ -175,6 +175,6 @@ Tickets are local until GitHub sub-issues are authorized. Each ticket is a verti
 ## Delivery Status（2026-11-16）
 
 - **已落地**：`scene.info` + `data.chart` + 6 个原生图表；`checkInfoSpec`（FAIL）、`checkChartPinContract`（FAIL）、`checkChartClaimAgreement` / `checkNarrativeArc` / `checkAttentionBudget`（advisory）；布局签名与发布元数据；实验 CLI；盲评包生成。
-- **真实包**：49 个 content pack 新增门禁 0 FAIL；46 个包无 `arcRole`（advisory），4 个包连续 3 个同版式信息镜（advisory）。4 个迁移包 `kimi-ipo` / `deepinfer` / `china-us-token-divide` / `zhipu-valuation` 的 `verify-video --pre` 均为 0 FAIL；`checkChartClaimAgreement` 对 Kimi 时间窗和 DeepInfer 的「nearly in half」各给 1 条 advisory（未改文案）。
+- **真实包**：49 个 content pack 新增门禁 0 FAIL；45 个包无 `arcRole`（advisory），4 个包连续 3 个同版式信息镜（advisory）。4 个迁移包 `kimi-ipo` / `deepinfer` / `china-us-token-divide` / `zhipu-valuation` 的 `verify-video --pre` 均为 0 FAIL；`checkChartClaimAgreement` 对 Kimi 时间窗和 DeepInfer 的「nearly in half」各给 1 条 advisory（未改文案）。
 - **盲评**：`output/experiments/info-layout-v2-blind-review/index.html` 已生成 6 对（seed 20261116，左右随机），`key.json` 只在分析师侧。**人类评分尚未收集**；ICC、win rate 与「原生图表更好」的结论均未产生。
 - **未完成**：S5 的 ≥6 对离线盲评需要评审实际打分；L2 有机配对实验需要发布 20 对（约 10 周）。本 spec 不把待收集数据写成结果。

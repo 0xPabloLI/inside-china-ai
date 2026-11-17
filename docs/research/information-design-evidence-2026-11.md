@@ -253,7 +253,7 @@ n=20、ρ=.5 的 95% CI 半宽约 ±19%。所以 20 对只能检测结构性差�
 
 **真实包审计（2026-11-16）**：
 
-- 全部 49 个 content pack：新增门禁 0 FAIL；46 个包没有 `arcRole`（advisory），4 个包有连续 3 个同版式信息镜头（advisory）。
+- 全部 49 个 content pack：新增门禁 0 FAIL；45 个包没有 `arcRole`（advisory），4 个包有连续 3 个同版式信息镜头（advisory）。
 - 4 个迁移包：`kimi-ipo`、`deepinfer`、`china-us-token-divide`、`zhipu-valuation`；`verify-video --pre` 分别为 50 / 52 / 54 / 50 PASS，0 FAIL。`checkChartClaimAgreement` 对 Kimi 的时间窗和 DeepInfer 的「nearly in half」各给 1 条 advisory，未改文案。
 - 布局签名（迁移前 → 迁移后）：`614b69be9193 → 36ac201c821c`、`062c642d343c → c152e63a8df9`、`7dc8b7b44460 → d3541bb80386`、`50df40265b88 → 9a42bb273905`。
 - 盲评包：`output/experiments/info-layout-v2-blind-review/index.html`，6 对（Kimi 1、DeepInfer 1、China token 3、Zhipu 1），左右已随机化；`key.json` 只在分析师侧。**人类评分尚未收集**，因此不报告 ICC、win rate 或「原生图表更好」的结论。

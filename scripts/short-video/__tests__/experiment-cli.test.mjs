@@ -346,6 +346,35 @@ describe("buildReport", () => {
     expect(report.secondary[0].metric).toBe("logAvgWatchTimeSec");
     expect(report.secondary[0].pAdjusted).toBeGreaterThan(0);
   });
+
+  it("aligns secondary values by pair before dropping missing siblings", () => {
+    const observations = pairedObservations(8);
+    delete observations[0].metrics.logAvgWatchTimeSec;
+    delete observations[3].metrics.logAvgWatchTimeSec;
+    const report = buildReport({
+      experiment: baseExperiment,
+      assignments: pairedAssignments(8),
+      observations,
+    });
+    // Six complete pairs, not seven unilateral values from each side.
+    expect(report.secondary[0].n).toBe(6);
+    expect(report.secondary[0].p).toBeNull();
+    expect(report.secondary[0].pAdjusted).toBeNull();
+  });
+
+  it("gives a secondary metric a p-value only at its own n>=8", () => {
+    const observations = pairedObservations(8);
+    observations[0].metrics.logAvgWatchTimeSec = null;
+    const report = buildReport({
+      experiment: baseExperiment,
+      assignments: pairedAssignments(8),
+      observations,
+    });
+    expect(report.reportable).toBe(true);
+    expect(report.secondary[0].n).toBe(7);
+    expect(report.secondary[0].p).toBeNull();
+    expect(report.secondary[0].pAdjusted).toBeNull();
+  });
 });
 
 describe("renderReportMarkdown", () => {
@@ -372,5 +401,19 @@ describe("renderReportMarkdown", () => {
     expect(markdown).toContain("fullVideoWatchedRate");
     expect(markdown).toContain("Permutation");
     expect(markdown).toContain("MDE");
+  });
+
+  it("prints an em dash, not 0.000, when a pair has no primary values", () => {
+    const observations = pairedObservations(8);
+    observations[0].metrics.fullVideoWatchedRate = null;
+    observations[1].metrics.fullVideoWatchedRate = null;
+    const report = buildReport({
+      experiment: baseExperiment,
+      assignments: pairedAssignments(8),
+      observations,
+    });
+    const markdown = renderReportMarkdown(report);
+    expect(markdown).toMatch(/\| block-0 \|.*\| — \|/);
+    expect(markdown).not.toMatch(/\| block-0 \|.*\| 0\.000 \|/);
   });
 });

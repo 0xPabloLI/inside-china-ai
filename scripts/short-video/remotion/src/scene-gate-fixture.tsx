@@ -359,9 +359,10 @@ const BASELINE_SCENES: Record<string, SceneData> = {
       ],
     },
   },
-  // #1398 native chart baselines: one legal scene per native chart. The
-  // grammar gate covers bad data before the render; these four prove the
-  // panel, labels and highlight survive the real Chromium gate at 1080×1920.
+  // #1398 native chart baselines: one legal scene per native chart, plus a
+  // deviation bar to pin its non-zero baseline. The grammar gate covers bad
+  // data before the render; these scenes prove the panel, labels and highlight
+  // survive the real Chromium gate at 1080×1920.
   "topology-chart-bar": {
     id: 48,
     visualType: "data",
@@ -384,6 +385,27 @@ const BASELINE_SCENES: Record<string, SceneData> = {
       unit: "B",
       prefix: "$",
       highlight: "KIMI",
+    },
+  },
+  "topology-chart-deviation": {
+    id: 52,
+    visualType: "data",
+    layout: "chart",
+    voiceover: "Q1 prints 96 against a 100 baseline; Q2 prints 104.",
+    texts: {
+      label: "DEVIATION VS 100",
+      subtext: "Q1 / Q2, PERCENT OF BASELINE",
+      source: "COMPANY FILINGS, Q3 2026",
+    },
+    info: {
+      relationship: "deviation",
+      chart: "bar",
+      baseline: 100,
+      data: [
+        { label: "Q1", value: 96 },
+        { label: "Q2", value: 104, highlight: true },
+      ],
+      unit: "%",
     },
   },
   "topology-chart-line": {
@@ -414,10 +436,10 @@ const BASELINE_SCENES: Record<string, SceneData> = {
     id: 50,
     visualType: "data",
     layout: "chart",
-    voiceover: "Kimi and Zhipu moved up, while MiniMax slipped one place.",
+    voiceover: "Kimi and Zhipu each slipped one place, while MiniMax moved up.",
     texts: {
       label: "RANK CHANGE",
-      subtext: "PRIVATE VALUATION, 2025 TO 2026",
+      subtext: "PRIVATE VALUATION RANK, 2025 TO 2026",
       source: "COMPANY FILINGS",
     },
     info: {

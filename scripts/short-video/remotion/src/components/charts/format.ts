@@ -10,7 +10,6 @@ import {
   sortData,
 } from "../../../../lib/info-grammar.mjs";
 import type { InfoDatum, InfoSpec } from "../../types";
-import { CHART } from "./chart-tokens";
 
 export { formatChartValue, isHighlighted, normalizeInfoSpec, sortData };
 
@@ -31,11 +30,28 @@ export function chartValues(data: InfoDatum[]): number[] {
   return values;
 }
 
-export function domainFor(data: InfoDatum[], { includeZero = true, zeroFloor = false } = {}) {
+export function domainFor(
+  data: InfoDatum[],
+  {
+    includeZero = true,
+    zeroFloor = false,
+    baseline,
+  }: {
+    includeZero?: boolean;
+    zeroFloor?: boolean;
+    baseline?: number;
+  } = {},
+) {
   const values = chartValues(data);
   if (values.length === 0) return { min: 0, max: 1 };
   let min = Math.min(...values);
   let max = Math.max(...values);
+  // A deviation chart anchors at its declared baseline, not at zero; the
+  // baseline must be inside the domain even when no mark reaches it.
+  if (Number.isFinite(baseline)) {
+    min = Math.min(min, baseline as number);
+    max = Math.max(max, baseline as number);
+  }
   if (includeZero) {
     min = Math.min(0, min);
     max = Math.max(0, max);
@@ -46,8 +62,4 @@ export function domainFor(data: InfoDatum[], { includeZero = true, zeroFloor = f
   // below a zero baseline would draw a phantom negative region and shrink
   // every bar by 8% — the exact opposite of the FT zero-baseline rule.
   return { min: zeroFloor ? min : min - pad, max: max + pad };
-}
-
-export function textFill(highlight: boolean): string {
-  return highlight ? CHART.colors.amber : CHART.colors.text;
 }

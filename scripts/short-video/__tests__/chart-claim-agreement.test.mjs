@@ -84,6 +84,24 @@ describe("chart claim agreement", () => {
     expect(warnings(rows)[0].detail).toContain("never names its year or month");
   });
 
+  it("anchors a three-digit label after the renderer drops decimals", () => {
+    const rows = auditChartClaimAgreement([
+      native(
+        {
+          data: [
+            { label: "A", value: 150.5 },
+            { label: "B", value: 200 },
+          ],
+        },
+        {
+          voiceover: "It reached 151.",
+          texts: { label: "REVENUE", subtext: "THE TREND", source: "SOURCE: FILINGS" },
+        },
+      ),
+    ]);
+    expect(rows[0].level).toBe("pass");
+  });
+
   it("passes a chart pin whose source names the window", () => {
     const rows = auditChartClaimAgreement([
       {
@@ -96,7 +114,19 @@ describe("chart claim agreement", () => {
     expect(rows[0].level).toBe("pass");
   });
 
-  it("warns on a chart pin with no unit or window in its text", () => {
+  it("reads the hook number fields for a chart pin's unit", () => {
+    const rows = auditChartClaimAgreement([
+      {
+        id: 1,
+        visualType: "hook",
+        chart: { entity: "zhipu", range: "6M" },
+        texts: { bigNumber: "HK$ 2,980", source: "SOURCE: HKEX" },
+      },
+    ]);
+    expect(rows[0].level).toBe("pass");
+  });
+
+  it("warns on a chart pin with no unit or window in any text field", () => {
     const rows = auditChartClaimAgreement([
       {
         id: 1,
@@ -105,7 +135,7 @@ describe("chart claim agreement", () => {
         texts: { subtext: "THE STOCK", source: "SOURCE: HKEX" },
       },
     ]);
-    expect(warnings(rows)[0].detail).toContain("neither");
+    expect(warnings(rows)[0].detail).toContain("none of its on-screen text");
   });
 
   it("is wired into the editorial bucket, not the blocking gates", () => {

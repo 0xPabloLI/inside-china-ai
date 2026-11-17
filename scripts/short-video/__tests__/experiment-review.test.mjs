@@ -85,4 +85,10 @@ describe("buildReviewPacket", () => {
       /at least one/,
     );
   });
+
+  it("rejects a pair id that could escape the asset directory", () => {
+    const { dir, manifest } = fixture();
+    manifest.pairs[0].id = "../escape";
+    expect(() => buildReviewPacket({ manifest, outDir: join(dir, "out") })).toThrow(/slug/);
+  });
 });

@@ -24,7 +24,6 @@
  *   }
  */
 
-import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -35,6 +34,7 @@ import {
 } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { seededBit } from "./lib/experiment-stats.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const DEFAULT_SEED = 20260101;
@@ -47,9 +47,7 @@ function escapeHtml(value) {
 }
 
 function flip(seed, experimentId, pairId) {
-  return (
-    createHash("sha256").update([seed, experimentId, pairId].join("\u0000")).digest()[0] % 2 === 1
-  );
+  return seededBit(seed, experimentId, pairId) === 1;
 }
 
 function imageExt(file) {
@@ -83,6 +81,14 @@ export function buildReviewPacket({
   for (const pair of manifest.pairs) {
     const id = String(pair.id || "").trim();
     if (!id) throw new Error("each pair needs an id");
+    // The id is used in asset file names and in a querySelector in the review
+    // packet. Restrict it to a slug so it cannot escape `assets/` or break out
+    // of the selector string.
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/.test(id)) {
+      throw new Error(
+        `pair id ${JSON.stringify(id)} must be a slug (letters, digits, dot, underscore, hyphen)`,
+      );
+    }
     for (const side of ["a", "b"]) {
       const image = pair[side]?.image;
       if (!image || !existsSync(image))

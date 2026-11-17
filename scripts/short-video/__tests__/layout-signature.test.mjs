@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  INFO_LAYOUT_VERSION,
-  layoutSignature,
-  layoutSignatureDetail,
-  sceneLayoutKey,
-} from "../lib/layout-signature.mjs";
+import { INFO_LAYOUT_VERSION, layoutSignature, sceneLayoutKey } from "../lib/layout-signature.mjs";
 
 const v2Scenes = [
   { visualType: "hook", layout: "hero-center" },
@@ -66,14 +61,7 @@ describe("layoutSignature", () => {
   });
 });
 
-describe("layoutSignatureDetail", () => {
-  it("returns the version, signature, and per-scene keys", () => {
-    const detail = layoutSignatureDetail(v2Scenes);
-    expect(detail.version).toBe(INFO_LAYOUT_VERSION);
-    expect(detail.signature).toBe(layoutSignature(v2Scenes));
-    expect(detail.scenes).toEqual(v2Scenes.map(sceneLayoutKey));
-  });
-
+describe("layout version", () => {
   it("pins the version this spec ships", () => {
     expect(INFO_LAYOUT_VERSION).toBe("v2");
   });

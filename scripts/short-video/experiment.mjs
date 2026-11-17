@@ -16,7 +16,6 @@
  *   node scripts/short-video/experiment.mjs status
  */
 
-import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -36,6 +35,7 @@ import {
   normalQuantile,
   pairedPermutation,
   pairedSummary,
+  seededBit,
   signTest,
   variance,
   wilcoxonSignedRank,
@@ -79,13 +79,6 @@ function writeJsonl(file, rows) {
     rows.map((row) => JSON.stringify(row)).join("\n") + (rows.length ? "\n" : ""),
     "utf8",
   );
-}
-
-function coin(seed, ...parts) {
-  const digest = createHash("sha256")
-    .update([seed, ...parts].join("\u0000"))
-    .digest();
-  return digest[0] % 2 === 0;
 }
 
 function assertNonEmpty(value, name) {
@@ -185,8 +178,9 @@ export function chooseAssignment({
   }
 
   const chosen =
-    override || (coin(experiment.seed, experiment.id, cleanBlock, "variant") ? "A" : "B");
-  const order = coin(experiment.seed, experiment.id, cleanBlock, "order") ? 1 : 2;
+    override ||
+    (seededBit(experiment.seed, experiment.id, cleanBlock, "variant") === 0 ? "A" : "B");
+  const order = seededBit(experiment.seed, experiment.id, cleanBlock, "order") === 0 ? 1 : 2;
   return {
     experimentId: experiment.id,
     block: cleanBlock,
@@ -284,9 +278,14 @@ function latestObservation(observations, packSlug) {
 }
 
 function valuesFromPairs(pairs, metric) {
+  // Filter the pair, not each side independently: dropping only the missing
+  // side shifts B and silently compares unrelated videos.
+  const aligned = pairs
+    .map((pair) => ({ a: pair.a.metrics[metric], b: pair.b.metrics[metric] }))
+    .filter(({ a, b }) => Number.isFinite(a) && Number.isFinite(b));
   return {
-    a: pairs.map((pair) => pair.a.metrics[metric]).filter(Number.isFinite),
-    b: pairs.map((pair) => pair.b.metrics[metric]).filter(Number.isFinite),
+    a: aligned.map(({ a }) => a),
+    b: aligned.map(({ b }) => b),
   };
 }
 
@@ -360,7 +359,12 @@ export function buildReport({
   const secondary = (experiment.secondaryMetrics || []).map((metric) => {
     const values = valuesFromPairs(pairs, metric);
     const paired = pairedSummary(values.a, values.b);
-    const p = reportable ? pairedPermutation(paired.diffs, { seed: experiment.seed }).p : null;
+    // A secondary metric may have fewer complete pairs than the primary. It
+    // earns a p-value on its own sample size, never on the primary's.
+    const p =
+      paired.n >= REPORT_FLOOR
+        ? pairedPermutation(paired.diffs, { seed: experiment.seed }).p
+        : null;
     return {
       metric,
       n: paired.n,
@@ -371,12 +375,16 @@ export function buildReport({
       pAdjusted: null,
     };
   });
-  if (reportable && secondary.length > 0) {
+  if (secondary.length > 0) {
+    // Keep the pre-registered family intact: an untestable secondary enters
+    // BH as p=1 instead of shrinking the denominator and making its siblings
+    // look more significant.
     const adjusted = bhFdr(
       secondary.map((item) => item.p ?? 1),
       experiment.alpha,
     );
     secondary.forEach((item, index) => {
+      if (item.p === null) return;
       item.pAdjusted = adjusted.adjusted[index];
       item.rejected = adjusted.rejected[index];
     });
@@ -511,7 +519,9 @@ export function renderReportMarkdown(report) {
     );
     lines.push("");
   } else {
-    lines.push("**No test is printed at n<8.** The table above is descriptive only.");
+    lines.push(
+      "**No primary test is printed at n<8.** The primary table above is descriptive only; a secondary metric prints a p-value only when its own paired n reaches 8.",
+    );
     lines.push("");
   }
   lines.push("## Pairs");
@@ -519,9 +529,12 @@ export function renderReportMarkdown(report) {
   lines.push("| block | A video | A value | B video | B value | A − B |");
   lines.push("| --- | --- | ---: | --- | ---: | ---: |");
   for (const pair of report.pairs) {
-    const diff = pair.a.value - pair.b.value;
+    const diff =
+      Number.isFinite(pair.a.value) && Number.isFinite(pair.b.value)
+        ? pair.a.value - pair.b.value
+        : null;
     lines.push(
-      `| ${pair.block} | ${pair.a.videoId} | ${num(pair.a.value)} | ${pair.b.videoId} | ${num(pair.b.value)} | ${num(diff)} |`,
+      `| ${pair.block} | ${pair.a.videoId} | ${num(pair.a.value)} | ${pair.b.videoId} | ${num(pair.b.value)} | ${diff === null ? "—" : num(diff)} |`,
     );
   }
   lines.push("");

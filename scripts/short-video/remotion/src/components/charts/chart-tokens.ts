@@ -30,5 +30,7 @@ export const CHART = {
     cyan: COLOR.cyan,
     purple: COLOR.purple,
   },
-  series: [COLOR.brand, COLOR.amber, COLOR.cyan, COLOR.purple, COLOR.green],
+  // Amber is reserved for the one highlighted mark. Using it in the series
+  // palette made the second non-highlighted series look highlighted.
+  series: [COLOR.brand, COLOR.cyan, COLOR.purple, COLOR.green],
 } as const;

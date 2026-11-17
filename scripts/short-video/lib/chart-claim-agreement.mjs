@@ -88,12 +88,21 @@ function containsNumber(haystack, value, decimals) {
   if (!Number.isInteger(abs)) {
     forms.add(abs.toFixed(1));
     forms.add(abs.toFixed(2));
+    // The renderer drops decimals at |v| >= 100. A voiceover that says "151"
+    // is a correct reading of 150.5 even though the exact form differs.
+    if (!Number.isInteger(decimals) && abs >= 100) {
+      const rounded = Math.round(abs);
+      forms.add(String(rounded));
+      forms.add(String(value < 0 ? -rounded : rounded));
+    }
   }
   for (const form of forms) {
     // The only dynamic part is an escaped numeric literal, so the pattern is
-    // linear in the haystack rather than attacker-shaped.
+    // linear in the haystack rather than attacker-shaped. A trailing sentence
+    // period is not a decimal point; only reject a dot actually followed by a
+    // digit ("151.5").
     // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
-    const pattern = new RegExp(`(?<![\\d.])${escapeRegExp(form)}(?![\\d.])`, "i");
+    const pattern = new RegExp(`(?<![\\d.])${escapeRegExp(form)}(?!\\d|\\.\\d)`, "i");
     if (pattern.test(haystack)) return true;
   }
   return false;
@@ -191,14 +200,19 @@ function hasUnitOrWindow(value, chart) {
 }
 
 function auditPin(scene, index) {
-  const label = typeof scene?.texts?.subtext === "string" ? scene.texts.subtext : "";
-  const source = typeof scene?.texts?.source === "string" ? scene.texts.source : "";
-  if (hasUnitOrWindow(label, scene.chart) || hasUnitOrWindow(source, scene.chart)) return [];
+  // Hook pins can carry the claim in `numberLabel` / `bigNumber` rather than
+  // `subtext`; inspect every string field instead of hard-coding two slots.
+  const texts =
+    scene?.texts && typeof scene.texts === "object" && !Array.isArray(scene.texts)
+      ? scene.texts
+      : {};
+  const candidates = Object.values(texts).filter(text);
+  if (candidates.some((value) => hasUnitOrWindow(value, scene.chart))) return [];
   return [
     row(
       "warn",
-      `Scene ${scene.id ?? index + 1} pins a chart image but neither \`texts.subtext\` nor \`texts.source\` names its unit or claim window.`,
-      'Add the unit and window (e.g. "HK$ 2,980 → 454, JUN–NOV") to `texts.subtext` or `texts.source`; a K-line without a readable window cannot be checked against the script.',
+      `Scene ${scene.id ?? index + 1} pins a chart image but none of its on-screen text names the unit or claim window.`,
+      'Add the unit and window (e.g. "HK$ 2,980 → 454, JUN–NOV") to `texts.subtext`, `texts.source`, or the hook number fields; a K-line without a readable window cannot be checked against the script.',
     ),
   ];
 }

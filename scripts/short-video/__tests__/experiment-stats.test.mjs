@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   bhFdr,
   bootstrapCI,
-  icc2k,
   mean,
   mdeContinuous,
   pairedPermutation,
@@ -142,40 +141,5 @@ describe("mdeContinuous", () => {
     const low = mdeContinuous({ pairs: 20, rho: 0.2 });
     const high = mdeContinuous({ pairs: 20, rho: 0.8 });
     expect(high.mdeLog).toBeLessThan(low.mdeLog);
-  });
-});
-
-describe("icc2k", () => {
-  it("is 1 when every rater gives the same score per target", () => {
-    const matrix = [
-      [5, 5, 5],
-      [3, 3, 3],
-      [6, 6, 6],
-      [2, 2, 2],
-    ];
-    expect(icc2k(matrix).icc).toBeCloseTo(1, 10);
-  });
-
-  it("is lower when raters disagree", () => {
-    const matrix = [
-      [5, 2, 3],
-      [3, 6, 1],
-      [6, 1, 5],
-      [2, 5, 4],
-    ];
-    const result = icc2k(matrix);
-    expect(result.icc).toBeLessThan(0.9);
-    expect(result.n).toBe(4);
-    expect(result.k).toBe(3);
-  });
-
-  it("drops incomplete rows and handles a single rater", () => {
-    expect(
-      icc2k([
-        [5, null],
-        [3, 4],
-      ]).n,
-    ).toBe(1);
-    expect(icc2k([[5], [3], [6]]).icc).toBe(1);
   });
 });

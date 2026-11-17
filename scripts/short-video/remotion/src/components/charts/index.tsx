@@ -10,7 +10,6 @@ import { ProportionBar } from "./ProportionBar";
 import { SlopeChart } from "./SlopeChart";
 
 export { ChartPanel } from "./ChartPanel";
-export { CHART } from "./chart-tokens";
 
 export const ChartRenderer: React.FC<{ info: InfoSpec }> = ({ info }) => {
   switch (info.chart) {

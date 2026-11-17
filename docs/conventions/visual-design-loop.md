@@ -141,7 +141,7 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 #### 原生信息图表（`data.chart`，2026-11-16 · #1398）
 
-`data.chart` 是信息拓扑里的第七个变体，只在 `visualType: "data"`、`layout: "chart"` 且声明 `scene.info` 时启用。它不是 `data.chart-card` 的替代：`data.chart-card` 继续承载真实图表 PNG（含 `scene.chart` 的 K 线 pin），`data.chart` 只画能从 `scene.info.data` 直接渲染的 2–10 个点。
+`data.chart` 是信息拓扑里的第七个变体，只在 `visualType: "data"`、`layout: "chart"` 且声明 `scene.info` 时启用。它不是 `data.chart-card` 的替代：`data.chart-card` 继续承载真实图表 PNG（含 `scene.chart` 的 K 线 pin），`data.chart` 只画能从 `scene.info.data` 直接渲染的 2–12 个点（分布图 5–12，其余按图型 2–10）。
 
 | 数据关系 | 允许图型 | 默认 | 约束 |
 | -------- | -------- | ---- | ---- |
@@ -156,8 +156,8 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 几何与样式：
 
-- 面板 820×620，内容盒 `left: 60, top: 340`（安全区 x[60,880], y[340,960]）；来源行在 `bottom: 210`。标题 `texts.label` 60px，标签 40px，数值 40/48px，来源 40px；40px 是元数据地板。
-- 默认 `clean` 面板：`rgba(255,255,255,0.04)` 底、1px `rgba(255,255,255,0.12)` 边框、12px 圆角、无网格。`terminal`（3px 白框 / 黑底 / #4A4A4A 网格）只用于 A/B，不作默认。
+- 面板 820×620，内容盒 `left: 60, top: 300`（安全区 x[60,880], y[300,920]）；来源行在 `bottom: 210`。标题 `texts.label` 60px，标签 40px，数值 40px，来源 40px；40px 是元数据地板。
+- 默认 `clean` 面板：`rgba(245,245,245,0.04)` 底、1px `rgba(245,245,245,0.12)` 边框、12px 圆角、无网格。`terminal`（3px 白框 / 黑底 / #4A4A4A 网格）只用于 A/B，不作默认。
 - 直接标注，标签不旋转；标签上限按图型（bar 24 / column 8 / line 8 / slope 12 / proportion 18 / dot 16 字符）。放不下时换图型，不缩字号、不斜排。
 - 最多一个 amber highlight；其余 mark 用品牌蓝/中性色；负值红、正值绿。柱状/柱形的 magnitude/ranking 必须从 0 起，`deviation` 才允许显式非零基线。
 - 入场只做一次：bar 从基线生长、line 画一次、proportion 分段 reveal；不叠加环境动效。`texts.source` 必填，`unit` 必填。

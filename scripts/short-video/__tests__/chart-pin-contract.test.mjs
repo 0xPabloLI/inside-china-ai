@@ -60,6 +60,12 @@ describe("checkChartPinContract", () => {
     expect(results[0].detail).toContain("chart.entity");
   });
 
+  it("fails a non-object pin instead of filtering it out", () => {
+    const results = checkChartPinContract([{ id: 4, visualType: "data", chart: [] }]);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].detail).toContain("chart must be an object");
+  });
+
   it("fails loudly when the symbol map is missing", () => {
     const results = checkChartPinContract(
       [{ id: 4, visualType: "data", chart: { entity: "zhipu" } }],

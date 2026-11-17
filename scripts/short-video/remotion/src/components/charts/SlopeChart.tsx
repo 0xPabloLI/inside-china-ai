@@ -19,7 +19,12 @@ export const SlopeChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
   const top = 76;
   const bottom = 500;
   const span = domain.max - domain.min || 1;
-  const yFor = (value: number) => bottom - ((value - domain.min) / span) * (bottom - top);
+  // Measures rise upward. A ranking is the exception: rank 1 belongs at the
+  // top, or the picture contradicts the numbers and the narration.
+  const yFor =
+    info.relationship === "ranking"
+      ? (value: number) => top + ((value - domain.min) / span) * (bottom - top)
+      : (value: number) => bottom - ((value - domain.min) / span) * (bottom - top);
   const endpoints: [string, string] = info.axisLabels ?? [
     info.time?.from ?? "BEFORE",
     info.time?.to ?? "AFTER",

@@ -10,17 +10,23 @@ const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as 
 export const ColumnChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
   const frame = useCurrentFrame();
   const data = chartData(info);
-  const domain = domainFor(data, { zeroFloor: true });
+  const baseline = info.baseline ?? 0;
+  const deviation = info.relationship === "deviation" && baseline !== 0;
+  const domain = domainFor(data, {
+    includeZero: !deviation,
+    zeroFloor: !deviation,
+    baseline,
+  });
   const left = 48;
   const right = 772;
   const top = 60;
   const bottom = 500;
   const span = domain.max - domain.min || 1;
   const yFor = (value: number) => bottom - ((value - domain.min) / span) * (bottom - top);
-  const zeroY = yFor(0);
+  const baselineY = yFor(baseline);
   const slot = (right - left) / Math.max(1, data.length);
   const barWidth = Math.min(104, slot * 0.56);
-  const base = yFor(0);
+  const base = baselineY;
 
   return (
     <ChartSvg label={info.unit ? `column chart in ${info.unit}` : "column chart"}>
@@ -28,8 +34,8 @@ export const ColumnChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
         <line
           x1={left}
           x2={right}
-          y1={zeroY}
-          y2={zeroY}
+          y1={baselineY}
+          y2={baselineY}
           stroke={CHART.colors.baseline}
           strokeWidth={1.5}
         />
@@ -40,13 +46,13 @@ export const ColumnChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
           const targetY = yFor(datum.value);
           const fullHeight = Math.abs(targetY - base);
           const height = fullHeight * appear;
-          const y = datum.value >= 0 ? base - height : base;
+          const y = datum.value >= baseline ? base - height : base;
           const fill = highlighted
             ? CHART.colors.amber
-            : datum.value < 0
+            : datum.value < baseline
               ? CHART.colors.red
               : CHART.colors.brand;
-          const valueY = datum.value >= 0 ? targetY - 14 : targetY + 44;
+          const valueY = datum.value >= baseline ? targetY - 14 : targetY + 44;
           return (
             <g key={`${datum.label}-${index}`}>
               <rect
@@ -70,7 +76,7 @@ export const ColumnChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
               </text>
               <text
                 x={center}
-                y={552}
+                y={596}
                 fill={highlighted ? CHART.colors.amber : CHART.colors.muted}
                 fontSize={CHART.labelSize}
                 fontWeight={highlighted ? 800 : 600}
