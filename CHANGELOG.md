@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.85.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.85.0...tanstack_start_ts-v1.85.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **short-video:** currency dual-annotation covers Chinese amounts and live rates ([#1415](https://github.com/0xPabloLI/inside-china-ai/issues/1415)) ([#1418](https://github.com/0xPabloLI/inside-china-ai/issues/1418)) ([65f3c68](https://github.com/0xPabloLI/inside-china-ai/commit/65f3c68ee097bddbf7389454e4c7ac3cc289c65a))
+
 ## [1.85.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.84.0...tanstack_start_ts-v1.85.0) (2026-11-17)
 
 
