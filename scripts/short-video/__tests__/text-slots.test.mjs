@@ -635,9 +635,9 @@ describe("hook media-led layout contract (2026-11-15)", () => {
         info: { chart: "candle" },
       }),
     ).toBe(true);
-    expect(isMediaLedHook({ visualType: "hook", layout: "media-led", info: { chart: "line" } })).toBe(
-      false,
-    );
+    expect(
+      isMediaLedHook({ visualType: "hook", layout: "media-led", info: { chart: "line" } }),
+    ).toBe(false);
     expect(isMediaLedHook(undefined)).toBe(false);
   });
 
