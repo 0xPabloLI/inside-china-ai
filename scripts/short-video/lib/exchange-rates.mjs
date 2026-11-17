@@ -17,10 +17,10 @@ export const DEFAULT_RATES = Object.freeze({ CNY: 0.14, HKD: 0.13 });
 export const RATE_PROVIDER = "open.er-api.com";
 
 /** USD-based quote endpoint (free, keyless; returns units per USD). */
-export const RATE_ENDPOINT = "https://open.er-api.com/v6/latest/USD";
+const RATE_ENDPOINT = "https://open.er-api.com/v6/latest/USD";
 
 /** Default network budget for the single rate lookup. */
-export const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 8000;
 
 /**
  * @typedef {object} ExchangeRateReport
