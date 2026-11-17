@@ -193,9 +193,10 @@ describe("fetchChartAsset", () => {
     expect(asset.chart.label).toBe("Zhipu (Z. AI Co., Ltd.)");
     expect(existsSync(asset.path)).toBe(true);
     expect(readFileSync(asset.path).subarray(0, 8)).toEqual(GOOD_PNG.subarray(0, 8));
-    // Charts opt out of the render-stage Real-ESRGAN pass (#1382: it drops
-    // tiles on line-art charts).
-    expect(asset.upscale).toBe(false);
+    // Charts must never reach the render-stage Real-ESRGAN pass (#1382: it
+    // drops tiles on line-art charts). They ask for the deterministic
+    // resample kernel instead (#1399), which keeps glyphs and tiles intact.
+    expect(asset.upscale).toBe("resample");
   });
 
   it("honors map defaults for omitted chart fields (single source of truth)", async () => {

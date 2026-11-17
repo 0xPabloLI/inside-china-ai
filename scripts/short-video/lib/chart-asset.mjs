@@ -452,16 +452,16 @@ function chartEntry({ entity, sceneId, body, path }) {
     // Deterministic asset — admitted by relevance-verdict "chart-pin", never
     // VLM-scored (see analyzeAssets exclusion in asset-sourcer main()).
     chartPin: true,
-    // Opt out of the render-stage auto-upscale: Real-ESRGAN is a photo SR
-    // model and DROPS TILES on line-art charts (2026-11-16 zhipu run: a good
-    // 800×600 fetch came out of the 2× pass with the mid-July~October candles
-    // and half the title blank — reproduced 100% locally). The probe in
-    // probeChartHydration catches this shape on FETCHED frames, but the
-    // corrupted one is written after the fetch, so the only safe seam is to
-    // not run charts through it: 800×600 already covers the 820×619 contain
-    // band (1.03×, invisible), and nearest/lanczos quality loss on candles
-    // would be preferable to lost tiles anyway.
-    upscale: false,
+    // Never the SR model: Real-ESRGAN is photo-oriented and DROPS TILES on
+    // line-art charts (2026-11-16 zhipu run: a good 800×600 fetch came out of
+    // the 2× pass with the mid-July~October candles and half the title blank —
+    // reproduced 100% locally). Instead ask for the deterministic kernel:
+    // `resample` scales 800×600 → 960×720 with Lanczos, which never invents a
+    // pixel and never drops a tile, and lands the image slightly above the
+    // 820×619 contain band so the compositor downsamples (crisper glyphs) rather
+    // than upsamples. The hydration probe keeps guarding the fetched frame
+    // either way (#1382, #1399).
+    upscale: "resample",
     chart: {
       ...body,
       label: entity.label,

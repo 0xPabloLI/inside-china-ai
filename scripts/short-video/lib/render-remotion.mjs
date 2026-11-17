@@ -308,12 +308,20 @@ export function renderRemotion({
         // Auto-upscale sub-720p assets before copying (only for adopted assets).
         // `upscale: false` is an asset's own opt-out of this safety net —
         // generated B-roll clips are 480×832 by design and must not be sent
-        // through per-frame Real-ESRGAN here.
+        // through per-frame Real-ESRGAN here. `upscale: "resample"` keeps the
+        // safety net but swaps the kernel: charts and screenshots carry glyphs
+        // the SR model rewrites (#1382 / #1399).
         let srcPath = mediaSrc;
         if (scene.media.upscale !== false) {
-          const upscaleResult = autoUpscaleIfNeeded(mediaSrc);
+          const strategy = scene.media.upscale === "resample" ? "resample" : undefined;
+          const upscaleResult = autoUpscaleIfNeeded(
+            mediaSrc,
+            undefined,
+            strategy ? { strategy } : {},
+          );
           if (upscaleResult.upscaled) {
-            console.log(`  📈 Upscaled: ${basename(upscaleResult.path)} → 720p`);
+            const how = upscaleResult.strategy === "resample" ? "resample" : "720p";
+            console.log(`  📈 Upscaled: ${basename(upscaleResult.path)} → ${how}`);
           }
           srcPath = upscaleResult.path;
         }

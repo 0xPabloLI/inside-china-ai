@@ -120,6 +120,21 @@ describe("media field schema (#836)", () => {
     expect(failures(results)).toHaveLength(0);
   });
 
+  it('accepts upscale:"resample" and FAILS an unknown strategy (#1399)', () => {
+    const ok = checkMediaFieldSchema([
+      mediaScene({ type: "image", path: "assets/chart.png", upscale: "resample" }),
+    ]);
+    expect(failures(ok)).toHaveLength(0);
+
+    const bad = checkMediaFieldSchema([
+      mediaScene({ type: "image", path: "assets/chart.png", upscale: "resampl" }),
+    ]);
+    const text = failureText(bad);
+    expect(text).toContain("upscale");
+    // The offending value must appear, so the operator can see the typo.
+    expect(text).toContain("resampl");
+  });
+
   it("FAILS evidence:true without provenance before render, not at the gate", () => {
     const results = checkMediaFieldSchema([
       mediaScene({ type: "image", path: "assets/x.png", evidence: true }),

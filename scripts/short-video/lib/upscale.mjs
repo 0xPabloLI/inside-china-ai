@@ -1,18 +1,26 @@
 /**
- * Upscale — Real-ESRGAN super-resolution integration.
+ * Upscale — two strategies for sub-720p media.
  *
- * Automatically upscales sub-720p video/image assets to 720p using
- * Real-ESRGAN ncnn-vulkan (Metal/Vulkan, no PyTorch needed).
+ * 1. `sr` (default) — Real-ESRGAN ncnn-vulkan (Metal/Vulkan, no PyTorch).
+ *    Photo-oriented: it invents detail, and with `-t 256` tiling it drops
+ *    tiles. Correct for camera footage, wrong for line art (#1382).
+ * 2. `resample` — ffmpeg scale with a deterministic kernel (Lanczos default).
+ *    Never invents pixels, never drops tiles. This is the right tool whenever
+ *    the asset must keep its glyphs (charts, screenshots, UI captures).
  *
- * Standalone module: import autoUpscaleIfNeeded() from asset-sourcer or
- * any pipeline script.
+ * Standalone module: import autoUpscaleIfNeeded() / resampleImage() from
+ * asset-sourcer or any pipeline script. CLI:
+ *
+ *   node scripts/short-video/lib/upscale.mjs --resample in.png [out.png] \
+ *        [--short-side 1024] [--filter lanczos]
  *
  * @module upscale
  */
 
-import { existsSync, mkdirSync, rmSync } from "fs";
+import { existsSync, mkdirSync, realpathSync, rmSync } from "fs";
 import { join, dirname, basename, extname } from "path";
 import { execFileSync, execSync, spawnSync } from "child_process";
+import { fileURLToPath } from "url";
 import { homedir, tmpdir } from "os";
 import { FFMPEG_BIN, FFPROBE_BIN } from "./ffmpeg-bins.mjs";
 
@@ -161,6 +169,116 @@ export function buildUpscaledPath(inputPath) {
   const ext = extname(inputPath);
   const base = basename(inputPath, ext);
   return join(dir, `${base}-upscaled${ext}`);
+}
+
+/**
+ * Build the output path for a resampled file.
+ *
+ * A distinct suffix on purpose: `-upscaled` means "went through the SR model",
+ * `-resampled` means "scaled with an interpolation kernel". Telling them apart
+ * matters when debugging a corrupted asset — the two fail in different ways.
+ *
+ * @param {string} inputPath - Original file path
+ * @returns {string} Path with -resampled suffix
+ */
+export function buildResampledPath(inputPath) {
+  const ext = extname(inputPath);
+  // Plain string surgery, not `path.join`: the only operation is "insert a
+  // fixed suffix before the extension", which cannot traverse anywhere
+  // (`extname`/`basename` never carry a separator out). `path.join` on the
+  // same expression is a Semgrep taint sink, and that rule — taint mode —
+  // ignores `// nosemgrep` (see path-safety.mjs); dropping the sink beats
+  // hiding the finding.
+  const stem = inputPath.slice(0, inputPath.length - ext.length);
+  return `${stem}-resampled${ext}`;
+}
+
+/** Interpolation kernels accepted by resampleImage (ffmpeg `scale` flags). */
+export const RESAMPLE_FILTERS = new Set(["lanczos", "bicubic", "bilinear"]);
+
+/** Strategies `autoUpscaleIfNeeded` accepts — the photo path and the deterministic one. */
+export const UPSCALE_STRATEGIES = new Set(["sr", "resample"]);
+
+/**
+ * Upscale an image with a deterministic interpolation kernel.
+ *
+ * Why this exists: Real-ESRGAN is a photo SR model. On line-art charts it
+ * rewrites glyphs and — with `-t 256` tiling — silently drops tiles (2026-11-16
+ * zhipu run: a good 800×600 fetch came back with the title's middle and the
+ * mid-run candles blank; reproduced 100% locally). A resample kernel cannot do
+ * either: same pixels in, a bigger grid out, no invented content.
+ *
+ * What it does NOT do, stated so nobody re-litigates it: it adds no detail. If
+ * an asset genuinely needs more detail than the source carries, that is a
+ * re-fetch at a higher resolution — not a bigger interpolation.
+ *
+ * @param {string} inputPath - Image path (png/jpg/webp)
+ * @param {Object} [options]
+ * @param {number} [options.targetShortSide=720] - Target short side in px
+ * @param {string} [options.filter="lanczos"] - One of RESAMPLE_FILTERS
+ * @param {string} [options.outputPath] - Defaults to buildResampledPath()
+ * @returns {{ success: boolean, path?: string, from?: {width:number,height:number},
+ *   to?: {width:number,height:number}, scale?: number, error?: string }}
+ */
+export function resampleImage(
+  inputPath,
+  { targetShortSide = DEFAULT_TARGET_SHORT_SIDE, filter = "lanczos", outputPath } = {},
+) {
+  if (!RESAMPLE_FILTERS.has(filter)) {
+    return { success: false, error: `unsupported resample filter: ${filter}` };
+  }
+
+  const res = checkResolution(inputPath);
+  if (!res.width || !res.height) {
+    return { success: false, error: `cannot probe resolution of ${basename(inputPath)}` };
+  }
+  if (res.isVideo) {
+    return { success: false, error: "resampleImage handles images only — use upscaleVideo" };
+  }
+
+  const shortSide = Math.min(res.width, res.height);
+  if (shortSide >= targetShortSide) {
+    return {
+      success: false,
+      error: `already ${shortSide}px on the short side (target ${targetShortSide})`,
+    };
+  }
+
+  const scale = targetShortSide / shortSide;
+  // Even dimensions: odd sizes make the contain-band fit land on half pixels and
+  // break yuv encoders downstream.
+  const width = Math.round((res.width * scale) / 2) * 2;
+  const height = Math.round((res.height * scale) / 2) * 2;
+  const outPath = outputPath ?? buildResampledPath(inputPath);
+
+  // argv, never a shell line: the path is package-controlled but the rule is
+  // absolute (#1003).
+  const args = ["-v", "error", "-i", inputPath, "-vf", `scale=${width}:${height}:flags=${filter}`];
+  // PNG keeps alpha; jpeg has no alpha channel and rejects rgba outright.
+  if (extname(outPath).toLowerCase() === ".png") args.push("-pix_fmt", "rgba");
+  args.push("-frames:v", "1", "-y", outPath);
+
+  try {
+    execFileSync(FFMPEG_PATH, args, {
+      encoding: "utf8",
+      timeout: 60000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch (e) {
+    return { success: false, error: e.message?.substring(0, 200) || "ffmpeg resample failed" };
+  }
+
+  if (!existsSync(outPath)) {
+    return { success: false, error: `ffmpeg reported success but wrote no ${basename(outPath)}` };
+  }
+
+  return {
+    success: true,
+    path: outPath,
+    from: { width: res.width, height: res.height },
+    to: { width, height },
+    scale,
+  };
 }
 
 // ─── Upscale functions ───
@@ -409,14 +527,44 @@ export function upscaleImage(inputPath, outputPath, targetShortSide = DEFAULT_TA
  *
  * @param {string} filePath - Path to media file
  * @param {number} [targetShortSide=720] - Target short side resolution
- * @returns {{ upscaled: boolean, path: string, error?: string }}
+ * @param {Object} [options]
+ * @param {"sr"|"resample"} [options.strategy="sr"] - `resample` keeps glyphs
+ *   (charts/screenshots) at the cost of inventing nothing; `sr` is the photo
+ *   path. Videos always take `sr` — resample is single-frame.
+ * @returns {{ upscaled: boolean, path: string, strategy?: string, error?: string }}
  */
-export function autoUpscaleIfNeeded(filePath, targetShortSide = DEFAULT_TARGET_SHORT_SIDE) {
+export function autoUpscaleIfNeeded(
+  filePath,
+  targetShortSide = DEFAULT_TARGET_SHORT_SIDE,
+  options = {},
+) {
+  // A typo must not degrade into the SR model. Both seams (`media-track.mjs`,
+  // `render-remotion.mjs`) derive this from `scene.media.upscale`, so a closed
+  // set here + the preflight check in media-field-schema.mjs means an unknown
+  // strategy can only come from a code path, and that is a bug, not a fallback.
+  if (options.strategy !== undefined && !UPSCALE_STRATEGIES.has(options.strategy)) {
+    throw new Error(
+      `autoUpscaleIfNeeded: unknown strategy ${JSON.stringify(options.strategy)} — expected "sr" or "resample"`,
+    );
+  }
+
   const res = checkResolution(filePath);
 
   // No upscale needed
   if (!res.needsUpscale) {
     return { upscaled: false, path: filePath };
+  }
+
+  // Deterministic path: an explicit opt-in per asset (`upscale: "resample"`).
+  if (options.strategy === "resample" && !res.isVideo) {
+    const resampled = resampleImage(filePath, { targetShortSide, filter: options.filter });
+    if (resampled.success) {
+      return { upscaled: true, path: resampled.path, strategy: "resample" };
+    }
+    // No silent fallback into the SR model: the caller asked for glyph fidelity,
+    // and Real-ESRGAN is exactly what destroys it.
+    console.warn(`  ⚠️  Resample failed: ${resampled.error}`);
+    return { upscaled: false, path: filePath, error: resampled.error };
   }
 
   // Build output path
@@ -431,10 +579,70 @@ export function autoUpscaleIfNeeded(filePath, targetShortSide = DEFAULT_TARGET_S
   }
 
   if (result.success) {
-    return { upscaled: true, path: result.path };
+    return { upscaled: true, path: result.path, strategy: "sr" };
   }
 
   // Upscale failed — degrade to original
   console.warn(`  ⚠️  Upscale failed: ${result.error}`);
   return { upscaled: false, path: filePath, error: result.error };
+}
+
+// ─── CLI ───
+
+/**
+ * Ad-hoc resample entry point — for one-off assets that are not part of a
+ * content package (a screenshot for a post, a supplier image, etc.).
+ *
+ *   node scripts/short-video/lib/upscale.mjs --resample in.png [out.png] \
+ *        [--short-side 1024] [--filter lanczos]
+ *
+ * @returns {number} process exit code
+ */
+function main(argv) {
+  const args = argv.slice(2);
+  const resampleAt = args.indexOf("--resample");
+  if (resampleAt === -1) {
+    console.error(
+      "usage: node upscale.mjs --resample <input> [output] [--short-side N] [--filter lanczos|bicubic|bilinear]",
+    );
+    return 2;
+  }
+
+  const flagValue = (name, fallback) => {
+    const i = args.indexOf(name);
+    return i !== -1 && args[i + 1] ? args[i + 1] : fallback;
+  };
+  const input = args[resampleAt + 1];
+  if (!input || input.startsWith("--")) {
+    console.error("--resample needs an input path");
+    return 2;
+  }
+  // Positional output = first bare argument after the input that is not a flag
+  // and not a flag's value.
+  const flagValues = new Set([flagValue("--short-side", null), flagValue("--filter", null)]);
+  const output = args
+    .slice(resampleAt + 2)
+    .find(
+      (a, i, all) => !a.startsWith("--") && !flagValues.has(a) && !all[i - 1]?.startsWith("--"),
+    );
+
+  const result = resampleImage(input, {
+    targetShortSide: Number(flagValue("--short-side", DEFAULT_TARGET_SHORT_SIDE)),
+    filter: flagValue("--filter", "lanczos"),
+    ...(output ? { outputPath: output } : {}),
+  });
+
+  if (!result.success) {
+    console.error(`✗ ${result.error}`);
+    return 1;
+  }
+  console.log(
+    `✓ ${basename(result.path)} — ${result.from.width}×${result.from.height} → ` +
+      `${result.to.width}×${result.to.height} (${result.scale.toFixed(2)}×, resample)`,
+  );
+  return 0;
+}
+
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exit(main(process.argv));
 }

@@ -1501,8 +1501,11 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
       // chartEntry's upscale opt-out must survive into scene.media — the
       // render-stage safety net reads media.upscale, not the entry (#1382:
-      // Real-ESRGAN drops tiles on line-art charts).
+      // Real-ESRGAN drops tiles on line-art charts). A string value is a
+      // strategy request (`"resample"` = deterministic kernel, #1399); `false`
+      // stays the full opt-out.
       if (asset.upscale === false) media.upscale = false;
+      else if (typeof asset.upscale === "string") media.upscale = asset.upscale;
       if (isVideo && VOLUME_RECOMMENDATIONS[vt]) media.volume = VOLUME_RECOMMENDATIONS[vt].video;
 
       result.push({

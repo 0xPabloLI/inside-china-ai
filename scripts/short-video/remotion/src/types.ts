@@ -54,8 +54,14 @@ export interface MediaField {
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;
   volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
-  /** Opt out of render-remotion.mjs's sub-720p Real-ESRGAN safety net. Set by the B-roll stage — Tier A clips are 480×832 by design. Default (unset/true) = auto-upscale. */
-  upscale?: boolean;
+  /**
+   * Controls the sub-720p upscale safety net. `false` opts out entirely (set by
+   * the B-roll stage — Tier A clips are 480×832 by design). `"resample"` keeps
+   * the net but swaps Real-ESRGAN for the deterministic kernel: charts and
+   * screenshots carry glyphs the SR model rewrites, and its `-t 256` tiling
+   * drops tiles outright (#1399). Default (unset/true) = the photo path.
+   */
+  upscale?: boolean | "resample";
   /** #360: start offset into the source video, ms (int ≥ 0, absent = 0). Consumed by MediaBackground to begin playback at the offset. Not produced by the pipeline (manual scene-data / patch only). */
   videoStartOffsetMs?: number;
   /** #759: marks this media as Evidence Media — the capture that carries the asserted fact itself. The final media gate then requires `provenance`. Only the boolean `true` marks; `null`/`false`/absent mean "not evidence", any other value fails the gate. */

@@ -154,6 +154,20 @@ export function validatePatchEntry(entry, scenes, contentDir) {
     }
   }
 
+  // #1399: `upscale` is `boolean | "resample"` now. Reject anything else here
+  // rather than letting the formatter throw mid-write: a typo would otherwise
+  // land as a successful-looking patch that the render stage reads as "photo
+  // path" and sends chart glyphs through Real-ESRGAN.
+  if (
+    entry.media.upscale !== undefined &&
+    typeof entry.media.upscale !== "boolean" &&
+    entry.media.upscale !== "resample"
+  ) {
+    errors.push(
+      `Invalid upscale: ${JSON.stringify(entry.media.upscale)}. Must be true, false or "resample".`,
+    );
+  }
+
   // #758: a patch is the writer that used to silently drop evidence and
   // provenance, so it must not accept a declaration the final gate would
   // reject. The pixel reconciliation is NOT here — no file bytes are read at
