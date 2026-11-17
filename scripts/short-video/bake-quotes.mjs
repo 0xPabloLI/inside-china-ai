@@ -14,7 +14,14 @@
  * The two sources are compared field by field inside `quote-fetch.mjs`; this
  * CLI only decides *where* the result lands and whether anything changed.
  */
-import { existsSync, readFileSync, renameSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  mkdirSync,
+  writeFileSync,
+} from "node:fs";
 import { join, dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchDailyOhlc, toHongKongDate } from "./lib/quote-fetch.mjs";
@@ -27,7 +34,7 @@ const positional = args.filter((arg) => !arg.startsWith("--"));
 /** Only run when invoked directly (see implementation-workflow §12 on guards). */
 const isMain = (() => {
   try {
-    return process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+    return process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
   } catch {
     return false;
   }
