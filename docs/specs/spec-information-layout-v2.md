@@ -104,7 +104,7 @@ Rules:
 Three tiers:
 
 - **L0 static contracts**: `checkInfoSpec`, render fixtures, text fit, source/unit. Must be green before L1.
-- **L1 internal blind pairwise review**: `experiment-review.mjs` builds a static HTML packet from still pairs, randomizes left/right by seed, records four 1–7 dimensions (clarity, credibility, memorability, hierarchy), exports JSON. No external panel in v1.
+- **L1 internal blind pairwise review**: `experiment-review.mjs` builds a static HTML packet from still pairs, randomizes left/right by seed, records four 1–7 dimensions (clarity, credibility, memorability, hierarchy), exports JSON. `--analyze <export.json>` joins that export with `key.json` and reports the A−B difference per dimension with a seeded bootstrap CI, sign / Wilcoxon p-values, preference votes with a Wilson interval, and ICC(2,1) once there are two or more raters (a single rater has no agreement to measure). Below 8 pairs the report stays descriptive. No external panel in v1.
 - **L2 organic matched-pair field test**: `experiment.mjs` pre-registers, assigns variants by hash within a topic block, ingests TikTok details, runs paired permutation / Wilcoxon / bootstrap, reports MDE and limitations.
 
 Field-test protocol:
@@ -168,13 +168,14 @@ Field-test protocol:
 2. `02-native-charts`: info grammar + schema + 6 native chart components + `data.chart` + gates + fixtures + 4 pack migrations.
 3. `03-narrative-attention`: narrative/attention gates + `arcRole` + advisory wiring + real-pack audit.
 4. `04-evidence-author-docs`: research doc + author guide + brand-system chart section + docs index.
-5. `05-migration-blind-review`: remaining pack migrations + blind-review packet + report.
+5. `05-migration-blind-review`: remaining pack migrations + blind-review packet + report. The blind-review half runs as sub-issue #1406 (scoring plus `report.json`); the migration half stays local.
 
-Tickets are local until GitHub sub-issues are authorized. Each ticket is a vertical slice with its own demo and acceptance.
+Tickets stayed local while GitHub sub-issues were unauthorised; the blind-review half now runs as native sub-issue #1406 under #1398. Each ticket is a vertical slice with its own demo and acceptance.
 
 ## Delivery Status（2026-11-16）
 
 - **已落地**：`scene.info` + `data.chart` + 6 个原生图表；`checkInfoSpec`（FAIL）、`checkChartPinContract`（FAIL）、`checkChartClaimAgreement` / `checkNarrativeArc` / `checkAttentionBudget`（advisory）；布局签名与发布元数据；实验 CLI；盲评包生成。
+- **盲评分析入口（2026-11-17 补）**：`experiment-review.mjs --analyze` 已落地——变体映射走 `key.json`，四维 A−B + 种子化 bootstrap CI + sign/Wilcoxon + 偏好 Wilson 区间；≥2 位评分者自动补 ICC(2,1)，单人记 `n/a`，n<8 只出描述性结论。评分与报告的执行范围登记为子票 **#1406**。
 - **真实包**：49 个 content pack 新增门禁 0 FAIL；45 个包无 `arcRole`（advisory），4 个包连续 3 个同版式信息镜（advisory）。4 个迁移包 `kimi-ipo` / `deepinfer` / `china-us-token-divide` / `zhipu-valuation` 的 `verify-video --pre` 均为 0 FAIL；`checkChartClaimAgreement` 对 Kimi 时间窗和 DeepInfer 的「nearly in half」各给 1 条 advisory（未改文案）。
 - **盲评**：`output/experiments/info-layout-v2-blind-review/index.html` 已生成 6 对（seed 20261116，左右随机），`key.json` 只在分析师侧。**人类评分尚未收集**；ICC、win rate 与「原生图表更好」的结论均未产生。
 - **未完成**：S5 的 ≥6 对离线盲评需要评审实际打分；L2 有机配对实验需要发布 20 对（约 10 周）。本 spec 不把待收集数据写成结果。
