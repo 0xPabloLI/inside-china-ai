@@ -1,7 +1,7 @@
 export const meta = {
   subject: "zhipu",
   pipelineId: "zhipu-valuation",
-  title: "Zhipu Loses 80% in Five Months",
+  title: "Zhipu Loses 85% in Five Months",
   article: "zhipu-hong-kong-valuation-2026-11-12",
   renderer: "remotion",
   createdAt: "2026-11-13",
