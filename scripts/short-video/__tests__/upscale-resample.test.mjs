@@ -84,6 +84,25 @@ describe("resampleImage — deterministic kernel", () => {
     expect(buildResampledPath(input)).toBe("/tmp/chart-img-zhipu-s1-resampled.png");
     expect(buildUpscaledPath(input)).toBe("/tmp/chart-img-zhipu-s1-upscaled.png");
   });
+
+  it("builds the sibling path without a path.join sink (Semgrep taint rule)", () => {
+    // Relative input must work too: the asset registry hands over paths that
+    // are sometimes repo-relative, and `path.join` here was the one construct
+    // the scanner flagged on this file.
+    expect(buildResampledPath("content/x/assets/chart.png")).toBe(
+      "content/x/assets/chart-resampled.png",
+    );
+    expect(buildResampledPath("assets/no-ext")).toBe("assets/no-ext-resampled");
+  });
+
+  it("refuses an unknown strategy instead of degrading to the SR model", () => {
+    // Both render seams spell the dispatch as a ternary, so a typo would take
+    // the destructive path silently — that is the one outcome this function
+    // must never produce (#1399 review).
+    expect(() => autoUpscaleIfNeeded("/tmp/whatever.png", 720, { strategy: "resampl" })).toThrow(
+      /unknown strategy/,
+    );
+  });
 });
 
 describe.skipIf(!hasFfmpegTools)("resampleImage — real ffmpeg", () => {

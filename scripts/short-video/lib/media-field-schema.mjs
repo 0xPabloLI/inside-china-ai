@@ -125,6 +125,26 @@ export function checkMediaFieldSchema(scenes) {
       });
     }
 
+    // `upscale` gained a second, non-boolean member in #1399. Both render seams
+    // spell the dispatch as `upscale === "resample" ? … : undefined`, so a
+    // mistyped string ("resampl") silently falls through to Real-ESRGAN — the
+    // exact path that rewrites chart glyphs. Catch it at preflight, where the
+    // declared value is still visible.
+    if (
+      media.upscale !== undefined &&
+      media.upscale !== true &&
+      media.upscale !== false &&
+      media.upscale !== "resample"
+    ) {
+      results.push({
+        level: "fail",
+        category: "Media",
+        check: `Media field schema: Scene ${scene.id} upscale is a known strategy`,
+        detail: `media.upscale must be true, false or "resample", got ${shown(media.upscale)} (${typeof media.upscale}) — any other value falls through to the Real-ESRGAN path`,
+        fix: 'Use `upscale: false` to opt out, `upscale: "resample"` for glyph-safe charts/screenshots, or drop the field.',
+      });
+    }
+
     if (media.evidence === true && !media.provenance) {
       results.push({
         level: "fail",

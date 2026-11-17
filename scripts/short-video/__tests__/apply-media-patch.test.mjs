@@ -731,6 +731,35 @@ describe("validatePatchEntry — videoStartOffsetMs (#360 S9)", () => {
   });
 });
 
+// ─── #1399: `upscale` gained the "resample" member ───
+
+describe("#1399 upscale strategy survives the patch writer", () => {
+  // Root apply-media-patch.mjs (the CLI applier), not the lib/ formatter.
+  const validatePatchEntry = validateCliPatchEntry;
+  const SCENES = [{ id: 1, visualType: "narrative" }];
+  const entry = (media) => ({ sceneId: 1, status: "assigned", media });
+
+  it('accepts the "resample" string, not just booleans', () => {
+    const r = validatePatchEntry(
+      entry({ type: "image", path: "assets/chart.png", upscale: "resample" }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.valid).toBe(true);
+  });
+
+  it("rejects an unknown strategy instead of letting it fall through to the SR path", () => {
+    const r = validatePatchEntry(
+      entry({ type: "image", path: "assets/chart.png", upscale: "resampl" }),
+      SCENES,
+      "/fake/content",
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("upscale") && e.includes("resample"))).toBe(true);
+  });
+});
+
 // ─── #649: apply-media-patch ↔ review-media-patch 双实现漂移统一与 cropFocus ───
 
 describe("#649 media patch formatting unification and cropFocus preservation", () => {
@@ -1512,6 +1541,20 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       expect(result.modifiedContent).toMatch(new RegExp(`\\b${key}:`));
     }
     expect(result.modifiedContent).toContain('subjects: ["Alpha","Beta"],');
+  });
+
+  it('writes `upscale: "resample"` — the value every chart asset carries (#1399)', () => {
+    const text = sceneFile(["  {", "    id: 12,", '    voiceover: "x",', "  },"].join("\n"));
+
+    const result = applyPatchesToText(text, [
+      {
+        sceneId: 12,
+        media: { type: "image", path: "assets/chart.png", upscale: "resample" },
+      },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.modifiedContent).toContain('upscale: "resample",');
   });
 
   it("rewrites a scene written on one line into importable scene-data", async () => {

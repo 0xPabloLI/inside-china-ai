@@ -196,6 +196,20 @@ function booleanField(name, value) {
   return String(value);
 }
 
+/**
+ * `scene.media.upscale` is `boolean | "resample"` (#1399): `false` opts out of
+ * the sub-720p safety net, `"resample"` keeps it but swaps Real-ESRGAN for the
+ * deterministic kernel. A `booleanField` here threw on the string, so a chart
+ * asset carrying `upscale: "resample"` could not be written back through a
+ * patch at all. `media.backdrop.upscale` stays boolean-only: B-roll is video,
+ * and resample is single-frame.
+ */
+function upscaleField(name, value) {
+  if (typeof value === "boolean") return String(value);
+  if (value === "resample") return JSON.stringify(value);
+  throw new Error(`media.${name} must be a boolean or "resample", got ${shown(value)}`);
+}
+
 function formatBackdrop(backdrop) {
   if (!isPlainObject(backdrop)) {
     throw new Error(`media.backdrop must be an object, got ${shown(backdrop)}`);
@@ -288,7 +302,7 @@ export function formatMediaObject(media, propertyIndent = "  ", options = {}) {
   if (includeDeprecatedFocus && media.focus !== undefined)
     lines.push(`${fieldIndent}focus: ${stringField("focus", media.focus)},`);
   if (media.upscale !== undefined)
-    lines.push(`${fieldIndent}upscale: ${booleanField("upscale", media.upscale)},`);
+    lines.push(`${fieldIndent}upscale: ${upscaleField("upscale", media.upscale)},`);
   if (media.evidence === true || media.evidence === false || media.evidence === null) {
     lines.push(`${fieldIndent}evidence: ${JSON.stringify(media.evidence)},`);
   }

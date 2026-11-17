@@ -162,9 +162,10 @@ export async function runMediaTrack({
       for (const scene of scenes) {
         if (!scene.media?.path) continue;
         // `upscale: false` is an asset's own opt-out of this safety net (#425,
-        // mirrors render-remotion.mjs:246). `upscale: "resample"` keeps the
-        // safety net with a deterministic kernel (charts/screenshots: glyphs
-        // must not be rewritten by the SR model, #1399).
+        // mirrors the same check in render-remotion.mjs's media copy loop).
+        // `upscale: "resample"` keeps the safety net with a deterministic
+        // kernel (charts/screenshots: glyphs must not be rewritten by the SR
+        // model, #1399).
         if (scene.media.upscale === false) continue;
         const mediaPath = resolve(contentDirAbs, scene.media.path);
         const strategy = scene.media.upscale === "resample" ? "resample" : undefined;

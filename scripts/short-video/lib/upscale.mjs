@@ -182,13 +182,22 @@ export function buildUpscaledPath(inputPath) {
  * @returns {string} Path with -resampled suffix
  */
 export function buildResampledPath(inputPath) {
-  const dir = dirname(inputPath);
   const ext = extname(inputPath);
-  return join(dir, `${basename(inputPath, ext)}-resampled${ext}`);
+  // Plain string surgery, not `path.join`: the only operation is "insert a
+  // fixed suffix before the extension", which cannot traverse anywhere
+  // (`extname`/`basename` never carry a separator out). `path.join` on the
+  // same expression is a Semgrep taint sink, and that rule — taint mode —
+  // ignores `// nosemgrep` (see path-safety.mjs); dropping the sink beats
+  // hiding the finding.
+  const stem = inputPath.slice(0, inputPath.length - ext.length);
+  return `${stem}-resampled${ext}`;
 }
 
 /** Interpolation kernels accepted by resampleImage (ffmpeg `scale` flags). */
 export const RESAMPLE_FILTERS = new Set(["lanczos", "bicubic", "bilinear"]);
+
+/** Strategies `autoUpscaleIfNeeded` accepts — the photo path and the deterministic one. */
+export const UPSCALE_STRATEGIES = new Set(["sr", "resample"]);
 
 /**
  * Upscale an image with a deterministic interpolation kernel.
@@ -529,6 +538,16 @@ export function autoUpscaleIfNeeded(
   targetShortSide = DEFAULT_TARGET_SHORT_SIDE,
   options = {},
 ) {
+  // A typo must not degrade into the SR model. Both seams (`media-track.mjs`,
+  // `render-remotion.mjs`) derive this from `scene.media.upscale`, so a closed
+  // set here + the preflight check in media-field-schema.mjs means an unknown
+  // strategy can only come from a code path, and that is a bug, not a fallback.
+  if (options.strategy !== undefined && !UPSCALE_STRATEGIES.has(options.strategy)) {
+    throw new Error(
+      `autoUpscaleIfNeeded: unknown strategy ${JSON.stringify(options.strategy)} — expected "sr" or "resample"`,
+    );
+  }
+
   const res = checkResolution(filePath);
 
   // No upscale needed
