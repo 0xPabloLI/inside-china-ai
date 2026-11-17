@@ -72,7 +72,30 @@ describe("checkFocusLight — content binding", () => {
       },
     ]);
     expect(warns(rows)).toEqual([]);
-    expect(rows[0].detail).toContain("1 fullscreen media scene(s) skipped");
+    expect(rows[0].detail).toContain("1 fullscreen/chart scene(s) skipped");
+  });
+
+  it("skips native chart scenes — the chart panel is the subject", () => {
+    const rows = checkFocusLight([
+      {
+        ...base,
+        id: 8,
+        visualType: "data",
+        layout: "chart",
+        texts: { label: "TOKENS", subtext: "120M", source: "SOURCE" },
+        info: {
+          relationship: "magnitude",
+          chart: "bar",
+          data: [
+            { label: "A", value: 1 },
+            { label: "B", value: 2 },
+          ],
+          unit: "%",
+        },
+      },
+    ]);
+    expect(warns(rows)).toEqual([]);
+    expect(rows[0].detail).toContain("1 fullscreen/chart scene(s) skipped");
   });
 
   it("ignores visualTypes outside the renderer's dispatch table", () => {

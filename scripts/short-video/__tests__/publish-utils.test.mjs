@@ -176,6 +176,34 @@ describe("buildManualPendingAnalysis", () => {
     expect(result.status).toBe("pending");
     expect(buildManualPendingAnalysis({ publishedAt }).publishMethod).toBe("manual-guide");
   });
+
+  it("carries the layout identity for experiment attribution (#1398)", () => {
+    const result = buildManualPendingAnalysis({
+      slug: "kimi-ipo",
+      publishedAt,
+      layoutSignature: "abc123def456",
+      infoLayoutVersion: "v2",
+      experimentId: "info-layout-v1",
+      variant: "A",
+    });
+    expect(result).toMatchObject({
+      slug: "kimi-ipo",
+      layoutSignature: "abc123def456",
+      infoLayoutVersion: "v2",
+      experimentId: "info-layout-v1",
+      variant: "A",
+    });
+    expect(result.layoutSignature).not.toBeUndefined();
+    expect(result.experimentId).not.toBeUndefined();
+  });
+
+  it("keeps the new identity fields present but null when unknown", () => {
+    const result = buildManualPendingAnalysis({ publishedAt });
+    expect(result.layoutSignature).toBeNull();
+    expect(result.infoLayoutVersion).toBeNull();
+    expect(result.experimentId).toBeNull();
+    expect(result.variant).toBeNull();
+  });
 });
 
 // ─── buildPendingAnalysis (ISSUE-19) ───
@@ -206,6 +234,25 @@ describe("buildPendingAnalysis", () => {
     const result = buildPendingAnalysis("grp", "2026-08-03T12:00:00Z");
     expect(new Date(result.publishedAt).toString()).not.toBe("Invalid Date");
     expect(new Date(result.suggestedAnalysisTime).toString()).not.toBe("Invalid Date");
+  });
+
+  it("carries optional layout identity without changing core keys (#1398)", () => {
+    const result = buildPendingAnalysis("grp", "2026-08-03T12:00:00Z", {
+      slug: "kimi-ipo",
+      layoutSignature: "abc123def456",
+      infoLayoutVersion: "v2",
+      experimentId: "info-layout-v1",
+      variant: "B",
+    });
+    expect(result.postGroupId).toBe("grp");
+    expect(result.status).toBe("pending");
+    expect(result).toMatchObject({
+      slug: "kimi-ipo",
+      layoutSignature: "abc123def456",
+      infoLayoutVersion: "v2",
+      experimentId: "info-layout-v1",
+      variant: "B",
+    });
   });
 });
 

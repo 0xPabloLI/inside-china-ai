@@ -359,6 +359,125 @@ const BASELINE_SCENES: Record<string, SceneData> = {
       ],
     },
   },
+  // #1398 native chart baselines: one legal scene per native chart, plus a
+  // deviation bar to pin its non-zero baseline. The grammar gate covers bad
+  // data before the render; these scenes prove the panel, labels and highlight
+  // survive the real Chromium gate at 1080×1920.
+  "topology-chart-bar": {
+    id: 48,
+    visualType: "data",
+    layout: "chart",
+    voiceover: "Kimi leads the round at fifty billion dollars, followed by Zhipu and MiniMax.",
+    texts: {
+      label: "VALUATION, $B",
+      subtext: "KIMI LEADS THE PRIVATE ROUND",
+      source: "COMPANY FILINGS, Q3 2026",
+    },
+    info: {
+      relationship: "magnitude",
+      chart: "bar",
+      data: [
+        { label: "KIMI", value: 50 },
+        { label: "ZHIPU", value: 35 },
+        { label: "MINIMAX", value: 28 },
+        { label: "DEEPSEEK", value: 20 },
+      ],
+      unit: "B",
+      prefix: "$",
+      highlight: "KIMI",
+    },
+  },
+  "topology-chart-deviation": {
+    id: 52,
+    visualType: "data",
+    layout: "chart",
+    voiceover: "Q1 prints 96 against a 100 baseline; Q2 prints 104.",
+    texts: {
+      label: "DEVIATION VS 100",
+      subtext: "Q1 / Q2, PERCENT OF BASELINE",
+      source: "COMPANY FILINGS, Q3 2026",
+    },
+    info: {
+      relationship: "deviation",
+      chart: "bar",
+      baseline: 100,
+      data: [
+        { label: "Q1", value: 96 },
+        { label: "Q2", value: 104, highlight: true },
+      ],
+      unit: "%",
+    },
+  },
+  "topology-chart-line": {
+    id: 49,
+    visualType: "data",
+    layout: "chart",
+    voiceover: "Valuation moved from thirty-five billion in January to fifty billion in October.",
+    texts: {
+      label: "VALUATION, $B",
+      subtext: "SIX-MONTH REPRICING",
+      source: "PENGPAI, OCTOBER 2026",
+    },
+    info: {
+      relationship: "change-over-time",
+      chart: "line",
+      data: [
+        { label: "JAN", value: 35 },
+        { label: "APR", value: 41 },
+        { label: "JUL", value: 47 },
+        { label: "OCT", value: 50, highlight: true },
+      ],
+      unit: "B",
+      prefix: "$",
+      time: { from: "2026-01", to: "2026-10" },
+    },
+  },
+  "topology-chart-slope": {
+    id: 50,
+    visualType: "data",
+    layout: "chart",
+    voiceover: "Kimi and Zhipu each slipped one place, while MiniMax moved up.",
+    texts: {
+      label: "RANK CHANGE",
+      subtext: "PRIVATE VALUATION RANK, 2025 TO 2026",
+      source: "COMPANY FILINGS",
+    },
+    info: {
+      relationship: "ranking",
+      chart: "slope",
+      data: [
+        { label: "KIMI", value: 2, value2: 3 },
+        { label: "ZHIPU", value: 1, value2: 2 },
+        { label: "MINIMAX", value: 3, value2: 1 },
+      ],
+      unit: "RANK",
+      highlight: "MINIMAX",
+      axisLabels: ["2025", "2026"],
+    },
+  },
+  "topology-chart-proportion": {
+    id: 51,
+    visualType: "data",
+    layout: "chart",
+    voiceover:
+      "Cloud is half the spend, models a quarter, chips fifteen percent, and the rest is other.",
+    texts: {
+      label: "WHERE THE BUDGET GOES",
+      subtext: "SHARE OF 2026 AI SPEND",
+      source: "IDC, 2026",
+    },
+    info: {
+      relationship: "part-to-whole",
+      chart: "proportion-bar",
+      data: [
+        { label: "CLOUD", value: 50, highlight: true },
+        { label: "MODELS", value: 25 },
+        { label: "CHIPS", value: 15 },
+        { label: "OTHER", value: 10 },
+      ],
+      unit: "%",
+    },
+  },
   // #255 incident replay: deepseek-v41-flash-report's real hook shape —
   // two stat cards + a source line with lowercase DESCENDERS ("p" in
   // "DeepSeek"). The support band's bottom edge coincides with the content

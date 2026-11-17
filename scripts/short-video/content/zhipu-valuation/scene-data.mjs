@@ -24,6 +24,7 @@ export const scenes = [
     // its own band (y 410-1029) and drops the number to the bottom strip at
     // 112px (see docs/content-pipeline.md → 8b-3).
     layout: "media-led",
+    arcRole: "establisher",
     hookFamily: "result-first",
     voiceover:
       // "in June" leads the sentence: the currency dual-annotation makes the
@@ -55,6 +56,7 @@ export const scenes = [
     name: "close",
     visualType: "stat-reveal",
     layout: "hero-center",
+    arcRole: "initial",
     voiceover:
       "That is 80 percent gone in five months for China's most watched AI listing, according to HKEX closes.",
     texts: {
@@ -66,25 +68,36 @@ export const scenes = [
   {
     id: 3,
     name: "one-day",
-    visualType: "contrast",
-    layout: "split",
+    visualType: "data",
+    layout: "chart",
+    arcRole: "initial",
     voiceover:
       "On November 12 Hang Seng Tech fell 2.36 percent. Zhipu fell almost four times that.",
     texts: {
-      title: "NOV 12",
-      left: ["HANG SENG TECH", "-2.36%"],
-      right: ["ZHIPU", "-9.05%"],
-      vs: "VS",
-      note: "ALMOST 4X THE INDEX",
+      label: "NOV 12 DECLINE",
+      subtext: "HANG SENG TECH -2.36% · ZHIPU -9.05%",
+      source: "SOURCE: HKEX CLOSE, NOV 12",
     },
-    // #1296: `contrast` is text-first (#761) — a picture behind it would be
-    // unreadable, so this scene stays CSS-only and the media lives on 4 / 7.
+    info: {
+      relationship: "magnitude",
+      chart: "column",
+      data: [
+        { label: "HSTECH", value: 2.36 },
+        { label: "ZHIPU", value: 9.05 },
+      ],
+      unit: "%",
+      baseline: 0,
+      sort: "desc",
+      highlight: "ZHIPU",
+      decimals: 2,
+    },
   },
   {
     id: 4,
     name: "two-markets",
     visualType: "context",
     layout: "flow",
+    arcRole: "initial",
     voiceover:
       "Q3 filings confirmed public funds added to model leaders. In Hong Kong, the listed ones are marked down.",
     texts: {
@@ -106,6 +119,7 @@ export const scenes = [
     name: "per-share",
     visualType: "stat-reveal",
     layout: "hero-center",
+    arcRole: "peak",
     voiceover: "From the peak, 2,526 Hong Kong dollars a share vanished. 85 percent of the value.",
     texts: {
       bigNumber: "2,526",
@@ -118,6 +132,7 @@ export const scenes = [
     name: "multiple",
     visualType: "narrative",
     layout: "stacked-cards",
+    arcRole: "initial",
     voiceover: "The market is repricing these companies like software. Not like AI narratives.",
     texts: {
       company: "SOFTWARE MULTIPLES",
@@ -132,6 +147,7 @@ export const scenes = [
     name: "divergence",
     visualType: "context",
     layout: "flow",
+    arcRole: "release",
     voiceover: "Private valuations and public prices have stopped agreeing. That gap is the story.",
     texts: {
       title: "PRIVATE VS PUBLIC",
@@ -152,6 +168,7 @@ export const scenes = [
     name: "cta",
     visualType: "cta",
     layout: "hero-center",
+    arcRole: "release",
     voiceover:
       "This is the template for every AI listing in China. Watch the next one. Follow for the numbers.",
     texts: {

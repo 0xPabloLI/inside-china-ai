@@ -115,6 +115,8 @@ export const LAYOUT_FOCAL = {
   "stat-reveal.set-piece": { widthPx: 820, heightPx: 420, kind: "text" },
   "data.year-source": { widthPx: 440, heightPx: 300, kind: "card" },
   "data.chart-card": { widthPx: 440, heightPx: 300, kind: "chart" },
+  // Native chart panel (#1398): 820×620, the same band width as the frame.
+  "data.chart": { widthPx: 820, heightPx: 620, kind: "chart" },
   "contrast.split": { widthPx: 820, heightPx: 560, kind: "columns" },
   "context.flow": { widthPx: 480, heightPx: 600, kind: "flow" },
   "info-card.array": { widthPx: 672, heightPx: 324, kind: "grid" },

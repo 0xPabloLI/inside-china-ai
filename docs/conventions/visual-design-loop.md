@@ -139,6 +139,38 @@ node scripts/short-video/main.mjs --content _test-fixtures/hook-standard --skip-
 
 **2026-11-16 PR-C 翻档**：`checkEmptyField` 的 finding 由 WARN 升为 FAIL，三条翻档条件（PR-B 已合入、真实包 finding 归零、合法空白镜不误伤）均已满足。同轮迁移四个 PR-B 之前创建的包（`baidu-token-exchange` / `baidu-token-market` 各 3 个、`minimax-h3-image` 1 个、`zhipu-valuation` 2 个 `context` → `flow`，`zhipu-valuation` 另有 1 个 `contrast` → `split`）；37 包复测 `Empty field` 0 FAIL / 0 WARN。
 
+#### 原生信息图表（`data.chart`，2026-11-16 · #1398）
+
+`data.chart` 是信息拓扑里的第七个变体，只在 `visualType: "data"`、`layout: "chart"` 且声明 `scene.info` 时启用。它不是 `data.chart-card` 的替代：`data.chart-card` 继续承载真实图表 PNG（含 `scene.chart` 的 K 线 pin），`data.chart` 只画能从 `scene.info.data` 直接渲染的 2–12 个点（分布图 5–12，其余按图型 2–10）。
+
+| 数据关系 | 允许图型 | 默认 | 约束 |
+| -------- | -------- | ---- | ---- |
+| `magnitude` | bar / column / dot-plot | bar | 柱状零基线；长标签用 bar，不旋转 |
+| `ranking` | bar / dot-plot / slope | bar | 默认降序；最多一个 highlight |
+| `change-over-time` | line / column / slope | line | 保持时间顺序；2–6 点 |
+| `part-to-whole` | proportion-bar | proportion-bar | 单一堆叠条；不用饼图 |
+| `deviation` | bar / column | bar | 必须显式 baseline |
+| `distribution` | dot-plot / column | dot-plot | 预分箱，5–12 点 |
+
+`correlation` / `flow` / `spatial` 不原生：分别走 `data.chart-card` 的真实散点图、`context.flow`、真实地图资产。
+
+几何与样式：
+
+- 面板 820×620，内容盒 `left: 60, top: 300`（安全区 x[60,880], y[300,920]）；来源行在 `bottom: 210`。标题 `texts.label` 60px，标签 40px，数值 40px，来源 40px；40px 是元数据地板。
+- 默认 `clean` 面板：`rgba(245,245,245,0.04)` 底、1px `rgba(245,245,245,0.12)` 边框、12px 圆角、无网格。`terminal`（3px 白框 / 黑底 / #4A4A4A 网格）只用于 A/B，不作默认。
+- 直接标注，标签不旋转；标签上限按图型（bar 24 / column 8 / line 8 / slope 12 / proportion 18 / dot 16 字符）。放不下时换图型，不缩字号、不斜排。
+- 最多一个 amber highlight；其余 mark 用品牌蓝/中性色；负值红、正值绿。柱状/柱形的 magnitude/ranking 必须从 0 起，`deviation` 才允许显式非零基线。
+- 入场只做一次：bar 从基线生长、line 画一次、proportion 分段 reveal；不叠加环境动效。`texts.source` 必填，`unit` 必填。
+
+门禁：`checkInfoSpec` 是 FAIL（关系/图型不匹配、越界数据、重复标签、缺单位/来源、多 highlight、非零基线等）；`checkChartClaimAgreement` 是 advisory（VO 或屏上文字至少命中一个数据标签/数值；`info.time` 的年月要在 VO 里被点名；K 线 pin 的 subtext/source 要写单位或窗口）。
+
+包级节奏与 `data.chart` 同时生效：
+
+- `arcRole` 用 E/I/P/R（establisher / initial / peak / release），和旧 `narrativeRole` 的 S/T/A/R 是两条轴：前者审计整包弧线，后者继续驱动留存检查。一个包恰好一个 `peak`，落在时长 35–65%；有图表时至少一个图表镜在 peak 之前；hook 是 `establisher`，收尾是 `release`。
+- `attention.cue` 每镜最多一个；连续 3 个信息镜共用同一 `visualType:layout` 时给 advisory。两者都在 editorial 桶，不阻断渲染。
+
+来源与实测：证据分级见 `docs/research/information-design-evidence-2026-11.md`；作者 API 与完整门禁表见 `docs/specs/spec-information-layout-v2.md`。四个迁移包（`kimi-ipo` / `deepinfer` / `china-us-token-divide` / `zhipu-valuation`）在 2026-11-16 的 preflight 为 0 FAIL；盲评包已生成，人类评分尚未收集，不能据此宣称原生图表更好。
+
 **作者侧纪律**：写 `scene-data.mjs` 的信息类 scene 时，按类型指定主角——`data` / `stat-reveal` 用 `stat` / `bigNumber`（hero 档 240px；这两类不渲染媒体，`media.path` 无效）；`contrast` / `info-card` / `context` 可以选上面的文本侧拓扑（由 `LAYOUT_FOCAL` 判主角），也可以继续用会渲染的 `media.path` 作满幅环境底（hero-center 回退）。`title` 的 60px 属配角档，只有落在带 focal object 的拓扑里才成立。`verify-video.mjs --pre` 在 TTS 之前用同一条判据点名缺主角的镜头。
 
 #### 主角光（light follows the subject，2026-11-10 · #738）
