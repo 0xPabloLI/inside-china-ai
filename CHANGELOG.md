@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.83.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.83.0...tanstack_start_ts-v1.83.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **short-video:** unify zhipu-valuation drawdown at 85% ([#1394](https://github.com/0xPabloLI/inside-china-ai/issues/1394)) ([#1409](https://github.com/0xPabloLI/inside-china-ai/issues/1409)) ([58ec555](https://github.com/0xPabloLI/inside-china-ai/commit/58ec55594c3347ed08332a5c30e5fc8b84869406))
+
 ## [1.83.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.82.0...tanstack_start_ts-v1.83.0) (2026-11-17)
 
 
