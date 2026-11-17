@@ -10,7 +10,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 
 import {
@@ -27,6 +28,8 @@ import {
   replayInstruction,
   writeRenderArtifacts,
 } from "../lib/render-manifest.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const PROPS = {
   scenes: [{ id: 1, text: "第一场", media: { path: "assets/_staged/a.png" } }],
@@ -321,5 +324,24 @@ describe("replayInstruction", () => {
     expect(replayInstruction("/out/pack dir/manifest.json")).toBe(
       `node scripts/short-video/replay-render.mjs --manifest '/out/pack dir/manifest.json'`,
     );
+  });
+});
+
+describe("render doors share the writer", () => {
+  const read = (rel) => readFileSync(join(HERE, "..", rel), "utf8");
+
+  it("still-frame wires the shared writer instead of its own file", () => {
+    const src = read("still-frame.mjs");
+    expect(src).toContain("writeRenderArtifacts");
+    expect(src).toContain("buildStillRenderArgs");
+    // No inline payload: re-inlining props would put the JSON back in argv.
+    expect(src).not.toContain("JSON.stringify(props)");
+  });
+
+  it("the video door never puts props back into the command", () => {
+    const src = read("lib/render-remotion.mjs");
+    expect(src).toContain("writeRenderArtifacts");
+    expect(src).toContain("buildRemotionRenderArgs");
+    expect(src).not.toContain("JSON.stringify(props)");
   });
 });
