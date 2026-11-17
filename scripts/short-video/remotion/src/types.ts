@@ -157,6 +157,17 @@ export interface InfoDatum {
   highlight?: boolean;
 }
 
+/** One baked daily bar (#1405). Prices are HK dollars; volume is shares. */
+export interface CandleBar {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  highlight?: boolean;
+}
+
 /**
  * Native chart grammar (#1398). `relationship` chooses the chart family;
  * `chart` names the shape; `data` is the small, directly-labeled series.
@@ -166,7 +177,8 @@ export interface InfoDatum {
 export interface InfoSpec {
   relationship: string;
   chart: string;
-  data: InfoDatum[];
+  /** Category series, or the baked OHLC series for `chart: "candle"`. */
+  data: InfoDatum[] | CandleBar[];
   unit: string;
   baseline?: number;
   sort?: "none" | "asc" | "desc";
@@ -177,6 +189,11 @@ export interface InfoSpec {
   suffix?: string;
   axisLabels?: [string, string];
   panelVariant?: "clean" | "terminal";
+  /** Attribution inside the frame (#1405); candle charts print it on-canvas. */
+  credit?: string;
+  /** Bake contract (#1405): instrument and file the series was baked from. */
+  symbol?: string;
+  dataFile?: string;
 }
 
 /**

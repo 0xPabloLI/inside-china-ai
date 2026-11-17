@@ -12,14 +12,16 @@ import { CHART } from "./chart-tokens";
 export const ChartPanel: React.FC<{
   children?: ReactNode;
   variant?: "clean" | "terminal";
-}> = ({ children, variant = "clean" }) => {
+  /** Frame height; the media-led hook band is 619px, one short of the default. */
+  height?: number;
+}> = ({ children, variant = "clean", height = CHART.height }) => {
   const terminal = variant === "terminal";
   return (
     <div
       data-chart-panel={variant}
       style={{
         width: CHART.width,
-        height: CHART.height,
+        height,
         border: terminal ? "3px solid #ffffff" : "1px solid rgba(245,245,245,0.12)",
         background: terminal ? "#000000" : "rgba(245,245,245,0.04)",
         position: "relative",

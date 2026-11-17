@@ -96,6 +96,19 @@ function containsNumber(haystack, value, decimals) {
       forms.add(String(value < 0 ? -rounded : rounded));
     }
   }
+  // Prices are read with thousands separators ("2,980"), so each plain form
+  // also matches its comma-grouped spelling. Candle claims are prices, where
+  // four-digit values are the norm; without this the peak the chart highlights
+  // and the narration names verbatim would be reported as missing.
+  for (const form of [...forms]) {
+    const [whole, fraction] = form.split(".");
+    const sign = whole.startsWith("-") ? "-" : "";
+    const digits = sign ? whole.slice(1) : whole;
+    if (digits.length < 4) continue;
+    forms.add(
+      `${sign}${digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${fraction ? `.${fraction}` : ""}`,
+    );
+  }
   for (const form of forms) {
     // The only dynamic part is an escaped numeric literal, so the pattern is
     // linear in the haystack rather than attacker-shaped. A trailing sentence
@@ -156,17 +169,30 @@ function auditNative(scene, index) {
 
   const findings = [];
   const haystack = sceneText(scene);
-  const anchor = data.some(
-    (datum) =>
-      containsLabel(haystack, datum.label) || containsNumber(haystack, datum.value, info.decimals),
-  );
+  // A candle has no labels or `value` field: its claim is a price the
+  // narration names (the June peak, the latest close), and every bar carries
+  // three candidate anchors — high, low, close (#1405).
+  const anchor =
+    info.chart === "candle"
+      ? data.some((bar) =>
+          [bar?.high, bar?.low, bar?.close].some((value) =>
+            containsNumber(haystack, Number(value), info.decimals),
+          ),
+        )
+      : data.some(
+          (datum) =>
+            containsLabel(haystack, datum.label) ||
+            containsNumber(haystack, datum.value, info.decimals),
+        );
 
   if (!anchor) {
-    const labels = data.map((datum) => datum.label).filter(text);
+    const labels = info.chart === "candle" ? [] : data.map((datum) => datum.label).filter(text);
     findings.push(
       row(
         "warn",
-        `Scene ${scene.id ?? index + 1} plots ${labels.join(", ")} but neither a label nor a value appears in the voiceover or scene text.`,
+        info.chart === "candle"
+          ? `Scene ${scene.id ?? index + 1} draws ${data.length} daily candles but none of their high/low/close prices appears in the voiceover or scene text.`
+          : `Scene ${scene.id ?? index + 1} plots ${labels.join(", ")} but neither a label nor a value appears in the voiceover or scene text.`,
         'Name one chart value in the voiceover (e.g. "from 35 to 50") or repeat the reading in `texts.subtext`; the viewer should not have to infer which number the shot is about.',
       ),
     );

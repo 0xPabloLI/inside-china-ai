@@ -40,6 +40,7 @@ import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StampIn } from "../components/animations/entrance";
 import { SPACING, CANVAS, COLOR, accentColorFor } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
+import { ChartPanel, ChartRenderer } from "../components/charts";
 import { MediaScrims } from "../components/MediaScrims";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
@@ -91,7 +92,27 @@ export const HookMediaLed: React.FC<{
           y 300-986, straight through the badge and subject rows. The contract
           rejects it (checkHookMediaQuality → "Hook media mode"), so the
           renderer must not quietly accept what the gate refuses. */}
-        {media &&
+        {scene.info?.chart === "candle" ? (
+          // Native K-line (#1405): the baked series replaces the chart-img
+          // screenshot. Same band, same geometry (820 wide, 619 tall) — the
+          // panel letterboxes the 620-unit viewBox by 0.16%, which is why
+          // nothing clips at the strip edge.
+          <div
+            style={{
+              position: "absolute",
+              top: mediaBand.top,
+              left: SAFE_ZONES.left,
+              width: MEDIA_LED_BAND_WIDTH,
+              height: mediaBand.height,
+              overflow: "hidden",
+            }}
+          >
+            <ChartPanel height={mediaBand.height}>
+              <ChartRenderer info={scene.info} />
+            </ChartPanel>
+          </div>
+        ) : (
+          media &&
           (contain ? (
             <div
               style={{
@@ -126,7 +147,8 @@ export const HookMediaLed: React.FC<{
                 `cover` inherits from MEDIA_LED_DIM. */}
               <MediaScrims mediaBottom={CANVAS.height} />
             </>
-          ))}
+          ))
+        )}
         <BrandBar />
 
         {/* Kicker — badge pill in its own row ABOVE the picture. */}

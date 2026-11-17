@@ -1428,6 +1428,32 @@ export function checkHookMediaContract(scenes) {
   // deprecated `mediaOptOut` (both judged below, where their own branches
   // already live).
 
+  // Native candle chart (#1405): the picture is a baked series drawn in the
+  // same media band, so there is no raster file to curate and no sourcing
+  // step to wait for. A pack that also bound a raster would render the chart
+  // (HookMediaLed prefers it) and silently ignore the file — say so instead
+  // of letting the dead binding pass as if it mattered.
+  if (hook.info?.chart === "candle") {
+    const results = [
+      {
+        level: "pass",
+        category: CATEGORY,
+        check: CHECK,
+        detail: "native candle chart — baked series, no raster media",
+      },
+    ];
+    if (hook.media?.path) {
+      results.push({
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `a media file is also bound (${hook.media.path}); the native candle chart renders instead`,
+        fix: "Remove the stale media binding so the hook has one declared protagonist",
+      });
+    }
+    return results;
+  }
+
   if (hook.media) {
     const media = hook.media;
     // The binding itself passes (media exists); quality issues are reported as
