@@ -1,25 +1,27 @@
 /**
- * Currency dual-annotation advisory (#1415).
+ * Currency dual-annotation gate (fail-closed, 2026-11-18).
  *
- * The verify-time net is advisory by design (#763): it reports the first
- * offending amount and how many more exist, never reaching pass/warn/fail and
- * never changing the exit code.
+ * The verify-time net used to be advisory (#763): it reported the first
+ * offending amount and never changed the exit code. That let the DeepSeek pack
+ * ship "0.39 YUAN" untouched. It now lives in the gate bucket and fails the
+ * pre-flight; the same spelling list Step 0.5 annotates is what this net reads.
  */
 import { describe, it, expect } from "vitest";
 import { runAllSceneDataChecks } from "../lib/scene-rules.mjs";
 
-const currencyFindings = (scenes) =>
-  runAllSceneDataChecks(scenes, {}, {}).editorial.filter(
-    (f) => f.check.startsWith("Currency dual-annotation") && f.severity !== "pass",
+const currencyFindings = (scenes) => {
+  const results = runAllSceneDataChecks(scenes, {}, {});
+  return [...results.pass, ...results.warn, ...results.fail].filter(
+    (f) => f.check.startsWith("Currency dual-annotation") && f.level !== "pass",
   );
+};
 
 describe("checkCurrencyDualAnnotation", () => {
   it("flags a Chinese 亿元 amount with no USD equivalent", () => {
     const findings = currencyFindings([{ id: 1, voiceover: "估值为 3,500 亿元" }]);
 
     expect(findings).toHaveLength(1);
-    expect(findings[0].level).toBe("advisory");
-    expect(findings[0].severity).toBe("warn");
+    expect(findings[0].level).toBe("fail");
     expect(findings[0].detail).toContain("3,500 亿元");
     expect(findings[0].detail).toContain("scene 1");
   });
@@ -66,7 +68,7 @@ describe("checkCurrencyDualAnnotation", () => {
   });
 });
 
-describe("Step 0.5 and the advisory share one spelling list", () => {
+describe("Step 0.5 and the gate share one spelling list", () => {
   it("clears every flagged spelling after normalizeSceneData runs", async () => {
     const { normalizeSceneData } = await import("../lib/normalize-currency.mjs");
     const { DEFAULT_RATES } = await import("../lib/exchange-rates.mjs");

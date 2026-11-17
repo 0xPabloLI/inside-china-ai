@@ -1700,15 +1700,17 @@ function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
 }
 
 /**
- * Currency dual-annotation check: warns when RMB/HKD amounts in
- * voiceover/texts do not have a USD equivalent nearby. This is a verify-time
- * advisory safety net — `normalizeSceneDataWithLiveRates()` in Step 0.5 should
- * have already fixed them. It never blocks a render (#763 editorial tier).
+ * Currency dual-annotation check: FAILS when RMB/HKD amounts in
+ * voiceover/texts do not have a USD equivalent nearby. `normalizeSceneDataWithLiveRates()`
+ * in Step 0.5 should have fixed the fixable spellings first; anything left (including
+ * spelled-out amounts it cannot convert) blocks the pre-flight, so this rule cannot be
+ * silently skipped (#763's advisory tier was upgraded on 2026-11-18).
  *
- * Recognises the same spellings Step 0.5 does (#1415): ¥/￥, "<n> yuan/RMB",
- * "<n> 亿元/万元/元/亿人民币/万人民币", and the HKD forms (HK$, HKD,
+ * Recognises the same spellings Step 0.5 does (#1415): ¥/￥, "<n> yuan/RMB", bare
+ * "<n> yuan", "<n> 亿元/万元/元/亿人民币/万人民币", and the HKD forms (HK$, HKD,
  * "Hong Kong dollars", 港币/港元). A $ within 30 characters before the match
- * counts as already annotated.
+ * counts as already annotated. Spelled-out amounts ("thirty nine fen") are
+ * reported as unfixable so the author rewrites them in USD.
  */
 function checkCurrencyDualAnnotation(scenes) {
   const offenders = [];
@@ -1732,7 +1734,7 @@ function checkCurrencyDualAnnotation(scenes) {
         const key = `${scene.id}:${fieldIndex}:${match.start}:${match.text}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        offenders.push({ sceneId: scene.id, amount: match.text });
+        offenders.push({ sceneId: scene.id, amount: match.text, fixable: match.fixable !== false });
       }
     });
   }
@@ -1749,13 +1751,19 @@ function checkCurrencyDualAnnotation(scenes) {
 
   const first = offenders[0];
   const rest = offenders.length > 1 ? `（另有 ${offenders.length - 1} 处，见同包）` : "";
+  const spelled = offenders.filter((o) => o.fixable === false);
+  const spelledNote = spelled.length
+    ? ` Spelled-out amount(s) cannot be auto-converted: ${spelled.map((o) => `"${o.amount}"`).join(", ")}.`
+    : "";
   return [
     {
-      level: "warn",
+      level: "fail",
       category: "Content",
       check: "Currency dual-annotation (CNY/HKD → USD)",
-      detail: `RMB/HKD amount "${first.amount}" without USD equivalent in scene ${first.sceneId}${rest}`,
-      fix: "Step 0.5 auto-fix failed or was skipped: run normalizeSceneDataWithLiveRates(), or manually add $X (original) format",
+      detail: `RMB/HKD amount "${first.amount}" without USD equivalent in scene ${first.sceneId}${rest}.${spelledNote}`,
+      fix:
+        "Write the amount in USD (e.g. $0.05) and keep the original in parentheses, or use digits so Step 0.5 can annotate it. " +
+        "The rule is fail-closed: any unconverted CNY/HKD blocks TTS and render.",
     },
   ];
 }
@@ -3387,6 +3395,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkEmptyField(scenes, opts),
     ...checkFocusLight(scenes),
     ...checkBrollPromptDimensions(scenes),
+    ...checkCurrencyDualAnnotation(scenes),
     ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];
 
@@ -3415,7 +3424,6 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     () => checkNoWrittenOpener(scenes),
     () => checkNoDeadClosers(scenes),
     () => checkNoGreeting(scenes),
-    () => checkCurrencyDualAnnotation(scenes),
     () => avatarResults.filter((r) => r.check === AVATAR_USAGE_CHECK),
   ];
   const editorial = EDITORIAL_RUNNERS.flatMap((run) =>

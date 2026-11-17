@@ -39,6 +39,22 @@ const FULLWIDTH_YEN_PATTERN = /￥\s*([\d,.]+)\s*(亿|万)?(?:\s*元)?/g;
 /** Matches "<number> (billion|million|thousand) yuan" patterns */
 const YUAN_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand)\s*yuan/gi;
 
+/**
+ * Matches bare "<number> yuan" with no magnitude word, e.g. "0.39 yuan".
+ * Kept AFTER YUAN_PATTERN so the magnitude form owns its own span; without
+ * this pattern the auto-fix silently skipped the most common price-list shape
+ * (2026-11-17 DeepSeek pack shipped "0.39 YUAN" untouched).
+ */
+const YUAN_BARE_PATTERN = /(\d[\d,.]*)\s*yuan\b/gi;
+
+/**
+ * Spelled-out amounts, detection only: "five yuan", "thirty nine fen",
+ * "one point five yuan". No auto-conversion (a word-number parser is out of
+ * scope), so the verify gate fails closed and the author rewrites in USD.
+ */
+const SPELLED_CNY_PATTERN =
+  /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|point)(?:[\s-]+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|point))*\s+(?:yuan|renminbi|fen)\b/gi;
+
 /** Matches "<number> (billion|million|thousand|B|M|K) RMB" patterns */
 const RMB_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand|B|M|K)\s*RMB/gi;
 
@@ -112,6 +128,7 @@ const SPELLING_PATTERNS = [
     magnitude: (m) => m[2],
   },
   { re: YUAN_PATTERN, kind: "CNY", amount: (m) => parseAmount(m[1], m[2]), magnitude: (m) => m[2] },
+  { re: YUAN_BARE_PATTERN, kind: "CNY", amount: (m) => parseAmount(m[1]) },
   { re: RMB_PATTERN, kind: "CNY", amount: (m) => parseAmount(m[1], m[2]), magnitude: (m) => m[2] },
   {
     re: HKD_PATTERN,
@@ -130,6 +147,12 @@ const SPELLING_PATTERNS = [
     kind: "HKD",
     amount: (m) => parseAmount(m[1], m[2]),
     magnitude: (m) => m[2],
+  },
+  {
+    re: SPELLED_CNY_PATTERN,
+    kind: "CNY",
+    amount: () => null,
+    fixable: false,
   },
 ];
 
@@ -204,6 +227,9 @@ function formatUsdAuto(usdAmount) {
   const billions = Math.round(usdAmount / 1_000_000_000);
   if (usdAmount >= 1_000_000_000) return `$${billions} billion`;
   if (usdAmount >= 1_000_000) return `$${Math.round(usdAmount / 1_000_000)} million`;
+  // Sub-$10 amounts are per-call prices (0.39 yuan/hour, 5 yuan/1k calls).
+  // Rounding those to whole dollars printed "$0", which is worse than no fix.
+  if (usdAmount < 10) return `$${usdAmount.toFixed(2)}`;
   return `$${groupDigits(Math.round(usdAmount))}`;
 }
 
@@ -232,7 +258,7 @@ export function findCurrencySpellings(text) {
   if (typeof text !== "string") return [];
   const found = [];
 
-  for (const { re, kind, amount, magnitude } of SPELLING_PATTERNS) {
+  for (const { re, kind, amount, magnitude, fixable = true } of SPELLING_PATTERNS) {
     re.lastIndex = 0;
     for (const m of text.matchAll(re)) {
       const start = m.index;
@@ -245,6 +271,7 @@ export function findCurrencySpellings(text) {
         kind,
         amount: amount(m),
         magnitude: magnitude?.(m),
+        fixable,
       });
     }
   }
@@ -270,6 +297,7 @@ function normalizeString(str, rates, stats) {
 
   for (let i = matches.length - 1; i >= 0; i--) {
     const item = matches[i];
+    if (item.fixable === false) continue; // spelled amount: the gate must catch it
     if (hasNearbyUsd(str, item.start)) continue;
     const usdAmount = item.amount * rates[item.kind];
     const usdStr = item.magnitude ? formatUsd(usdAmount, item.magnitude) : formatUsdAuto(usdAmount);

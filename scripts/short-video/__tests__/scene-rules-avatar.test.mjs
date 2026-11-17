@@ -72,7 +72,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // carries media on 2 of its 7 capable scenes, exactly at the floor).
     // #1398: pass 40 → 42 — the info-grammar and chart-pin preflights each
     // report one pack-level pass when the pack has no native chart / no pin.
-    expect(before.pass).toHaveLength(42);
+    // 2026-11-18: pass 42 → 43 — the currency gate moved out of the editorial
+    // bucket into the gate bucket, so a clean pack reports one pass line.
+    expect(before.pass).toHaveLength(43);
     expect(before.warn).toHaveLength(0);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeSceneData, normalizeSceneDataWithLiveRates } from "../lib/normalize-currency.mjs";
+import {
+  findCurrencySpellings,
+  normalizeSceneData,
+  normalizeSceneDataWithLiveRates,
+} from "../lib/normalize-currency.mjs";
 import { DEFAULT_RATES, readRateReport } from "../lib/exchange-rates.mjs";
 
 describe("normalizeSceneData", () => {
@@ -344,3 +348,42 @@ describe("normalizeSceneDataWithLiveRates", () => {
     }
   });
 });
+
+// 2026-11-17 regression: the DeepSeek pack wrote "0.39 YUAN", "5 YUAN",
+// "thirty nine fen" — none matched the magnitude-only patterns, so the rule
+// existed on paper while the shipped video stayed in RMB.
+describe("bare English amounts", () => {
+  it("converts '<n> yuan' without a magnitude word", () => {
+    const scenes = [{ id: 1, voiceover: "Speech costs 0.39 yuan an hour." }];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toContain("$0.05");
+    expect(result[0].voiceover).toContain("0.39 yuan");
+  });
+
+  it("converts uppercase on-screen price labels", () => {
+    const scenes = [
+      { id: 3, voiceover: "Look.", texts: { stat: "5", statLabel: "5 YUAN PER 1,000 SEARCHES" } },
+    ];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].texts.statLabel).toContain("$0.70");
+    expect(result[0].texts.statLabel).toContain("5 YUAN");
+  });
+
+  it("does not double-annotate an amount that already has USD before it", () => {
+    const scenes = [{ id: 1, voiceover: "It costs $0.05 (0.39 yuan) per hour." }];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toBe("It costs $0.05 (0.39 yuan) per hour.");
+  });
+
+  it("flags spelled-out amounts as unfixable instead of silently skipping them", () => {
+    const spans = findCurrencySpellings("Speech costs thirty nine fen an hour.");
+    expect(spans).toHaveLength(1);
+    expect(spans[0].text).toBe("thirty nine fen");
+    expect(spans[0].fixable).toBe(false);
+
+    const scenes = [{ id: 1, voiceover: "Speech costs thirty nine fen an hour." }];
+    const result = normalizeSceneData(scenes, {});
+    expect(result[0].voiceover).toBe("Speech costs thirty nine fen an hour.");
+  });
+});
+
