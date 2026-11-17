@@ -232,13 +232,14 @@ node scripts/short-video/main.mjs --content series/pt4 &
 | Priority | Engine                     | Max Effort Parameters                                            | Venv / Runtime                       | Notes                                                                                                            |
 | -------- | -------------------------- | ---------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | 1        | **CosyVoice3-Kaggle-CUDA** | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Kaggle CLI + `~/.kaggle/kaggle.json` | **DEFAULT** (ADR-0019). Apache-2.0. P100 GPU, full emotion fidelity. ~8-10min/batch. Free 30h/week.              |
-| 2        | **CosyVoice3-Modal-CUDA**  | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Modal CLI + `modal token new`        | **PAID FALLBACK**. A100 GPU, same CUDA emotion as Kaggle. ~$0.20-0.50/batch, used when Kaggle 30h/week runs out. |
-| 3        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)     | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/models/cosyvoice3-mlx` (1.7GB) |
-| 4        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)     | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
+| 2        | **CosyVoice3-Colab-CUDA**  | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Colab CLI + ADC credentials          | **FREE FALLBACK**. T4, same CUDA emotion as Kaggle. Cold VM ~10min (pip + ~2GB model) per run; `colab run --gpu T4`. |
+| 3        | **CosyVoice3-Modal-CUDA**  | instruct_text per visualType, `<\|endofprompt\|>` suffix         | Modal CLI + `modal token new`        | **PAID FALLBACK**. A100 GPU, same CUDA emotion as Kaggle. ~$0.20-0.50/batch, used when Kaggle 30h/week runs out. |
+| 4        | **CosyVoice3-MLX**         | speed=1.0, instruct_text per visualType                          | `~/.video-tts-env` (Python 3.12)     | **LOCAL FALLBACK**. Emotion regression vs CUDA but fast RTF 0.64-0.87x. Model: `~/models/cosyvoice3-mlx` (1.7GB) |
+| 5        | **F5-TTS-MLX**             | **steps=32, cfg_strength=3.0**, method='rk4', wps=2.8, speed=1.0 | `~/.video-tts-env` (Python 3.12)     | **BACKUP**. Flow Matching on MLX. Best rhythm + natural pacing. Internal `duration` control. CC-BY-NC weights.   |
 | —        | edge-tts                   | en-US-BrianNeural                                                | npm                                  | Manual opt-in only (`TTS_ENGINE=edge-tts`). Network-dependent, retry 3x; no voice cloning. Template voice only.  |
 | —        | macOS say                  | Daniel, 190 wpm                                                  | built-in                             | Manual opt-in only (`TTS_ENGINE=say`). Last resort; no voice cloning                                             |
 
-> Ranks 1-4 are the automatic chain (`lib/tts/registry.mjs` → `PRIORITY`); the
+> Ranks 1-5 are the automatic chain (`lib/tts/registry.mjs` → `PRIORITY`); the
 > loop fails closed after rank 4 and never reaches edge-tts / say on its own
 > (user rule 2026-09-10). Engines evaluated and rejected are recorded in
 > ADR-0019 (`Why no NPU engine`).

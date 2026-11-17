@@ -98,7 +98,13 @@ const ENGINE_FACTORIES = {
  * say) are manual opt-in only and must never be selected by this loop
  * (user rule 2026-09-10).
  */
-const PRIORITY = ["cosyvoice3-kaggle-cuda", "cosyvoice3-modal-cuda", "cosyvoice3-mlx", "f5-mlx"];
+export const PRIORITY = [
+  "cosyvoice3-kaggle-cuda",
+  "cosyvoice3-colab-cuda",
+  "cosyvoice3-modal-cuda",
+  "cosyvoice3-mlx",
+  "f5-mlx",
+];
 
 /**
  * Select a TTS engine.
