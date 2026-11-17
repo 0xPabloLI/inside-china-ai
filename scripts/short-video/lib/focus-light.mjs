@@ -296,7 +296,7 @@ export function lightPlanFor(visualType) {
  * and the single highlighted mark carries the focus. Forcing a `stat` field
  * onto it to satisfy the text-light gate would be a fake field.
  */
-export const LIGHT_LAYOUT_EXEMPT = Object.freeze({
+const LIGHT_LAYOUT_EXEMPT = Object.freeze({
   data: Object.freeze(["chart"]),
 });
 

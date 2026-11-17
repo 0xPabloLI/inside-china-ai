@@ -14,10 +14,7 @@
 
 export const NARRATIVE_ARC_ROLES = Object.freeze(["establisher", "initial", "peak", "release"]);
 
-/** @deprecated Alias kept for callers that used the ticket's working name. */
-export const NARRATIVE_ROLES = NARRATIVE_ARC_ROLES;
-
-export const LEGACY_NARRATIVE_ROLES = Object.freeze(["S", "T", "A", "R", "T-Tell"]);
+const LEGACY_NARRATIVE_ROLES = Object.freeze(["S", "T", "A", "R", "T-Tell"]);
 
 const CHECK = "Narrative arc (E/I/P/R, one peak at 35–65%)";
 const CATEGORY = "Narrative";

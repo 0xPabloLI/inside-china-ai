@@ -1889,25 +1889,6 @@ export function checkTemplateContract(scenes) {
   return results;
 }
 
-// ─── Narrative arc + attention budget (#1398) ───
-
-export {
-  NARRATIVE_ARC_ROLES,
-  NARRATIVE_ROLES,
-  LEGACY_NARRATIVE_ROLES,
-  sceneRole,
-  peakPosition,
-  auditNarrativeArc as checkNarrativeArc,
-} from "./narrative.mjs";
-export {
-  INFORMATION_VISUAL_TYPES,
-  declaredCues,
-  layoutRun,
-  auditAttentionBudget as checkAttentionBudget,
-} from "./attention.mjs";
-
-export { auditChartClaimAgreement as checkChartClaimAgreement } from "./chart-claim-agreement.mjs";
-
 // ─── Aggregate runner ───
 
 /**

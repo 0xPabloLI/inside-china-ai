@@ -13,7 +13,7 @@
  * `sortData`; preflight consumes `validateInfoSpec` / `checkInfoSpec`.
  */
 
-export const RELATIONSHIPS = Object.freeze([
+const RELATIONSHIPS = Object.freeze([
   "magnitude",
   "ranking",
   "change-over-time",
@@ -25,7 +25,7 @@ export const RELATIONSHIPS = Object.freeze([
   "spatial",
 ]);
 
-export const CHART_TYPES = Object.freeze([
+const CHART_TYPES = Object.freeze([
   "bar",
   "column",
   "line",
@@ -37,7 +37,7 @@ export const CHART_TYPES = Object.freeze([
 ]);
 
 /** Charts this release can draw without a chart-img asset. */
-export const NATIVE_CHART_TYPES = Object.freeze([
+const NATIVE_CHART_TYPES = Object.freeze([
   "bar",
   "column",
   "line",
@@ -46,7 +46,7 @@ export const NATIVE_CHART_TYPES = Object.freeze([
   "dot-plot",
 ]);
 
-export const RELATIONSHIP_CHARTS = Object.freeze({
+const RELATIONSHIP_CHARTS = Object.freeze({
   magnitude: ["bar", "column", "dot-plot"],
   ranking: ["bar", "dot-plot", "slope"],
   "change-over-time": ["line", "column", "slope"],
@@ -99,12 +99,12 @@ export function defaultChartFor(relationship) {
   return DEFAULT_CHART[relationship] ?? null;
 }
 
-export function chartDataBounds(relationship, chart) {
+function chartDataBounds(relationship, chart) {
   if (relationship === "distribution") return { min: 5, max: 12 };
   return DATA_LIMITS[chart] ?? { min: 2, max: 8 };
 }
 
-export function labelLimitFor(chart) {
+function labelLimitFor(chart) {
   return LABEL_LIMIT[chart] ?? 24;
 }
 

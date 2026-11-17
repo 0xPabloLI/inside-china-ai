@@ -20,7 +20,7 @@ const CHECK = "Attention budget (one cue per scene, no 3× same layout)";
 const CATEGORY = "Attention";
 
 /** Visual types that own an information layout (#1215). */
-export const INFORMATION_VISUAL_TYPES = Object.freeze([
+const INFORMATION_VISUAL_TYPES = Object.freeze([
   "stat-reveal",
   "data",
   "contrast",

@@ -38,7 +38,7 @@ export function variance(values) {
 }
 
 /** Median of finite values; 0 when nothing is left. */
-export function median(values) {
+function median(values) {
   const xs = finiteSorted(values);
   if (xs.length === 0) return 0;
   const mid = Math.floor(xs.length / 2);
@@ -46,7 +46,7 @@ export function median(values) {
 }
 
 /** Deterministic PRNG (mulberry32). */
-export function createRng(seed = DEFAULT_SEED) {
+function createRng(seed = DEFAULT_SEED) {
   let state = Number(seed) >>> 0;
   return function next() {
     state = (state + 0x6d2b79f5) >>> 0;
@@ -58,7 +58,7 @@ export function createRng(seed = DEFAULT_SEED) {
 }
 
 /** Standard normal CDF (Abramowitz-Stegun 7.1.26). */
-export function normalCdf(z) {
+function normalCdf(z) {
   const sign = z < 0 ? -1 : 1;
   const x = Math.abs(z) / Math.SQRT2;
   const t = 1 / (1 + 0.3275911 * x);
