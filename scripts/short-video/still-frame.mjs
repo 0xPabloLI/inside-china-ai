@@ -43,6 +43,13 @@ if (!contentId || frame === null) {
   console.error("usage: still-frame.mjs --content <id> --frame <n> [--out <png>]");
   process.exit(1);
 }
+// `frame` becomes a directory name under output/<id>/render/ and a Remotion
+// flag, so hold it to a non-negative integer: a path like `../../x` would
+// otherwise write the manifest outside the content's output tree.
+if (!/^\d+$/.test(frame)) {
+  console.error(`❌ --frame must be a non-negative integer, got: ${JSON.stringify(frame)}`);
+  process.exit(1);
+}
 // The id becomes a path segment below. Content ids are directory names
 // (`unitree-h2x-guardian`, `_gate-smoke`), so hold it to that shape. The
 // leading-character rule is what rejects `..`: neither `/` nor a leading `.`
