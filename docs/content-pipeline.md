@@ -316,11 +316,19 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 ### 管线进度追踪
 
-每次启动管线时，Agent 在 `scripts/short-video/output/` 下创建 `pipeline-status.json`，记录当前管线的进度状态。
+每次启动管线时，Agent 在 `scripts/short-video/content/{slug}/pipeline-status.json` 创建/更新该次内容的进度状态；`scripts/short-video/output/pipeline-status.json` 只保留**薄索引**，指向当前在飞内容。两层分工：
 
-字段：`articleSlug`、`articleTitle`、`startedAt`、`currentStage`、`stages`（各 stage status + completedAt + mrl）、`videoParts`（各集 status + sceneData + mrl）、`nextAction`。
+| 文件 | 角色 | 字段 |
+| --- | --- | --- |
+| `content/{slug}/pipeline-status.json` | 唯一真值，随内容包归档 | `articleSlug`、`articleTitle`、`startedAt`、`currentStage`、`stages`（各 stage status + completedAt + mrl）、`videoParts`（各集 status + sceneData + mrl）、`nextAction` |
+| `output/pipeline-status.json` | 薄索引，gitignored，只用于发现 | `activeSlug`、`statusPath`（相对 `scripts/short-video/`）、`updatedAt` |
 
-**Agent 行为**：每个 stage 完成后更新；MRL 通过后写入 `mrl` 状态；HITL 暂停时 `nextAction` 写明等待什么；新 session 启动时先读此文件判断未完成管线。
+**Agent 行为**：
+- 启动新管线：先写 `content/{slug}/pipeline-status.json`，再把索引指向它；索引不复制状态，只存指针。
+- 每个 stage 完成后只更新 per-slug 文件；MRL 通过后写入 `mrl` 状态；HITL 暂停时 `nextAction` 写明等待什么。
+- 新 session 启动：读索引 → 读 `content/{activeSlug}/pipeline-status.json`；索引缺失时 glob `content/*/pipeline-status.json`，找到未完成管线；两者都没有才算没有在飞管线。
+- 旧版 `output/pipeline-status.json`（含 `articleSlug` 的全量状态）视为 legacy：读取时兼容，下一次写入时迁到 per-slug 文件并改写为索引；`output/pipeline-status.*.json` 保留为历史归档，不自动删除。
+- 迁移命令：`node scripts/short-video/pipeline-status.mjs migrate`（默认 dry-run，`--apply` 才写入）；`show` 打印当前生效状态。
 
 **`main.mjs` 支持**：`node main.mjs --content <dir>`（如 `deepseek`、`distillation/pt1`、`restraint/pt1`；要求目录内 `meta.mjs` + `scene-data.mjs` 两者齐备）。
 
