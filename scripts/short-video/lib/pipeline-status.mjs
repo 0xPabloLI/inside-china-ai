@@ -11,15 +11,12 @@
  * pipeline still updates the JSON by hand (docs/content-pipeline.md).
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { containedPath } from "./path-safety.mjs";
+import { isJsonObject, readJsonFile, writeJsonAtomic } from "./json-file.mjs";
 
 const STATUS_FILENAME = "pipeline-status.json";
-
-function isObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function assertSafeSlug(slug) {
   const clean = String(slug ?? "").trim();
@@ -34,29 +31,9 @@ function assertSafeSlug(slug) {
   return clean;
 }
 
-function readJson(filePath) {
-  let text;
-  try {
-    text = readFileSync(filePath, "utf8");
-  } catch (error) {
-    throw new Error(`pipeline status: cannot read ${filePath}: ${error.message}`);
-  }
-  try {
-    return JSON.parse(text);
-  } catch (error) {
-    throw new Error(`pipeline status: invalid JSON in ${filePath}: ${error.message}`);
-  }
-}
-
-function writeJsonAtomic(filePath, value) {
-  const temp = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  renameSync(temp, filePath);
-}
-
 export function isLegacyStatus(value) {
   return (
-    isObject(value) && typeof value.articleSlug === "string" && value.articleSlug.trim() !== ""
+    isJsonObject(value) && typeof value.articleSlug === "string" && value.articleSlug.trim() !== ""
   );
 }
 
@@ -84,7 +61,7 @@ function indexPathFor(root) {
 export function readPipelineStatus(root) {
   const indexPath = indexPathFor(root);
   if (!existsSync(indexPath)) return null;
-  const value = readJson(indexPath);
+  const value = readJsonFile(indexPath, "pipeline status");
   if (isLegacyStatus(value)) {
     const slug = assertSafeSlug(value.articleSlug);
     return {
@@ -95,7 +72,7 @@ export function readPipelineStatus(root) {
       statusPath: statusFileFor(root, slug),
     };
   }
-  if (!isObject(value) || typeof value.activeSlug !== "string") {
+  if (!isJsonObject(value) || typeof value.activeSlug !== "string") {
     throw new Error(`pipeline status: ${indexPath} is neither a legacy status nor an index`);
   }
   const slug = assertSafeSlug(value.activeSlug);
@@ -105,7 +82,13 @@ export function readPipelineStatus(root) {
   if (!existsSync(statusPath)) {
     throw new Error(`pipeline status: index points at missing ${statusPath}`);
   }
-  return { kind: "indexed", slug, status: readJson(statusPath), indexPath, statusPath };
+  return {
+    kind: "indexed",
+    slug,
+    status: readJsonFile(statusPath, "pipeline status"),
+    indexPath,
+    statusPath,
+  };
 }
 
 /**
@@ -120,9 +103,9 @@ export function migratePipelineStatus(root, { apply = false, now = new Date() } 
   if (!existsSync(indexPath)) {
     return { action: "missing", indexPath };
   }
-  const value = readJson(indexPath);
+  const value = readJsonFile(indexPath, "pipeline status");
   if (!isLegacyStatus(value)) {
-    if (!isObject(value) || typeof value.activeSlug !== "string") {
+    if (!isJsonObject(value) || typeof value.activeSlug !== "string") {
       throw new Error(`pipeline status: ${indexPath} is neither a legacy status nor an index`);
     }
     return { action: "already-indexed", index: value, indexPath };
@@ -135,7 +118,7 @@ export function migratePipelineStatus(root, { apply = false, now = new Date() } 
   const index = buildPipelineIndex(slug, now.toISOString());
 
   if (existsSync(statusPath)) {
-    const existing = readJson(statusPath);
+    const existing = readJsonFile(statusPath, "pipeline status");
     if (JSON.stringify(existing) !== JSON.stringify(value)) {
       throw new Error(
         `pipeline status: refusing to overwrite ${statusPath} — it already exists with different content`,
