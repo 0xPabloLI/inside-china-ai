@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.85.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.84.0...tanstack_start_ts-v1.85.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** [#1412](https://github.com/0xPabloLI/inside-china-ai/issues/1412) render commands carry a props path, failures replay ([#1414](https://github.com/0xPabloLI/inside-china-ai/issues/1414)) ([1a000bc](https://github.com/0xPabloLI/inside-china-ai/commit/1a000bc6a680aa4e0ee0b2cc7c300ab9b875ceed))
+
 ## [1.84.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.83.1...tanstack_start_ts-v1.84.0) (2026-11-17)
 
 
