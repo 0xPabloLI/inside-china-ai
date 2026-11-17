@@ -27,8 +27,15 @@ const audioDir = join(outputDir, "audio");
 const { meta } = await import(`./content/${CONTENT_DIR}/meta.mjs`);
 const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 
-const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-normalizeSceneData(scenes, meta);
+const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+const { readRateReport, DEFAULT_RATES } = await import("./lib/exchange-rates.mjs");
+// Reuse the rates recorded by the run that produced this audio; a fresh quote
+// would write a new alignment signature onto audio speaking the old numbers.
+const rateReport = readRateReport(join(outputDir, "currency-rates.json"));
+await normalizeSceneDataWithLiveRates(scenes, meta, {
+  rates: rateReport?.rates ?? DEFAULT_RATES,
+  rateSource: rateReport ? `run-artifact:${rateReport.source}` : "fallback",
+});
 const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
 normalizeTtsText(scenes, meta);
 

@@ -347,6 +347,8 @@ export function formatPendingGenerationLog(report) {
  */
 export async function prepareScenesForPlan(scenes, meta = {}) {
   const clone = structuredClone(scenes);
+  // Plan preview is documented as local and side-effect free: reuse the rates
+  // already recorded on meta (or the constants), never fetch.
   const { normalizeSceneData } = await import("../normalize-currency.mjs");
   const { normalizeTtsText } = await import("../normalize-tts-text.mjs");
   normalizeSceneData(clone, meta);
