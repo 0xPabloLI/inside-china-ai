@@ -1,5 +1,5 @@
 /**
- * Scene definitions for "Zhipu Loses 80% in Five Months"
+ * Scene definitions for "Zhipu Loses 85% in Five Months"
  * Single video, TikTok, content-driven length (~45s)
  *
  * Narrative type: Data reveal (price move -> one-day context -> read across)
@@ -45,7 +45,10 @@ export const scenes = [
     texts: {
       badge: "HKEX LISTING",
       subject: "ZHIPU",
-      bigNumber: "-80%",
+      // #1394: one drawdown figure per pack. The two verified prices give
+      // 1 - 454/2980 = 84.76%, so the hook rounds to 85% like scene 5 and
+      // meta.dataPoints; the old -80% contradicted the same film's peak scene.
+      bigNumber: "-85%",
       numberLabel: "SINCE JUNE PEAK",
       source: "HKEX CLOSE, NOV 12",
       color: "red",
@@ -58,7 +61,8 @@ export const scenes = [
     layout: "hero-center",
     arcRole: "initial",
     voiceover:
-      "That is 80 percent gone in five months for China's most watched AI listing, according to HKEX closes.",
+      // #1394: 85 percent, matching the hook, scene 5 and meta.dataPoints.
+      "That is 85 percent gone in five months for China's most watched AI listing, according to HKEX closes.",
     texts: {
       bigNumber: "454",
       subtext: "HKD CLOSE ON NOV 12, -9.05%",
