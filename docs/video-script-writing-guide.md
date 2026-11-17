@@ -2,7 +2,7 @@
 
 > **创建于**: 2026-08-13. 2026-08-27 大改：S.T.A.R.T. 定为主框架，AI Outline 降为 HITL 工具输入，新增叙事字段 `narrativeRole`/`retentionMechanism` + W7/W8/W9 自动验证。
 > **被引用**: `docs/content-pipeline.md` Stage 3 Step 2-5
-> **研究依据**: `docs/research/short-video-script-writing-best-practices.md`（15 源）
+> **研究依据**: `docs/research/short-video-script-writing-best-practices.md`（15 源）；数据镜头与包级弧线的外部证据分级见 `docs/research/information-design-evidence-2026-11.md`（#1398）。
 
 ---
 
@@ -81,6 +81,18 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 
 两个字段都是**可选的**——旧 scene-data 不填不影响渲染。新写的 scene-data 应该填。`verify-video.mjs --pre` 的 W7/W8/W9 以**编辑建议**口径检查这三项（`🧭 Editorial Suggestions`，不阻断渲染，#763）。
 
+#### 包级弧线：`arcRole`（E/I/P/R，#1398）
+
+`narrativeRole` 继续管 S.T.A.R.T. 的留存机制，不要拿它兼职数据视频弧线。数据镜头多的包另写 `arcRole`，取值 `"establisher"` / `"initial"` / `"peak"` / `"release"`：
+
+- 全包**恰好一个** `peak`，按含 0.5s 录音缓冲的成片时长算，落在 35–65%。
+- 包里只要有图表，至少一个图表镜要排在 `peak` 之前——证据先于 payoff。
+- hook 镜是 `establisher`，收尾 CTA 是 `release`；中段用 `initial`。
+- 旧包只有 `narrativeRole` 时，门禁给一条 advisory（S/T/A/R 不编码 peak），不会自动把 `R` 当 `peak`。
+- `attention.cue` 每镜最多一个；连续 3 个信息镜共用同一 `visualType:layout` 时给 advisory。两条都在 editorial 桶，不阻断渲染，但要在 HITL 报告里自评。
+
+几何、图型和「何时用原生图表」见 `docs/conventions/visual-design-loop.md` → 原生信息图表；作者 API 见 `docs/specs/spec-information-layout-v2.md`。
+
 #### Scene 1: Stop（S — Stop）
 
 - **narrativeRole**: `"S"`
@@ -155,6 +167,19 @@ Title 和 Hashtags 直接取用（经过品牌一致性检查后）。默认（�
 - **voiceover**：≤15 词。从 3 种 CTA 公式中选择（见 Step 6）
 - **visualType**: `"cta"`
 - **时间**：随片长自然收尾（不填充）
+
+#### 数据镜头的写法（#1398）
+
+当 scene 用 `layout: "chart"` + `scene.info` 时，画面和数据由 `info.data` 决定，文案要做的是「把观众的眼睛带到同一个点」：
+
+- **VO 点名一个锚点**：至少说出一个数据标签或数值（如 "from 35 to 50 billion"）。只说 "this chart shows the trend" 会让图表和旁白各说各话。
+- **时间窗要说出来**：声明了 `info.time`，VO 就要出现对应年份或月份（如 "between January and July"）；不说就删掉 `time`，不要留一个旁白没有的声音。
+- **屏上文字写读法**：`texts.label` 是标题/claim，`texts.subtext` 是一句读法（含关键数值），`texts.source` 是来源；三者都不是装饰。
+- **一个 highlight**：高亮只给 VO 正在强调的那个点；其他 mark 保持中性。高亮两个等于没有高亮。
+- **不要假精度**：数据是相对指数就写相对指数（`unit: "%"` 或 `INDEX`），不要把 100/50 说成精确的百分比下降。
+- **不必自己写图表 spec**：关系→图型、零基线、标签上限、`clean` / `terminal` 面板都由 `lib/info-grammar.mjs` 和设计文档约束；写稿只负责数据、单位、claim 和读法。
+
+`checkChartClaimAgreement` 目前是 advisory：VO/屏上文字找不到锚点、时间窗没被点名、K 线 pin 没写单位/窗口时会提示；它不阻断渲染，但要在 HITL 报告里处理或说明。
 
 ### 画面描述合同（锚点 / 动作 / 结果，#529）
 

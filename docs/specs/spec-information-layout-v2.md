@@ -91,8 +91,8 @@ Rules:
 | --- | --- | --- |
 | `checkInfoSpec` | FAIL | `info` present but layout not `chart`; unknown relationship/chart; chart not allowed for relationship; data length outside range; non-finite value; duplicate labels; missing unit/source; >1 highlight; bar/column baseline ≠ 0 for magnitude/ranking; part-to-whole sum ≤0 or `%` sum not ≈100 |
 | `checkChartPinContract` | FAIL | existing `scene.chart` pin: entity resolves in `config/chart-symbols.json`; annotations array ≤3 and well-formed; range/interval/theme are strings; this replaces the late Step 1.5 throw |
-| `checkChartClaimAgreement` | WARN then FAIL | native chart: at least one data label/number appears in VO or `texts`; if `time` present, a year/month token overlaps the VO; K-line pin: `texts.subtext`/`source` must name the unit or claim window |
-| `checkNarrativeArc` | WARN then FAIL | pack with ≥4 scenes: exactly one explicit `arcRole: "peak"`; peak midpoint at 35–65% of duration; if the pack has a chart, at least one chart scene precedes the peak; hook is `establisher`, closing scene is `release` |
+| `checkChartClaimAgreement` | WARN (advisory) | native chart: at least one data label/number appears in VO or `texts`; if `time` present, a year/month token overlaps the VO; K-line pin: `texts.subtext`/`source` must name the unit or claim window |
+| `checkNarrativeArc` | WARN (advisory) | pack with ≥4 scenes: exactly one explicit `arcRole: "peak"`; peak midpoint at 35–65% of duration; if the pack has a chart, at least one chart scene precedes the peak; hook is `establisher`, closing scene is `release` |
 | `checkAttentionBudget` | WARN | at most one declared `attention.cue` per scene; 3+ consecutive information scenes with the same `visualType:layout` → warn; a `chart` scene with a `terminal` panel plus another declared cue → warn |
 
 `arcRole` is deliberately a new field. The existing `narrativeRole` already carries the legacy S/T/A/R retention taxonomy (`S` setup, `T` tease, `A` argument, `R` resolution) consumed by `checkOpenLoop` and friends; reusing it for E/I/P/R would silently change those checks. A pack that only has legacy `narrativeRole` gets one advisory row saying the legacy codes do not encode a peak.
@@ -148,7 +148,7 @@ Field-test protocol:
 
 ## Testing Decisions
 
-- Pure Node: `info-grammar.test.mjs` (relationship/chart matrix, data bounds, zero baseline, part-to-whole, highlight, errors), `experiment-stats.test.mjs` (n<8, all-same-direction, zero variance, missing values, Wilson CI, BH), `layout-signature.test.mjs` (stable, order-sensitive), `scene-rules-info.test.mjs` (gate severity and message).
+- Pure Node: `info-grammar.test.mjs` (relationship/chart matrix, data bounds, zero baseline, part-to-whole, highlight, errors), `chart-claim-agreement.test.mjs` (value/label anchor, year-vs-small-number boundary, time window, pin window, advisory wiring), `experiment-stats.test.mjs` (n<8, all-same-direction, zero variance, missing values, Wilson CI, BH), `layout-signature.test.mjs` (stable, order-sensitive), `scene-rules-info.test.mjs` (gate severity and message).
 - Render: add `topology-chart-bar`, `topology-chart-line`, `topology-chart-slope`, `topology-chart-proportion` to `BASELINE_SCENES` and `BASELINES`; each is a legal 1080×1920 still. Keep existing `topology-chart-card` untouched.
 - Real data: 4 packs; `verify-video --pre` 0 FAIL; render stills; inspect labels/units/highlight.
 - Experiment: fixture JSONL observations; CLI `create/assign/ingest/report`; golden report with n=20 synthetic rows.
@@ -165,9 +165,16 @@ Field-test protocol:
 ## Rollout / Tickets
 
 1. `01-experiment-plumbing`: stats + CLI + layout signature + pending metadata + tests. No render change.
-2. `02-native-charts`: info grammar + schema + 4 native chart components + `data.chart` + gates + fixtures + 2 pack migrations.
+2. `02-native-charts`: info grammar + schema + 6 native chart components + `data.chart` + gates + fixtures + 4 pack migrations.
 3. `03-narrative-attention`: narrative/attention gates + `arcRole` + advisory wiring + real-pack audit.
 4. `04-evidence-author-docs`: research doc + author guide + brand-system chart section + docs index.
 5. `05-migration-blind-review`: remaining pack migrations + blind-review packet + report.
 
 Tickets are local until GitHub sub-issues are authorized. Each ticket is a vertical slice with its own demo and acceptance.
+
+## Delivery Status（2026-11-16）
+
+- **已落地**：`scene.info` + `data.chart` + 6 个原生图表；`checkInfoSpec`（FAIL）、`checkChartPinContract`（FAIL）、`checkChartClaimAgreement` / `checkNarrativeArc` / `checkAttentionBudget`（advisory）；布局签名与发布元数据；实验 CLI；盲评包生成。
+- **真实包**：49 个 content pack 新增门禁 0 FAIL；46 个包无 `arcRole`（advisory），4 个包连续 3 个同版式信息镜（advisory）。4 个迁移包 `kimi-ipo` / `deepinfer` / `china-us-token-divide` / `zhipu-valuation` 的 `verify-video --pre` 均为 0 FAIL；`checkChartClaimAgreement` 对 Kimi 时间窗和 DeepInfer 的「nearly in half」各给 1 条 advisory（未改文案）。
+- **盲评**：`output/experiments/info-layout-v2-blind-review/index.html` 已生成 6 对（seed 20261116，左右随机），`key.json` 只在分析师侧。**人类评分尚未收集**；ICC、win rate 与「原生图表更好」的结论均未产生。
+- **未完成**：S5 的 ≥6 对离线盲评需要评审实际打分；L2 有机配对实验需要发布 20 对（约 10 周）。本 spec 不把待收集数据写成结果。
