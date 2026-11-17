@@ -77,6 +77,7 @@ import {
 import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
+import { mediaRoleOf, MEDIA_ROLE, MEDIA_ROLES } from "./media-role.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
 import {
   MEDIA_STRATEGIES,
@@ -2767,6 +2768,71 @@ function isTextFirstLayoutScene(scene) {
  * Scoped to these two layouts on purpose: context / info-card / hook also use
  * hero-center but DO render media; #761 is about the two that cannot show it.
  */
+/**
+ * Media role contract (2026-11-18, user decision B).
+ *
+ * `mediaRole` decides how much frame a picture may take: evidence keeps the
+ * full-bleed band, decorative is a bounded card (and never a hook). The field
+ * is optional — `media.evidence === true` is the default evidence signal —
+ * but when it IS declared it must not contradict the media it describes.
+ *
+ * @param {Array<object>} scenes
+ * @returns {Array<object>} findings (fail-closed)
+ */
+export function checkMediaRoleContract(scenes) {
+  const CHECK = "Media role (evidence vs decorative)";
+  const CATEGORY = "Media";
+  const results = [];
+  for (const scene of scenes) {
+    const where = `scene ${scene.id}`;
+    const role = scene.mediaRole;
+    if (role != null && !MEDIA_ROLES.includes(role)) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} declares mediaRole "${role}" — allowed values are "evidence" and "decorative"`,
+        fix: `Set mediaRole to "evidence" or "decorative", or omit it and let media.evidence decide.`,
+      });
+      continue;
+    }
+    if (role != null && !scene.media) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} declares mediaRole "${role}" but has no media field`,
+        fix: `Remove mediaRole, or give the scene the media it describes.`,
+      });
+      continue;
+    }
+    if (!scene.media) continue;
+    if (role === MEDIA_ROLE.DECORATIVE && scene.media.evidence === true) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} marks the same media decorative AND evidence:true — the two roles contradict`,
+        fix: `If the picture proves the claim, drop mediaRole (it resolves to evidence); if it is atmosphere, drop evidence:true.`,
+      });
+    }
+    if (
+      scene.visualType === "hook" &&
+      scene.layout === HOOK_MEDIA_LED_LAYOUT &&
+      mediaRoleOf(scene) === MEDIA_ROLE.DECORATIVE
+    ) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} declares the media-led hook but its media is decorative — the hook resolves to hero-center and the picture is dropped`,
+        fix: `Promote the media to evidence (mediaRole: "evidence" with a source), or change the hook layout to hero-center / saas-triptych.`,
+      });
+    }
+  }
+  return results;
+}
+
 export function checkLayoutMediaRouting(scenes) {
   const CHECK = "Text-first layout media routing";
   const CATEGORY = "Media";
@@ -2786,7 +2852,7 @@ export function checkLayoutMediaRouting(scenes) {
     if (typeof scene.assetNeed === "string" && scene.assetNeed.trim() !== "") {
       needOnTextFirst.push(String(scene.id));
     }
-    if (scene.media && scene.media.evidence === true) evidenceOnTextFirst.push(String(scene.id));
+    if (scene.media && mediaRoleOf(scene) === MEDIA_ROLE.EVIDENCE) evidenceOnTextFirst.push(String(scene.id));
   }
 
   const results = [];
@@ -3391,6 +3457,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),
+    ...checkMediaRoleContract(scenes),
     ...checkContainFitBand(scenes),
     ...checkEmptyField(scenes, opts),
     ...checkFocusLight(scenes),

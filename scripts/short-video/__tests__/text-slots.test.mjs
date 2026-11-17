@@ -595,10 +595,14 @@ describe("hookSubjectTextWidth (#422: the logo shares the subject row)", () => {
 describe("hook media-led layout contract (2026-11-15)", () => {
   it("resolveRenderLayout passes a bound media-led through, and resolves the fallback to hero-center", () => {
     expect(HOOK_MEDIA_LED_LAYOUT).toBe("media-led");
-    const media = { type: "image", path: "assets/x.png" };
+    // 2026-11-18 (media role B): only evidence media may carry the hook.
+    const media = { type: "image", path: "assets/x.png", evidence: true };
     expect(resolveRenderLayout({ visualType: "hook", layout: "media-led", media })).toBe(
       "media-led",
     );
+    expect(
+      resolveRenderLayout({ visualType: "hook", layout: "media-led", media: { type: "image" } }),
+    ).toBe("hero-center");
     // No media → HookScene renders hero-center, so the contract must judge
     // hero-center too (a claim-led media-less scene would otherwise throw
     // "Unknown text field" mid-render; #1375 review).
@@ -620,8 +624,12 @@ describe("hook media-led layout contract (2026-11-15)", () => {
   });
 
   it("isMediaLedHook is the one predicate the renderer and the contract share", () => {
-    const media = { type: "image", path: "assets/x.png" };
+    const media = { type: "image", path: "assets/x.png", evidence: true };
     expect(isMediaLedHook({ visualType: "hook", layout: "media-led", media })).toBe(true);
+    // Decorative media is dropped from hooks (2026-11-18, media role B).
+    expect(
+      isMediaLedHook({ visualType: "hook", layout: "media-led", media: { type: "image" } }),
+    ).toBe(false);
     expect(isMediaLedHook({ visualType: "hook", layout: "media-led" })).toBe(false);
     expect(isMediaLedHook({ visualType: "hook", layout: "media-led", media: null })).toBe(false);
     expect(isMediaLedHook({ visualType: "narrative", layout: "media-led", media })).toBe(false);

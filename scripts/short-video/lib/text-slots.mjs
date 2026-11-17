@@ -15,6 +15,7 @@
  * other, and how a clipped "THAT'S THE WHOLE POIN" passed every check.
  */
 import { BRAND_FONT_STACK } from "./safe-zones.mjs";
+import { mediaRoleOf, MEDIA_ROLE } from "./media-role.mjs";
 
 /**
  * Per-field typography defaults.
@@ -428,11 +429,11 @@ export const HOOK_MEDIA_LED_LAYOUT = "media-led";
  * @returns {boolean}
  */
 export function isMediaLedHook(scene) {
-  return (
-    scene?.visualType === "hook" &&
-    scene?.layout === HOOK_MEDIA_LED_LAYOUT &&
-    (Boolean(scene?.media) || scene?.info?.chart === "candle")
-  );
+  if (scene?.visualType !== "hook" || scene?.layout !== HOOK_MEDIA_LED_LAYOUT) return false;
+  // 2026-11-18 (media role B): a decorative still/capture cannot claim the
+  // media-led hook; only evidence media (or a real chart pin) may.
+  if (scene?.info?.chart === "candle") return true;
+  return Boolean(scene?.media) && mediaRoleOf(scene) === MEDIA_ROLE.EVIDENCE;
 }
 
 /**

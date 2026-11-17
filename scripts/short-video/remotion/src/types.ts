@@ -220,6 +220,12 @@ export interface SceneData {
    * filter skips the scene on every rerun. Absent field = source it.
    */
   media?: MediaField | null;
+  /**
+   * What the picture is FOR (2026-11-18, user decision B). `evidence` keeps the
+   * full-bleed band; `decorative` is a bounded card and never a hook. Omitted →
+   * `media.evidence === true` decides; everything else is decoration.
+   */
+  mediaRole?: "evidence" | "decorative";
   /** Digital-human foreground card (#214) — rendered by components/AvatarCard. */
   avatar?: AvatarField;
   /** Layout variant for scene rendering (required for non-cta scenes). */
