@@ -35,7 +35,14 @@ const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 // Step 0.6 TTS dual-track) — the subtitle render boundary below recomputes
 // the alignment signature and must see the text the pipeline aligned against.
 const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
-await normalizeSceneDataWithLiveRates(scenes, meta);
+const { readRateReport, DEFAULT_RATES } = await import("./lib/exchange-rates.mjs");
+// Reuse the recorded rates (same reason as render-only): the audio was aligned
+// against their annotations, and a fresh quote would drift the signature.
+const rateReport = readRateReport(join(outputDir, "currency-rates.json"));
+await normalizeSceneDataWithLiveRates(scenes, meta, {
+  rates: rateReport?.rates ?? DEFAULT_RATES,
+  rateSource: rateReport ? `run-artifact:${rateReport.source}` : "fallback",
+});
 const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
 normalizeTtsText(scenes, meta);
 

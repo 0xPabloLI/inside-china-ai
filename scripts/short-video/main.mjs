@@ -210,7 +210,9 @@ async function main() {
   prof.mark("step-0.5-currency");
   try {
     const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
-    await normalizeSceneDataWithLiveRates(scenes, meta);
+    await normalizeSceneDataWithLiveRates(scenes, meta, {
+      ratesFile: join(__dirname, "output", meta.pipelineId, "currency-rates.json"),
+    });
     console.log("💱 Step 0.5: Currency normalization complete (CNY/HKD → USD dual-annotation)\n");
   } catch (e) {
     console.warn(`⚠️  Currency normalization skipped: ${e.message}\n`);

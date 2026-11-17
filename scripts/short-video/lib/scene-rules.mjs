@@ -21,6 +21,9 @@ import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs"
 // the inverse direction so a spelled CTA number and a digit dataPoints entry
 // compare equal without a second lexicon.
 import { numericAnchors } from "./normalize-tts-text.mjs";
+// One spelling list for Step 0.5 and this advisory: whatever the auto-fix
+// annotates is exactly what the verify-time net stops flagging.
+import { findCurrencySpellings, hasNearbyUsd } from "./normalize-currency.mjs";
 import {
   AI_BLACKLIST as _AI_BLACKLIST,
   DASH_PATTERN,
@@ -1708,44 +1711,30 @@ function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
  * counts as already annotated.
  */
 function checkCurrencyDualAnnotation(scenes) {
-  const CURRENCY_PATTERNS = [
-    /¥[\d,.]+/g,
-    /￥[\d,.]+/g,
-    /\d[\d,.]*\s*(?:亿|万)?\s*(?:人民币|元(?![素宇旦]))/g,
-    /\d[\d,.]*\s*(?:billion|million|thousand)\s*yuan/gi,
-    /\d[\d,.]*\s*(?:billion|million|thousand|B|M|K)\s*RMB/gi,
-    /HK\$\s*[\d,.]+/gi,
-    /\d[\d,.]*\s*(?:billion|million|thousand|B|M|K)?\s*HKD/gi,
-    /\d[\d,.]*\s*(?:billion|million|thousand)?\s*Hong Kong dollars?/gi,
-    /\d[\d,.]*\s*(?:亿|万)?\s*港[币元]/g,
-  ];
   const offenders = [];
   const seen = new Set();
 
   for (const scene of scenes) {
-    const vo = scene.voiceover || "";
-    const texts = JSON.stringify(scene.texts || "");
-    const allText = vo + " " + texts;
-    /** Overlapping matches (e.g. "￥1,200 元" also matching the bare 元 form) count once. */
-    const intervals = [];
-
-    for (const re of CURRENCY_PATTERNS) {
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(allText)) !== null) {
-        const start = m.index;
-        const end = start + m[0].length;
-        if (intervals.some(([s, e]) => start < e && end > s)) continue;
-        const windowStart = Math.max(0, start - 30);
-        const before = allText.substring(windowStart, start);
-        if (/\$\d/.test(before)) continue;
-        const key = `${scene.id}:${m[0]}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        intervals.push([start, end]);
-        offenders.push({ sceneId: scene.id, amount: m[0] });
+    const fields = [];
+    if (typeof scene.voiceover === "string") fields.push(scene.voiceover);
+    if (scene.texts && typeof scene.texts === "object") {
+      for (const value of Object.values(scene.texts)) {
+        if (typeof value === "string") fields.push(value);
       }
     }
+
+    fields.forEach((text, fieldIndex) => {
+      // `findCurrencySpellings` returns non-overlapping spans (￥1,200 元 counts
+      // once) from the same list Step 0.5 uses, so this net can always be
+      // cleared by running the auto-fix.
+      for (const match of findCurrencySpellings(text)) {
+        if (hasNearbyUsd(text, match.start)) continue;
+        const key = `${scene.id}:${fieldIndex}:${match.start}:${match.text}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        offenders.push({ sceneId: scene.id, amount: match.text });
+      }
+    });
   }
 
   if (offenders.length === 0) {

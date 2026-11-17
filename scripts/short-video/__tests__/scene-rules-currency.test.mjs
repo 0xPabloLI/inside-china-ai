@@ -65,3 +65,23 @@ describe("checkCurrencyDualAnnotation", () => {
     expect(currencyFindings([{ id: 1, voiceover: "AI 元数据服务" }])).toHaveLength(0);
   });
 });
+
+describe("Step 0.5 and the advisory share one spelling list", () => {
+  it("clears every flagged spelling after normalizeSceneData runs", async () => {
+    const { normalizeSceneData } = await import("../lib/normalize-currency.mjs");
+    const { DEFAULT_RATES } = await import("../lib/exchange-rates.mjs");
+    const scenes = [
+      {
+        id: 7,
+        voiceover: "营收 ¥3.5亿，成本 120 万元，票价 ￥ 1,200，佣金 500 人民币，市值 2,980 港币。",
+      },
+    ];
+
+    const before = currencyFindings(scenes);
+    expect(before).toHaveLength(1);
+    expect(before[0].detail).toContain("另有 4 处");
+
+    normalizeSceneData(scenes, {}, { rates: { ...DEFAULT_RATES } });
+    expect(currencyFindings(scenes)).toHaveLength(0);
+  });
+});

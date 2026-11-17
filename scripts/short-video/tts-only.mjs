@@ -33,7 +33,16 @@ console.log(`loaded ${scenes.length} scenes from content/${contentDir}`);
 // 与 main.mjs Step 0.5/0.6 一致的前处理（否则缓存 key 与 full run 不一致）
 try {
   const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
-  await normalizeSceneDataWithLiveRates(scenes, meta);
+  const { readRateReport, DEFAULT_RATES } = await import("./lib/exchange-rates.mjs");
+  // The cache key hashes rate-annotated ttsText; reuse the run's recorded rates
+  // so a prewarmed cache stays byte-identical for the later full run.
+  const rateReport = readRateReport(
+    join(__dirname, "output", meta.pipelineId ?? contentDir, "currency-rates.json"),
+  );
+  await normalizeSceneDataWithLiveRates(scenes, meta, {
+    rates: rateReport?.rates ?? DEFAULT_RATES,
+    rateSource: rateReport ? `run-artifact:${rateReport.source}` : "fallback",
+  });
 } catch (e) {
   console.warn(`currency normalize skipped: ${e.message}`);
 }

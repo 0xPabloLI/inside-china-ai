@@ -10,6 +10,9 @@
  * @module exchange-rates
  */
 
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
 /** Fallback rates (USD per unit), used when the live fetch fails. */
 export const DEFAULT_RATES = Object.freeze({ CNY: 0.14, HKD: 0.13 });
 
@@ -94,5 +97,42 @@ export async function resolveExchangeRates({
       fallback: true,
       error,
     };
+  }
+}
+
+/**
+ * Persist the rate report beside the run artifacts so audio-reusing entry
+ * points can reproduce the exact rates the audio was generated with.
+ * Best-effort: a read-only output directory must not abort the run.
+ *
+ * @param {string} filePath - e.g. `output/<id>/currency-rates.json`
+ * @param {ExchangeRateReport} report
+ * @returns {boolean} whether the write succeeded
+ */
+export function writeRateReport(filePath, report) {
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, `${JSON.stringify(report, null, 2)}\n`, "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Read back a report written by `writeRateReport`.
+ *
+ * @param {string} filePath
+ * @returns {ExchangeRateReport|null} null when absent or malformed
+ */
+export function readRateReport(filePath) {
+  try {
+    const report = JSON.parse(readFileSync(filePath, "utf-8"));
+    const cny = Number(report?.rates?.CNY);
+    const hkd = Number(report?.rates?.HKD);
+    if (!Number.isFinite(cny) || cny <= 0 || !Number.isFinite(hkd) || hkd <= 0) return null;
+    return report;
+  } catch {
+    return null;
   }
 }

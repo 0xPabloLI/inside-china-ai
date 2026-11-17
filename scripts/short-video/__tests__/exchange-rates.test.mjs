@@ -6,7 +6,16 @@
  * TTS and a network hiccup must never abort a render.
  */
 import { describe, it, expect } from "vitest";
-import { DEFAULT_RATES, RATE_PROVIDER, resolveExchangeRates } from "../lib/exchange-rates.mjs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  DEFAULT_RATES,
+  RATE_PROVIDER,
+  readRateReport,
+  resolveExchangeRates,
+  writeRateReport,
+} from "../lib/exchange-rates.mjs";
 
 const okBody = {
   result: "success",
@@ -85,5 +94,36 @@ describe("resolveExchangeRates", () => {
     const report = await resolveExchangeRates({ fetchImpl: null });
     expect(report.fallback).toBe(true);
     expect(report.error).toContain("fetch is unavailable");
+  });
+});
+
+describe("rate report sidecar", () => {
+  const report = {
+    rates: { CNY: 0.1497, HKD: 0.1274 },
+    source: RATE_PROVIDER,
+    providerTime: "Tue, 17 Nov 2026 00:02:31 +0000",
+    fetchedAt: "2026-11-17T10:00:00.000Z",
+    fallback: false,
+  };
+
+  it("round-trips through writeRateReport/readRateReport", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rates-"));
+    const file = join(dir, "nested", "currency-rates.json");
+    try {
+      expect(writeRateReport(file, report)).toBe(true);
+      expect(readRateReport(file)).toEqual(report);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null for a missing or malformed sidecar", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rates-"));
+    try {
+      expect(readRateReport(join(dir, "absent.json"))).toBeNull();
+      expect(readRateReport(dir)).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
-import {
-  normalizeSceneData,
-  normalizeSceneDataWithLiveRates,
-  CNY_TO_USD_RATE,
-  HKD_TO_USD_RATE,
-} from "../lib/normalize-currency.mjs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { normalizeSceneData, normalizeSceneDataWithLiveRates } from "../lib/normalize-currency.mjs";
+import { DEFAULT_RATES, readRateReport } from "../lib/exchange-rates.mjs";
 
 describe("normalizeSceneData", () => {
   // Scenario #10: "445 billion yuan" → "$63 billion (445 billion yuan)"
@@ -141,22 +140,17 @@ describe("normalizeSceneData", () => {
   });
 });
 
-describe("CNY_TO_USD_RATE", () => {
-  it("is 0.14 (¥1 ≈ $0.14)", () => {
-    expect(CNY_TO_USD_RATE).toBe(0.14);
-  });
-});
-
-describe("HKD_TO_USD_RATE", () => {
-  it("is 0.13 (HK$1 ≈ $0.13)", () => {
-    expect(HKD_TO_USD_RATE).toBe(0.13);
+describe("DEFAULT_RATES", () => {
+  it("keeps the authored fallback constants", () => {
+    expect(DEFAULT_RATES.CNY).toBe(0.14);
+    expect(DEFAULT_RATES.HKD).toBe(0.13);
   });
 });
 
 // #1415: Chinese spellings — Arabic numerals only, the 亿/万 magnitude maps to
 // 10^8 / 10^4. Rates are injected so the assertions never depend on a live quote.
 describe("Chinese currency spellings", () => {
-  const rates = { CNY: CNY_TO_USD_RATE, HKD: HKD_TO_USD_RATE };
+  const rates = { ...DEFAULT_RATES };
   const run = (voiceover) => {
     const scenes = [{ id: 1, voiceover }];
     normalizeSceneData(scenes, {}, { rates });
@@ -202,6 +196,31 @@ describe("Chinese currency spellings", () => {
 
   it("does not stack a second annotation on the same amount", () => {
     expect(run("客单价 $168 (1,200 元)")).toBe("客单价 $168 (1,200 元)");
+  });
+
+  // Regression: annotations inserted for an earlier amount used to suppress the
+  // next amount within 30 chars (the $ fell inside its lookbehind window).
+  it("annotates adjacent amounts of different magnitudes", () => {
+    expect(run("营收 3,500 亿元，成本 120 万元")).toBe(
+      "营收 $49 billion (3,500 亿元)，成本 $168,000 (120 万元)",
+    );
+    expect(run("成本 120 万元，客单价 1,200 元")).toBe(
+      "成本 $168,000 (120 万元)，客单价 $168 (1,200 元)",
+    );
+  });
+
+  it("routes half-width ¥ with a Chinese magnitude through the magnitude parser", () => {
+    expect(run("营收 ¥3.5亿")).toBe("营收 $49 million (¥3.5亿)");
+    expect(run("售价 ¥1,200万")).toBe("售价 $2 million (¥1,200万)");
+  });
+
+  it("covers bare 人民币 and 港币/港元 spellings", () => {
+    expect(run("售价 500 人民币")).toBe("售价 $70 (500 人民币)");
+    expect(run("市值 2,980 港币")).toBe("市值 $387 (2,980 港币)");
+  });
+
+  it("does not label a sub-billion amount as $1 billion", () => {
+    expect(run("估值 36 亿元")).toBe("估值 $504 million (36 亿元)");
   });
 
   it("uses injected live rates instead of the fallback constants", () => {
@@ -297,5 +316,31 @@ describe("normalizeSceneDataWithLiveRates", () => {
       console.warn = originalWarn;
     }
     expect(calls).toHaveLength(0);
+  });
+
+  it("reuses recorded rates, writes the sidecar, and never touches the network", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rates-"));
+    const file = join(dir, "currency-rates.json");
+    const scenes = [{ id: 1, voiceover: "售价 ¥700" }];
+    const meta = {};
+    try {
+      const report = await normalizeSceneDataWithLiveRates(scenes, meta, {
+        rates: { CNY: 0.2, HKD: 0.13 },
+        rateSource: "run-artifact:open.er-api.com",
+        ratesFile: file,
+        fetchImpl: () => {
+          throw new Error("must not fetch");
+        },
+        logger: null,
+      });
+
+      expect(scenes[0].voiceover).toBe("售价 $140 (¥700)");
+      expect(report.source).toBe("run-artifact:open.er-api.com");
+      expect(report.fallback).toBe(false);
+      expect(meta.currencyRates).toBe(report);
+      expect(readRateReport(file)).toEqual(report);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

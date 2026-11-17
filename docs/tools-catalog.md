@@ -100,6 +100,18 @@
 - **许可注意**：TradingView 条款要求站外使用带 attribution（内置水印即归档标注；画面 credit 机制已带 delayed quote 标注——延迟行情不得用于「此刻价格」叙事）
 - **消费点**：`scripts/short-video/lib/chart-asset.mjs` / `asset-sourcer.mjs` Phase 0a / `config/chart-symbols.json`（实体→symbol 唯一权威）。标注能力已接线（#1378）：scene-data 的 `chart.annotations` 原样进请求 `drawings`（形状 `{ name, input }`，种类写在 `name`），上限 3 条、越界或形状不对按**场景**失败退回常规采购链；写入契约见 `content-pipeline.md` 8b-2。
 
+### Open ER API — 汇率快照（Step 0.5 币种双标注）
+
+- **分类**：汇率快照（短剧 Step 0.5，`scripts/short-video/lib/exchange-rates.mjs` 唯一消费点）
+- **费用**：免费、无需 key（`https://open.er-api.com/v6/latest/USD`，返回 units-per-USD；2026-11-17 实测 CNY 6.679 / HKD 7.847）
+- **准入验证**（2026-11-17）：
+  - 安全审计：出站单向 GET，无 key、无账号、无 PII 外发；只取 `rates.CNY` / `rates.HKD` 与 `time_last_update_utc`，响应体字段缺失即判失败
+  - 可靠性：单次 8s 超时（`AbortSignal.timeout`）；HTTP 错误 / 超时 / `result≠success` / 缺任一币种都回退仓内常量 `0.14` / `0.13` 并标 `fallback`，不抛异常、不阻断渲染
+  - 试用验证：live 分支 zhipu-valuation 3 处金额按 `CNY 0.1497 / HKD 0.1274` 标注；`api.frankfurter.app` 同轮 8s 不可达，故不做多 provider 链
+  - 记录：本条目 + `lib/exchange-rates.mjs` 的模块 docblock + `docs/content-pipeline.md` 币种双标注段
+- **许可注意**：免费公共 API，无 SLA；汇率只用于口播/字幕的近似换算，不作为交易或结算依据
+- **消费点**：`lib/exchange-rates.mjs` → `normalizeSceneDataWithLiveRates()`；主 run 把报告落盘 `output/<id>/currency-rates.json`，音频复用路径（`render-only` / `rerender` / `realign-render` / `tts-only`）读回复用
+
 ### Tavily MCP — fallback 链硬规则（唯一权威）
 
 **硬规则（本节是唯一权威）**：Tavily 是有限付费资源。已知 URL 一律 `web_fetch`（免费、无限制；GitHub 无反爬直接可读）。用 Tavily 前必须走完 fallback 链：`web_fetch` → `web-access` CDP → Tavily；只有前两者失败或无法完成（如需多关键词并行搜索、AI 结构化摘要）时才可用。深度研究用 `web-deep-research` skill（触发词："deep research"、"调研"）。抓取用 `web-access` 替代 Playwright headless（后者无 session/cookie，反爬检测率高）。

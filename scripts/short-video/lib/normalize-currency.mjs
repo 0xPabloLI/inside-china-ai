@@ -6,32 +6,32 @@
  * is not already present nearby.
  *
  * Recognised spellings (#1415):
- *   CNY  ¥1200 · ￥1,200 · 12.4 billion yuan · 67.7B RMB · 3,500 亿元 ·
- *        3500 亿人民币 · 120 万元 · 500 万人民币 · 1,200 元
- *   HKD  HK$454 · 80B HKD · 2,526 Hong Kong dollars
+ *   CNY  ¥1200 · ￥1,200 · ¥3.5亿 · ¥1,200万 · 12.4 billion yuan · 67.7B RMB ·
+ *        3,500 亿元 · 3500 亿人民币 · 120 万元 · 500 万人民币 · 500 人民币 ·
+ *        1,200 元 · ￥ 1,200
+ *   HKD  HK$454 · 80B HKD · 2,526 Hong Kong dollars · 2,980 港币/港元
  *
  * Called in the pipeline's Step 0.5 (after scene-data load, before TTS).
  * Rates are resolved once per run by `resolveExchangeRates()` — live quote
- * first, authored fallback constants on any failure — and recorded in
- * `meta.currencyRates` so the log and the artefacts can be audited.
+ * first, authored fallback constants on any failure — and persisted beside the
+ * run artifacts (`currency-rates.json`) so audio-reusing entry points can
+ * reproduce the exact numbers the audio was aligned against.
  * The Chinese-number spellings ("三亿五千万") are deliberately out of scope:
  * only Arabic numerals are converted.
  *
  * @module normalize-currency
  */
 
-import { DEFAULT_RATES, resolveExchangeRates } from "./exchange-rates.mjs";
-
-/** Fallback exchange rate: ¥1 ≈ $0.14 (7.14 CNY/USD). */
-export const CNY_TO_USD_RATE = DEFAULT_RATES.CNY;
-
-/** Fallback exchange rate: HK$1 ≈ $0.13 (7.8 HKD/USD). */
-export const HKD_TO_USD_RATE = DEFAULT_RATES.HKD;
+import { DEFAULT_RATES, resolveExchangeRates, writeRateReport } from "./exchange-rates.mjs";
 
 // ─── Patterns ───
 
-/** Matches ¥<number> patterns, e.g. "¥445" or "¥1,100" */
-const YEN_PATTERN = /¥([\d,.]+)\s*(billion|million|thousand|K|B|M)?/gi;
+/**
+ * Matches ¥<number> patterns, e.g. "¥445" or "¥1,100".
+ * Chinese magnitudes and the 元 suffix are handled by the CNY_* patterns below
+ * so `¥3.5亿` / `¥1,200万` route through the Chinese-amount parser.
+ */
+const YEN_PATTERN = /¥\s*([\d,.]+)\s*(billion|million|thousand|K|B|M)?/gi;
 
 /** Matches full-width "￥<number>" patterns, e.g. "￥1,200" or "￥3.5亿" */
 const FULLWIDTH_YEN_PATTERN = /￥\s*([\d,.]+)\s*(亿|万)?(?:\s*元)?/g;
@@ -42,14 +42,26 @@ const YUAN_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand)\s*yuan/gi;
 /** Matches "<number> (billion|million|thousand|B|M|K) RMB" patterns */
 const RMB_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand|B|M|K)\s*RMB/gi;
 
-/** Matches "<number> 亿元 / 亿人民币", e.g. "3,500 亿元" or "3500 亿人民币" */
-const CNY_YI_PATTERN = /(\d[\d,.]*)\s*亿\s*(?:人民币|元(?![素宇旦]))/g;
+/**
+ * Matches optional ¥/￥ prefix + "<number> 亿元 / 亿人民币",
+ * e.g. "3,500 亿元", "¥3.5亿", "￥3.5 亿元".
+ */
+const CNY_YI_PATTERN = /(?:[¥￥]\s*)?(\d[\d,.]*)\s*亿\s*(?:人民币|元(?![素宇旦]))/g;
 
-/** Matches "<number> 万元 / 万人民币", e.g. "120 万元" or "500 万人民币" */
-const CNY_WAN_PATTERN = /(\d[\d,.]*)\s*万\s*(?:人民币|元(?![素宇旦]))/g;
+/** Matches optional ¥/￥ prefix + "<number> 万元 / 万人民币" */
+const CNY_WAN_PATTERN = /(?:[¥￥]\s*)?(\d[\d,.]*)\s*万\s*(?:人民币|元(?![素宇旦]))/g;
 
-/** Matches bare "<number> 元", e.g. "1,200 元" */
-const CNY_YUAN_PATTERN = /(\d[\d,.]*)\s*元(?![素宇旦])/g;
+/** Matches optional ¥/￥ prefix + bare "<number> 人民币" (no 亿/万) */
+const CNY_RMB_PATTERN = /(?:[¥￥]\s*)?(\d[\d,.]*)\s*人民币/g;
+
+/** Matches optional ¥/￥ prefix + bare "<number> 元", e.g. "1,200 元" */
+const CNY_YUAN_PATTERN = /(?:[¥￥]\s*)?(\d[\d,.]*)\s*元(?![素宇旦])/g;
+
+/** Matches "¥<number>亿/万" without a 元/人民币 suffix, e.g. "¥3.5亿" */
+const YEN_CN_MAG_PATTERN = /[¥￥]\s*(\d[\d,.]*)\s*(亿|万)/g;
+
+/** Matches "<number> (亿|万)? 港币/港元" */
+const HKD_CN_PATTERN = /(\d[\d,.]*)\s*(亿|万)?\s*港[币元]/g;
 
 /** Matches "<number> (billion|million|thousand) HKD" or "<number> (B|M) HKD" patterns */
 const HKD_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand|B|M)?\s*HKD/gi;
@@ -67,6 +79,59 @@ const HK_DOLLAR_PREFIX_PATTERN = /HK\$\s*([\d,.]+)(?:\s*(billion|million|thousan
  * currency out for TTS clarity; the suffix-only HKD_PATTERN never matched.
  */
 const HK_DOLLAR_NAME_PATTERN = /(\d[\d,.]*)\s*(billion|million|thousand)?\s*Hong Kong dollars?/gi;
+
+/**
+ * Ordered detection table. Order is priority: longer / more specific forms
+ * first, so `500 万人民币` wins over bare `人民币` and `￥1,200 元` over `￥`.
+ * Both Step 0.5 and the verify-time advisory consume this single list.
+ */
+const SPELLING_PATTERNS = [
+  { re: CNY_YI_PATTERN, kind: "CNY", amount: (m) => parseChineseAmount(m[1], "亿") },
+  { re: CNY_WAN_PATTERN, kind: "CNY", amount: (m) => parseChineseAmount(m[1], "万") },
+  { re: CNY_RMB_PATTERN, kind: "CNY", amount: (m) => parseChineseAmount(m[1]) },
+  { re: CNY_YUAN_PATTERN, kind: "CNY", amount: (m) => parseChineseAmount(m[1]) },
+  {
+    re: YEN_CN_MAG_PATTERN,
+    kind: "CNY",
+    amount: (m) => parseChineseAmount(m[1], m[2]),
+  },
+  {
+    re: HKD_CN_PATTERN,
+    kind: "HKD",
+    amount: (m) => parseChineseAmount(m[1], m[2]),
+  },
+  {
+    re: FULLWIDTH_YEN_PATTERN,
+    kind: "CNY",
+    amount: (m) => parseChineseAmount(m[1], m[2]),
+  },
+  {
+    re: YEN_PATTERN,
+    kind: "CNY",
+    amount: (m) => parseAmount(m[1], m[2]),
+    magnitude: (m) => m[2],
+  },
+  { re: YUAN_PATTERN, kind: "CNY", amount: (m) => parseAmount(m[1], m[2]), magnitude: (m) => m[2] },
+  { re: RMB_PATTERN, kind: "CNY", amount: (m) => parseAmount(m[1], m[2]), magnitude: (m) => m[2] },
+  {
+    re: HKD_PATTERN,
+    kind: "HKD",
+    amount: (m) => parseAmount(m[1], m[2]),
+    magnitude: (m) => m[2],
+  },
+  {
+    re: HK_DOLLAR_PREFIX_PATTERN,
+    kind: "HKD",
+    amount: (m) => parseAmount(m[1], m[2]),
+    magnitude: (m) => m[2],
+  },
+  {
+    re: HK_DOLLAR_NAME_PATTERN,
+    kind: "HKD",
+    amount: (m) => parseAmount(m[1], m[2]),
+    magnitude: (m) => m[2],
+  },
+];
 
 // ─── Helpers ───
 
@@ -137,7 +202,7 @@ function groupDigits(value) {
  */
 function formatUsdAuto(usdAmount) {
   const billions = Math.round(usdAmount / 1_000_000_000);
-  if (billions >= 1) return `$${billions} billion`;
+  if (usdAmount >= 1_000_000_000) return `$${billions} billion`;
   if (usdAmount >= 1_000_000) return `$${Math.round(usdAmount / 1_000_000)} million`;
   return `$${groupDigits(Math.round(usdAmount))}`;
 }
@@ -149,14 +214,49 @@ function formatUsdAuto(usdAmount) {
  * @param {number} matchIndex - start index of the RMB match
  * @returns {boolean}
  */
-function hasNearbyUsd(text, matchIndex) {
+export function hasNearbyUsd(text, matchIndex) {
   const windowStart = Math.max(0, matchIndex - 30);
   const before = text.substring(windowStart, matchIndex);
   return /\$\d/.test(before);
 }
 
 /**
+ * Find every CNY/HKD amount spelling in a string, in one pass over the
+ * original text. Overlapping alternatives (`￥1,200 元` vs bare `元`) collapse
+ * to the first (longest) form, so callers never annotate the same span twice.
+ *
+ * @param {string} text
+ * @returns {Array<{start: number, end: number, text: string, kind: "CNY"|"HKD", amount: number, magnitude?: string}>}
+ */
+export function findCurrencySpellings(text) {
+  if (typeof text !== "string") return [];
+  const found = [];
+
+  for (const { re, kind, amount, magnitude } of SPELLING_PATTERNS) {
+    re.lastIndex = 0;
+    for (const m of text.matchAll(re)) {
+      const start = m.index;
+      const end = start + m[0].length;
+      if (found.some((x) => start < x.end && end > x.start)) continue;
+      found.push({
+        start,
+        end,
+        text: m[0],
+        kind,
+        amount: amount(m),
+        magnitude: magnitude?.(m),
+      });
+    }
+  }
+
+  return found.sort((a, b) => a.start - b.start);
+}
+
+/**
  * Normalize a single string: insert USD dual-annotation for RMB/HKD amounts.
+ * All matches are detected against the untouched input and replacements are
+ * applied right-to-left, so an annotation inserted for one amount can never
+ * suppress the amount that follows it.
  * @param {string} str - input string
  * @param {{CNY: number, HKD: number}} rates - USD per unit of local currency
  * @param {{annotated: number}} [stats] - mutation counter for run reporting
@@ -165,100 +265,19 @@ function hasNearbyUsd(text, matchIndex) {
 function normalizeString(str, rates, stats) {
   if (typeof str !== "string") return str;
 
-  const annotate = (match, usdStr) => `${usdStr} (${match})`;
+  const matches = findCurrencySpellings(str);
+  let out = str;
 
-  // Process ¥<number> patterns
-  str = str.replace(YEN_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const cnyAmount = parseAmount(numStr, magnitude);
-    const usdStr = formatUsd(cnyAmount * rates.CNY, magnitude);
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const item = matches[i];
+    if (hasNearbyUsd(str, item.start)) continue;
+    const usdAmount = item.amount * rates[item.kind];
+    const usdStr = item.magnitude ? formatUsd(usdAmount, item.magnitude) : formatUsdAuto(usdAmount);
+    out = `${out.slice(0, item.start)}${usdStr} (${item.text})${out.slice(item.end)}`;
     if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
+  }
 
-  // Process full-width ￥<number> patterns
-  str = str.replace(FULLWIDTH_YEN_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const cnyAmount = parseChineseAmount(numStr, magnitude);
-    const usdStr = formatUsdAuto(cnyAmount * rates.CNY);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process "<number> 亿元 / 亿人民币" patterns
-  str = str.replace(CNY_YI_PATTERN, (match, numStr, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const cnyAmount = parseChineseAmount(numStr, "亿");
-    const usdStr = formatUsdAuto(cnyAmount * rates.CNY);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process "<number> 万元 / 万人民币" patterns
-  str = str.replace(CNY_WAN_PATTERN, (match, numStr, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const cnyAmount = parseChineseAmount(numStr, "万");
-    const usdStr = formatUsdAuto(cnyAmount * rates.CNY);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process bare "<number> 元" patterns
-  str = str.replace(CNY_YUAN_PATTERN, (match, numStr, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const cnyAmount = parseChineseAmount(numStr);
-    const usdStr = formatUsdAuto(cnyAmount * rates.CNY);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process "<number> (billion|million|thousand) yuan" patterns
-  str = str.replace(YUAN_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const cnyAmount = parseAmount(numStr, magnitude);
-    const usdStr = formatUsd(cnyAmount * rates.CNY, magnitude);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process "<number> (billion|million|thousand|B|M|K) RMB" patterns
-  str = str.replace(RMB_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const cnyAmount = parseAmount(numStr, magnitude);
-    const usdStr = formatUsd(cnyAmount * rates.CNY, magnitude);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process "<number> HKD" patterns (e.g. "80B HKD", "12.4 billion HKD")
-  str = str.replace(HKD_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const hkdAmount = parseAmount(numStr, magnitude);
-    const usdStr = formatUsd(hkdAmount * rates.HKD, magnitude);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process "HK$<number>" prefix patterns (e.g. "HK$454 CLOSE")
-  str = str.replace(HK_DOLLAR_PREFIX_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const hkdAmount = parseAmount(numStr, magnitude);
-    const usdStr = formatUsd(hkdAmount * rates.HKD, magnitude);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  // Process "<number> Hong Kong dollars" full-name patterns
-  // (e.g. "2,526 Hong Kong dollars a share vanished")
-  str = str.replace(HK_DOLLAR_NAME_PATTERN, (match, numStr, magnitude, offset, fullStr) => {
-    if (hasNearbyUsd(fullStr, offset)) return match;
-    const hkdAmount = parseAmount(numStr, magnitude);
-    const usdStr = formatUsd(hkdAmount * rates.HKD, magnitude);
-    if (stats) stats.annotated++;
-    return annotate(match, usdStr);
-  });
-
-  return str;
+  return out;
 }
 
 /**
@@ -309,6 +328,10 @@ export function normalizeSceneData(scenes, meta = {}, options = {}) {
  * @param {Array} scenes - scene-data array (mutated in place)
  * @param {Object} [meta] - video meta; receives `currencyRates` and `currencyAnnotation`
  * @param {Object} [options]
+ * @param {{CNY: number, HKD: number}} [options.rates] - reuse rates recorded by
+ *   the audio-generating run; skips the network lookup
+ * @param {string} [options.rateSource] - source label for the reused report
+ * @param {string} [options.ratesFile] - write the report beside the run artifacts
  * @param {typeof fetch} [options.fetchImpl] - injectable for tests
  * @param {number} [options.timeoutMs] - network budget for the single lookup
  * @param {() => Date} [options.now] - injectable clock
@@ -316,16 +339,26 @@ export function normalizeSceneData(scenes, meta = {}, options = {}) {
  * @returns {Promise<import("./exchange-rates.mjs").ExchangeRateReport>}
  */
 export async function normalizeSceneDataWithLiveRates(scenes, meta = {}, options = {}) {
-  const report = await resolveExchangeRates({
-    fetchImpl: options.fetchImpl,
-    timeoutMs: options.timeoutMs,
-    now: options.now,
-  });
+  const report = options.rates
+    ? {
+        rates: { ...options.rates },
+        source: options.rateSource ?? "run-artifact",
+        providerTime: null,
+        fetchedAt: new Date().toISOString(),
+        fallback: false,
+      }
+    : await resolveExchangeRates({
+        fetchImpl: options.fetchImpl,
+        timeoutMs: options.timeoutMs,
+        now: options.now,
+      });
 
   meta.currencyRates = report;
   const stats = { annotated: 0 };
   normalizeSceneData(scenes, meta, { rates: report.rates, stats });
   meta.currencyAnnotation = stats;
+
+  if (options.ratesFile) writeRateReport(options.ratesFile, report);
 
   const logger = options.logger === null ? null : (options.logger ?? console);
   if (logger) {
@@ -335,9 +368,10 @@ export async function normalizeSceneDataWithLiveRates(scenes, meta = {}, options
         `💱 Exchange rate fallback (${report.error}): ${ratesText} @ ${report.fetchedAt} — ${stats.annotated} amount(s) annotated`,
       );
     } else {
+      const reuse = String(report.source).startsWith("run-artifact");
       const providerTime = report.providerTime ? `, quote ${report.providerTime}` : "";
       logger.log(
-        `💱 Exchange rates live (${report.source}${providerTime}): ${ratesText} @ ${report.fetchedAt} — ${stats.annotated} amount(s) annotated`,
+        `💱 Exchange rates ${reuse ? "reused" : "live"} (${report.source}${providerTime}): ${ratesText} @ ${report.fetchedAt} — ${stats.annotated} amount(s) annotated`,
       );
     }
   }
