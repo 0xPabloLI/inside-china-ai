@@ -8,6 +8,7 @@
 > **Round CCV 实点**：本 PR 下沉 CCIII 盘点与 CCI 一句话档案后，按文件重数为 **138/154**（盘点 138 段 / 档案 154 条、153 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
 > **Round CCVII 实点**：本 PR 下沉 CCV/CCIV 盘点与 CCIII/CCII 一句话档案后，按文件重数为 **140/156**（盘点 140 段 / 档案 156 条、155 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
 > **Round CCVIII 实点**：本 PR 下沉 CCVI 盘点与 CCIV 一句话档案后，按文件重数为 **141/157**（盘点 141 段 / 档案 157 条、156 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
+> **Round CCX 实点**：本 PR 下沉 CCIX/CCVIII 盘点与 CCVI 一句话档案后，按文件重数为 **143/158**（盘点 143 段 / 档案 158 条、157 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -18,7 +19,11 @@
 
 ---
 
-## 逐轮盘点（Round CCVI → LV；Round CC 见一句话档案）
+## 逐轮盘点（Round CCIX → LV；Round CC 见一句话档案）
+
+（**Round CCIX：`#462` Stage 1 交付（PR #1421，squash `e16cc5c1`）**——`pipeline-status.json` 从单文件迁到 `content/{slug}/`，顶层 `output/pipeline-status.json` 只留 `activeSlug/statusPath/updatedAt` 薄索引；新增 `pipeline-status.mjs show|migrate`（默认 dry-run，`--apply` 落 per-slug + legacy 备份 + 索引），legacy 格式读取兼容，per-slug 状态 gitignored。产品验证门：**无产出差异（enabling fix）**——解除并发内容共写一份状态的覆盖排除，产物路径留给 Stage 2 runId 契约。`#462` 仍 open（Stage 2 未做）；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空。）
+
+（**Round CCVIII：`#1415` 交付闭票**——Step 0.5 币种双标注扩中文写法（亿/万/元/人民币/港币/￥/¥，只认阿拉伯数字），汇率改为每个生成音频的 run 取一次（`open.er-api.com`，8s 超时，失败回退常量），报告落盘并供音频复用路径读回；advisory 与 Step 0.5 共用同一扫描。产品验证门：**有产出差异（有限）**——zhipu-valuation live 分支 `$59→$58`（fallback 逐字不变）。PR #1418（squash `65f3c68e`）。frontier：Track 1A **空**、① **空**、② `#541` / `#1406`、③④ 空。）
 
 （**Round CCVI：`#1405` 交付闭票**——K 线自渲染：`lib/quote-fetch.mjs` 东方财富主源 + 腾讯逐根校验（价量任一字段不一致即整体失败）、`bake-quotes.mjs` 幂等烘焙（`npm run bake:quotes -- <pack>`，同窗口重跑字节不变）、`CandleChart` 原生日线（hook 820×619 媒体带、图内 credit + `PEAK · JUN 22` 锚）、`info.chart: "candle"` 语法与 hook `media-led` 例外、zhipu-valuation 迁移（115 根日线，末根 11-12 收 454）；产品验证门：**有产出差异**（旧 chart-img 800×600 水印截图 → 无水印 / 无 15 分钟延迟 / 无 API 额度 / 峰值不被数字盖住）；顺带纠偏：票据给的 `to=2026-11-14` 会含 11-13 的 408.4，与旁白「454」对不上，实际窗口收在 11-12，`info.data.window` 门禁会拦这类错窗。PR #1411。frontier 复算：Track 1A **空**、① **空**、② `#541` / `#1406`、③④ 空（与 Round CCV 一致））
 
@@ -301,7 +306,9 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round CCIV → J）
+## 近轮一句话档案（Round CCVI → J）
+
+**Round CCVI**（`#1405` 交付闭票——K 线自渲染：`quote-fetch` 双源校验 + `bake:quotes` 幂等烘焙 + `CandleChart` 原生日线 + `info.chart: "candle"` 语法 + zhipu hook 迁移；PR #1411；**有产出差异**：去掉 chart-img 水印与 15 分钟延迟，峰值/末根收盘进入可审计数据；顺带纠偏票据的 11-14 窗口 → 11-12；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
 
 **Round CCIV**（`#1215` PR-C 交付闭票——`checkEmptyField` WARN→FAIL，空场阻断 preflight；四个包 10 镜迁移（9 `context`→`flow`、1 `contrast`→`split`）；PR #1393 `b030be7f`；**有产出差异**；37 包 0 FAIL / 0 WARN；frontier 1A 空、① 空、② `#541`、③④ 空）
 
