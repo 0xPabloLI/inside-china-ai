@@ -6,11 +6,7 @@
  * TTS and a network hiccup must never abort a render.
  */
 import { describe, it, expect } from "vitest";
-import {
-  DEFAULT_RATES,
-  RATE_PROVIDER,
-  resolveExchangeRates,
-} from "../lib/exchange-rates.mjs";
+import { DEFAULT_RATES, RATE_PROVIDER, resolveExchangeRates } from "../lib/exchange-rates.mjs";
 
 const okBody = {
   result: "success",

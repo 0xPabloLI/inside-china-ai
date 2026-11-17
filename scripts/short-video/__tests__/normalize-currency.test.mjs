@@ -284,10 +284,14 @@ describe("normalizeSceneDataWithLiveRates", () => {
     console.log = (...args) => calls.push(args);
     console.warn = (...args) => calls.push(args);
     try {
-      await normalizeSceneDataWithLiveRates([{ id: 1, voiceover: "¥700" }], {}, {
-        fetchImpl: okFetch,
-        logger: null,
-      });
+      await normalizeSceneDataWithLiveRates(
+        [{ id: 1, voiceover: "¥700" }],
+        {},
+        {
+          fetchImpl: okFetch,
+          logger: null,
+        },
+      );
     } finally {
       console.log = originalLog;
       console.warn = originalWarn;

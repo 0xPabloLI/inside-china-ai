@@ -327,7 +327,7 @@ export async function normalizeSceneDataWithLiveRates(scenes, meta = {}, options
   normalizeSceneData(scenes, meta, { rates: report.rates, stats });
   meta.currencyAnnotation = stats;
 
-  const logger = options.logger === null ? null : options.logger ?? console;
+  const logger = options.logger === null ? null : (options.logger ?? console);
   if (logger) {
     const ratesText = `CNY ${report.rates.CNY.toFixed(4)} / HKD ${report.rates.HKD.toFixed(4)}`;
     if (report.fallback) {

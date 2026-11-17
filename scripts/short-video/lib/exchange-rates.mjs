@@ -85,9 +85,7 @@ export async function resolveExchangeRates({
     };
   } catch (e) {
     const error =
-      e?.name === "TimeoutError"
-        ? `timed out after ${timeoutMs}ms`
-        : e?.message || String(e);
+      e?.name === "TimeoutError" ? `timed out after ${timeoutMs}ms` : e?.message || String(e);
     return {
       rates: { ...DEFAULT_RATES },
       source: "fallback",

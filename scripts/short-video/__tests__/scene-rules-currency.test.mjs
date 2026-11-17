@@ -25,9 +25,7 @@ describe("checkCurrencyDualAnnotation", () => {
   });
 
   it("passes when the Chinese amount is already dual-annotated", () => {
-    const findings = currencyFindings([
-      { id: 1, voiceover: "估值为 $49 billion (3,500 亿元)" },
-    ]);
+    const findings = currencyFindings([{ id: 1, voiceover: "估值为 $49 billion (3,500 亿元)" }]);
     expect(findings).toHaveLength(0);
   });
 
@@ -49,13 +47,16 @@ describe("checkCurrencyDualAnnotation", () => {
     expect(findings[0].detail).not.toContain("另有");
   });
 
-  it("flags HKD prefix, suffix and 港币 forms", () => {    expect(currencyFindings([{ id: 1, texts: { source: "HKEX, HK$454 CLOSE" } }])).toHaveLength(1);
+  it("flags HKD prefix, suffix and 港币 forms", () => {
+    expect(currencyFindings([{ id: 1, texts: { source: "HKEX, HK$454 CLOSE" } }])).toHaveLength(1);
     expect(currencyFindings([{ id: 1, voiceover: "80B HKD placement" }])).toHaveLength(1);
     expect(currencyFindings([{ id: 1, voiceover: "募资 80 亿港币" }])).toHaveLength(1);
   });
 
   it("passes the existing HK$ dual-annotation unchanged", () => {
-    const findings = currencyFindings([{ id: 1, texts: { source: "SOURCE: HKEX, $59 (HK$454) CLOSE" } }]);
+    const findings = currencyFindings([
+      { id: 1, texts: { source: "SOURCE: HKEX, $59 (HK$454) CLOSE" } },
+    ]);
     expect(findings).toHaveLength(0);
   });
 
