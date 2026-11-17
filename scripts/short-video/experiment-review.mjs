@@ -40,13 +40,10 @@ const __filename = fileURLToPath(import.meta.url);
 const DEFAULT_SEED = 20260101;
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
 function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  return String(value ?? "").replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
 }
 
 function flip(seed, experimentId, pairId) {

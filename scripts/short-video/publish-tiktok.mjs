@@ -113,7 +113,10 @@ const experimentVariant = getArg("variant");
  * gets slug + null identity fields.
  */
 async function layoutMetaForSlug(slug) {
-  if (!slug) return {};
+  // A pack slug is a local directory name, never a path. Reject separators and
+  // traversal before it reaches the filesystem.
+  if (!slug || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(slug)) return {};
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
   const scenePath = join(__dirname, "content", slug, "scene-data.mjs");
   if (!existsSync(scenePath)) return {};
   try {

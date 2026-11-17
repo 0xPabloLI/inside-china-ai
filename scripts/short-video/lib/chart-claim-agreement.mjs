@@ -90,6 +90,9 @@ function containsNumber(haystack, value, decimals) {
     forms.add(abs.toFixed(2));
   }
   for (const form of forms) {
+    // The only dynamic part is an escaped numeric literal, so the pattern is
+    // linear in the haystack rather than attacker-shaped.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const pattern = new RegExp(`(?<![\\d.])${escapeRegExp(form)}(?![\\d.])`, "i");
     if (pattern.test(haystack)) return true;
   }
@@ -98,6 +101,7 @@ function containsNumber(haystack, value, decimals) {
 
 function containsLabel(haystack, label) {
   if (!text(label) || label.trim().length < 2) return false;
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const pattern = new RegExp(
     `(^|[^\\p{L}\\p{N}])${escapeRegExp(label.trim())}([^\\p{L}\\p{N}]|$)`,
     "iu",
@@ -119,6 +123,7 @@ function voiceoverNames(tokens, voiceover) {
   if (!text(voiceover) || tokens.length === 0) return false;
   const lower = voiceover.toLowerCase();
   return tokens.some((token) => {
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     const pattern = new RegExp(
       `(^|[^\\p{L}\\p{N}])${escapeRegExp(token.toLowerCase())}([^\\p{L}\\p{N}]|$)`,
       "iu",
