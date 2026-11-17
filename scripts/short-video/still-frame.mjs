@@ -15,13 +15,20 @@
  * render never produces.
  *
  * Usage:
- *   node scripts/short-video/still-frame.mjs --content unitree-h2x-guardian --frame 450 [--out /tmp/x.png]
+ *   node scripts/short-video/still-frame.mjs --content unitree-h2x-guardian --frame 450 [--out output/<id>/…png]
  */
 import { execFileSync } from "child_process";
 import { existsSync } from "fs";
-import { join, dirname, basename } from "path";
+import { join, dirname, basename, isAbsolute, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { readSceneDurationsForTimeline } from "./lib/avatar-frame-audit.mjs";
+import {
+  buildStillRenderArgs,
+  propsPathFor,
+  renderArtifactDir,
+  replayInstruction,
+  writeRenderArtifacts,
+} from "./lib/render-manifest.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -36,6 +43,13 @@ if (!contentId || frame === null) {
   console.error("usage: still-frame.mjs --content <id> --frame <n> [--out <png>]");
   process.exit(1);
 }
+// `frame` becomes a directory name under output/<id>/render/ and a Remotion
+// flag, so hold it to a non-negative integer: a path like `../../x` would
+// otherwise write the manifest outside the content's output tree.
+if (!/^\d+$/.test(frame)) {
+  console.error(`❌ --frame must be a non-negative integer, got: ${JSON.stringify(frame)}`);
+  process.exit(1);
+}
 // The id becomes a path segment below. Content ids are directory names
 // (`unitree-h2x-guardian`, `_gate-smoke`), so hold it to that shape. The
 // leading-character rule is what rejects `..`: neither `/` nor a leading `.`
@@ -48,7 +62,18 @@ if (!/^[a-z0-9_][a-z0-9._-]*$/.test(contentId)) {
   );
   process.exit(1);
 }
-const out = getArg("out") || `/tmp/still-${contentId}-${frame}.png`;
+// The still lives next to its manifest: a replay re-runs the recorded command
+// with the recorded output path, and the replay refuses paths outside the
+// content's output tree, so a still written to /tmp would not be replayable.
+const outRoot = join(__dirname, "output", contentId);
+const out = getArg("out") || join(outRoot, "render", `still-${frame}`, `frame-${frame}.png`);
+const outRel = relative(resolve(outRoot), resolve(out));
+if (outRel.length === 0 || outRel.startsWith("..") || isAbsolute(outRel)) {
+  console.error(
+    `❌ --out must stay inside ${outRoot}: the manifest records this path, and a replay only writes there`,
+  );
+  process.exit(1);
+}
 
 const contentDir = join(__dirname, "content", contentId);
 const { scenes } = await import(join(contentDir, "scene-data.mjs"));
@@ -103,24 +128,34 @@ const props = {
   contentDir,
 };
 
-const remotionDir = join(__dirname, "remotion");
-const cmd = [
-  "npx",
-  "remotion",
-  "still",
-  "src/Root.tsx",
-  "ShortVideo",
-  out,
-  `--frame=${frame}`,
-  `--props=${JSON.stringify(props)}`,
-  // Boolean flag (no value): `--bundle-cache=false` parses as truthy and keeps
-  // the cache, which silently serves a stale bundle after a gate edit.
-  "--no-bundle-cache",
-];
+// Same artifact contract as a full render (lib/render-manifest.mjs): props to
+// disk, the command carries a path. A still failure is exactly the moment you
+// want to re-run without redoing TTS, so it gets a replayable manifest too.
+const outputDir = join(__dirname, "output", contentId);
+const version = `still-${frame}`;
+const artifactDir = renderArtifactDir(outputDir, version);
+const argv = buildStillRenderArgs({ out, frame, propsPath: propsPathFor(artifactDir) });
+const { manifestPath } = writeRenderArtifacts({
+  outputDir,
+  version,
+  props,
+  pipelineId: contentId,
+  contentDir,
+  audioDir,
+  rawPath: out,
+  finalPath: out,
+  subtitlesPath: null,
+  bgmPath: null,
+  subject: null,
+  command: argv,
+  kind: "still",
+});
 
+const remotionDir = join(__dirname, "remotion");
 console.log(`Rendering still: content=${contentId} frame=${frame} -> ${out}`);
+console.log(`   artifacts: ${manifestPath}`);
 try {
-  const stdout = execFileSync(cmd[0], cmd.slice(1), {
+  const stdout = execFileSync(argv[0], argv.slice(1), {
     cwd: remotionDir,
     stdio: ["pipe", "pipe", "pipe"],
     encoding: "utf8",
@@ -132,5 +167,7 @@ try {
   const fitError = [...stderr.matchAll(/\[TextFitError\] (\{.*\})/g)].pop()?.[1];
   console.error(`\n❌ Still failed for frame ${frame}`);
   console.error(fitError ? `TextFitError: ${fitError}` : stderr.slice(-1200));
+  console.error(`   manifest: ${manifestPath}`);
+  console.error(`   replay:   ${replayInstruction(manifestPath)}`);
   process.exit(1);
 }

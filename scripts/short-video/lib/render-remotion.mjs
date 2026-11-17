@@ -5,15 +5,16 @@
  * Flow:
  *   1. Check remotion/node_modules exists → auto npm install if not
  *   2. Construct props JSON from scenes + audioPaths + durations
- *   3. Call `npx remotion render` via child process
- *   4. Finalize in one ffmpeg pass: subtitles + BGM + loudnorm + #176 head trim
- *   5. Return { path, duration }
+ *   3. Write props.json + manifest.json under output/<id>/render/<version>/
+ *   4. Call `npx remotion render … --props=<path>` via execFile (no shell)
+ *   5. Finalize in one ffmpeg pass: subtitles + BGM + loudnorm + #176 head trim
+ *   6. Return { path, duration }
  *
  * The Remotion project lives at scripts/short-video/remotion/.
  * The CLI renders to an intermediate MP4, then FFmpeg post-processes it.
  */
 
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import {
   existsSync,
   writeFileSync,
@@ -30,7 +31,14 @@ import { sceneClipFrames } from "./timeline.mjs";
 import { autoUpscaleIfNeeded } from "./upscale.mjs";
 import { assertAvatarScene, isAvatarDeclared } from "./avatar-guard.mjs";
 import { getDurationSync } from "./tts/ffmpeg-cmd.mjs";
-import { shellQuote } from "./shell-quote.mjs";
+import {
+  buildRemotionRenderArgs,
+  describeRenderFailure,
+  formatRenderCommand,
+  propsPathFor,
+  renderArtifactDir,
+  writeRenderArtifacts,
+} from "./render-manifest.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -158,21 +166,6 @@ export function stageAsset({ srcPath, publicAssetsDir, label }) {
  */
 export function rawOutputPathFor(finalPath) {
   return finalPath.replace("-short.mp4", "-raw.mp4");
-}
-
-/**
- * Build the `npx remotion render` command line.
- *
- * Both the output path and the props JSON go through the shared shellQuote
- * helper, so a subject/pipelineId carrying a quote, `$(...)` or a backtick
- * stays data instead of shell syntax (#319 OCR video batch scan — the
- * render-only contentDir/pipelineId findings land on this line).
- *
- * @param {{ rawPath: string, props: Record<string, unknown> }} input
- * @returns {string} command line for execSync
- */
-export function buildRemotionRenderCommand({ rawPath, props }) {
-  return `npx remotion render src/Root.tsx ShortVideo ${shellQuote(rawPath)} --props=${shellQuote(JSON.stringify(props))}`;
 }
 
 /**
@@ -392,10 +385,51 @@ export function renderRemotion({
 
   console.log(`  🎬 Rendering ${scenes.length} scenes via Remotion (${totalFrames} frames)...`);
 
-  const renderCmd = buildRemotionRenderCommand({ rawPath, props });
+  // Props go to disk, not into the command line: one line per render used to
+  // carry 8KB of JSON, and a failure kept only 200 characters of it (see
+  // render-manifest.mjs for the layout and why).
+  const artifactDir = renderArtifactDir(outputDir, version);
+  const renderArgs = buildRemotionRenderArgs({
+    rawPath,
+    propsPath: propsPathFor(artifactDir),
+  });
+
+  // The finalize decisions are recorded, not recomputed by whoever replays
+  // this render later: the recorded file is the contract.
+  const hasSubs = Boolean(subtitlesPath && existsSync(subtitlesPath));
+  const finalize = {
+    assPath: hasSubs ? subtitlesPath : null,
+    bgmPath: bgmPath || null,
+    deleteRawAfter: !hasSubs,
+    sceneDurations: scenes.map((s, i) => ({
+      sceneId: s.id ?? i + 1,
+      duration: durations[i],
+    })),
+    audioBasenames: audioPaths.map((p) => basename(p.replace("file://", ""))),
+  };
+
+  const { manifestPath } = writeRenderArtifacts({
+    outputDir,
+    version,
+    props,
+    pipelineId,
+    contentDir,
+    audioDir: join(outputDir, "audio"),
+    rawPath,
+    finalPath,
+    subtitlesPath,
+    bgmPath,
+    subject,
+    command: renderArgs,
+    finalize,
+  });
+  const commandLine = formatRenderCommand(renderArgs);
+  console.log(`  📄 Render artifacts: ${manifestPath}`);
 
   try {
-    execSync(renderCmd, {
+    // argv array, no shell: the props path is the only path that reaches here,
+    // and quoting is no longer load-bearing for correctness.
+    execFileSync(renderArgs[0], renderArgs.slice(1), {
       cwd: REMOTION_DIR,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -406,7 +440,7 @@ export function renderRemotion({
     // (burned a debugging session on the _gate-smoke run).
     const fitError = [...stderr.matchAll(/\[TextFitError\] (\{.*\})/g)].pop()?.[1];
     const detail = fitError ?? stderr.slice(-800);
-    throw new Error(`Remotion render failed: ${e.message?.substring(0, 200)}\nstderr: ${detail}`);
+    throw new Error(describeRenderFailure({ detail, commandLine, manifestPath }));
   }
 
   console.log(`  ✅ Remotion render complete: ${rawPath}`);
@@ -419,18 +453,14 @@ export function renderRemotion({
   // into one -filter_complex pass; the head drift is measured on the RAW
   // output (audio decode only — post-processing preserves timestamps) so the
   // trim rides in the single encode instead of costing its own re-encode.
-  const hasSubs = Boolean(subtitlesPath && existsSync(subtitlesPath));
   finalizeRenderedVideo({
     videoPath: rawPath,
-    assPath: hasSubs ? subtitlesPath : null,
-    bgmPath: bgmPath || null,
+    assPath: finalize.assPath,
+    bgmPath: finalize.bgmPath,
     outputPath: finalPath,
     realign: {
       outputDir, // scene audio for measurement lives here
-      sceneDurations: scenes.map((s, i) => ({
-        sceneId: s.id ?? i + 1,
-        duration: durations[i],
-      })),
+      sceneDurations: finalize.sceneDurations,
       audioPaths: audioPaths.map((p) => p.replace("file://", "")),
     },
   });
@@ -439,7 +469,7 @@ export function renderRemotion({
   // repair path rebuilds the shipped file from it with a corrected ASS.
   // (Without subtitles there is no repair that needs a base.)
   try {
-    if (!hasSubs && existsSync(rawPath)) unlinkSync(rawPath);
+    if (finalize.deleteRawAfter && existsSync(rawPath)) unlinkSync(rawPath);
   } catch {}
 
   // ── 6. Get final duration ──
