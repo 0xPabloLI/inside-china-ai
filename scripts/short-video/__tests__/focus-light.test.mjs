@@ -17,6 +17,7 @@ import {
   LIGHT_TIERS,
   LIGHT_TONES,
   focusLightStyle,
+  isLightLayoutExempt,
   lightKindFor,
   lightPlanFor,
   lightStateAt,
@@ -71,6 +72,14 @@ describe("template plans", () => {
     for (const [visualType, plan] of Object.entries(LIGHT_PLANS)) {
       expect(validateLightPlan(plan, { durationFrames: 150 }), visualType).toEqual([]);
     }
+  });
+
+  it("exempts the native chart layout from the text-protagonist rule", () => {
+    // The chart panel is the subject; it has no `stat` field to light. Only
+    // data.chart is exempt — every other data layout still names a text field.
+    expect(isLightLayoutExempt("data", "chart")).toBe(true);
+    expect(isLightLayoutExempt("data", "hero-center")).toBe(false);
+    expect(isLightLayoutExempt("contrast", "chart")).toBe(false);
   });
 
   it("names only fields the template's own contract knows", () => {

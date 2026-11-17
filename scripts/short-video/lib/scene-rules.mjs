@@ -47,7 +47,6 @@ import {
 const THRESHOLDS = getPlatformProfile("tiktok").thresholds;
 import {
   REMOTION_SLOT_MAP,
-  DEFAULT_NARRATIVE_LAYOUT,
   HOOK_MEDIA_LED_LAYOUT,
   allowsContainFit,
   assertKnownTextFields,
@@ -65,7 +64,13 @@ import {
   tierForSize,
   TYPE_TIERS,
 } from "./type-scale.mjs";
-import { FOCUS_LIGHT, LIGHT_PLANS, lightPlanFor, validateLightPlan } from "./focus-light.mjs";
+import {
+  FOCUS_LIGHT,
+  LIGHT_PLANS,
+  isLightLayoutExempt,
+  lightPlanFor,
+  validateLightPlan,
+} from "./focus-light.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
@@ -2037,10 +2042,10 @@ export function checkTextWidthBudget(scenes) {
   const results = [];
   for (const scene of scenes) {
     if (!WIDTH_CHECKED_TYPES.has(scene.visualType)) continue;
-    // Narrative without an explicit layout runs the runtime default
-    // (text-slots DEFAULT_NARRATIVE_LAYOUT); other types are hero-center only.
-    const layout =
-      scene.visualType === "narrative" ? (scene.layout ?? DEFAULT_NARRATIVE_LAYOUT) : "hero-center";
+    // Resolve through the renderer's layout authority: data.chart has a
+    // different text contract from data.hero-center, and hardcoding
+    // hero-center judged the chart's wide subtext against a 31-char budget.
+    const layout = resolveRenderLayout(scene);
     const declared = REMOTION_SLOT_MAP[scene.visualType]?.[layout] ?? null;
     if (!declared) continue;
     const checkable = new Set([...declared.rendered, ...declared.optional]);
@@ -2426,6 +2431,12 @@ export function checkFocusLight(scenes) {
       skipped += 1;
       continue;
     }
+    // A native chart is its own protagonist (the highlighted mark carries the
+    // focus); it has no text field to light, so do not demand a fake `stat`.
+    if (isLightLayoutExempt(scene.visualType, resolveRenderLayout(scene))) {
+      skipped += 1;
+      continue;
+    }
     // A template without a plan renders unlit; the contract test pins
     // LIGHT_PLANS against REMOTION_SLOT_MAP, so the missing plan fails CI
     // instead of turning every scene of the pack into a warning.
@@ -2460,7 +2471,7 @@ export function checkFocusLight(scenes) {
         `${governed} scene(s) light one declared subject, ${Object.keys(LIGHT_PLANS).length} ` +
         `template plan(s) within budget (${FOCUS_LIGHT.maxConcurrent} focus per frame, ` +
         `${FOCUS_LIGHT.transferOffFrames}-frame extinguish)` +
-        (skipped > 0 ? `; ${skipped} fullscreen media scene(s) skipped` : ""),
+        (skipped > 0 ? `; ${skipped} fullscreen/chart scene(s) skipped` : ""),
     },
   ];
 }

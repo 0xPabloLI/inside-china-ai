@@ -291,6 +291,25 @@ export function lightPlanFor(visualType) {
 }
 
 /**
+ * Layouts whose protagonist is not a text field. A native chart is the
+ * subject by construction: the chart panel is the object the viewer looks at,
+ * and the single highlighted mark carries the focus. Forcing a `stat` field
+ * onto it to satisfy the text-light gate would be a fake field.
+ */
+export const LIGHT_LAYOUT_EXEMPT = Object.freeze({
+  data: Object.freeze(["chart"]),
+});
+
+/**
+ * @param {string} visualType
+ * @param {string} layout
+ * @returns {boolean}
+ */
+export function isLightLayoutExempt(visualType, layout) {
+  return Boolean(LIGHT_LAYOUT_EXEMPT[visualType]?.includes(layout));
+}
+
+/**
  * The CSS property family a target glows through: its own beat's `kind` when it
  * declares one, else the plan's. A template can mix them — a text headline and
  * a card that takes the focus later (contrast).

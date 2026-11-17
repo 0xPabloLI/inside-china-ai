@@ -10,7 +10,7 @@ const clamp = { extrapolateLeft: "clamp" as const, extrapolateRight: "clamp" as 
 export const ColumnChart: React.FC<{ info: InfoSpec }> = ({ info }) => {
   const frame = useCurrentFrame();
   const data = chartData(info);
-  const domain = domainFor(data);
+  const domain = domainFor(data, { zeroFloor: true });
   const left = 48;
   const right = 772;
   const top = 60;

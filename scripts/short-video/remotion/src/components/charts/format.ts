@@ -31,7 +31,7 @@ export function chartValues(data: InfoDatum[]): number[] {
   return values;
 }
 
-export function domainFor(data: InfoDatum[], { includeZero = true } = {}) {
+export function domainFor(data: InfoDatum[], { includeZero = true, zeroFloor = false } = {}) {
   const values = chartValues(data);
   if (values.length === 0) return { min: 0, max: 1 };
   let min = Math.min(...values);
@@ -42,7 +42,10 @@ export function domainFor(data: InfoDatum[], { includeZero = true } = {}) {
   }
   if (min === max) max = min + 1;
   const pad = (max - min) * 0.08;
-  return { min: min - pad, max: max + pad };
+  // Bar/column charts anchor their baseline at the edge of the plot. Padding
+  // below a zero baseline would draw a phantom negative region and shrink
+  // every bar by 8% — the exact opposite of the FT zero-baseline rule.
+  return { min: zeroFloor ? min : min - pad, max: max + pad };
 }
 
 export function textFill(highlight: boolean): string {
