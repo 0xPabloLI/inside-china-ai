@@ -51,6 +51,7 @@ import {
   buildAutoPublishWarning,
 } from "./lib/publish-utils.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
+import { writePendingAnalysis } from "./lib/pending-analysis.mjs";
 import { INFO_LAYOUT_VERSION, layoutSignature } from "./lib/layout-signature.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
 import {
@@ -278,18 +279,20 @@ async function runManualMode() {
   // guide-generation time is the best available publish-time estimate. The
   // analytics workflow flips status to "done" once the video is analyzed.
   if (!isDraft) {
+    const pendingSlug = postSlug || contentDir || null;
     const pending = buildManualPendingAnalysis({
-      slug: postSlug || null,
+      slug: pendingSlug,
       videoPath: resolve(videoPath),
       publishedAt: new Date().toISOString(),
       ...(await layoutMetaForSlug(postSlug)),
       experimentId: experimentId || null,
       variant: experimentVariant || null,
     });
-    const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
-    if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
-    writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
-    console.log(buildAnalyticsGuidance(OUTPUT_DIR));
+    const pendingFile = writePendingAnalysis(__dirname, {
+      slug: pendingSlug,
+      record: pending,
+    });
+    console.log(buildAnalyticsGuidance(OUTPUT_DIR, pendingFile.path));
   }
 }
 
@@ -415,16 +418,18 @@ async function runAutoMode() {
   // 8. Write pending-analysis.json — only for non-draft
   if (!isDraft) {
     const publishedAt = new Date().toISOString();
+    const pendingSlug = postSlug || contentDir || null;
     const pending = buildPendingAnalysis(postGroupId, publishedAt, {
-      slug: postSlug || null,
+      slug: pendingSlug,
       ...(await layoutMetaForSlug(postSlug)),
       experimentId: experimentId || null,
       variant: experimentVariant || null,
     });
-    const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
-    if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
-    writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
-    console.log(buildAnalyticsGuidance(OUTPUT_DIR));
+    const pendingFile = writePendingAnalysis(__dirname, {
+      slug: pendingSlug,
+      record: pending,
+    });
+    console.log(buildAnalyticsGuidance(OUTPUT_DIR, pendingFile.path));
   }
 
   // 9. Output pinned comment for series

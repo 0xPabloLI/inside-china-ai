@@ -45,6 +45,10 @@ scripts/short-video/content/**/.focus-cache/
 scripts/short-video/content/*/pipeline-status.json
 scripts/short-video/content/**/pipeline-status.json
 
+# Per-slug pending analysis (#462 Stage 2) — local publish/analytics state
+scripts/short-video/content/*/pending-analysis.json
+scripts/short-video/content/**/pending-analysis.json
+
 # Voice samples (TTS reference audio — personal, binary)
 scripts/short-video/voice-samples/
 

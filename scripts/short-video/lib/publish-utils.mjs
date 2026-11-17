@@ -271,8 +271,14 @@ export function buildManualPendingAnalysis({
 
 /**
  * Build the analytics guidance message printed after successful publish.
+ *
+ * `pendingPath` is the record actually written (per-slug or legacy); callers
+ * that omit it keep the historical `output/pending-analysis.json` wording.
  */
-export function buildAnalyticsGuidance(outputDir) {
+export function buildAnalyticsGuidance(
+  outputDir,
+  pendingPath = `${outputDir}/pending-analysis.json`,
+) {
   return [
     "",
     "📊 Analytics Reminder:",
@@ -281,7 +287,7 @@ export function buildAnalyticsGuidance(outputDir) {
     `    1. Export CSV from https://analytics.tiktok.com`,
     `    2. Run: node scripts/short-video/fetch-tiktok-analytics.mjs --csv <csv-path>`,
     `    3. Run: node scripts/short-video/ab-test-tracker.mjs --result ${outputDir}/analytics-export.json`,
-    `  Pending analysis file: ${outputDir}/pending-analysis.json`,
+    `  Pending analysis file: ${pendingPath}`,
   ].join("\n");
 }
 

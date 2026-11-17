@@ -279,6 +279,11 @@ describe("buildAnalyticsGuidance", () => {
     expect(msg).toContain("pending-analysis.json");
   });
 
+  it("uses the actual per-slug pending path when provided", () => {
+    const msg = buildAnalyticsGuidance("output", "content/qwen4-gamefeel/pending-analysis.json");
+    expect(msg).toContain("content/qwen4-gamefeel/pending-analysis.json");
+  });
+
   it("includes analytics.tiktok.com URL", () => {
     const msg = buildAnalyticsGuidance("output");
     expect(msg).toContain("analytics.tiktok.com");

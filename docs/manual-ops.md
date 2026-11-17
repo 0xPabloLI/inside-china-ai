@@ -103,7 +103,7 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 `publish-tiktok.mjs --auto`（Publora API 档，TikTok 当前默认关闭——启用需逐平台授权，见 `docs/content-pipeline.md` Stage 5）发布成功后会：
 
 1. 打印 24-48h 分析提醒
-2. 写入 `output/pending-analysis.json`（记录待分析状态）
+2. 写入 `content/{slug}/pending-analysis.json`（记录待分析状态；无 `--slug` 的 standalone 发布仍写 legacy `output/pending-analysis.json`）
 
 ---
 
@@ -126,8 +126,8 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 > **TikTok 登录策略（2026-09-07 起）**：TikTok 登录一律用专用全新 profile Chrome 实例（指纹等效无痕，登录态可留存复用）——常规浏览器/常规 CDP profile 登录已被风控拦截，不再尝试。启动与 proxy 路由步骤见 `docs/analytics-workflow.md`「TikTok 专用登录实例（默认路线）」。
 
 ```
-① 检查 pending-analysis.json
-   │  新 session 时 agent 自动检查
+① node scripts/short-video/pending-analysis.mjs list
+   │  新 session 时 agent 自动检查（合并 content/<slug>/ 与 legacy output/）
    │  status ≠ "done" 且超过 48h → 提醒导出 CSV
    │  （status 已是 "done" 的记录不再提醒——防误报，2026-09-20 口径统一）
    │
@@ -147,7 +147,7 @@ node scripts/short-video/tiktok-upload-prep.mjs \
    │  node scripts/short-video/ab-test-tracker.mjs --result output/analytics-export.json
    │
 ⑤ 标记完成
-      Agent 将 pending-analysis.json 的 status 改为 "done"
+      Agent 将对应 content/{slug}/pending-analysis.json（或 legacy 记录）的 status 改为 "done"
 ```
 
 ### CSV 导出说明
@@ -219,7 +219,8 @@ TikTok 视频无法通过 yt-dlp 下载（反爬拦截），也没有官方下�
 
 | 文件                                                      | 用途                                                                            |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `output/pending-analysis.json`                            | 待分析视频记录（publish-tiktok.mjs 自动写入）                                   |
+| `content/{slug}/pending-analysis.json`                    | 待分析视频记录（publish-tiktok.mjs 按 slug 自动写入）                           |
+| `output/pending-analysis.json`                            | legacy 待分析记录（仍被 `pending-analysis.mjs list` 读取）                      |
 | `output/analytics-export.json`                            | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）                               |
 | `output/ab-test-results.json`                             | A/B 测试追踪（ab-test-tracker.mjs）                                             |
 | `output/{pipelineId}/publish/tiktok/tiktok-caption.txt`   | TikTok 发布用的 caption（verify-video.mjs 自动生成，#219 T02 起按平台目录隔离） |
