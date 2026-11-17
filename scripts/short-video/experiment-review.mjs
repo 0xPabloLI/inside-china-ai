@@ -8,6 +8,12 @@
  *
  * Usage:
  *   node scripts/short-video/experiment-review.mjs --manifest <path> [--out <dir>] [--seed 20260101]
+ *   node scripts/short-video/experiment-review.mjs --analyze <export.json> [--analyze <more.json>]
+ *     [--key <key.json>] [--labels A=old,B=new] [--out <dir>]
+ *
+ * `--analyze` joins the reviewer export with the key, prints the per-dimension
+ * differences, preference votes and (with two or more raters) ICC(2,1), and
+ * writes `report.json` next to the key unless `--out` says otherwise.
  *
  * Manifest:
  *   {
@@ -34,6 +40,11 @@ import {
 } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  analyzeBlindReview,
+  formatBlindReviewReport,
+  REVIEW_DIMENSIONS,
+} from "./lib/blind-review-analysis.mjs";
 import { seededBit } from "./lib/experiment-stats.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -168,12 +179,7 @@ export function buildReviewPacket({
 </footer>
 <script>
 const PAIRS = ${data};
-const DIMENSIONS = [
-  ["clarity", "Clarity — can I tell what the chart says?"],
-  ["credibility", "Credibility — does it look like a sourced claim?"],
-  ["memorability", "Memorability — would I remember the number?"],
-  ["hierarchy", "Visual hierarchy — is there one obvious focal point?"]
-];
+const DIMENSIONS = ${JSON.stringify(REVIEW_DIMENSIONS.map(({ key, label }) => [key, label]))};
 const root = document.getElementById("pairs");
 const responses = {};
 
@@ -295,19 +301,99 @@ collect();
 }
 
 function parseArgs(argv) {
-  const options = {};
+  const options = { analyze: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--manifest") options.manifest = argv[++i];
     else if (arg === "--out") options.out = argv[++i];
     else if (arg === "--seed") options.seed = Number(argv[++i]);
+    else if (arg === "--analyze") options.analyze.push(argv[++i]);
+    else if (arg === "--key") options.key = argv[++i];
+    else if (arg === "--labels") options.labels = argv[++i];
   }
   return options;
 }
 
+/**
+ * `A=legacy,B=native` → `{A: "legacy", B: "native"}`. Variant names are
+ * cosmetic; the mapping that matters comes from the key file.
+ */
+export function parseLabels(spec) {
+  const labels = {};
+  if (!spec) return labels;
+  for (const chunk of String(spec).split(",")) {
+    const [rawKey, ...rest] = chunk.split("=");
+    const key = rawKey.trim().toUpperCase();
+    const value = rest.join("=").trim();
+    if (!key && !value) continue;
+    if (key !== "A" && key !== "B")
+      throw new Error(`--labels key ${JSON.stringify(rawKey)} must be A or B`);
+    if (!value) throw new Error(`--labels ${key} needs a name`);
+    labels[key] = value;
+  }
+  return labels;
+}
+
+function defaultKeyCandidates(experimentId, exportPath) {
+  return [
+    join(dirname(resolve(exportPath)), "key.json"),
+    join(process.cwd(), "output", "experiments", `${experimentId}-blind-review`, "key.json"),
+    join(process.cwd(), "output", "experiments", `${experimentId}-review`, "key.json"),
+  ];
+}
+
+function runAnalysis(options) {
+  const exportPaths = options.analyze.map((file) => resolve(file));
+  const exports = exportPaths.map((file) => {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    return { source: basename(file), experimentId: parsed.experimentId, pairs: parsed.pairs };
+  });
+  const experimentId = String(exports[0].experimentId || "").trim();
+  if (!experimentId) throw new Error(`${exports[0].source}: experimentId is required`);
+
+  let keyPath = options.key ? resolve(options.key) : null;
+  if (!keyPath) {
+    keyPath =
+      defaultKeyCandidates(experimentId, exportPaths[0]).find((file) => existsSync(file)) ?? null;
+  }
+  if (!keyPath) {
+    throw new Error(
+      `no key.json found for ${experimentId}; pass --key <path> (the packet writes it next to index.html)`,
+    );
+  }
+  const key = JSON.parse(readFileSync(keyPath, "utf8"));
+  const report = analyzeBlindReview({ exports, key, labels: parseLabels(options.labels) });
+
+  const outDir = options.out ? resolve(options.out) : dirname(keyPath);
+  mkdirSync(outDir, { recursive: true });
+  const reportPath = join(outDir, "report.json");
+  writeFileSync(
+    reportPath,
+    `${JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        keyPath,
+        exportSources: exports.map((entry) => entry.source),
+        ...report,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  process.stdout.write(formatBlindReviewReport(report));
+  console.log(`✅ Report: ${reportPath}`);
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
-  if (!options.manifest) throw new Error("--manifest is required");
+  if (options.analyze.length > 0) {
+    runAnalysis(options);
+    return;
+  }
+  if (!options.manifest)
+    throw new Error("--manifest is required (or pass --analyze <export.json>)");
   const manifest = JSON.parse(readFileSync(resolve(options.manifest), "utf8"));
   const result = buildReviewPacket({
     manifest,

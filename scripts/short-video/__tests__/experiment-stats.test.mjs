@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bhFdr,
   bootstrapCI,
+  icc21,
   mean,
   mdeContinuous,
   pairedPermutation,
@@ -141,5 +142,29 @@ describe("mdeContinuous", () => {
     const low = mdeContinuous({ pairs: 20, rho: 0.2 });
     const high = mdeContinuous({ pairs: 20, rho: 0.8 });
     expect(high.mdeLog).toBeLessThan(low.mdeLog);
+  });
+});
+
+describe("icc21", () => {
+  it("returns null when there is nothing to compare", () => {
+    expect(icc21([[1, 2, 3]])).toBeNull();
+    expect(icc21([[1], [2]])).toBeNull();
+    expect(icc21([])).toBeNull();
+  });
+
+  it("returns 1 for identical raters and poor agreement for mirrored ones", () => {
+    const values = [1, 3, 5, 7];
+    expect(icc21([values, values])).toBeCloseTo(1, 12);
+    const mirrored = values.map((value) => 8 - value);
+    expect(icc21([values, mirrored])).toBeLessThan(0.5);
+  });
+
+  it("returns null when every rating is identical (zero variance)", () => {
+    expect(
+      icc21([
+        [4, 4, 4],
+        [4, 4, 4],
+      ]),
+    ).toBeNull();
   });
 });
