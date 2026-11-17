@@ -6,6 +6,7 @@
 > **Round CCII 实点**：本 PR 下沉 CCI 盘点与 CXCVIII 一句话档案后，按文件重数为 **136/151**（盘点 136 段 / 档案 151 条、150 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
 > **Round CCIV 实点**：本 PR 下沉 CCII 盘点与 CC/CXCIX 一句话档案后，按文件重数为 **137/153**（盘点 137 段 / 档案 153 条、152 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
 > **Round CCV 实点**：本 PR 下沉 CCIII 盘点与 CCI 一句话档案后，按文件重数为 **138/154**（盘点 138 段 / 档案 154 条、153 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
+> **Round CCVII 实点**：本 PR 下沉 CCV/CCIV 盘点与 CCII 一句话档案后，按文件重数为 **140/155**（盘点 140 段 / 档案 155 条、154 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -16,7 +17,11 @@
 
 ---
 
-## 逐轮盘点（Round CCIII → LV；Round CC 见一句话档案）
+## 逐轮盘点（Round CCV → LV；Round CC 见一句话档案）
+
+（**Round CCV：`#1398` 第一批交付**——信息版式系统 v2：`lib/info-grammar.mjs` 版式语法 + 六型原生图表（bar / column / line / slope / dot / proportion）、叙事弧与注意力预算门禁、配对实验脚手架（`experiment*.mjs`）与证据 memo；四包 6 个数据镜头改由原生图表承载（line / bar / column / slope），zhipu-valuation 的 chart-img K 线场景保留。产品验证门：**有产出差异**。由 PR #1402 交付（squash `42e90447`），`#1398` 保持 open（余人工盲评 + 20 对有机配对实测）；同轮补登 #1397 / #1399 / #1400 三条施工 PR，删 `#1353` / `#1354` 已闭行。frontier 复算：Track 1A **空**、① **空**、② `#541` / `#1406`、③④ 空；补行 `#1406`（🛰 `#1398` 盲评执行子票，`ready-for-human` · P2）入 Tier 2 与 W3C 波次行。）
+
+（**Round CCIV：`#1215` PR-C 交付闭票**——`checkEmptyField` 由 WARN 升为 FAIL，空场镜头阻断 preflight；四个 PR-B 之前的包共 10 镜迁移（9 `context` → `flow`、1 `contrast` → `split`），37 包复测 `Empty field` 0 FAIL / 0 WARN。产品验证门：**有产出差异**——10 镜从居中堆叠改为左右分栏/因果流程，空场不再放行。由 PR #1393 交付（squash `b030be7f`）。frontier 复算：Track 1A **空**、① **空**、② `#541`（`#1215` 已闭）、③④ 空。）
 
 （**Round CCIII：`#1215` PR-B 版式拓扑交付**——五种信息模板读 `scene.layout`，六种竖屏拓扑（set-piece / year-source / chart-card / split / flow / array）落地；13 包 40 镜迁移，空场 WARN 43→0（9 个契约本就不合法的旧 scene 跳过，留给 PR-C 前的内容清理）。产品验证门：**有产出差异**——37 镜由布局 focal object 承载，21 镜仍是文本 hero、11 镜由媒体承载；同一口播出现分栏、流程、阵列、大数字等可读版式。由 PR #1391 交付。PR-C（WARN→FAIL 翻闸）未做，`#1215` 保持 open。frontier 复算：Track 1A **空**、① **空**、② `#541 → #1215`（余 PR-C）、③④ 空。）
 
@@ -293,7 +298,9 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round CCI → J）
+## 近轮一句话档案（Round CCII → J）
+
+**Round CCII**（`#1362` 交付闭票、Track 1B ① 段清空——media-patch 按 claim 签名跨 run 复用：同包重跑短路 2ms、patch 字节不变，改一个场景口播只重搜该场景；上一轮 0 分配/recipe/settings 变化/`--no-reuse` 回退全量；PR #1385；**无产出差异（enabling fix）**，旧包首跑仍全量、次跑起复用；frontier 1A 空、① 空、② `#541 → #1215`）
 
 **Round CCI**（`#1354` 交付闭票——超时先取证再按拥堵/配额/卡死/慢归因、push 前同 slug 槽位预检、kernel 90min 墙钟自尽+心跳；**无产出差异（enabling fix）**，产出变化待 `#1362`；`#1353` 补登 PR #1380 `5465edc2`；frontier 1A 空、① `#1362`、② `#541 → #1215`）
 
