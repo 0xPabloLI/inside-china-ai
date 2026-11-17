@@ -142,6 +142,37 @@ export interface AvatarField {
   present?: { from: number; to: number }[];
 }
 
+/** One native-chart datum (#1398). */
+export interface InfoDatum {
+  label: string;
+  value: number;
+  /** Second endpoint for a slope chart. */
+  value2?: number;
+  highlight?: boolean;
+}
+
+/**
+ * Native chart grammar (#1398). `relationship` chooses the chart family;
+ * `chart` names the shape; `data` is the small, directly-labeled series.
+ * Validation and defaults live in `lib/info-grammar.mjs` — this type is the
+ * renderer-facing mirror, not a second source of truth.
+ */
+export interface InfoSpec {
+  relationship: string;
+  chart: string;
+  data: InfoDatum[];
+  unit: string;
+  baseline?: number;
+  sort?: "none" | "asc" | "desc";
+  highlight?: string;
+  time?: { from: string; to: string };
+  decimals?: number;
+  prefix?: string;
+  suffix?: string;
+  axisLabels?: [string, string];
+  panelVariant?: "clean" | "terminal";
+}
+
 /** A single scene definition (from scene-data.mjs). */
 export interface SceneData {
   id: number;
@@ -158,6 +189,8 @@ export interface SceneData {
   avatar?: AvatarField;
   /** Layout variant for scene rendering (required for non-cta scenes). */
   layout?: string;
+  /** Native chart grammar (#1398), valid only with `layout: "chart"`. */
+  info?: InfoSpec;
   /**
    * Original-language source material reference (#185). `sourceText` (the
    * Chinese article excerpt the scene's claim came from) feeds the zh

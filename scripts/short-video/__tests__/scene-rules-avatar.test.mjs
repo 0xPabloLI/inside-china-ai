@@ -70,7 +70,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // pack's four lit scenes; no warn joins.
     // #1296: pass 39 → 40 — the media-density gate reports one pass (this pack
     // carries media on 2 of its 7 capable scenes, exactly at the floor).
-    expect(before.pass).toHaveLength(40);
+    // #1398: pass 40 → 42 — the info-grammar and chart-pin preflights each
+    // report one pack-level pass when the pack has no native chart / no pin.
+    expect(before.pass).toHaveLength(42);
     expect(before.warn).toHaveLength(0);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });

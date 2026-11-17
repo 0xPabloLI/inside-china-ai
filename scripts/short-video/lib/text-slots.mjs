@@ -307,6 +307,11 @@ export const MEASURED_MAX_WIDTH = {
   "data.chart-card.label": 820,
   "data.chart-card.subtext": 392,
   "data.chart-card.source": 820,
+  // Native chart scene: the 820 band above/below the 820×620 panel. The
+  // chart's own SVG labels are checked by the info grammar, not by TextGate.
+  "data.chart.label": 820,
+  "data.chart.subtext": 820,
+  "data.chart.source": 820,
   "contrast.split.title": 820,
   // One 380px column card minus its 26px side padding.
   "contrast.split.left": 328,
@@ -688,6 +693,14 @@ export const REMOTION_SLOT_MAP = {
       rendered: [],
       control: [],
       optional: ["stat", "label", "subtext", "source"],
+      intentionallyOmitted: [],
+    },
+    // #1398: a native SVG chart panel. The chart is the content; the title,
+    // reading and source are all optional text slots around it.
+    chart: {
+      rendered: [],
+      control: [],
+      optional: ["label", "subtext", "source"],
       intentionallyOmitted: [],
     },
   },

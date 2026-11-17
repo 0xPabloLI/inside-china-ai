@@ -164,6 +164,63 @@ export function resolveChartParams(chart = {}, defaults = {}) {
 }
 
 /**
+ * Validate one scene's chart pin without fetching it.
+ *
+ * This is the preflight seam (#1398): malformed pins used to throw inside
+ * `buildChartAssets` after research spend. The checks here mirror the fetch
+ * path exactly — same entity resolver, same annotation validator, same
+ * parameter defaults — so preflight and Step 1.5 cannot disagree.
+ *
+ * @param {object} chart - scene.chart
+ * @param {{entities: Array<object>, defaults?: object}|null} map - loaded symbol map
+ * @returns {{ok: boolean, errors: string[]}}
+ */
+export function validateChartPin(chart, map = null) {
+  const errors = [];
+  if (!chart || typeof chart !== "object" || Array.isArray(chart)) {
+    return {
+      ok: false,
+      errors: ["chart must be an object with an entity and optional range/interval/theme"],
+    };
+  }
+  if (typeof chart.entity !== "string" || chart.entity.trim() === "") {
+    errors.push("chart.entity must be a non-empty string");
+  } else if (map && !resolveChartEntity(chart.entity, map)) {
+    errors.push(
+      `chart entity "${chart.entity}" not in symbol map (add it to config/chart-symbols.json)`,
+    );
+  }
+  if (chart.interval !== undefined && typeof chart.interval !== "string") {
+    errors.push("chart.interval must be a string when present");
+  }
+  if (chart.theme !== undefined && typeof chart.theme !== "string") {
+    errors.push("chart.theme must be a string when present");
+  }
+  if (chart.range !== undefined) {
+    const range = chart.range;
+    if (typeof range === "string") {
+      if (range.trim() === "") errors.push("chart.range must not be an empty string");
+    } else if (
+      !range ||
+      typeof range !== "object" ||
+      Array.isArray(range) ||
+      typeof range.from !== "string" ||
+      typeof range.to !== "string" ||
+      range.from.trim() === "" ||
+      range.to.trim() === ""
+    ) {
+      errors.push("chart.range must be a preset string or { from, to } ISO dates");
+    }
+  }
+  try {
+    resolveChartParams(chart, map?.defaults ?? {});
+  } catch (error) {
+    errors.push(error.message);
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+/**
  * Validate `chart.annotations` and hand it back as the request's `drawings`.
  * Loud on every failure mode: a scene that declares annotations and gets a
  * chart without them is the silent-wrong-output case this module exists to

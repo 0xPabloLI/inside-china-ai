@@ -130,6 +130,7 @@ describe("layout focal objects (#1215)", () => {
     expect(Object.keys(LAYOUT_FOCAL).sort()).toEqual([
       "context.flow",
       "contrast.split",
+      "data.chart",
       "data.chart-card",
       "data.year-source",
       "info-card.array",

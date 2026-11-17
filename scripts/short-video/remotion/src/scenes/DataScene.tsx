@@ -10,7 +10,7 @@
  */
 import { Img, Interactive, staticFile, useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
-import { type SceneData } from "../types";
+import { type InfoSpec, type SceneData } from "../types";
 import { BrandBar, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { StampIn, SlideUp, FadeIn } from "../components/animations/entrance";
@@ -18,6 +18,8 @@ import { SPACING, COLOR, ANNOTATION } from "../components/shared";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 import { ChartFrame } from "../components/topology";
+import { ChartPanel, ChartRenderer } from "../components/charts";
+import { normalizeInfoSpec } from "../../../lib/info-grammar.mjs";
 import { resolveRenderLayout } from "../../../lib/text-slots.mjs";
 
 export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
@@ -178,6 +180,109 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
             >
               <FadeIn delay={1.0} duration={0.5}>
                 <TextGate sceneId={sceneId} slotId="data.year-source.source">
+                  {(fontSize) => (
+                    <div
+                      style={{
+                        fontSize,
+                        fontWeight: 600,
+                        color: COLOR.textDim,
+                        letterSpacing: "1px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {txt.source as string}
+                    </div>
+                  )}
+                </TextGate>
+              </FadeIn>
+            </div>
+          )}
+        </Camera>
+      </div>
+    );
+  }
+
+  if (layout === "chart") {
+    if (!scene.info) {
+      throw new Error(
+        `Scene ${scene.id}: layout "chart" requires scene.info — run verify-video --pre before rendering`,
+      );
+    }
+    const info = normalizeInfoSpec(scene.info) as InfoSpec;
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <BrandBar />
+        <Camera visualType="data" duration={duration}>
+          <div
+            data-native-chart={info.chart}
+            style={{
+              position: "absolute",
+              left: 60,
+              right: 200,
+              top: 300,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 16,
+            }}
+          >
+            {txt.label && (
+              <TextGate sceneId={sceneId} slotId="data.chart.label" slotWidth={820}>
+                {(fontSize) => (
+                  <div
+                    style={{
+                      fontSize,
+                      fontWeight: 800,
+                      color: COLOR.brand,
+                      letterSpacing: "1px",
+                      lineHeight: 1.15,
+                      textAlign: "center",
+                    }}
+                  >
+                    {txt.label as string}
+                  </div>
+                )}
+              </TextGate>
+            )}
+
+            <FadeIn delay={0.25} duration={0.5}>
+              <ChartPanel variant={info.panelVariant}>
+                <ChartRenderer info={info} />
+              </ChartPanel>
+            </FadeIn>
+
+            {txt.subtext && (
+              <TextGate sceneId={sceneId} slotId="data.chart.subtext" slotWidth={820}>
+                {(fontSize) => (
+                  <div
+                    style={{
+                      fontSize,
+                      fontWeight: 600,
+                      color: COLOR.textMuted,
+                      lineHeight: 1.3,
+                      textAlign: "center",
+                    }}
+                  >
+                    {txt.subtext as string}
+                  </div>
+                )}
+              </TextGate>
+            )}
+          </div>
+
+          {txt.source && (
+            <div
+              style={{
+                position: "absolute",
+                left: 60,
+                right: 200,
+                bottom: 210,
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <FadeIn delay={1.0} duration={0.5}>
+                <TextGate sceneId={sceneId} slotId="data.chart.source">
                   {(fontSize) => (
                     <div
                       style={{

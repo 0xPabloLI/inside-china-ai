@@ -77,6 +77,8 @@ import {
   resolveMediaPlan,
 } from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
+import { checkInfoSpec } from "./info-grammar.mjs";
+import { checkChartPinContract } from "./chart-pin-contract.mjs";
 // SSOT passthrough (#199): NO_MEDIA_TYPES is defined once in claim-keywords.mjs
 // and re-exported through final-media-gate — scene-rules must not hold a copy.
 export { NO_MEDIA_TYPES };
@@ -3313,6 +3315,8 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
     ...checkTemplateContract(scenes),
+    ...checkInfoSpec(scenes),
+    ...checkChartPinContract(scenes),
     ...checkVisualTypeWhitelist(scenes, opts),
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
