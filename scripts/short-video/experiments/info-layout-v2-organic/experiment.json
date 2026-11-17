@@ -1,9 +1,8 @@
 {
   "id": "info-layout-v2-organic",
-  "createdAt": "2026-11-17T16:07:07.203Z",
+  "createdAt": "2026-11-17T22:44:11.493Z",
   "hypothesis": "Native-chart screens raise completion and watch time versus chart-card screenshots on the same script",
   "factor": "native-chart-vs-chart-card",
-  "primaryMetric": "fullVideoWatchedRate",
   "primaryMetrics": [
     "fullVideoWatchedRate",
     "logAvgWatchTimeSec"

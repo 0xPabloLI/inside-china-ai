@@ -83,7 +83,7 @@ describe("signTest on a mixed sample", () => {
     ];
     const result = signTest(diffs);
     expect(result.positive).toBe(7);
-    // C(18,11..18) = 240311 over 2^18, doubled: 0.480682...
+    // sum C(18,11..18) = 63004 over 2^18, doubled: 0.480682...
     expect(result.p).toBeCloseTo(0.480682373, 6);
   });
 });

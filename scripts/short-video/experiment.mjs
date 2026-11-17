@@ -225,7 +225,6 @@ export function createExperiment({
     createdAt: now,
     hypothesis: cleanHypothesis,
     factor: cleanFactor,
-    primaryMetric: primaries[0],
     primaryMetrics: primaries,
     secondaryMetrics: secondaries,
     design: "matched-pair",
@@ -378,7 +377,7 @@ export function pairIntervalHours(earlier, later) {
   const gapMs = Math.abs(second.atMs - first.atMs);
   // Day precision: subtract the day of slack the timestamps hide.
   const guaranteedMs = exact ? gapMs : gapMs - DAY_MS;
-  return { hoursLower: guaranteedMs / 3_600_000, exact, days: gapMs / DAY_MS };
+  return { hoursLower: guaranteedMs / 3_600_000, exact };
 }
 
 /**
@@ -400,7 +399,6 @@ export function ingestDetails({
   overrides = {},
   matchPack: matcher = null,
   allowProtocolViolations = false,
-  maturityHours = MATURITY_HOURS,
 } = {}) {
   const capturedAt = details?.fetchedAt || new Date().toISOString();
   const videos = Array.isArray(details?.videos) ? details.videos : [];
@@ -443,12 +441,12 @@ export function ingestDetails({
       });
       continue;
     }
-    if (age.ageHoursLower < maturityHours) {
+    if (age.ageHoursLower < MATURITY_HOURS) {
       skipped.push({
         videoId,
         title: video.title || "",
         packSlug: matched,
-        reason: `too early: lower-bound age ${age.ageHoursLower.toFixed(1)}h < ${maturityHours}h`,
+        reason: `too early: lower-bound age ${age.ageHoursLower.toFixed(1)}h < ${MATURITY_HOURS}h`,
       });
       continue;
     }
@@ -766,7 +764,6 @@ export function buildReport({
     hypothesis: experiment.hypothesis,
     factor: experiment.factor,
     primaryMetric: lead.metric,
-    primaryMetrics,
     variants: experiment.variants,
     targetPairs: experiment.targetPairs,
     nPairs,
@@ -818,12 +815,7 @@ function num(value, digits = 3) {
  *
  * @returns {{experimentId: string, ok: boolean, findings: object[], completeBlocks: number, targetPairs: number}}
  */
-export function checkExperiment({
-  experiment,
-  assignments = [],
-  observations = [],
-  maturityHours = MATURITY_HOURS,
-} = {}) {
+export function checkExperiment({ experiment, assignments = [], observations = [] } = {}) {
   if (!experiment || !experiment.id) throw new Error("experiment is required");
   const findings = [];
   const push = (level, code, detail, ref = null) => findings.push({ level, code, detail, ref });
@@ -876,11 +868,12 @@ export function checkExperiment({
     const ageHours = age ? age.ageHoursLower : observation.ageHoursLower;
     if (!Number.isFinite(ageHours)) {
       push("warn", "age-unknown", "post time missing; maturity cannot be verified", ref);
-    } else if (ageHours < maturityHours) {
+    } else if (ageHours < MATURITY_HOURS) {
       push(
         "error",
         "immature-observation",
-        `stored at a lower-bound age of ${ageHours.toFixed(1)}h < ${maturityHours}h`,
+        `stored at a lower-bound age of ${ageHours.toFixed(1)}h < ${MATURITY_HOURS}h` +
+          (observation.postedPrecision === "day" ? " (day-precision)" : ""),
         ref,
       );
     }

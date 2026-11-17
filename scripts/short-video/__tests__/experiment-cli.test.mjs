@@ -79,7 +79,9 @@ describe("createExperiment", () => {
       seed: 20260101,
       status: "registered",
     });
-    expect(record.primaryMetric).toBe("fullVideoWatchedRate");
+    expect(record.primaryMetrics).toEqual(["fullVideoWatchedRate", "logAvgWatchTimeSec"]);
+    // One canonical field: the legacy singular key is read, never written.
+    expect(record.primaryMetric).toBeUndefined();
     expect(record.createdAt).toBe("2026-01-01T00:00:00.000Z");
   });
 
@@ -474,7 +476,7 @@ describe("createExperiment co-primaries", () => {
   it("pre-registers both primary metrics by default", () => {
     const record = createExperiment({ id: "l2-default", hypothesis: "h", factor: "f" });
     expect(record.primaryMetrics).toEqual(["fullVideoWatchedRate", "logAvgWatchTimeSec"]);
-    expect(record.primaryMetric).toBe("fullVideoWatchedRate");
+    expect(record.primaryMetric).toBeUndefined();
     expect(record.secondaryMetrics).toEqual([]);
   });
 
