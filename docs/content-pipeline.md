@@ -731,7 +731,7 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 发布后需要用户在 TikTok App 中手动完成：pinned comment、回复评论。AIGC 标签由 `tiktok-upload-prep.mjs` 自动完成；背景音乐在准备到编辑器的那次运行里自动挂上（存成草稿会丢，公开前需重挂）；公开点击本身也由用户完成（#1181）。地理标签默认不做（历史成功的手动发布也未填，用户 2026-11-01 确认；网页路径没有该控件），需要时导出成片传到手机（AirDrop/云盘），在 App 内重新上传并补 Location——网页 Studio 草稿不会同步到 App。完整清单见 `docs/manual-ops.md` 的「每次发布视频时」部分。
 
-发布步骤运行时，`manual-guide` 档在生成发布指南时写入 `output/pending-analysis.json`（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入。**`cdp` 草稿档不写**：草稿没有 `publishedAt`，按存草稿时刻起算 48h 会给一个可能永远不会公开的帖子启动 Analytics 提醒（#1181）。用户人工公开后，若要启用 48h 提醒，按 `manual-guide` 流程生成一次指南，或手工补记该文件。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
+发布步骤运行时，`manual-guide` 档在生成发布指南时写入 `content/{slug}/pending-analysis.json`（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入同一位置；没有 `--slug`/`--content` 的 standalone 发布继续写 legacy `output/pending-analysis.json`。**`cdp` 草稿档不写**：草稿没有 `publishedAt`，按存草稿时刻起算 48h 会给一个可能永远不会公开的帖子启动 Analytics 提醒（#1181）。用户人工公开后，若要启用 48h 提醒，按 `manual-guide` 流程生成一次指南，或手工补记该文件。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
 
 > **真机农场研究的归属（#1186，2026-11-13）**：`Git-Agni/prod-FARM-IOS-Core`（Apache-2.0）与 `gethandler.ai/tiktok-iphone-farm` 的三条做法里，PC 网页发布路径承接第一条，另两条属真机 App 路径。
 >
