@@ -861,3 +861,12 @@ PR #1397 — `6794d143` — 趋势研究补 `videoFit` 0–5 分档（`assetEvid
 PR #1399 — `d26a0f41` — 五篇 11-12~11-14 的变现/选品调研以正式文档入库、登记 `docs/DOCS-INDEX.md` 并逐篇标「无下游票」；文档正文一字未改。属**无产出差异**。
 PR #1400 — `8fd75728` — 带字形素材的 upscale 改确定性 Lanczos 重采样（默认仍是 Real-ESRGAN，照片不受影响；素材可显式声明 `upscale: "resample"`），避免 Real-ESRGAN 改坏字形或丢整块内容；同时改 `chart-asset.mjs`/`apply-media-patch.mjs`/`media-field-schema.mjs` 与四套测试。属**有产出差异**（800×600 免费档 K 线重采样到 960×720 后小字与蜡烛边缘更锐，且不再出现整块空白）。
 
+## Round CCVIII 补登：施工 PR 消账（roadmap-ledger）
+
+PR #1409 — `58ec5559` — `fix(short-video): unify zhipu-valuation drawdown at 85% (#1394)`。`#1394` 由本 PR 交付闭票、无独立 tracker 行；属**有产出差异（有限）**：hook bigNumber `-80%→-85%`，标题与第 2 镜口播同步，整片只剩一个回撤数字；版式、图表、渲染链路未动。Round CCVIII 已记交付，本行补台账以清 ledger。
+
+## Round CCV 下沉：信息版式 v2 第一批（2026-11-17）
+
+> 由 `docs/issue-roadmap.md` 近轮一句话档案下沉；完整交付记录见 #1398 评论。
+
+**Round CCV**（`#1398` 第一批交付——信息版式系统 v2：版式语法 + 六型原生图表 + 叙事弧/注意力门禁 + 配对实验脚手架；四包 6 个数据镜头改由原生图表承载（line/bar/column/slope），chart-img K 线保留；PR #1402 `42e90447`；**有产出差异**；补登 #1397/#1399/#1400、删 `#1353`/`#1354` 已闭行、补行 `#1406`（盲评子票）；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）；

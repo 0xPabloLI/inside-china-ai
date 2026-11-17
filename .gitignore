@@ -41,6 +41,10 @@ scripts/short-video/bench/search-orthogonality/output/
 scripts/short-video/content/*/.focus-cache/
 scripts/short-video/content/**/.focus-cache/
 
+# Per-slug pipeline status (#462 Stage 1) — local run state, not source
+scripts/short-video/content/*/pipeline-status.json
+scripts/short-video/content/**/pipeline-status.json
+
 # Voice samples (TTS reference audio — personal, binary)
 scripts/short-video/voice-samples/
 
