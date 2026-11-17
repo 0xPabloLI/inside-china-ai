@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.83.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.82.0...tanstack_start_ts-v1.83.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** [#1398](https://github.com/0xPabloLI/inside-china-ai/issues/1398) blind-review analysis joins exports with the key ([#1407](https://github.com/0xPabloLI/inside-china-ai/issues/1407)) ([0004db8](https://github.com/0xPabloLI/inside-china-ai/commit/0004db8fafd2e3c964fc1092b83319f61ba29ba6))
+* **short-video:** [#1398](https://github.com/0xPabloLI/inside-china-ai/issues/1398) information layout v2 — native charts, narrative gates, evidence docs ([#1402](https://github.com/0xPabloLI/inside-china-ai/issues/1402)) ([42e9044](https://github.com/0xPabloLI/inside-china-ai/commit/42e904477f1be6e3d62f66e0d0fe1d5e9cf5421f))
+
 ## [1.82.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.81.0...tanstack_start_ts-v1.82.0) (2026-11-17)
 
 
