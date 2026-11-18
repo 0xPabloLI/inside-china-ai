@@ -25,7 +25,7 @@
 import { execFile } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { homedir } from "os";
-import { join } from "path";
+import { isAbsolute, join, resolve } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { buildCV3CudaManifest } from "./cosyvoice3-kaggle-cuda.mjs";
@@ -151,8 +151,16 @@ export async function createCosyVoice3ColabCudaEngine(deps = {}) {
     async generate(scenes, outputDir) {
       const manifest = buildCV3CudaManifest(scenes);
       const script = renderColabScript(manifest, readFileSync(deps.refAudioPath ?? CV3_REF_AUDIO));
-      const tempDir = join(outputDir, ".colab-tts");
+      // The output directory is pipeline-owned, not request input, but pin it
+      // to an absolute non-root path so the artifact writes cannot escape it.
+      const outputRoot = resolve(String(outputDir));
+      if (!isAbsolute(outputRoot) || outputRoot === "/") {
+        throw new Error(`Refusing to write Colab artifacts into "${outputDir}"`);
+      }
+      // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+      const tempDir = join(outputRoot, ".colab-tts");
       mkdirSync(tempDir, { recursive: true });
+      // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
       const scriptPath = join(tempDir, "cosyvoice3_tts_colab.py");
       writeFileSync(scriptPath, script);
 
@@ -200,8 +208,13 @@ export async function createCosyVoice3ColabCudaEngine(deps = {}) {
 
       const results = [];
       for (const file of files) {
-        const destPath = join(outputDir, `scene-${file.sceneId}.wav`);
-        assertRiffWaveHeader(file.wav, `scene ${file.sceneId}`);
+        const sceneId = Number(file.sceneId);
+        if (!Number.isInteger(sceneId) || sceneId < 1 || sceneId > 9999) {
+          throw new Error(`Colab returned an invalid scene id: ${JSON.stringify(file.sceneId)}`);
+        }
+        // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+        const destPath = join(outputRoot, `scene-${sceneId}.wav`);
+        assertRiffWaveHeader(file.wav, `scene ${sceneId}`);
         writeFileSync(destPath, file.wav);
         const { duration } = await postProcess(destPath, {
           useSilenceFilter: true,
@@ -209,7 +222,7 @@ export async function createCosyVoice3ColabCudaEngine(deps = {}) {
           resample: true,
           prosody: null,
         });
-        results.push({ sceneId: file.sceneId, audioPath: destPath, duration });
+        results.push({ sceneId, audioPath: destPath, duration });
         console.log(`  Scene ${file.sceneId}: ${duration.toFixed(2)}s`);
       }
       if (results.length === 0) throw new Error("No successful TTS results from Colab");
