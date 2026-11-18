@@ -50,7 +50,11 @@ export const MEDIA_ROLES = Object.freeze([
 export function mediaRoleOf(scene) {
   const explicit = scene?.mediaRole;
   if (explicit === MEDIA_ROLE.DECORATIVE) return MEDIA_ROLE.CARD;
-  if (explicit === MEDIA_ROLE.EVIDENCE || explicit === MEDIA_ROLE.BACKGROUND || explicit === MEDIA_ROLE.CARD) {
+  if (
+    explicit === MEDIA_ROLE.EVIDENCE ||
+    explicit === MEDIA_ROLE.BACKGROUND ||
+    explicit === MEDIA_ROLE.CARD
+  ) {
     return explicit;
   }
   return scene?.media?.evidence === true ? MEDIA_ROLE.EVIDENCE : MEDIA_ROLE.BACKGROUND;

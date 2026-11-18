@@ -43,7 +43,13 @@ describe("checkMediaRoleContract", () => {
   it("fails a media-led hook carried by background media", () => {
     const findings = checkMediaRoleContract([
       { id: 4, visualType: "hook", layout: "media-led", media: { src: "still.png" } },
-      { id: 5, visualType: "hook", layout: "media-led", media: { src: "still.png" }, mediaRole: "background" },
+      {
+        id: 5,
+        visualType: "hook",
+        layout: "media-led",
+        media: { src: "still.png" },
+        mediaRole: "background",
+      },
     ]);
     expect(findings).toHaveLength(2);
     expect(findings[0].detail).toContain("hero-center");
@@ -52,7 +58,12 @@ describe("checkMediaRoleContract", () => {
   it("passes evidence hooks, explicit background, and legacy decorative", () => {
     expect(
       checkMediaRoleContract([
-        { id: 5, visualType: "hook", layout: "media-led", media: { src: "demo.png", evidence: true } },
+        {
+          id: 5,
+          visualType: "hook",
+          layout: "media-led",
+          media: { src: "demo.png", evidence: true },
+        },
         { id: 6, media: { src: "lap.mp4" }, mediaRole: "evidence" },
         { id: 7, media: { src: "still.png" }, mediaRole: "background" },
         { id: 8, media: { src: "object.png" }, mediaRole: "decorative" },

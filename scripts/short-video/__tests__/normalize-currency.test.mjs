@@ -386,4 +386,3 @@ describe("bare English amounts", () => {
     expect(result[0].voiceover).toBe("Speech costs thirty nine fen an hour.");
   });
 });
-

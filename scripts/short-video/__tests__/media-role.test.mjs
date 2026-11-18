@@ -6,12 +6,7 @@
  * non-evidence media is background; `decorative` is a legacy card alias.
  */
 import { describe, it, expect } from "vitest";
-import {
-  MEDIA_ROLE,
-  mediaRoleOf,
-  isEvidenceMedia,
-  renderableMedia,
-} from "../lib/media-role.mjs";
+import { MEDIA_ROLE, mediaRoleOf, isEvidenceMedia, renderableMedia } from "../lib/media-role.mjs";
 
 describe("mediaRoleOf", () => {
   it("defaults to background when nothing is declared", () => {
@@ -66,7 +61,12 @@ describe("renderableMedia", () => {
   it("drops background and card media in hooks", () => {
     expect(renderableMedia({ id: 1, visualType: "hook", media: { src: "still.png" } })).toBe(null);
     expect(
-      renderableMedia({ id: 1, visualType: "hook", media: { src: "object.png" }, mediaRole: "card" }),
+      renderableMedia({
+        id: 1,
+        visualType: "hook",
+        media: { src: "object.png" },
+        mediaRole: "card",
+      }),
     ).toBe(null);
   });
 

@@ -88,7 +88,10 @@ describe("generate", () => {
     });
     expect(engine?.name).toBe("cosyvoice3-colab-cuda");
 
-    const results = await engine.generate([{ id: 2, voiceover: "hello", visualType: "narrative" }], outputDir);
+    const results = await engine.generate(
+      [{ id: 2, voiceover: "hello", visualType: "narrative" }],
+      outputDir,
+    );
     expect(results).toHaveLength(1);
     expect(results[0].duration).toBe(1.25);
     const dest = join(outputDir, "scene-2.wav");

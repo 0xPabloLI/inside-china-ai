@@ -2857,7 +2857,8 @@ export function checkLayoutMediaRouting(scenes) {
     if (typeof scene.assetNeed === "string" && scene.assetNeed.trim() !== "") {
       needOnTextFirst.push(String(scene.id));
     }
-    if (scene.media && mediaRoleOf(scene) === MEDIA_ROLE.EVIDENCE) evidenceOnTextFirst.push(String(scene.id));
+    if (scene.media && mediaRoleOf(scene) === MEDIA_ROLE.EVIDENCE)
+      evidenceOnTextFirst.push(String(scene.id));
   }
 
   const results = [];

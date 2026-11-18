@@ -18,7 +18,7 @@ function sceneWith(voiceover, texts = {}) {
 }
 
 describe("currency gate", () => {
-  it("fails on a bare \"<n> yuan\" that the normalizer missed", () => {
+  it('fails on a bare "<n> yuan" that the normalizer missed', () => {
     const finding = currencyFinding(sceneWith("Speech costs 0.39 yuan an hour."));
     expect(finding.level).toBe("fail");
     expect(finding.detail).toContain("0.39 yuan");
@@ -37,7 +37,7 @@ describe("currency gate", () => {
   });
 
   it("does not fire on non-currency 元 words", () => {
-    const finding = currencyFinding(sceneWith("元宇宙和元素周期表都不是货币。")); 
+    const finding = currencyFinding(sceneWith("元宇宙和元素周期表都不是货币。"));
     expect(finding.level).toBe("pass");
   });
 });
