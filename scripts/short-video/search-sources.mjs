@@ -77,6 +77,7 @@ import {
   dedupByUrl,
 } from "./lib/trends-utils.mjs";
 import { ALL_SOURCES, DEFAULT_KEYWORDS, resolveLoginGate } from "./lib/source-registry.mjs";
+import { writeUsedTopicsArtifact } from "./lib/used-topics.mjs";
 import { ensureSearxng } from "../searxng/lifecycle.mjs";
 import {
   updateSourceHealth,
@@ -165,6 +166,9 @@ const __dirname = dirname(__filename);
 const OUTPUT_DIR = join(__dirname, "output");
 const TREND_OUTPUT_PATH = join(OUTPUT_DIR, "trending-topics.json");
 const RESEARCH_OUTPUT_PATH = join(OUTPUT_DIR, "research-results.json");
+const CONTENT_DIR = join(__dirname, "content");
+const USED_TOPICS_PATH = join(OUTPUT_DIR, "used-topics.json");
+const PUBLISHED_RECORD_PATH = join(OUTPUT_DIR, "pending-analysis.json");
 
 const PAGE_LOAD_WAIT_MS = 3000;
 
@@ -1602,6 +1606,23 @@ async function main() {
   console.log(`\n📁 Output written: ${TREND_OUTPUT_PATH}`);
   console.log(`   Total topics: ${output.totalTopics}`);
   console.log(`   Sources: ${JSON.stringify(output.sourceStats)}`);
+
+  // Exclusion material for the selection step: which topics already exist as
+  // content packages, so they never re-enter the Video-ready shortlist.
+  // Fail-open — a broken package must not abort trend discovery.
+  const used = await writeUsedTopicsArtifact({
+    contentDir: CONTENT_DIR,
+    publishedRecordPath: PUBLISHED_RECORD_PATH,
+    outPath: USED_TOPICS_PATH,
+  });
+  if (used.ok) {
+    console.log(`\n🗂️  Used topics written: ${used.outPath}`);
+    console.log(
+      `   已建包 ${used.count} 个（published ${used.publishedCount} 个）— 选题时按 slug/topics 排除`,
+    );
+  } else {
+    console.warn(`⚠️  Used-topics artifact skipped: ${used.reason}`);
+  }
 
   // Print top topics per category
   for (const [cat, topics] of Object.entries(output.topics)) {

@@ -4,6 +4,19 @@
 
 选题交叉比对（`search-sources.mjs` → trending-topics.json + last30days → Agent）的固定四步：**去重 → 打分 → 按阈值过滤 → 视频适配度标注与两条列表**。产物（选中的 topic 记录）必须为每条留痕：去重组归属 + 0-10 分数 + `videoFit` + `assetEvidence` + `format` + `hook` + 一句理由。
 
+## 0. 已建包选题排除（先于去重）
+
+趋势脚本只看得见外部世界，不知道哪些选题已经做过内容包——2026-11-17 的选题因此重新推荐了 `minimax-h3-image` 与 `qwen4-gamefeel`（两者都已建包并发布）。所以四步之前先拿排除表：`search-sources.mjs --trend` 在写完 `output/trending-topics.json` 后，同目录落一份 `output/used-topics.json`（失败时不阻塞趋势抓取，只打印 warn）。也可单独跑：
+
+```bash
+node scripts/short-video/used-topics.mjs            # 人读列表
+node scripts/short-video/used-topics.mjs --json --out /tmp/used.json
+```
+
+排除表来自 `scripts/short-video/content/` 每个包的 `meta.mjs`（topics + keyEntities）与 `output/pending-analysis.json` 的发布标记；`exclusionTokens` 是 slug 分词、topics、公司/模型/人名的小写词表。
+
+判定规则：候选 topic 命中任一 `exclusionTokens` 即标 **used**，不进第 4 步的 Video-ready 短名单；命中但确属新事件（同一产品的新进展）可保留，必须在留痕里写明「同产品不同事件」的理由。不做模糊匹配——误判会把真正的新选题直接删掉。
+
 ## 1. 同事件判定去重
 
 交叉比对拿到两份 JSON 合并后，先按分数降序排序，再执行下面的去重判定（自己执行，无需另调 LLM）：
