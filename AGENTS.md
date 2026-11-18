@@ -95,6 +95,10 @@
 
 ## Agent Skills
 
+### Harness 总览
+
+组件地图（有哪些组件、各自解决什么问题、何时读、与 core 的移植关系）：`docs/agents/harness.md`。Session 开始或接手未完成工作时先读它。
+
 ### Issue tracker
 
 Issues are tracked in **GitHub Issues**. See `docs/agents/issue-tracker.md`.
