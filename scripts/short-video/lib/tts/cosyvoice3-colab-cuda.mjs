@@ -192,7 +192,14 @@ export async function createCosyVoice3ColabCudaEngine(deps = {}) {
 
       const { files, summary } = parseColabOutput(stdout);
       if (!summary) throw new Error("Colab script produced no summary line (stdout truncated?)");
-      if (files.length === 0) throw new Error("Colab script produced no WAV artifacts");
+      if (files.length === 0) {
+        const errors = (summary?.segments ?? [])
+          .filter((s) => s.error)
+          .map((s) => `scene-${s.sceneId}: ${s.error}`);
+        throw new Error(
+          `Colab script produced no WAV artifacts${errors.length ? `: ${errors.join("; ")}` : ""}`,
+        );
+      }
 
       const failed = (summary.segments ?? []).filter((s) => s.error);
       if (failed.length > 0) {
