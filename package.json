@@ -10,6 +10,7 @@
     "session:start": "bash scripts/session-launcher.sh start",
     "session:stop": "bash scripts/session-launcher.sh stop",
     "session:gc": "bash scripts/session-launcher.sh gc",
+    "wip:snapshot": "node scripts/wip-snapshot.mjs",
     "git:proxy": "node scripts/git-with-proxy.mjs",
     "proxy:url": "node scripts/git-with-proxy.mjs --print-url",
     "build": "vite build",

@@ -284,6 +284,17 @@ if [ "$cmd" = "start" ]; then
   done
   [ -n "$id" ] || { echo "error: could not generate a collision-free id" >&2; exit 1; }
 
+  # --- 2b. WIP snapshot of the shared checkout --------------------------------
+  # `reset --hard` / `clean -fdx` rewrite the worktree BEFORE the ref-gate sees
+  # anything (the hook guards refs, not the worktree), so a parallel session's
+  # uncommitted files can be gone with only a hook warning on record. Pin them
+  # now, while nothing is at risk: refs/wip/<stamp>, restore command printed.
+  # Fail-open — a snapshot problem must not block a session from starting.
+  if [ -f "$MAIN_WT/scripts/wip-snapshot.mjs" ]; then
+    node "$MAIN_WT/scripts/wip-snapshot.mjs" --repo "$MAIN_WT" --label "start" 2>&1 |
+      sed 's/^/[session] /' || true
+  fi
+
   # --- 3. worktree ------------------------------------------------------------
   if [ -z "$wtpath" ]; then
     wtpath="$(dirname "$MAIN_WT")/$(basename "$MAIN_WT")-wt/$id"
@@ -520,6 +531,19 @@ if [ "$cmd" = "gc" ]; then
 
   echo "🧹 session gc — post-delivery closeout"
   [ -n "$dry_run" ] && echo "   dry-run: nothing will be changed"
+
+  # Pin the shared checkout before the closeout touches refs and main: this is
+  # the other moment a parallel session's uncommitted work is exposed. Dry-run
+  # reports the path count without writing a ref.
+  if [ -f "$MAIN_WT/scripts/wip-snapshot.mjs" ]; then
+    if [ -n "$dry_run" ]; then
+      node "$MAIN_WT/scripts/wip-snapshot.mjs" --repo "$MAIN_WT" --label "gc" --dry-run 2>&1 |
+        sed 's/^/[session] /' || true
+    else
+      node "$MAIN_WT/scripts/wip-snapshot.mjs" --repo "$MAIN_WT" --label "gc" 2>&1 |
+        sed 's/^/[session] /' || true
+    fi
+  fi
 
   # Stale worktree records (directory deleted by hand) would otherwise keep
   # their branches looking "checked out" forever. --dry-run only reports.
