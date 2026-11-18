@@ -15,7 +15,7 @@
 // action rail, shifted onto the bottom dead zone. The audit must name the
 // intruded zone verbatim (ticket acceptance) and cite evidence frames.
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { execFileSync, spawnSync } from "child_process";
 import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
@@ -53,6 +53,14 @@ import { FFMPEG_PATH } from "../lib/upscale.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LIB_DIR = join(__dirname, "..", "lib");
+
+// Every case below shells out to ffmpeg to synthesize its fixture video, and the
+// beforeAll hook already runs on a 300s budget for the same reason. The 5s
+// default is below CI's ffmpeg cost: on macos-latest two DIFFERENT cases here
+// timed out at 5000ms across two runs of the same PR (#1431), which reads as a
+// flake but is the default being too tight for this file. Locally the whole
+// file finishes in ~2s, so this only buys headroom on a cold runner.
+vi.setConfig({ testTimeout: 20_000 });
 
 // ─── Fixture synthesis (all artifacts live in a tmp dir, removed after) ───
 
