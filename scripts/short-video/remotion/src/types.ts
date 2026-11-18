@@ -221,11 +221,13 @@ export interface SceneData {
    */
   media?: MediaField | null;
   /**
-   * What the picture is FOR (2026-11-18, user decision B). `evidence` keeps the
-   * full-bleed band; `decorative` is a bounded card and never a hook. Omitted →
-   * `media.evidence === true` decides; everything else is decoration.
+   * What the picture is FOR (2026-11-18, revised 2026-11-19). `evidence` keeps
+   * the full-bleed band; `background` fills the frame behind the text scrims;
+   * `card` is the bounded 820×686 window. Omitted → `media.evidence === true`
+   * decides, everything else defaults to background. `decorative` is a legacy
+   * alias for card.
    */
-  mediaRole?: "evidence" | "decorative";
+  mediaRole?: "evidence" | "background" | "card" | "decorative";
   /** Digital-human foreground card (#214) — rendered by components/AvatarCard. */
   avatar?: AvatarField;
   /** Layout variant for scene rendering (required for non-cta scenes). */

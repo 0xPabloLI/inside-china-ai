@@ -2772,9 +2772,11 @@ function isTextFirstLayoutScene(scene) {
  * Media role contract (2026-11-18, user decision B).
  *
  * `mediaRole` decides how much frame a picture may take: evidence keeps the
- * full-bleed band, decorative is a bounded card (and never a hook). The field
- * is optional — `media.evidence === true` is the default evidence signal —
- * but when it IS declared it must not contradict the media it describes.
+ * full-bleed band, background fills the frame behind the text scrims, card is
+ * the bounded 820×686 window (and never a hook). The field is optional —
+ * `media.evidence === true` is the default evidence signal, everything else
+ * defaults to background — but when it IS declared it must not contradict the
+ * media it describes.
  *
  * @param {Array<object>} scenes
  * @returns {Array<object>} findings (fail-closed)
@@ -2791,8 +2793,8 @@ export function checkMediaRoleContract(scenes) {
         level: "fail",
         category: CATEGORY,
         check: CHECK,
-        detail: `${where} declares mediaRole "${role}" — allowed values are "evidence" and "decorative"`,
-        fix: `Set mediaRole to "evidence" or "decorative", or omit it and let media.evidence decide.`,
+        detail: `${where} declares mediaRole "${role}" — allowed values are "evidence", "background", "card" (and legacy "decorative")`,
+        fix: `Set mediaRole to "evidence", "background" or "card", or omit it and let media.evidence decide the default.`,
       });
       continue;
     }
@@ -2807,25 +2809,28 @@ export function checkMediaRoleContract(scenes) {
       continue;
     }
     if (!scene.media) continue;
-    if (role === MEDIA_ROLE.DECORATIVE && scene.media.evidence === true) {
-      results.push({
-        level: "fail",
-        category: CATEGORY,
-        check: CHECK,
-        detail: `${where} marks the same media decorative AND evidence:true — the two roles contradict`,
-        fix: `If the picture proves the claim, drop mediaRole (it resolves to evidence); if it is atmosphere, drop evidence:true.`,
-      });
-    }
     if (
-      scene.visualType === "hook" &&
-      scene.layout === HOOK_MEDIA_LED_LAYOUT &&
-      mediaRoleOf(scene) === MEDIA_ROLE.DECORATIVE
+      (role === MEDIA_ROLE.CARD || role === MEDIA_ROLE.DECORATIVE) &&
+      scene.media.evidence === true
     ) {
       results.push({
         level: "fail",
         category: CATEGORY,
         check: CHECK,
-        detail: `${where} declares the media-led hook but its media is decorative — the hook resolves to hero-center and the picture is dropped`,
+        detail: `${where} marks the same media card/decorative AND evidence:true — the two roles contradict`,
+        fix: `If the picture proves the claim, use "evidence" and keep evidence:true; if it is atmosphere, drop evidence:true and use "background".`,
+      });
+    }
+    if (
+      scene.visualType === "hook" &&
+      scene.layout === HOOK_MEDIA_LED_LAYOUT &&
+      mediaRoleOf(scene) !== MEDIA_ROLE.EVIDENCE
+    ) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} declares the media-led hook but its media is not evidence — the hook resolves to hero-center and the picture is dropped`,
         fix: `Promote the media to evidence (mediaRole: "evidence" with a source), or change the hook layout to hero-center / saas-triptych.`,
       });
     }

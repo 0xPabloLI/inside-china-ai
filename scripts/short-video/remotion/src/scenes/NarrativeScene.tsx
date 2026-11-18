@@ -195,9 +195,10 @@ export const NarrativeScene: React.FC<{
   const hasMedia = !!scene.media;
 
   const renderLayout = () => {
-    // Decorative media: no full-bleed window, no split, no overlay. The bottom
-    // bar is the only layout that can hold a bounded card and a text block.
-    if (hasMedia && mediaRole === MEDIA_ROLE.DECORATIVE) return <MediaBottomBar />;
+    // Non-evidence media: no split, no overlay. The bottom bar is the only
+    // layout that can hold a text block plus either a background band or a
+    // bounded card, and it is what keeps text out of the picture's focal area.
+    if (hasMedia && mediaRole !== MEDIA_ROLE.EVIDENCE) return <MediaBottomBar />;
     switch (layout) {
       case "media-bottom-bar":
         return <MediaBottomBar />;
@@ -232,7 +233,7 @@ export const NarrativeScene: React.FC<{
             MEDIA_BAND note in lib/safe-zones.mjs. Card mode keeps its own
             geometry: it renders a page capture, not a full-bleed picture. */}
         {hasMedia &&
-          (scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.DECORATIVE ? (
+          (scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.CARD ? (
             <MediaCard media={scene.media!} duration={duration} bottom={textBarTop} />
           ) : (
             <>
