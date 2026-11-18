@@ -11,6 +11,10 @@ vi.mock("../lib/tts/cosyvoice3-modal-cuda.mjs", () => ({
   createCosyVoice3ModalCudaEngine: vi.fn(),
 }));
 
+vi.mock("../lib/tts/cosyvoice3-colab-cuda.mjs", () => ({
+  createCosyVoice3ColabCudaEngine: vi.fn(),
+}));
+
 vi.mock("../lib/tts/cosyvoice3-mlx.mjs", () => ({
   createCosyVoice3MLXEngine: vi.fn(),
 }));
@@ -30,12 +34,14 @@ vi.mock("../lib/tts/say.mjs", () => ({
 // Mock post-process to avoid exec calls during registry tests
 vi.mock("../lib/tts/post-process.mjs", () => ({
   runWhisperAlignment: vi.fn(),
+  postProcessBatch: vi.fn(),
   getAtempo: vi.fn(() => null),
 }));
 
 import { selectEngine } from "../lib/tts/registry.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "../lib/tts/cosyvoice3-kaggle-cuda.mjs";
 import { createCosyVoice3ModalCudaEngine } from "../lib/tts/cosyvoice3-modal-cuda.mjs";
+import { createCosyVoice3ColabCudaEngine } from "../lib/tts/cosyvoice3-colab-cuda.mjs";
 import { createCosyVoice3MLXEngine } from "../lib/tts/cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "../lib/tts/f5-mlx.mjs";
 
@@ -52,6 +58,7 @@ function resetAllMocks() {
   vi.clearAllMocks();
   vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
   vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
+  vi.mocked(createCosyVoice3ColabCudaEngine).mockResolvedValue(null);
   vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
   vi.mocked(createF5MLXEngine).mockResolvedValue(null);
 

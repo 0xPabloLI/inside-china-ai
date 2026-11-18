@@ -77,6 +77,7 @@ import {
 import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
+import { mediaRoleOf, MEDIA_ROLE, MEDIA_ROLES } from "./media-role.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
 import {
   MEDIA_STRATEGIES,
@@ -1700,15 +1701,17 @@ function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
 }
 
 /**
- * Currency dual-annotation check: warns when RMB/HKD amounts in
- * voiceover/texts do not have a USD equivalent nearby. This is a verify-time
- * advisory safety net — `normalizeSceneDataWithLiveRates()` in Step 0.5 should
- * have already fixed them. It never blocks a render (#763 editorial tier).
+ * Currency dual-annotation check: FAILS when RMB/HKD amounts in
+ * voiceover/texts do not have a USD equivalent nearby. `normalizeSceneDataWithLiveRates()`
+ * in Step 0.5 should have fixed the fixable spellings first; anything left (including
+ * spelled-out amounts it cannot convert) blocks the pre-flight, so this rule cannot be
+ * silently skipped (#763's advisory tier was upgraded on 2026-11-18).
  *
- * Recognises the same spellings Step 0.5 does (#1415): ¥/￥, "<n> yuan/RMB",
- * "<n> 亿元/万元/元/亿人民币/万人民币", and the HKD forms (HK$, HKD,
+ * Recognises the same spellings Step 0.5 does (#1415): ¥/￥, "<n> yuan/RMB", bare
+ * "<n> yuan", "<n> 亿元/万元/元/亿人民币/万人民币", and the HKD forms (HK$, HKD,
  * "Hong Kong dollars", 港币/港元). A $ within 30 characters before the match
- * counts as already annotated.
+ * counts as already annotated. Spelled-out amounts ("thirty nine fen") are
+ * reported as unfixable so the author rewrites them in USD.
  */
 function checkCurrencyDualAnnotation(scenes) {
   const offenders = [];
@@ -1732,7 +1735,7 @@ function checkCurrencyDualAnnotation(scenes) {
         const key = `${scene.id}:${fieldIndex}:${match.start}:${match.text}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        offenders.push({ sceneId: scene.id, amount: match.text });
+        offenders.push({ sceneId: scene.id, amount: match.text, fixable: match.fixable !== false });
       }
     });
   }
@@ -1749,13 +1752,19 @@ function checkCurrencyDualAnnotation(scenes) {
 
   const first = offenders[0];
   const rest = offenders.length > 1 ? `（另有 ${offenders.length - 1} 处，见同包）` : "";
+  const spelled = offenders.filter((o) => o.fixable === false);
+  const spelledNote = spelled.length
+    ? ` Spelled-out amount(s) cannot be auto-converted: ${spelled.map((o) => `"${o.amount}"`).join(", ")}.`
+    : "";
   return [
     {
-      level: "warn",
+      level: "fail",
       category: "Content",
       check: "Currency dual-annotation (CNY/HKD → USD)",
-      detail: `RMB/HKD amount "${first.amount}" without USD equivalent in scene ${first.sceneId}${rest}`,
-      fix: "Step 0.5 auto-fix failed or was skipped: run normalizeSceneDataWithLiveRates(), or manually add $X (original) format",
+      detail: `RMB/HKD amount "${first.amount}" without USD equivalent in scene ${first.sceneId}${rest}.${spelledNote}`,
+      fix:
+        "Write the amount in USD (e.g. $0.05) and keep the original in parentheses, or use digits so Step 0.5 can annotate it. " +
+        "The rule is fail-closed: any unconverted CNY/HKD blocks TTS and render.",
     },
   ];
 }
@@ -2759,6 +2768,76 @@ function isTextFirstLayoutScene(scene) {
  * Scoped to these two layouts on purpose: context / info-card / hook also use
  * hero-center but DO render media; #761 is about the two that cannot show it.
  */
+/**
+ * Media role contract (2026-11-18, user decision B).
+ *
+ * `mediaRole` decides how much frame a picture may take: evidence keeps the
+ * full-bleed band, background fills the frame behind the text scrims, card is
+ * the bounded 820×686 window (and never a hook). The field is optional —
+ * `media.evidence === true` is the default evidence signal, everything else
+ * defaults to background — but when it IS declared it must not contradict the
+ * media it describes.
+ *
+ * @param {Array<object>} scenes
+ * @returns {Array<object>} findings (fail-closed)
+ */
+export function checkMediaRoleContract(scenes) {
+  const CHECK = "Media role (evidence vs decorative)";
+  const CATEGORY = "Media";
+  const results = [];
+  for (const scene of scenes) {
+    const where = `scene ${scene.id}`;
+    const role = scene.mediaRole;
+    if (role != null && !MEDIA_ROLES.includes(role)) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} declares mediaRole "${role}" — allowed values are "evidence", "background", "card" (and legacy "decorative")`,
+        fix: `Set mediaRole to "evidence", "background" or "card", or omit it and let media.evidence decide the default.`,
+      });
+      continue;
+    }
+    if (role != null && !scene.media) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} declares mediaRole "${role}" but has no media field`,
+        fix: `Remove mediaRole, or give the scene the media it describes.`,
+      });
+      continue;
+    }
+    if (!scene.media) continue;
+    if (
+      (role === MEDIA_ROLE.CARD || role === MEDIA_ROLE.DECORATIVE) &&
+      scene.media.evidence === true
+    ) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} marks the same media card/decorative AND evidence:true — the two roles contradict`,
+        fix: `If the picture proves the claim, use "evidence" and keep evidence:true; if it is atmosphere, drop evidence:true and use "background".`,
+      });
+    }
+    if (
+      scene.visualType === "hook" &&
+      scene.layout === HOOK_MEDIA_LED_LAYOUT &&
+      mediaRoleOf(scene) !== MEDIA_ROLE.EVIDENCE
+    ) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where} declares the media-led hook but its media is not evidence — the hook resolves to hero-center and the picture is dropped`,
+        fix: `Promote the media to evidence (mediaRole: "evidence" with a source), or change the hook layout to hero-center / saas-triptych.`,
+      });
+    }
+  }
+  return results;
+}
+
 export function checkLayoutMediaRouting(scenes) {
   const CHECK = "Text-first layout media routing";
   const CATEGORY = "Media";
@@ -2778,7 +2857,8 @@ export function checkLayoutMediaRouting(scenes) {
     if (typeof scene.assetNeed === "string" && scene.assetNeed.trim() !== "") {
       needOnTextFirst.push(String(scene.id));
     }
-    if (scene.media && scene.media.evidence === true) evidenceOnTextFirst.push(String(scene.id));
+    if (scene.media && mediaRoleOf(scene) === MEDIA_ROLE.EVIDENCE)
+      evidenceOnTextFirst.push(String(scene.id));
   }
 
   const results = [];
@@ -3383,10 +3463,12 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
     ...checkLayoutMediaRouting(scenes),
+    ...checkMediaRoleContract(scenes),
     ...checkContainFitBand(scenes),
     ...checkEmptyField(scenes, opts),
     ...checkFocusLight(scenes),
     ...checkBrollPromptDimensions(scenes),
+    ...checkCurrencyDualAnnotation(scenes),
     ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];
 
@@ -3415,7 +3497,6 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     () => checkNoWrittenOpener(scenes),
     () => checkNoDeadClosers(scenes),
     () => checkNoGreeting(scenes),
-    () => checkCurrencyDualAnnotation(scenes),
     () => avatarResults.filter((r) => r.check === AVATAR_USAGE_CHECK),
   ];
   const editorial = EDITORIAL_RUNNERS.flatMap((run) =>

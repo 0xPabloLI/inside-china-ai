@@ -20,7 +20,9 @@ jobs:
     # brew ffmpeg). The ubuntu run exposed 12 test files with platform-specific
     # failures — cross-platform test portability is separate debt.
     runs-on: macos-latest
-    timeout-minutes: 15
+    # GitHub counts runner-queue time toward the job timeout; macOS capacity
+    # left jobs queued past 15min on 2026-11-18 before a runner was assigned.
+    timeout-minutes: 45
     env:
       # Bridge: env-bound suites (see vitest.config.ts) can't run on CI
       VITEST_CI_SKIP_ENV_BOUND: "1"
@@ -308,7 +310,9 @@ jobs:
     # driver is what took it back to minutes. If a future suite lands near this
     # ceiling, split the slow suites into a second job rather than raise it — the
     # number is a budget, not a target.
-    timeout-minutes: 25
+    # Same queue-time allowance as the quality job; the work itself stays
+    # within the 25-minute budget documented above.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 

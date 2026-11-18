@@ -40,6 +40,7 @@ import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
+import { mediaRoleOf, MEDIA_ROLE } from "../../../lib/media-role.mjs";
 
 type Layout = "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
 
@@ -63,7 +64,9 @@ export const NarrativeScene: React.FC<{
 }> = ({ scene, duration, contentDir, gateOverrides }) => {
   const txt = scene.texts || {};
   const layout = (scene.layout ?? "media-bottom-bar") as Layout;
-  const hasMedia = !!scene.media;
+  // media role (2026-11-18): decorative media is declared but never gets the
+  // full-bleed band — it renders in the same bounded card the evidence path uses.
+  const mediaRole = mediaRoleOf(scene);
   const glowColor = scene.id % 2 === 0 ? "red" : "blue";
   const sceneId = `narrative-${scene.id}`;
   const ov = (slot: string) => gateOverrides?.[slot] ?? {};
@@ -189,7 +192,13 @@ export const NarrativeScene: React.FC<{
     ) : null;
 
   // ─── Layout dispatch ───
+  const hasMedia = !!scene.media;
+
   const renderLayout = () => {
+    // Non-evidence media: no split, no overlay. The bottom bar is the only
+    // layout that can hold a text block plus either a background band or a
+    // bounded card, and it is what keeps text out of the picture's focal area.
+    if (hasMedia && mediaRole !== MEDIA_ROLE.EVIDENCE) return <MediaBottomBar />;
     switch (layout) {
       case "media-bottom-bar":
         return <MediaBottomBar />;
@@ -224,7 +233,7 @@ export const NarrativeScene: React.FC<{
             MEDIA_BAND note in lib/safe-zones.mjs. Card mode keeps its own
             geometry: it renders a page capture, not a full-bleed picture. */}
         {hasMedia &&
-          (scene.media!.mode === "card" ? (
+          (scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.CARD ? (
             <MediaCard media={scene.media!} duration={duration} bottom={textBarTop} />
           ) : (
             <>

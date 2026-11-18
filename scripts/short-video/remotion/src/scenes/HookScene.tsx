@@ -10,7 +10,7 @@
  */
 import { staticFile, CanvasImage, Interactive, useCurrentFrame, interpolate } from "remotion";
 import { Circle } from "@remotion/rough-notation";
-import type { SceneData } from "../types";
+import type { MediaField, SceneData } from "../types";
 import { BrandBar, BadgePill, StatCard, Slot } from "../components/visuals";
 import { useFocusLight } from "../components/focus-light";
 import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
@@ -30,6 +30,7 @@ import { CONTAIN_MEDIA_BOTTOM, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 import { HookMediaLed } from "./HookMediaLed";
+import { renderableMedia } from "../../../lib/media-role.mjs";
 
 /**
  * The hook's media band: `{ top, height, scrimBottom }` in canvas px.
@@ -134,8 +135,13 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   const hasSubjectLogo = !!txt.subjectLogo;
   const subjectWidth = hookSubjectTextWidth({ hasLogo: hasSubjectLogo });
 
+  // Decorative media is not rendered in a hook (media role B, 2026-11-18):
+  // a hook is text-first unless the picture is proof. `isMediaLedHook` uses the
+  // same predicate, so a media-led declaration on a decorative still resolves
+  // to hero-center instead of a picture that carries no claim.
+  const media = renderableMedia(scene) as MediaField | null;
   // See hookMediaBand above for the cover/contain split and why it matters.
-  const hookBand = hookMediaBand(scene.media);
+  const hookBand = hookMediaBand(media);
 
   // #738: the focal — a number when the pack is number-led, otherwise the
   // claim — is the protagonist. The reveal is the one event that may take the
@@ -160,9 +166,9 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
   return (
     <Camera visualType="hook" duration={duration}>
       <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-        {scene.media &&
-          (scene.media.mode === "card" ? (
-            <MediaCard media={scene.media} duration={duration} />
+        {media &&
+          (media.mode === "card" ? (
+            <MediaCard media={media} duration={duration} />
           ) : (
             <>
               <div
@@ -176,7 +182,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                 }}
               >
                 <MediaBackground
-                  media={scene.media}
+                  media={media}
                   duration={duration}
                   contentDir={contentDir}
                   containAlign="bottom"
