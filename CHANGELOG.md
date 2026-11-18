@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.88.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.87.0...tanstack_start_ts-v1.88.0) (2026-11-18)
+
+
+### Features
+
+* **short-video:** trend selection excludes already-built packages ([107c7ed](https://github.com/0xPabloLI/inside-china-ai/commit/107c7ed858cb8d447f132333150eccb0e9bdf4a3))
+* **short-video:** trend selection excludes already-built packages ([9a711e9](https://github.com/0xPabloLI/inside-china-ai/commit/9a711e985d577bb8e489d0132f8693621f476b82))
+
 ## [1.87.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.86.0...tanstack_start_ts-v1.87.0) (2026-11-17)
 
 
