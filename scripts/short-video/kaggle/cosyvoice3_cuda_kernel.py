@@ -587,7 +587,14 @@ for i, t in enumerate(manifest):
             for j in cosyvoice.inference_instruct2(t["text"], instruct, ref_path, **kwargs):
                 chunks.append(j['tts_speech'])
         else:
-            for j in cosyvoice.inference(t["text"], ref_path, **kwargs):
+            default_instruct = (
+                "You are a helpful assistant. You are a tech documentary narrator. "
+                "Speak in standard American English with a calm, engaging, and professional "
+                "tone at a steady pace.<|endofprompt|>"
+            )
+            for j in cosyvoice.inference_instruct2(
+                t["text"], default_instruct, ref_path, **kwargs
+            ):
                 chunks.append(j['tts_speech'])
         full = torch.cat(chunks, dim=-1)
         gen_time = time.time() - seg_start

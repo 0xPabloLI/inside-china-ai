@@ -34,6 +34,15 @@ REF_AUDIO_B64 = "__REF_AUDIO_B64__"
 PINNED_COSYVOICE_COMMIT = "074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc"
 HF_REPO = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
 MODEL_DIR = "/tmp/cosyvoice3-model"
+# CosyVoice3 has no generic `inference()` method: every call must carry an
+# instruct prompt ending in <|endofprompt|>. Scenes without a style-specific
+# instruct still need a neutral news-narrator one, or the kernel raises
+# `'CosyVoice3' object has no attribute 'inference'`.
+DEFAULT_INSTRUCT = (
+    "You are a helpful assistant. You are a tech documentary narrator. "
+    "Speak in standard American English with a calm, engaging, and professional tone "
+    "at a steady pace.<|endofprompt|>"
+)
 WORK_DIR = "/tmp/cosyvoice3-colab"
 
 
@@ -66,7 +75,8 @@ def main():
         [
             "conformer==0.3.2", "hydra-core==1.3.2", "HyperPyYAML==1.2.3",
             "inflect==7.3.1", "librosa==0.10.2", "modelscope==1.20.0",
-            "omegaconf==2.3.0", "onnx==1.18.0", "soundfile==0.12.1",
+            "omegaconf==2.3.0", "onnx==1.18.0", "onnxruntime==1.20.1",
+            "openai-whisper==20250625", "pyworld==0.3.4", "soundfile==0.12.1",
             "wetext==0.0.4", "gdown==5.1.0", "wget==3.2",
             "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24",
             "huggingface_hub==0.36.2",
@@ -128,14 +138,11 @@ def main():
             kwargs = {"stream": False}
             if seg.get("speed") is not None:
                 kwargs["speed"] = seg["speed"]
-            if seg.get("instruct_text"):
-                for out in cosyvoice.inference_instruct2(
-                    seg["text"], seg["instruct_text"], ref_path, **kwargs
-                ):
-                    chunks.append(out["tts_speech"])
-            else:
-                for out in cosyvoice.inference(seg["text"], ref_path, **kwargs):
-                    chunks.append(out["tts_speech"])
+            instruct = seg.get("instruct_text") or DEFAULT_INSTRUCT
+            for out in cosyvoice.inference_instruct2(
+                seg["text"], instruct, ref_path, **kwargs
+            ):
+                chunks.append(out["tts_speech"])
             full = torch.cat(chunks, dim=-1)
             gen_time = time.time() - started
             audio = full[0].cpu().float().numpy()
