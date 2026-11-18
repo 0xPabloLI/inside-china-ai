@@ -140,7 +140,7 @@ describe("kernel inference — model class and audio assembly", () => {
   it("appends each chunk once per branch (no doubled audio)", () => {
     // The non-instruct branch used to append the same chunk twice, which
     // doubles the duration of every scene without instruct_text.
-    const branchAt = INFERENCE_CODE.indexOf('for j in cosyvoice.inference(t["text"]');
+    const branchAt = INFERENCE_CODE.indexOf("default_instruct =");
     const joinAt = INFERENCE_CODE.indexOf("full = torch.cat(chunks, dim=-1)");
     expect(branchAt).toBeGreaterThan(-1);
     expect(joinAt).toBeGreaterThan(branchAt);
