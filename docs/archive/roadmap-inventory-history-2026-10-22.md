@@ -10,6 +10,7 @@
 > **Round CCVIII 实点**：本 PR 下沉 CCVI 盘点与 CCIV 一句话档案后，按文件重数为 **141/157**（盘点 141 段 / 档案 157 条、156 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。
 > **Round CCXI 实点**：本 PR 下沉 CCX 盘点与 CCVII 一句话档案后，按文件重数为 **145/159**（盘点 145 段 / 档案 159 条、158 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。同轮补回 Round CCVII 盘点段落——它在 Round CCIX 收尾时被 Prev 行覆盖、未进 archive（原文见 `git show 29225928`）。
 > **Round CCXII 实点**：本 PR 下沉 CCXI 盘点与 CCVIII 一句话档案后，按文件重数为 **146/160**（盘点 146 段 / 档案 160 条、159 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。同轮补记 Round CCXI 的施工 PR #1424（squash `b83920f2`）——标题沿用 Round CCX，正文与盘点为 CCXI。
+> **Round CCXIII 实点**：本 PR 下沉 CCXII 盘点与 CCIX 一句话档案后，按文件重数为 **147/160**（盘点 147 段 / 档案 160 条、159 distinct；口径同前——「段内任意位置」计数，含行内 CXXXI 一条）。档案实点比头部旧记 160 条少 1 条，以实点为准。
 >
 > **读法**：交付细节的**唯一权威源是 issue 评论**（`gh issue view <N> --comments`）。
 > 本文件给的是对话式上下文——哪一轮动了什么、commit 是什么、当时为什么这样判——用于回溯决策依据。
@@ -20,7 +21,9 @@
 
 ---
 
-## 逐轮盘点（Round CCXI → LV；Round CC 见一句话档案）
+## 逐轮盘点（Round CCXII → LV；Round CC 见一句话档案）
+
+（**Round CCXII：`#1398` L2 就绪交付**——`experiment.mjs` 由登记模板改为强制协议：双主指标交并判定、T+72h 入库闸（日精度取当天最晚可能发布时刻为下界）、48h 发布间隔与 seed 顺序闸、3s 时长差、`check` 审计（`report` 在其失败时拒跑）、到预设 n 前不出 p/CI/结论；独立复核修掉符号检验 `C(n,k)` 组合数 bug（混合样本 p 系统性偏小），置换改为 n≤20 精确枚举。产品验证门：**无产出差异（enabling fix）**——不产生任何成片变化，也未产生真实配对数据。PR #1428（squash `dee28720`）；交付记录：评论 `6963480688`。frontier 复算：1A 空、① 空、② `#541`、③④ 空。）
 
 （**Round CCXI：`#1406` 盲评交付闭票**——info-layout-v2 六对 stills 全部打分，`experiment-review.mjs --analyze` 出 `report.json`：clarity A−B −1.17 [−1.83, −0.17]、credibility −0.67、memorability −0.67、hierarchy −0.33；偏好 旧 0 / 新 5 / 平 1（Wilson 95% 0.0–43.4%，n=5）。产品验证门：**无产出差异**——内部评估，观众侧不变。口径：单人评分 → ICC `n/a`；n=6 < 8 → 只作描述，无 p 值。分析入口 PR #1407（squash `0004db8f`）；交付记录：评论 `6953059775`。frontier 复算：Track 1A **空**、① **空**、② `#541`、③④ 空。）
 
@@ -312,7 +315,9 @@
 
 （**Round LV**：**`#302` 五维调研收官闭票 + E 段实施票落位**——`#302` 于 2026-10-18 交付闭票（A–E 五维调研全部交付：PR #713 / #716 / #727 / #742），**闭票即删行**按既有惯例执行（状态表 / Wave 行保留 ✅ 闭票标记，交付叙事以 #302 闭票评论为准）：E 段三条可吸收范式**已落为实施票** —— **#746**（字幕分页器与缩写感知句末判据升级，对齐 Fats403 `createCaptionPages` 骨架：静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations` + 五类缩写判据 `NEVER_ENDS`/`MAYBE_ENDS`/`DOTTED_ACRONYM`/`SINGLE_INITIAL`/`BARE_NUMBER`；命中我方 `cues.mjs` 三缺口）、**#747**（字幕视觉 token 层与逐词强调手法扩展；命中 `ass.mjs` 两色硬编码 + 无 token 源）；场景文本**逐词/逐行/逐字动效原语 + line/word/char 三档 stagger 时序表 + 帧确定性捷径（0 spring / 0 interpolate / 0 CSS transition）**并入 **#731**（该票即「视觉语言与动效 token 体系」，E 段增量收敛记录见 #731 评论）；`#529` 卫星票由 #302 改挂 **`#291`**；**Track 2 frontier 推进至 `#289`（Scene 数据与生成画面适配，`ready-for-agent`、0 阻塞边、P2）**——余下 `#529`/`#299` 均为 `ready-for-human`，走 Track 3 HITL 侧。（E 段交付证据原文见下条 Round LIV。）**Round LIV**：**`#302` E 段「字幕与动态排版」交付——维度 E 完成，五维调研收官**——PR #742（squash `62c78acb`）把维度 E 三源结论落 `docs/research/repo-survey-tracking.md`（仅此一文件，无代码改动）：`vshukla7/remotion-captions-themes`（8★，**MIT → Tier A 可吸收代码**：13 套成品字幕主题 + 9 锚点 relation 版式引擎 + 逐词强调三档 spring 参数 + 逐字母 stagger，但无正交 token 层）；`Fats403/remotion-captions-kit`（5★，**MIT → Tier A 可吸收代码**：骨架最完整——`createCaptionPages` 分页算法（静音 400ms 断 → `clauseSplit` 回退到最近分句标点 → 句末断 → `mergeShortPages`/`fixOrphans`/`displayDurations`）+ 缩写感知五类句末判据 + 6 个动效原语 + `theme.ts` token 结构 + 7 测试文件与 CI）；`iart-ai` skill packs（`motion-skills` **451→865★ 且形态实为索引门户仓（无 `SKILL.md`）**，`kinetic-typography-skills`/`tiktok-video-skills` 各 14★，**MIT → Tier A 只吸规则**：line/word/char 三档 stagger 时序表 + 逐词 pop-in 参数 + 先锁静态排版再动 + lower-thirds 手法）。三源共同指向 #291 收敛项：逐词/逐行动效原语与参数表、字幕分页与句末判据升级、字幕 token 层；命中我方两处真缺口——`cues.mjs` 句末判据 `SENTENCE_END = /[.!?:;]$/` 过朴素（`Dr.`/`U.S.` 误断）且无分句回退、`entrance.tsx` 8 原语全为**整块**入场（`spring()` 为 0，与 B 段同根因）；准确性修正：我方**已有** 7 个字幕测试文件，纠正本轮「无字幕单测」的误判；许可实测纠偏 `pv-tool`（自定义非商用）/`KineTy`（非 OSI）连四仓无 LICENSE 共 6 个定为 **Tier B 只读**。Track 2 frontier 推进：**`#302` A–E 段全部交付（PR #713 / #716 / #727 / #742）并已于 2026-10-18 交付闭票（五维调研收官），E 段落实施票 `#746`/`#747`、动效原语并入 `#731`，frontier 推进至 `#289`**；Track 1A 无在排票（`#396` 解锁待准入），Track 1B = `#623`，Track 3 = `#429`/`#279`/`#278`）。
 
-## 近轮一句话档案（Round CCVIII → J）
+## 近轮一句话档案（Round CCIX → J）
+
+**Round CCIX**（`#462` Stage 1：PR #1421（squash `e16cc5c1`）；状态迁 `content/{slug}/` + `output/` 薄索引，`pipeline-status.mjs show|migrate`（dry-run 默认）、legacy 读取兼容、per-slug 状态 gitignored；**无产出差异（enabling fix）**；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
 
 **Round CCVIII**（`#1415` 交付闭票——币种双标注扩中文写法（只认阿拉伯数字），汇率每个生成音频的 run 取一次 `open.er-api.com`（8s 超时，失败回退常量），报告落盘供音频复用；PR #1418 `65f3c68e`；**有产出差异（有限）**：zhipu live `$59→$58`；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
 
@@ -887,3 +892,9 @@ PR #1409 — `58ec5559` — `fix(short-video): unify zhipu-valuation drawdown at
 > 由 `docs/issue-roadmap.md` 近轮一句话档案下沉；完整交付记录见 #1398 评论。
 
 **Round CCV**（`#1398` 第一批交付——信息版式系统 v2：版式语法 + 六型原生图表 + 叙事弧/注意力门禁 + 配对实验脚手架；四包 6 个数据镜头改由原生图表承载（line/bar/column/slope），chart-img K 线保留；PR #1402 `42e90447`；**有产出差异**；补登 #1397/#1399/#1400、删 `#1353`/`#1354` 已闭行、补行 `#1406`（盲评子票）；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）；
+
+## Round CCXIII 补登：施工 PR 消账（roadmap-ledger）
+
+> 同上节口径：施工 PR 不动台账是既定分工，此处只记账，不复制交付细节。PR #1430 属 #536 的结构说明补记，无独立 tracker 行可删。
+
+PR #1430 — `962e965c` — `docs(agents): add harness overview map and route it from AGENTS.md`。新增 `docs/agents/harness.md` 并在 `AGENTS.md` 加入 Harness 总览入口；属**无产出差异**（纯 Agent 文档）。
