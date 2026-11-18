@@ -21,6 +21,9 @@ import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs"
 // the inverse direction so a spelled CTA number and a digit dataPoints entry
 // compare equal without a second lexicon.
 import { numericAnchors } from "./normalize-tts-text.mjs";
+// One spelling list for Step 0.5 and this advisory: whatever the auto-fix
+// annotates is exactly what the verify-time net stops flagging.
+import { findCurrencySpellings, hasNearbyUsd } from "./normalize-currency.mjs";
 import {
   AI_BLACKLIST as _AI_BLACKLIST,
   DASH_PATTERN,
@@ -1428,6 +1431,32 @@ export function checkHookMediaContract(scenes) {
   // deprecated `mediaOptOut` (both judged below, where their own branches
   // already live).
 
+  // Native candle chart (#1405): the picture is a baked series drawn in the
+  // same media band, so there is no raster file to curate and no sourcing
+  // step to wait for. A pack that also bound a raster would render the chart
+  // (HookMediaLed prefers it) and silently ignore the file — say so instead
+  // of letting the dead binding pass as if it mattered.
+  if (hook.info?.chart === "candle") {
+    const results = [
+      {
+        level: "pass",
+        category: CATEGORY,
+        check: CHECK,
+        detail: "native candle chart — baked series, no raster media",
+      },
+    ];
+    if (hook.media?.path) {
+      results.push({
+        level: "warn",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `a media file is also bound (${hook.media.path}); the native candle chart renders instead`,
+        fix: "Remove the stale media binding so the hook has one declared protagonist",
+      });
+    }
+    return results;
+  }
+
   if (hook.media) {
     const media = hook.media;
     // The binding itself passes (media exists); quality issues are reported as
@@ -1671,47 +1700,62 @@ function checkSearchHintsSchema(scenes, phrases = sceneClaimPhrases(scenes)) {
 }
 
 /**
- * Currency dual-annotation check: warns when RMB amounts in voiceover/texts
- * do not have a USD equivalent nearby. This is a verify-time safety net —
- * normalizeSceneData() in main.mjs Step 0 should have already fixed them.
- * Detects ¥<number> or <number> (billion|million|thousand) yuan without
- * a $ within 30 chars before the match.
+ * Currency dual-annotation check: warns when RMB/HKD amounts in
+ * voiceover/texts do not have a USD equivalent nearby. This is a verify-time
+ * advisory safety net — `normalizeSceneDataWithLiveRates()` in Step 0.5 should
+ * have already fixed them. It never blocks a render (#763 editorial tier).
+ *
+ * Recognises the same spellings Step 0.5 does (#1415): ¥/￥, "<n> yuan/RMB",
+ * "<n> 亿元/万元/元/亿人民币/万人民币", and the HKD forms (HK$, HKD,
+ * "Hong Kong dollars", 港币/港元). A $ within 30 characters before the match
+ * counts as already annotated.
  */
 function checkCurrencyDualAnnotation(scenes) {
-  const YEN_RE = /¥[\d,.]+/gi;
-  const YUAN_RE = /\d[\d,.]*\s*(?:billion|million|thousand)\s*yuan/gi;
+  const offenders = [];
+  const seen = new Set();
 
   for (const scene of scenes) {
-    const vo = scene.voiceover || "";
-    const texts = JSON.stringify(scene.texts || "");
-    const allText = vo + " " + texts;
-
-    for (const re of [YEN_RE, YUAN_RE]) {
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(allText)) !== null) {
-        const windowStart = Math.max(0, m.index - 30);
-        const before = allText.substring(windowStart, m.index);
-        if (!/\$\d/.test(before)) {
-          return [
-            {
-              level: "warn",
-              category: "Content",
-              check: "Currency dual-annotation (¥ → $)",
-              detail: `RMB amount "${m[0]}" without USD equivalent in scene ${scene.id}`,
-              fix: "Run normalizeSceneData() in main.mjs Step 0 to auto-fix, or manually add $X (¥Y) format",
-            },
-          ];
-        }
+    const fields = [];
+    if (typeof scene.voiceover === "string") fields.push(scene.voiceover);
+    if (scene.texts && typeof scene.texts === "object") {
+      for (const value of Object.values(scene.texts)) {
+        if (typeof value === "string") fields.push(value);
       }
     }
+
+    fields.forEach((text, fieldIndex) => {
+      // `findCurrencySpellings` returns non-overlapping spans (￥1,200 元 counts
+      // once) from the same list Step 0.5 uses, so this net can always be
+      // cleared by running the auto-fix.
+      for (const match of findCurrencySpellings(text)) {
+        if (hasNearbyUsd(text, match.start)) continue;
+        const key = `${scene.id}:${fieldIndex}:${match.start}:${match.text}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        offenders.push({ sceneId: scene.id, amount: match.text });
+      }
+    });
   }
 
+  if (offenders.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Content",
+        check: "Currency dual-annotation (CNY/HKD → USD)",
+      },
+    ];
+  }
+
+  const first = offenders[0];
+  const rest = offenders.length > 1 ? `（另有 ${offenders.length - 1} 处，见同包）` : "";
   return [
     {
-      level: "pass",
+      level: "warn",
       category: "Content",
-      check: "Currency dual-annotation (¥ → $)",
+      check: "Currency dual-annotation (CNY/HKD → USD)",
+      detail: `RMB/HKD amount "${first.amount}" without USD equivalent in scene ${first.sceneId}${rest}`,
+      fix: "Step 0.5 auto-fix failed or was skipped: run normalizeSceneDataWithLiveRates(), or manually add $X (original) format",
     },
   ];
 }

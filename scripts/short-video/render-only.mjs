@@ -57,8 +57,17 @@ async function main() {
   // this text, and it must match what main.mjs aligned against — without
   // this, unnormalized scenes would look "stale" while actually being the
   // same content.
-  const { normalizeSceneData } = await import("./lib/normalize-currency.mjs");
-  normalizeSceneData(scenes, meta);
+  const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+  const { readRateReport, DEFAULT_RATES } = await import("./lib/exchange-rates.mjs");
+  // Reuse the rates the audio-generating run recorded: a fresh quote could
+  // change the annotated text and make the alignment signature look stale.
+  const rateReport = readRateReport(
+    join(__dirname, "output", meta.pipelineId, "currency-rates.json"),
+  );
+  await normalizeSceneDataWithLiveRates(scenes, meta, {
+    rates: rateReport?.rates ?? DEFAULT_RATES,
+    rateSource: rateReport ? `run-artifact:${rateReport.source}` : "fallback",
+  });
   const { normalizeTtsText } = await import("./lib/normalize-tts-text.mjs");
   normalizeTtsText(scenes, meta);
 

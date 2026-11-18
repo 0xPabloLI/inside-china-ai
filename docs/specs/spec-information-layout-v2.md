@@ -1,6 +1,6 @@
 # Spec — Information Layout System v2 (#1398)
 
-Status: active（2026-11-16） · Parent issue: #1398 · Planning scale: S2 · Risk: R3（核心管线、Remotion 渲染、发布元数据）
+Status: active（2026-11-17） · Parent issue: #1398 · Planning scale: S2 · Risk: R3（核心管线、Remotion 渲染、发布元数据）
 
 ## Problem Statement
 
@@ -51,8 +51,8 @@ Status: active（2026-11-16） · Parent issue: #1398 · Planning scale: S2 · R
 
 Rules:
 
-- `info` only on `visualType: "data"`; `layout` must be `"chart"`.
-- `info` is additive. Existing `scene.chart` (chart-img K-line pin) keeps its current meaning and schema.
+- `info` only on `visualType: "data"` with `layout: "chart"` — with **one exception**: `chart: "candle"` may also drive a `visualType: "hook"` + `layout: "media-led"` scene, where it fills the 820×619 media band that a chart PNG used to occupy (#1405). A hero-center hook has no band, so it is rejected.
+- `info` is additive. Existing `scene.chart` (chart-img K-line pin) keeps its current meaning and schema, and remains the path for every instrument the bake pipeline does not cover (non-HKEX, intraday, annotated drawings).
 - `texts.label` is the chart title/claim; `texts.subtext` is the reading; `texts.source` is mandatory for a native chart.
 - `data` entries are `{ label, value, value2?, x?, y?, highlight? }`.
 - `unit` is required. Values are numbers; formatting is derived (thousands separators, up to 1 decimal unless `decimals` is set).
@@ -66,7 +66,7 @@ Rules:
 | --- | --- | --- | --- |
 | `magnitude` | `bar`, `column`, `dot-plot` | `bar` | bar labels above the bar, never rotated; column must start at 0 |
 | `ranking` | `bar`, `dot-plot`, `slope` | `bar` | sort `desc` by default; highlight at most one |
-| `change-over-time` | `line`, `column`, `slope` | `line` | preserve input order; 2–6 points in 40–70s |
+| `change-over-time` | `line`, `column`, `slope`, `candle` | `line` | preserve input order; 2–6 points in 40–70s; `candle` is the daily-OHLC variant (5–260 bars) |
 | `part-to-whole` | `proportion-bar` | `proportion-bar` | one stacked bar, direct labels, no pie |
 | `deviation` | `bar`, `column` | `bar` | explicit baseline; diverging around it |
 | `distribution` | `dot-plot`, `column` | `dot-plot` | pre-binned; 5–12 points |
@@ -75,6 +75,31 @@ Rules:
 | `spatial` | — | — | use a real map image; never invent geography |
 
 `scatter` and `histogram` are registered as known-but-not-yet-native; `validateInfoSpec` returns a clear error telling the author to use `chart-card` with a real chart asset.
+
+### 2b. Candle（K 线，#1405）
+
+K 线不是「12 个以内的已知数值」，而是**一整段已收盘的日线**。它走同一套 `info`，但数据形状与门禁不同：
+
+```js
+info: {
+  relationship: "change-over-time",
+  chart: "candle",
+  entity: "zhipu",                   // bake 契约：实体的 ticker 由 chart-symbols.json 解析
+  dataFile: "data/2513-daily.json",  // bake 契约：包内数据文件（`symbol` 亦可直接写 EXCHANGE:SYMBOL）
+  data: [/* 由 readBakedCandleSeries 读入的 rows */],
+  unit: "HK$",
+  time: { from: "2026-06-01", to: "2026-11-12" }, // 镜头 claim 的窗口
+  highlight: "2026-06-22",          // 只接受数据里的交易日
+  credit: "HKEX CLOSE VIA EASTMONEY · NOV 12", // 画面内署名（必写在图内）
+}
+```
+
+- `data` 条目是 `{ date, open, high, low, close, volume }`；日期必须唯一且升序，`high`/`low` 必须包住 `open`/`close`，序列不得越出 `time` 窗口。
+- `data` 由 `npm run bake:quotes -- <pack>` 从 `content/<pack>/data/*.json` 烘焙：东方财富为主源、腾讯逐根校验，任何一根任何一字段不一致就整体失败（不挑「谁先答」）。渲染期零网络。
+- `symbol` + `dataFile` 是**再烘焙契约**，缺一不可；`time.to` 必须是已收盘的交易日，且应等于旁白引用的最新收盘（多含一天就会把下一个收盘画到屏幕上）。
+- `highlight` 是日期而非 label；最多一个。图内 amber 标记 + `PEAK · JUN 22` 文案，用来把旁白的峰值锚到一个具体蜡烛。
+- 图内必须印 `credit`（来源 + 时点）；`texts.source` 仍必填，但保持短行（长行会把 hook 文本条挤出槽位，TextFit 会拦）。
+- 观点/预测不进 K 线：只画已收盘日线，不做盘中、不做未来格子。
 
 ### 3. Native chart panel
 
@@ -105,15 +130,23 @@ Three tiers:
 
 - **L0 static contracts**: `checkInfoSpec`, render fixtures, text fit, source/unit. Must be green before L1.
 - **L1 internal blind pairwise review**: `experiment-review.mjs` builds a static HTML packet from still pairs, randomizes left/right by seed, records four 1–7 dimensions (clarity, credibility, memorability, hierarchy), exports JSON. `--analyze <export.json>` joins that export with `key.json` and reports the A−B difference per dimension with a seeded bootstrap CI, sign / Wilcoxon p-values, preference votes with a Wilson interval, and ICC(2,1) once there are two or more raters (a single rater has no agreement to measure). Below 8 pairs the report stays descriptive. No external panel in v1.
-- **L2 organic matched-pair field test**: `experiment.mjs` pre-registers, assigns variants by hash within a topic block, ingests TikTok details, runs paired permutation / Wilcoxon / bootstrap, reports MDE and limitations.
+- **L2 organic matched-pair field test**: `experiment.mjs` pre-registers, assigns variants by hash within a topic block, ingests TikTok details, runs paired permutation / Wilcoxon / bootstrap, reports MDE and limitations. The protocol below is enforced by the tool, not left to the operator:
+  - `create` pre-registers **two co-primary metrics** and the decision rule is an intersection-union test (the treatment must win **both**; no multiplicity correction is needed). A metric cannot be both primary and secondary.
+  - `assign --duration <sec>` records each pack's duration and refuses a partner whose gap exceeds 3s: an incomparable pair never enters the log.
+  - `ingest` skips a post younger than **T+72h**. Post dates carry day precision (`M/D/YYYY`), so the age used is the **latest plausible posting moment** (end of that UTC day) and the stored `ageHoursLower` is a lower bound.
+  - `ingest` also skips a pair whose posts are under **48h apart** (with day-precision dates that is only provable from three calendar days) or whose publish order contradicts the seeded `order`. `--allow-protocol-violations` keeps such a pair but stamps `protocolViolations` on the observation for a labelled sensitivity read.
+  - `report` withholds **p-values, confidence intervals and the decision** until the pre-registered pair count is complete (fixed n, no peeking). The two co-primaries share **one** gate: while either is short of the target, neither prints inference — the win-rate Wilson interval included. Interim reports print n, means and the MDE only. A pilot whose target sits below the 8-pair floor reports `descriptive-only`, never `mixed`.
+  - The sign-flip permutation is **exact through n=20**, the planned sample, so the planned read carries no Monte Carlo error.
+  - `check` audits the record before a read (unassigned or duplicated observations, a post stored below T+72h, a block whose durations drifted) and exits non-zero; `report` refuses to run on a record that fails it.
+  - The pre-registration is `scripts/short-video/experiments/<id>/experiment.json`, committed before the first pair. `.gitignore` ignores `experiments/**` and re-includes only `*/experiment.json`, so assignments and observations stay out of git while the frozen record is tracked.
 
 Field-test protocol:
 
 - 20 pairs target (40 posts), 2 pairs/week, 10 weeks; 6-pair pilot estimates σ and ρ.
-- Same topic, same script, same audio, duration gap ≤3s; only the layout factor changes.
-- Randomize which variant publishes first; ≥48h apart; same weekday/time window; avoid major news days.
-- Primary metrics: `full_video_watched_rate` and `ln(average_time_watched)`; secondary: retention@50% duration, shares/reach, comments/reach (BH-FDR).
-- Read at T+72h; T+7d only sensitivity. Fixed n; no peeking. Report n, effect, 95% CI, p, MDE, and limitations.
+- Same topic, same script, same audio, duration gap ≤3s; only the layout factor changes. (Gap: `assign --duration`.)
+- Randomize which variant publishes first; ≥48h apart; same weekday/time window; avoid major news days. (Order and interval: `ingest`.)
+- Primary metrics: `full_video_watched_rate` and `ln(average_time_watched)`; secondary: retention@50% duration, shares/reach, comments/reach (BH-FDR). (Co-primaries: `create`.)
+- Read at T+72h; T+7d only sensitivity. Fixed n; no peeking. Report n, effect, 95% CI, p, MDE, and limitations. (Maturity and peeking: `ingest` / `report`.)
 - n<8: descriptive only, no conclusion. At n=20, ρ≈0.5, MDE ≈ +28% (ln scale 0.25); this is a structural decision tool, not a micro-optimizer.
 
 ### 6. Layout signature and attribution

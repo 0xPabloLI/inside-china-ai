@@ -51,6 +51,7 @@ import {
   buildAutoPublishWarning,
 } from "./lib/publish-utils.mjs";
 import { getPlatformProfile } from "./lib/platforms/index.mjs";
+import { writePendingAnalysis } from "./lib/pending-analysis.mjs";
 import { INFO_LAYOUT_VERSION, layoutSignature } from "./lib/layout-signature.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
 import {
@@ -73,6 +74,22 @@ function getArg(name) {
 function hasFlag(name) {
   return args.includes(`--${name}`);
 }
+// --content/--slug become path components later. Reject a path-shaped value
+// here so a typo fails before any publish action, not after an irreversible
+// post when the pending-analysis writer validates the same string.
+function assertPathId(value, flag) {
+  if (!value) return;
+  const clean = String(value);
+  const unsafe =
+    clean.startsWith("/") ||
+    clean.includes("\\") ||
+    clean.includes("\0") ||
+    clean.split("/").some((part) => part === "" || part === "." || part === "..");
+  if (unsafe) {
+    console.error(`❌ ${flag} must be a pipeline id, not a path: ${JSON.stringify(clean)}`);
+    process.exit(1);
+  }
+}
 
 const videoPath = getArg("video");
 if (!videoPath) {
@@ -84,6 +101,7 @@ if (!videoPath) {
 // Package path via the single-source builder (#219 T02): --content <dir> →
 // output/{dir}/publish/tiktok/…; standalone → output/publish/tiktok/…
 const contentDir = getArg("content");
+assertPathId(contentDir, "--content");
 const DEFAULT_METADATA = packageFilePaths({
   outputRoot: OUTPUT_DIR,
   ...(contentDir ? { pipelineId: contentDir } : {}),
@@ -104,6 +122,7 @@ const nextUrl = getArg("next-url");
 
 // TikTok URL auto-save arg
 const postSlug = getArg("slug");
+assertPathId(postSlug, "--slug");
 const experimentId = getArg("experiment-id");
 const experimentVariant = getArg("variant");
 
@@ -278,18 +297,20 @@ async function runManualMode() {
   // guide-generation time is the best available publish-time estimate. The
   // analytics workflow flips status to "done" once the video is analyzed.
   if (!isDraft) {
+    const pendingSlug = postSlug || contentDir || null;
     const pending = buildManualPendingAnalysis({
-      slug: postSlug || null,
+      slug: pendingSlug,
       videoPath: resolve(videoPath),
       publishedAt: new Date().toISOString(),
       ...(await layoutMetaForSlug(postSlug)),
       experimentId: experimentId || null,
       variant: experimentVariant || null,
     });
-    const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
-    if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
-    writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
-    console.log(buildAnalyticsGuidance(OUTPUT_DIR));
+    const pendingFile = writePendingAnalysis(__dirname, {
+      slug: pendingSlug,
+      record: pending,
+    });
+    console.log(buildAnalyticsGuidance(OUTPUT_DIR, pendingFile.path));
   }
 }
 
@@ -415,16 +436,18 @@ async function runAutoMode() {
   // 8. Write pending-analysis.json — only for non-draft
   if (!isDraft) {
     const publishedAt = new Date().toISOString();
+    const pendingSlug = postSlug || contentDir || null;
     const pending = buildPendingAnalysis(postGroupId, publishedAt, {
-      slug: postSlug || null,
+      slug: pendingSlug,
       ...(await layoutMetaForSlug(postSlug)),
       experimentId: experimentId || null,
       variant: experimentVariant || null,
     });
-    const pendingPath = join(OUTPUT_DIR, "pending-analysis.json");
-    if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
-    writeFileSync(pendingPath, JSON.stringify(pending, null, 2) + "\n", "utf8");
-    console.log(buildAnalyticsGuidance(OUTPUT_DIR));
+    const pendingFile = writePendingAnalysis(__dirname, {
+      slug: pendingSlug,
+      record: pending,
+    });
+    console.log(buildAnalyticsGuidance(OUTPUT_DIR, pendingFile.path));
   }
 
   // 9. Output pinned comment for series

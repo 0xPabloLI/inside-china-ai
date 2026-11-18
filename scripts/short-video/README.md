@@ -96,7 +96,10 @@ scripts/short-video/
 │   ├── generate-tts.mjs      # TTS orchestration shim → lib/tts/registry.mjs (engine chain)
 │   ├── assemble.mjs          # Output-path helpers (resolveOutputVideo)
 │   ├── renderer-guard.mjs    # Fail-fast on the retired HTML/Playwright path
-│   └── render-remotion.mjs   # Remotion CLI wrapper
+│   ├── render-remotion.mjs   # Remotion CLI wrapper (writes props/manifest per render)
+│   └── render-manifest.mjs   # Render artifacts: props.json + manifest.json, command builders, replay plan
+├── replay-render.mjs        # Re-run a recorded render from its manifest (no TTS/alignment)
+├── still-frame.mjs          # One-frame still through the same props/manifest contract
 ├── assets/                   # Brand logos, BGM, shared images
 └── output/                   # Per-pipeline output (video, audio)
 ```

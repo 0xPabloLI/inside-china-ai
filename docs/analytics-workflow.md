@@ -20,8 +20,8 @@ analytics"，但实际上 analytics 需要等数据沉淀。
 > **默认 = 完整 workflow（2026-09-19 用户裁决）**：①–⑤ 每轮全部执行，不得只跑 CSV 导出然后复述旧结论。决策数据的主来源是 **per-video 详情抓取**（完播率/平均观看/留存落点/流量拆分）与 **CSI 双流程**（选题缺口）；CSV 导出仅承担账号级按日时间线的归档职责（账号级连续时间线建议改用 28/60 天窗口一次导出，当前 7 天窗口逐轮拼接有缺口）。数据冻结期（无新发布）仍跑完整轮，但结论部分如实标注「无新实验，无可分析的新信息」。
 
 ```
-① 检查 pending-analysis.json
-   │  新 session 时 agent 被动检查
+① node scripts/short-video/pending-analysis.mjs list
+   │  新 session 时 agent 被动检查（合并 content/<slug>/ 与 legacy output/）
    │  发布步骤运行时脚本自动写入（manual-guide 档 = 发布指南生成时，
    │  publishedAt 为真实发布时间的最佳估计）
    │  status ≠ "done" 且超过 48h → 提醒导出 CSV
@@ -55,7 +55,7 @@ analytics"，但实际上 analytics 需要等数据沉淀。
    │  → 记录到 output/analytics-conclusions.md 的 CSI Content Gap 对比章节
    │
 ⑤ 标记完成
-      Agent 将 pending-analysis.json 的 status 改为 "done"
+      Agent 将对应 content/{slug}/pending-analysis.json（或 legacy 记录）的 status 改为 "done"
 ```
 
 ### 数据地图与最少路径（2026-09-07 实测校准）
@@ -448,14 +448,15 @@ Analytics 复盘
 
 ## 文件参考
 
-| 文件                                  | 用途                                                                                                          |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `output/pending-analysis.json`        | 待分析视频记录（publish-tiktok.mjs 发布步骤运行时写入；manual-guide 档在指南生成时写，`postGroupId` 为 null） |
-| `output/analytics-export.json`        | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）                                                             |
-| `output/ab-test-results.json`         | A/B 测试追踪（ab-test-tracker.mjs）                                                                           |
-| `output/hashtag-effect-tracker.jsonl` | Hashtag 效果追踪记录（`hashtag-effect-tracker.mjs upsert` 按 videoId 落库）                                 |
-| `output/analytics-conclusions.md`     | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取）                                                        |
-| `output/reference-videos/`            | 用户手动下载的竞品参考视频（按需）                                                                            |
+| 文件                                     | 用途                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `content/{slug}/pending-analysis.json` | 待分析视频记录（publish-tiktok.mjs 按 slug 写入；manual-guide 档在指南生成时写，`postGroupId` 为 null）                              |
+| `output/pending-analysis.json`         | legacy 单文件记录（仍被 CLI 读取；无 `--slug` 的 standalone 发布继续写这里）                                                       |
+| `output/analytics-export.json`         | 标准化分析数据（fetch-tiktok-analytics.mjs 输出）                                                                        |
+| `output/ab-test-results.json`          | A/B 测试追踪（ab-test-tracker.mjs）                                                                                 |
+| `output/hashtag-effect-tracker.jsonl`  | Hashtag 效果追踪记录（`hashtag-effect-tracker.mjs upsert` 按 videoId 落库）                                              |
+| `output/analytics-conclusions.md`      | Analytics 结论摘要（Agent 生成，下一轮 Pipeline 读取）                                                                      |
+| `output/reference-videos/`             | 用户手动下载的竞品参考视频（按需）                                                                                             |
 
 ## 相关文档
 

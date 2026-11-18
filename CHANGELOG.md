@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.87.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.86.0...tanstack_start_ts-v1.87.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** enforce the L2 matched-pair protocol ([#1398](https://github.com/0xPabloLI/inside-china-ai/issues/1398)) ([#1428](https://github.com/0xPabloLI/inside-china-ai/issues/1428)) ([dee2872](https://github.com/0xPabloLI/inside-china-ai/commit/dee28720b49080e6431aa6b506c486a24d49f122))
+* **short-video:** isolate pending analysis per slug ([#462](https://github.com/0xPabloLI/inside-china-ai/issues/462) Stage 2) ([#1425](https://github.com/0xPabloLI/inside-china-ai/issues/1425)) ([f01f027](https://github.com/0xPabloLI/inside-china-ai/commit/f01f027523b9b6309acfa0739485f61418ae7ef8))
+
+## [1.86.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.85.1...tanstack_start_ts-v1.86.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** isolate pipeline status per slug ([#462](https://github.com/0xPabloLI/inside-china-ai/issues/462) Stage 1) ([#1421](https://github.com/0xPabloLI/inside-china-ai/issues/1421)) ([e16cc5c](https://github.com/0xPabloLI/inside-china-ai/commit/e16cc5c155c720060e3ce85482f9b4d925fc1132))
+
+## [1.85.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.85.0...tanstack_start_ts-v1.85.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **short-video:** currency dual-annotation covers Chinese amounts and live rates ([#1415](https://github.com/0xPabloLI/inside-china-ai/issues/1415)) ([#1418](https://github.com/0xPabloLI/inside-china-ai/issues/1418)) ([65f3c68](https://github.com/0xPabloLI/inside-china-ai/commit/65f3c68ee097bddbf7389454e4c7ac3cc289c65a))
+
+## [1.85.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.84.0...tanstack_start_ts-v1.85.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** [#1412](https://github.com/0xPabloLI/inside-china-ai/issues/1412) render commands carry a props path, failures replay ([#1414](https://github.com/0xPabloLI/inside-china-ai/issues/1414)) ([1a000bc](https://github.com/0xPabloLI/inside-china-ai/commit/1a000bc6a680aa4e0ee0b2cc7c300ab9b875ceed))
+
+## [1.84.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.83.1...tanstack_start_ts-v1.84.0) (2026-11-17)
+
+
+### Features
+
+* **short-video:** self-render candles from baked HKEX closes ([#1405](https://github.com/0xPabloLI/inside-china-ai/issues/1405)) ([#1411](https://github.com/0xPabloLI/inside-china-ai/issues/1411)) ([3d8c339](https://github.com/0xPabloLI/inside-china-ai/commit/3d8c3397c8ef435b75dda49d442f2d5c844630e3))
+
+## [1.83.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.83.0...tanstack_start_ts-v1.83.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **short-video:** unify zhipu-valuation drawdown at 85% ([#1394](https://github.com/0xPabloLI/inside-china-ai/issues/1394)) ([#1409](https://github.com/0xPabloLI/inside-china-ai/issues/1409)) ([58ec555](https://github.com/0xPabloLI/inside-china-ai/commit/58ec55594c3347ed08332a5c30e5fc8b84869406))
+
 ## [1.83.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.82.0...tanstack_start_ts-v1.83.0) (2026-11-17)
 
 

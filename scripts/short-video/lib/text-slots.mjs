@@ -417,16 +417,21 @@ export const HOOK_MEDIA_LED_LAYOUT = "media-led";
  * two prose-coupled copies of `layout === … && scene.media` are exactly the
  * drift this function removes.
  *
- * Media must be BOUND: with no picture the hook renders hero-center, and
+ * A picture must be BOUND: with no picture the hook renders hero-center, and
  * claiming media-led there would judge its claim texts against a map that
- * registers none of them.
+ * registers none of them. A native candle chart IS that picture (#1405): the
+ * baked series draws in the media band, so the hook has a protagonist even
+ * though no raster file exists.
  *
- * @param {{visualType?: string, layout?: string, media?: object|null}} [scene]
+ * @param {{visualType?: string, layout?: string, media?: object|null,
+ *          info?: {chart?: string}}} [scene]
  * @returns {boolean}
  */
 export function isMediaLedHook(scene) {
   return (
-    scene?.visualType === "hook" && scene?.layout === HOOK_MEDIA_LED_LAYOUT && Boolean(scene?.media)
+    scene?.visualType === "hook" &&
+    scene?.layout === HOOK_MEDIA_LED_LAYOUT &&
+    (Boolean(scene?.media) || scene?.info?.chart === "candle")
   );
 }
 

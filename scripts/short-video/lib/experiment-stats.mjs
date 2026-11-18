@@ -133,9 +133,11 @@ function nonZeroDiffs(diffs) {
 
 function combination(n, k) {
   if (k < 0 || k > n) return 0;
+  // Symmetric: pick the cheaper side, and keep the numerator in step with it.
+  const kk = Math.min(k, n - k);
   let result = 1;
-  for (let i = 1; i <= Math.min(k, n - k); i++) {
-    result = (result * (n - k + i)) / i;
+  for (let i = 1; i <= kk; i++) {
+    result = (result * (n - kk + i)) / i;
   }
   return result;
 }
@@ -144,7 +146,8 @@ function combination(n, k) {
  * Two-sided paired sign-flip permutation test.
  *
  * Under the null the two layouts are exchangeable within a pair, so each
- * difference can flip sign independently. Exact enumeration through n=16;
+ * difference can flip sign independently. Exact enumeration through n=20 (the
+ * pre-registered sample, so the planned read carries no Monte Carlo error);
  * seeded Monte Carlo above that. Zeros carry no information and are dropped.
  *
  * @param {number[]} diffs - paired differences (A - B)
@@ -160,16 +163,19 @@ export function pairedPermutation(diffs, opts = {}) {
   const observedMean = observedSum / n;
   const threshold = Math.abs(observedSum) - EPS;
 
-  if (n <= 16) {
+  if (n <= 20) {
     let extreme = 0;
     const total = 2 ** n;
-    for (let mask = 0; mask < total; mask++) {
-      let sum = 0;
-      for (let i = 0; i < n; i++) {
-        sum += mask & (1 << i) ? clean[i] : -clean[i];
+    // Depth-first over the two signs per pair: O(2^n) additions, not O(n*2^n).
+    const walk = (index, sum) => {
+      if (index === n) {
+        if (Math.abs(sum) >= threshold) extreme++;
+        return;
       }
-      if (Math.abs(sum) >= threshold) extreme++;
-    }
+      walk(index + 1, sum + clean[index]);
+      walk(index + 1, sum - clean[index]);
+    };
+    walk(0, 0);
     return {
       n,
       observedMean,
