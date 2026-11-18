@@ -36,6 +36,7 @@ import { join } from "path";
 import { createRegenStaging, acceptRegenTake, cleanupRegenStaging } from "./staging.mjs";
 import { hasAudioBytes } from "./audio-file.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
+import { createCosyVoice3ColabCudaEngine } from "./cosyvoice3-colab-cuda.mjs";
 import { createCosyVoice3ModalCudaEngine } from "./cosyvoice3-modal-cuda.mjs";
 import { createCosyVoice3MLXEngine } from "./cosyvoice3-mlx.mjs";
 import { createF5MLXEngine } from "./f5-mlx.mjs";
@@ -81,6 +82,7 @@ import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
 const ENGINE_FACTORIES = {
   "cosyvoice3-kaggle-cuda": createCosyVoice3KaggleCudaEngine,
   "cosyvoice3-cuda": createCosyVoice3KaggleCudaEngine,
+  "cosyvoice3-colab-cuda": createCosyVoice3ColabCudaEngine,
   "cosyvoice3-modal-cuda": createCosyVoice3ModalCudaEngine,
   "cosyvoice3-mlx": createCosyVoice3MLXEngine,
   cosyvoice3: createCosyVoice3MLXEngine,
