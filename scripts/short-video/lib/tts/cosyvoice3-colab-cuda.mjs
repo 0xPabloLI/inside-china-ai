@@ -40,6 +40,17 @@ const COLAB_TEMPLATE = join(ROOT_DIR, "colab", "cosyvoice3_tts_colab.py");
 const CV3_REF_AUDIO = join(ROOT_DIR, "voice-samples", "voice-sample-24k.wav");
 const ADC_PATH = join(homedir(), ".config", "gcloud", "application_default_credentials.json");
 const COLAB_TIMEOUT_MS = Number.parseInt(process.env.COSYVOICE3_COLAB_TIMEOUT_MS || "2700000", 10);
+
+/**
+ * Seconds the Colab kernel may stay silent before `colab run` gives up. The
+ * CLI's own default is 30s, and a cold VM spends minutes installing deps and
+ * downloading the model without emitting a message. The outer exec timeout
+ * does not help because the CLI aborts first.
+ */
+const COLAB_KERNEL_SILENCE_S = Number.parseInt(
+  process.env.COSYVOICE3_COLAB_KERNEL_SILENCE_S || "900",
+  10,
+);
 const COLAB_GPU = process.env.COSYVOICE3_COLAB_GPU || "T4";
 
 /** Locate the Colab CLI without assuming PATH (it installs under ~/.local/bin). */
@@ -152,7 +163,15 @@ export async function createCosyVoice3ColabCudaEngine(deps = {}) {
       try {
         ({ stdout } = await runCli(
           resolveColabBin(deps),
-          ["--auth=adc", "run", "--gpu", COLAB_GPU, scriptPath],
+          [
+            "--auth=adc",
+            "run",
+            "--gpu",
+            COLAB_GPU,
+            "--timeout",
+            String(COLAB_KERNEL_SILENCE_S),
+            scriptPath,
+          ],
           { timeout: COLAB_TIMEOUT_MS, maxBuffer: 256 * 1024 * 1024 },
         ));
       } catch (e) {

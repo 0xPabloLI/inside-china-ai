@@ -79,11 +79,15 @@ describe("generate", () => {
       `__COLAB_TTS_FILE__2:${wav.toString("base64")}`,
       `__COLAB_TTS_SUMMARY__${Buffer.from(JSON.stringify(summary)).toString("base64")}`,
     ].join("\n");
+    let invokedArgs;
     const engine = await createCosyVoice3ColabCudaEngine({
       assumeAvailable: true,
       colabBin: "/fake/colab",
       refAudioPath: refPath,
-      execFile: async () => ({ stdout }),
+      execFile: async (_bin, args) => {
+        invokedArgs = args;
+        return { stdout };
+      },
       postProcess: async () => ({ duration: 1.25 }),
     });
     expect(engine?.name).toBe("cosyvoice3-colab-cuda");
@@ -92,6 +96,8 @@ describe("generate", () => {
       [{ id: 2, voiceover: "hello", visualType: "narrative" }],
       outputDir,
     );
+    expect(invokedArgs).toContain("--timeout");
+    expect(invokedArgs[invokedArgs.indexOf("--timeout") + 1]).toBe("900");
     expect(results).toHaveLength(1);
     expect(results[0].duration).toBe(1.25);
     const dest = join(outputDir, "scene-2.wav");
