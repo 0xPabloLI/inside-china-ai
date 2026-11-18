@@ -176,6 +176,10 @@ const MEDIA_LED_CONTAIN_SCENE: SceneData = {
   visualType: "hook",
   layout: "media-led",
   voiceover: "hook",
+  // A media-led hook carries the claim, so it is evidence by definition. The
+  // fixture declares the role rather than `evidence: true` because its picture
+  // is a synthetic testsrc2 chart with no provenance record.
+  mediaRole: "evidence",
   media: {
     type: "image",
     path: SCENE_GATE_PHOTO,
