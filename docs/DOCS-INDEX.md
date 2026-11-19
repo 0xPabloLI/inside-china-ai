@@ -116,9 +116,10 @@ Numbered sequence. Current: 0001–0019 (0006 moved to archive).
 
 ### `tiktok/` — TikTok guides
 
-| Document                     | Purpose                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------ |
-| `tiktok-best-practices.md`   | 2025-2026 best practices (signal weights, voice rules, hooks, audit checklist) |
+| Document                     | Purpose                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `humanization-contract.md`   | TikTok CDP 发布拟人化契约 — 环境/出口/输入/节奏/审阅/日志六层 P0 门禁、工作流、当前实现与剩余差距（v1.1） |
+| `tiktok-best-practices.md`   | 2025-2026 best practices (signal weights, voice rules, hooks, audit checklist)                            |
 | `tiktok-developer-setup.md`  | TikTok API publishing setup guide                                              |
 | `tiktok-do-dont.md`          | Do/Don't comparison guide                                                      |
 | `tiktok-profile-setup.md`    | Brand profile setup (one-time reference)                                       |

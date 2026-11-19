@@ -20,23 +20,26 @@
  *
  * Fail-closed boundary
  * --------------------
- * With `publish: true` the check blocks when the country cannot be determined
- * (probe failure, timeout, `loc=XX`) as well as on a mismatch: "we could not
- * verify" is not evidence that the route is safe. Since #1181 (ruled
- * 2026-11-13) the CDP driver is draft-only and always evaluates with
- * `publish: false`, so a mismatch warns: nothing is published, but the operator
- * is one click from doing it, so the warning names the risk.
+ * A mismatch, an unresolvable country (`loc=XX`), or a probe failure is a hard
+ * block for any non-dry run. "We could not verify" is not evidence that the
+ * route is safe. The gate runs even for draft-only because the operator is one
+ * click from publishing that draft, so a mismatched session is not a safe
+ * hand-off. `--expect-region` is the explicit way to say the route changed.
  */
 
 export const EGRESS_TRACE_URL = "https://www.cloudflare.com/cdn-cgi/trace";
 
 /**
- * The region the account is expected to publish from. Singapore is the route
- * the 2026-10-25 run was supposed to use; it is a default, not a hard-coded
- * truth — `--expect-region <CC>` overrides it when the intended region really
- * changes.
+ * The region the account is expected to publish from.
+ *
+ * The automation profile's measured route is a Singapore entrance with a Hong
+ * Kong landing (2026-11-16 and 2026-11-19 logs: `loc=HK`, `colo=HKG`). The
+ * account has published through that HK exit with normal reach (272 / 351 / 189
+ * views on 11/16, 11/14, 11/9), so HK is the stable baseline this gate should
+ * protect — not an aspirational SG that would block every run. `--expect-region
+ * <CC>` overrides it when the intended route really changes.
  */
-export const DEFAULT_EXPECTED_REGION = "SG";
+export const DEFAULT_EXPECTED_REGION = "HK";
 
 /** Two-letter ISO 3166-1 alpha-2 shape. `XX` is accepted here and treated as unknown later. */
 export function isRegionCode(value) {
@@ -103,10 +106,10 @@ export function evaluateEgress({
   reason = null,
 } = {}) {
   if (!isExpectedRegion(expectedRegion)) {
-    // A malformed value must not fall back to SG: that turns a typo into a
-    // silently weaker gate. `XX` is Cloudflare's unknown sentinel and must not
-    // be usable as a target. The driver validates first; this protects other
-    // callers of the pure function.
+    // A malformed value must not fall back to the default: that turns a typo
+    // into a silently weaker gate. `XX` is Cloudflare's unknown sentinel and
+    // must not be usable as a target. The driver validates first; this protects
+    // other callers of the pure function.
     throw new Error(
       `evaluateEgress: invalid expected region ${JSON.stringify(expectedRegion)} — use a two-letter code other than XX`,
     );

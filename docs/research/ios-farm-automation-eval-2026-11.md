@@ -40,7 +40,7 @@
 
 ### 1.3 与现有 CDP 发布路径的重叠度与隔离边界
 
-本仓 `tiktok-upload-prep.mjs`（2,339 行）是 **CDP + Chrome DOM** 通道；`lib/human-input.mjs`（1,224 行）用第二 CDP session 造 `isTrusted` 输入；`lib/publish-throttle.mjs` 把节流状态放在自动化 Chrome profile 的 `publish-throttle.json`（3 次/日、90–180 分钟）；`lib/platforms/upload-prep-policy.mjs` 把 AI 声明与发布方法做成加载期契约；终态经 `pollFor(DRAFT_STATE)` 存草稿且**不重试**，重复投递风险靠「先查 Studio Drafts」的人工提示兜住 [S8, 基线 `b111f7ff`]。`docs/content-pipeline.md:704-710` 已把 FARM 三条做法的归属切开：PC 网页路径承接第一条，行为模型与坐标点击两条属真机 App 路径 [S8]。
+本仓 `tiktok-upload-prep.mjs`（2,339 行）是 **CDP + Chrome DOM** 通道；`lib/human-input.mjs`（1,224 行）用第二 CDP session 造 `isTrusted` 输入；`lib/publish-throttle.mjs` 把节流状态放在自动化 Chrome profile 的 `publish-throttle.json`（3 次/日、5–10 分钟）；`lib/platforms/upload-prep-policy.mjs` 把 AI 声明与发布方法做成加载期契约；终态经 `pollFor(DRAFT_STATE)` 存草稿且**不重试**，重复投递风险靠「先查 Studio Drafts」的人工提示兜住 [S8, 基线 `b111f7ff`]。`docs/content-pipeline.md:704-710` 已把 FARM 三条做法的归属切开：PC 网页路径承接第一条，行为模型与坐标点击两条属真机 App 路径 [S8]。
 
 | 层 | 是否重叠 | 说明 |
 | --- | --- | --- |

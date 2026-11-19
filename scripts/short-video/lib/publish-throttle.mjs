@@ -20,15 +20,17 @@ import { automationProfileDir } from "./cdp-profile-guard.mjs";
 import { clamp, sampleSymmetricJitter } from "./behavior-sampling.mjs";
 
 /**
- * Baseline 135min ±45min ⇒ 90–180min. The 90min floor is the ticket's hard
- * minimum; the ±45min is the "not on the hour" spread. Daily cap counts any
- * committed terminal action (prepared editor OR saved draft).
+ * Baseline 7.5min ±2.5min ⇒ 5–10min. The 5min floor is the operator's
+ * "enough gap" decision (2026-11-19): 90–180min was over-conservative for
+ * preparing drafts, while two drafts 16min apart did not look like a batch
+ * problem on its own. Daily cap counts any committed terminal action
+ * (prepared editor OR saved draft).
  */
 export const THROTTLE_POLICY = Object.freeze({
   maxPerDay: 3,
-  minIntervalMs: 90 * 60_000,
-  baseIntervalMs: 135 * 60_000,
-  jitterMs: 45 * 60_000,
+  minIntervalMs: 5 * 60_000,
+  baseIntervalMs: 7.5 * 60_000,
+  jitterMs: 2.5 * 60_000,
 });
 
 const THROTTLE_STATE_VERSION = 1;
@@ -143,8 +145,8 @@ export function commitThrottleRun({
   const today = dayKey(now);
   const runsToday = s.day === today ? (Number(s.runs) || 0) + 1 : 1;
   const jitterMs = sampleSymmetricJitter(0, policy.jitterMs, rand);
-  // The ±45min spread sits ON TOP of the 135min base, clamped at the 90min
-  // floor, so actual intervals land in [90, 180] minutes and are never a
+  // The ±2.5min spread sits ON TOP of the 7.5min base, clamped at the 5min
+  // floor, so actual intervals land in [5, 10] minutes and are never a
   // constant nor a whole hour.
   const intervalMs = Math.round(
     clamp(

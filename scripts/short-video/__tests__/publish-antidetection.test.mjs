@@ -179,7 +179,7 @@ describe("profile-level pacing gate (#1288 ②)", () => {
     expect(second.nextAllowedAt).toBe(new Date(t0.getTime() + first.intervalMs).toISOString());
   });
 
-  it("samples three non-constant intervals, none below the 90min floor", () => {
+  it("samples three non-constant intervals, none below the 5min floor", () => {
     const path = tempStatePath("jitter");
     let now = new Date("2026-11-13T09:00:00Z");
     const intervals = [];
@@ -198,7 +198,7 @@ describe("profile-level pacing gate (#1288 ②)", () => {
       expect(ms).toBeGreaterThanOrEqual(THROTTLE_POLICY.minIntervalMs);
       expect(ms).toBeLessThanOrEqual(THROTTLE_POLICY.baseIntervalMs + THROTTLE_POLICY.jitterMs);
     }
-    // ±45min means the sampled deadlines are not on the hour.
+    // ±2.5min means the sampled deadlines are not on the minute.
     const state = readThrottleState(path);
     expect(state.jittersMs.some((j) => j !== 0)).toBe(true);
   });
