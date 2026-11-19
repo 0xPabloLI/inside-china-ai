@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.90.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.89.0...tanstack_start_ts-v1.90.0) (2026-11-19)
+
+
+### Features
+
+* **short-video:** add run-scoped artifact history core ([#1432](https://github.com/0xPabloLI/inside-china-ai/issues/1432)) ([#1441](https://github.com/0xPabloLI/inside-china-ai/issues/1441)) ([619d53e](https://github.com/0xPabloLI/inside-china-ai/commit/619d53ed92c9f04df11a59e5e03cc12ab629f899))
+
 ## [1.89.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.88.0...tanstack_start_ts-v1.89.0) (2026-11-19)
 
 
