@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.0...tanstack_start_ts-v1.94.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **video:** calibrate relevance gate to narration-level support ([#1449](https://github.com/0xPabloLI/inside-china-ai/issues/1449)) ([#1454](https://github.com/0xPabloLI/inside-china-ai/issues/1454)) ([22162cb](https://github.com/0xPabloLI/inside-china-ai/commit/22162cb5caaf0a51e65a3d23cad86ac7dca85a69))
+
 ## [1.94.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.93.0...tanstack_start_ts-v1.94.0) (2026-11-19)
 
 
