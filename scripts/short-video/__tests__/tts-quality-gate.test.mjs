@@ -630,13 +630,26 @@ describe("heard-side currency mirror", () => {
     }
   });
 
-  it("adds no evidence for decimals or letter-suffixed amounts (#548 boundary)", () => {
+  it("expands decimal amounts but leaves letter-suffixed magnitudes out", () => {
     const heard = "the API costs $1.4B and the bill came to $2.50";
     const set = buildExpandedAsrTokenSet(tokenize(heard), heard);
     expect(set.has("dollars")).toBe(false);
     expect(set.has("one")).toBe(false);
-    expect(set.has("two")).toBe(false);
+    expect(set.has("two")).toBe(true);
+    expect(set.has("five")).toBe(true);
+    expect(set.has("zero")).toBe(true);
     expect(set.has("fifty")).toBe(false);
+  });
+
+  it("keeps a decimal USD price above the floor (DeepSeek USD-first repro)", () => {
+    // Verbatim from the 2026-11-19 DeepSeek rerun: the audio was correct,
+    // but whisper.cpp wrote "$0.05" and "0.39 yuan" while the spoken track
+    // carried "zero point zero five" / "zero point three nine".
+    const expected = tokenize(
+      "DeepSeek just rented out the parts of its app. Speech costs $zero point zero five (zero point three nine yuan) an hour.",
+    );
+    const heard = "Deepseek just rented out the parts of its app. Speech cost dollars 0.05, 0.39 yuan, an hour.";
+    expect(computeTokenSimilarity(expected, tokenize(heard), heard)).toBeGreaterThanOrEqual(0.75);
   });
 
   it("keeps the saved scene 4 pair above the floor on the gate's similarity measure", () => {

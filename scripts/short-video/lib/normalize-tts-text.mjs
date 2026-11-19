@@ -572,9 +572,8 @@ const CURRENCY_AMOUNT_RE = /\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?!\d|[.,]\d|\p{L})/gu;
  * symbol/amount pairing on the spoken side), so the heard-side expansion in
  * the quality gate has no evidence for words the audio does contain. The "$"
  * is itself proof the currency word was spoken, so the noun joins the number.
- * Decimals and letter-suffixed magnitudes stay out: their display-side
- * annotation is a different path, and expanding them would manufacture
- * evidence the audio does not carry.
+ * Decimals and letter-suffixed magnitudes stay out of this helper; decimals
+ * are handled by `decimalSpokenWords` below, which needs no currency noun.
  *
  * @param {string} text
  * @returns {string[]} words, empty when the text carries no whole-dollar amount
@@ -584,6 +583,31 @@ export function currencySpokenWords(text) {
     const words = spokenWordsFor(value);
     return words.length === 0 ? [] : [...words, value === 1 ? "dollar" : "dollars"];
   });
+}
+
+/** `0.05` / `0.39` / `1.5` — decimal amounts, excluding `1.4B` magnitudes. */
+const DECIMAL_AMOUNT_RE = /(?<![\d.])(\d{1,3})\.(\d{1,3})(?![\d.]|[A-Za-z])/gu;
+
+/**
+ * Spoken words for decimal amounts in an ASR transcript — "0.05" yields
+ * ["zero", "point", "zero", "five"], "1.5" yields ["one", "point", "five"].
+ *
+ * whisper.cpp writes decimal amounts as digits ("$0.05", "0.39 yuan") while
+ * the spoken track spells them out ("zero point zero five"). Unlike whole
+ * dollars, the digits already prove every word: the decimal point is spoken,
+ * and each fractional digit is read individually. Letter-suffixed magnitudes
+ * (`$1.4B`) stay out because the suffix changes the spoken form to "one point
+ * four billion", which this helper cannot infer without a unit table.
+ *
+ * @param {string} text
+ * @returns {string[]} words, empty when the text carries no decimal amount
+ */
+export function decimalSpokenWords(text) {
+  const words = [];
+  for (const match of String(text ?? "").matchAll(DECIMAL_AMOUNT_RE)) {
+    words.push(...decimalToSpoken(match[1], match[2]).split(" "));
+  }
+  return words;
 }
 
 /**
