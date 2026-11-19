@@ -928,3 +928,23 @@ PR #1439 — `3dac3e2e` — `content(deepseek-api-open): salvage the rendered pa
 > 由 `docs/issue-roadmap.md` 近轮一句话档案下沉；完整记录见 #1398 评论。
 
 **Round CCXII**（`#1398` L2 就绪：PR #1428 `dee28720`；实验工具强制双主指标 / T+72h / 48h 间隔与顺序 / 3s 时长差 / 不偷看 / `check` 审计，并修掉符号检验组合数 bug；**无产出差异（enabling fix）**；frontier 1A 空、① 空、② `#541`、③④ 空）
+
+## Round CCXVII 下沉：`#1183` 处置（2026-11-19）
+
+> 由 `docs/issue-roadmap.md` 的 Last inventory 与近轮一句话档案下沉；裁决与证据的权威源是 #1183 评论（2026-11-19）。
+
+**上一轮整段（Round CCXVI 盘点行，原文）**：
+
+> **Last inventory**: 2026-11-19（**Round CCXVI：`#1432` S4/S5 交付，Stage 3 收口**（PR #1446）——发布包/回执/pending-analysis 绑定 `runId`，`run-history receipts` 可审计 run→回执；legacy 包 dry-run 迁移与引用保护 prune 默认 dry-run；spec 归档 `docs/archive/specs/spec-run-history-stage3.md`；产品验证门：**无产出差异（enabling fix）**——用户可见成片/发布动作不变。frontier 复算：1A 空、① 空、② `#541`/`#1183`、③④ 空。）
+
+**下沉的一句话档案（Round CCXIII，原文）**：
+
+**Round CCXIII**（`#462` 收口：Stage 1/2 状态与 pending-analysis 已按 slug 隔离后，票以 completed 关闭；剩余同 slug 产物历史/runId/发布回执转 #1432（`P2`/`ready-for-human`）；关闭评论 `6973333825`；**无产出差异**；frontier 1A 空、① 空、② `#541`/`#1432`、③④ 空）
+
+### 台账补登：`#1432` 前两片施工 PR（roadmap-ledger）
+
+> `#1432` 闭票即删行，前两片施工 PR 随行一起离开 tracker；此处只补台账，交付细节归 #1432 关闭评论与 PR body。
+
+PR #1441 — `619d53ed` — `#1432` S1：`lib/run-history.mjs`（run 身份、`runs/<runId>/` 布局、manifest 与 `latest.json` 原子读写）+ 15 条单测 + spec `docs/specs/spec-run-history-stage3.md`，零接线。属**无产出差异（enabling fix）**。
+PR #1443 — `0c314318` — `#1432` S2/S3：写侧 `main.mjs` 全产物落 run 目录，读侧 `render-only`/`verify`/`still-frame`/`qa`/`rerender` 走 `resolveRun()`（默认 latest、`--run` 显式、legacy 回退）。属**无产出差异（enabling fix）**——用户可见成片与发布动作不变，变化在产物归属与回读。
+
