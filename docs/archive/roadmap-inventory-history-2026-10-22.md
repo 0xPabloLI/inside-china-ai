@@ -898,3 +898,21 @@ PR #1409 — `58ec5559` — `fix(short-video): unify zhipu-valuation drawdown at
 > 同上节口径：施工 PR 不动台账是既定分工，此处只记账，不复制交付细节。PR #1430 属 #536 的结构说明补记，无独立 tracker 行可删。
 
 PR #1430 — `962e965c` — `docs(agents): add harness overview map and route it from AGENTS.md`。新增 `docs/agents/harness.md` 并在 `AGENTS.md` 加入 Harness 总览入口；属**无产出差异**（纯 Agent 文档）。
+
+## Round CCXIV 补登：施工 PR 消账（roadmap-ledger）
+
+> 同上节口径：施工 PR 不动台账是既定分工，此处只记账，不复制交付细节。五张 PR 都未关联 open 票（#1439 正文引用的 #1233/#1234/#1236 是已闭的内容票），**无 tracker 行可删**；`--fetch --gate` 复跑归零。
+
+PR #1431 — `107c7ed8` — `feat(short-video): trend selection excludes already-built packages`。`--trend` 新增 `output/used-topics.json`（已建包清单 + 排除词表），选题交叉比对前先排除、命中即标 used 且不进 Video-ready 短名单；属**有产出差异**（不再重复推荐已建包——2026-11-17 的 `minimax-h3-image`/`qwen4-gamefeel` 重推被挡掉）。
+PR #1435 — `1bf05fc5` — `Fail closed on currency, three-tier media roles, add Colab TTS fallback`。货币双标注从 advisory 升为 `fail` 门禁，非证据媒体按意图分三层（`evidence` 全幅媒体带 / `background` 铺满垫字 / `card` 820×686 有界卡片，hook 只渲染 evidence），TTS 链改为 Kaggle → Colab T4 → Modal；属**有产出差异**（未换算的 CNY/HKD 挡住 preflight，氛围图与主体图各走各的版式，配音多一条免费兜底）。
+PR #1436 — `d6166605` — `feat(session): WIP snapshot before start and closeout`。`session:start`/`session:gc` 在共享 checkout 上先落 `refs/wip/<stamp>`（跟踪 + 未跟踪，不碰 index/工作树），并把 restore 命令打进输出；属**无产出差异**（工具链安全网，成品不变）。
+PR #1438 — `dda4c396` — `fix(colab-tts): make the cold-VM kernel actually synthesize`。CosyVoice3 无通用 `inference()`，无 instruct 场景改走 `inference_instruct2` + 默认新闻旁白 instruct，Colab 模板补 `onnxruntime`/`openai-whisper`/`pyworld`，失败时报每 scene 真实错误；属**有产出差异（有限）**（只在 Kaggle 配额耗尽转 Colab 的场次可见：配音从报错变可出声）。
+PR #1439 — `3dac3e2e` — `content(deepseek-api-open): salvage the rendered pack's scene source into git`。按 #1233/#1234/#1236 的 salvage 先例，把 stranded 内容包的 `meta.mjs`/`scene-data.mjs` 文本源码打捞进主干；属**无产出差异**（只入库源码，成品已存在）。
+
+本轮同时把 `#1183`（真机 iPhone 自动化发布）从 Dormant 归位到 Tier 3：2026-11-15 用户评论已解除 `dormant` 并登记阶段二（Stage 1 PASS：3 条中 2 条累计 ≥200——baidu 288→346、Unitree 443），阶段二选型评估经 #1352 落 `docs/research/ios-farm-automation-eval-2026-11.md`（PR #1359，`95f32bab`），结论为「需要先解决 X」；采用与否、是否单独立项归用户裁决，票转 `ready-for-human`。
+
+## Round CCX 下沉：`#462` Stage 2（2026-11-19）
+
+> 由 `docs/issue-roadmap.md` 近轮一句话档案下沉；完整交付记录见 #462 评论。
+
+**Round CCX**（`#462` Stage 2 pending-analysis：PR #1425 `f01f0275`；发布写 `content/{slug}/pending-analysis.json`、`pending-analysis.mjs list|migrate`、legacy 合并与 twin 抑制；**无产出差异（enabling fix）**；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
