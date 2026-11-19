@@ -12,7 +12,7 @@
  *   output/<slug>/latest.json          pointer to the last SUCCESSFUL run
  *   output/<slug>/                     legacy layout, still readable
  *
- * Decisions (durable contract: docs/specs/spec-run-history-stage3.md):
+ * Decisions (durable contract: docs/archive/specs/spec-run-history-stage3.md):
  *
  * - runId is `r-<UTC timestamp>-<6 hex>`; a collision with an existing run or
  *   directory is refused, not overwritten.
