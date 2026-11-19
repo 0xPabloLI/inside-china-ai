@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.89.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.88.0...tanstack_start_ts-v1.89.0) (2026-11-19)
+
+
+### Features
+
+* **session:** WIP snapshot before start and closeout ([#1436](https://github.com/0xPabloLI/inside-china-ai/issues/1436)) ([d616660](https://github.com/0xPabloLI/inside-china-ai/commit/d6166605845967d5d32fcae03bbfddd1ad7d98fe))
+
+
+### Bug Fixes
+
+* **colab-tts:** make the cold-VM kernel actually synthesize ([dda4c39](https://github.com/0xPabloLI/inside-china-ai/commit/dda4c396b1199c810e3f71a8d0aea76d3ab4e683))
+* **colab-tts:** make the cold-VM kernel actually synthesize ([1aaf427](https://github.com/0xPabloLI/inside-china-ai/commit/1aaf427d72baebf966811f2cd3f3ecb264073da9))
+* **tts:** keep Colab artifacts inside the output root ([5666894](https://github.com/0xPabloLI/inside-china-ai/commit/5666894a6d0d348ab06d944f8c1e4eb9a35db656))
+* **tts:** raise Colab kernel silence timeout to 15 minutes ([86aa241](https://github.com/0xPabloLI/inside-china-ai/commit/86aa241b90ebd8e808093edaa2a642de98516e14))
+* **tts:** register the Colab engine factory ([3020dbc](https://github.com/0xPabloLI/inside-china-ai/commit/3020dbcae1cb3f9c60584b6761dd24df008d6087))
+
 ## [1.88.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.87.0...tanstack_start_ts-v1.88.0) (2026-11-18)
 
 
