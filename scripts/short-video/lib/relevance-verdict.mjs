@@ -7,7 +7,7 @@
  *   - `null` (analysis failed, or the model's score could not be parsed) is
  *     not a content verdict. It used to be recorded as "failed", which put a
  *     tool failure and an unrelated image in the same bucket.
- *   - 40–60 is a band, not a verdict: the first-pass prompt asks whether the
+ *   - 40–59 is a band, not a verdict: the first-pass prompt asks whether the
  *     image depicts the claim's *specific* event, and a topically correct
  *     stock photo cannot pass that test. Candidates in this band get a
  *     second, subject-focused VLM check (`relevanceCheck`).
@@ -27,8 +27,9 @@
  */
 
 /**
- * Default admission threshold. Kept identical to the historical 60 so this
- * seam changes classification, not the bar.
+ * Default admission threshold. #1449 keeps the historical 60: the ticket
+ * explicitly rules out silently moving the bar. The calibration is in the
+ * first-pass semantics and the 40-59 subject check, not the threshold.
  */
 export const DEFAULT_RELEVANCE_THRESHOLD = 60;
 

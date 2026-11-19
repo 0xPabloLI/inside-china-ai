@@ -707,6 +707,17 @@ Video analysis timeout: 180s (`RESPONSE_TIMEOUT_MS`).
   `__tests__/test_semantics_prompt_budget.py`——逐常量 + 两种 claim 组合（固定 claim 样本：
   image base 1446 / image claim 2136 / video base 534 / video claim 1351），**只能变小不能变大**，
   失败信息点名超限常量与超出字符数。以后要再往 prompt 里加解释，先跑绿这条门禁或重新裁决。
+- **relevance 判分是旁白级支撑（#1449，2026-11-19）**：人工 GT 的「可用」口径是
+  **旁白层面的同类主体/场景/机制支撑**，不是 assetNeed 的精确主体。首轮与二次主体检查都
+  明确接受 generic / different-brand 实例、事件发生地（舞台、机房）和机制示意；logo-only、
+  风格化海报或抽象 CGI 记 0-30；`Desired visual` 标为 `(optional)`，只是偏好而非唯一标准。
+  阈值与 40–59 二阶段保持 #294 的 60 / 40–59 不变（本票不调阈值）。
+  退化输出（token 重复或缺少 `## Relevance`）由 `run_vlm_inference_with_retry` 重试一次，
+  仍退化则抛错按工具失败处理，不伪装成内容判定；`max_tokens` 提到 1600 以容纳长图的多段
+  输出。改 prompt 已同步 bump `VLM_CACHE_PROMPT_VERSION` 到 `v7-2026-11-19`。
+  同一套 102 条人工 GT 复评：FPR 9.8%（6/61）、FNR 19.5%（8/41）、accuracy 86.3%，
+  退化/空分 0 例（旧 prompt 为 6 例）；分群与人脸子集见
+  `docs/research/vlm-relevance-accuracy-test-design.md` §5.5。
 
 ### A1 转写接线（#542 L3，2026-10-10）
 
