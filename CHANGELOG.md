@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.93.0...tanstack_start_ts-v1.94.0) (2026-11-19)
+
+
+### Features
+
+* **short-video:** add Qwen4-Max pack and consume blind-review preference ([350f62e](https://github.com/0xPabloLI/inside-china-ai/commit/350f62e9281c6b3d95fa010fd2c565cef3acc2f4))
+
 ## [1.93.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.92.0...tanstack_start_ts-v1.93.0) (2026-11-19)
 
 
