@@ -35,6 +35,18 @@ export const QUARANTINE_THRESHOLD = 3;
 export const QUARANTINE_RECHECK_DAYS = 7;
 
 /**
+ * #322: how many zero-run events each source keeps in `recentZeros`.
+ *
+ * The ledger only kept counters and the last timestamps, so "how often does a
+ * login-gated source legitimately return zero" could not be answered after the
+ * fact — the evidence had to be reconstructed from nothing. This bounded ring
+ * buffer records every zero event (timestamp + reason) so the rate and its
+ * inter-arrival spacing become measurable without growing the file. Ten entries
+ * covers weeks at the observed zero frequency (4 events in 67 days).
+ */
+export const ZERO_HISTORY_LIMIT = 10;
+
+/**
  * #269 Phase 1: a keyword-less result set of at least this many articles with
  * 0 keyword hits is a false positive (e.g. a dead search URL redirected CDP to
  * the homepage and articleScript's link-grab fallback scraped every link).
@@ -390,6 +402,10 @@ export function mergeRunEntries(entries) {
  *   ("zero-results" | "invalid-relevance" | "dead-url" | "dead-url-recheck" |
  *   "script-error" — #308 broken extraction script);
  *   probe persists the pre-flight URL probe outcome for observability.
+ *   #322: every zero event is also appended to the bounded `recentZeros`
+ *   history (timestamp + reason) and counted in `zeroRunsTotal`, so the zero
+ *   rate of login-gated sources stays measurable instead of being reduced to
+ *   a single counter and the last timestamp.
  * @param {object} [opts]
  * @param {number} [opts.now] - timestamp override (tests)
  * @returns {{version: 1, sources: Record<string, object>}}
@@ -417,6 +433,14 @@ export function updateSourceHealth(prevLog, runEntries, opts = {}) {
         ...prev,
         consecutiveZeroRuns: (prev.consecutiveZeroRuns ?? 0) + 1,
         lastZeroAt: now,
+        // #322: keep a bounded history of zero events (newest last) so the
+        // zero rate and its spacing stay measurable; the cumulative counter
+        // survives ring overflow.
+        recentZeros: [
+          ...(prev.recentZeros ?? []),
+          { at: now, ...(entry.zeroReason ? { reason: entry.zeroReason } : {}) },
+        ].slice(-ZERO_HISTORY_LIMIT),
+        zeroRunsTotal: (prev.zeroRunsTotal ?? 0) + 1,
         ...(entry.zeroReason ? { lastZeroReason: entry.zeroReason } : {}),
         ...probeFields,
       };

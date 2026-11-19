@@ -15,6 +15,7 @@ import {
   mergeRunEntries,
   REVIEW_THRESHOLD,
   QUARANTINE_THRESHOLD,
+  ZERO_HISTORY_LIMIT,
 } from "../lib/source-health.mjs";
 import { poolHealthEntries } from "../lib/search-pool.mjs";
 import { collectFromSource } from "../search-sources.mjs";
@@ -279,5 +280,55 @@ describe("pool engine zero streak (#305 B)", () => {
     }
     expect(log.sources["pool:serper"].quarantined).toBeUndefined();
     expect(log.sources["pool:serper"].consecutiveZeroRuns).toBe(QUARANTINE_THRESHOLD - 1);
+  });
+});
+
+// #322: the ledger used to keep only counters and the last timestamps, which
+// made "how often does a login-gated source legitimately return zero"
+// unanswerable after the fact. These pin the bounded zero history.
+describe("updateSourceHealth zero history (#322)", () => {
+  it("appends each zero event with its timestamp and reason", () => {
+    const log = updateSourceHealth(null, [{ name: "xhs", count: 0, zeroReason: "zero-results" }], {
+      now: 1000,
+    });
+    const rec = log.sources["xhs"];
+    expect(rec.recentZeros).toEqual([{ at: 1000, reason: "zero-results" }]);
+    expect(rec.zeroRunsTotal).toBe(1);
+  });
+
+  it("caps the ring at ZERO_HISTORY_LIMIT but keeps counting", () => {
+    let log = null;
+    for (let i = 0; i < ZERO_HISTORY_LIMIT + 5; i++) {
+      log = updateSourceHealth(log, [{ name: "weibo_search", count: 0 }], { now: 1000 + i });
+    }
+    const rec = log.sources["weibo_search"];
+    expect(rec.recentZeros).toHaveLength(ZERO_HISTORY_LIMIT);
+    expect(rec.recentZeros.at(-1).at).toBe(1000 + ZERO_HISTORY_LIMIT + 4);
+    expect(rec.recentZeros[0].at).toBe(1000 + 5);
+    expect(rec.zeroRunsTotal).toBe(ZERO_HISTORY_LIMIT + 5);
+  });
+
+  it("keeps the history and the counter across recovery, resets only the streak", () => {
+    let log = updateSourceHealth(null, [{ name: "xhs", count: 0, zeroReason: "need_login" }], {
+      now: 1000,
+    });
+    log = updateSourceHealth(log, [{ name: "xhs", count: 3 }], { now: 2000 });
+    const rec = log.sources["xhs"];
+    expect(rec.consecutiveZeroRuns).toBe(0);
+    expect(rec.lastOkAt).toBe(2000);
+    expect(rec.recentZeros).toEqual([{ at: 1000, reason: "need_login" }]);
+    expect(rec.zeroRunsTotal).toBe(1);
+  });
+
+  it("extends a legacy record that has counters only", () => {
+    const legacy = {
+      version: 1,
+      sources: { douyin: { consecutiveZeroRuns: 2, lastZeroAt: 500, lastOkAt: 400 } },
+    };
+    const log = updateSourceHealth(legacy, [{ name: "douyin", count: 0 }], { now: 900 });
+    const rec = log.sources.douyin;
+    expect(rec.consecutiveZeroRuns).toBe(3);
+    expect(rec.recentZeros).toEqual([{ at: 900 }]);
+    expect(rec.zeroRunsTotal).toBe(1);
   });
 });
