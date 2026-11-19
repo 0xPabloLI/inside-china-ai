@@ -3,19 +3,22 @@
  * Publish-package generator CLI (#219 ticket 02 — Profile-driven).
  *
  * Generates one publish package per REGISTERED platform profile
- * (caption txt + metadata json + pinned comment), landing in
- * output/{pipelineId}/publish/{platform}/ — kernel artifacts are untouched.
+ * (caption txt + metadata json + pinned comment), landing in the run that
+ * produced the video: output/{pipelineId}/runs/{runId}/publish/{platform}/
+ * (#1432 S4). A legacy tree without runs keeps output/{pipelineId}/publish/.
+ * Kernel artifacts are untouched.
  *
  * Usage:
  *   node scripts/short-video/generate-caption.mjs               # standalone (root scene-data)
- *   node scripts/short-video/generate-caption.mjs --content <dir>  # content pipeline
+ *   node scripts/short-video/generate-caption.mjs --content <dir>  # content pipeline (latest run)
+ *   node scripts/short-video/generate-caption.mjs --content <dir> --run <runId>
  *   # or auto-called by verify-video.mjs when all checks pass
  *
  * Reads:  scripts/short-video/{scene-data.mjs | content/<dir>/scene-data.mjs}
  *         + meta.mjs (keyEntities / manual hashtags)
- * Writes: output/[{pipelineId}/]publish/{platform}/{platform}-caption.txt
- *         output/[{pipelineId}/]publish/{platform}/{platform}-metadata.json
- *         output/[{pipelineId}/]publish/{platform}/{platform}-pinned-comment.txt
+ * Writes: output/[{pipelineId}/runs/{runId}/]publish/{platform}/{platform}-caption.txt
+ *         output/[{pipelineId}/runs/{runId}/]publish/{platform}/{platform}-metadata.json
+ *         output/[{pipelineId}/runs/{runId}/]publish/{platform}/{platform}-pinned-comment.txt
  *
  * Caption/hashtag limits come from each platform's profile — no local copies
  * (single-path convergence, review 缓议 #219 T02).
@@ -26,6 +29,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { generatePublishPackages } from "./lib/platforms/generate-publish-package.mjs";
 import { listPlatformProfiles } from "./lib/platforms/index.mjs";
+import { resolveRun } from "./lib/run-history.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,8 +37,22 @@ const __dirname = dirname(__filename);
 const args = process.argv.slice(2);
 const contentFlag = args.indexOf("--content");
 const contentDir = contentFlag >= 0 ? args[contentFlag + 1] : "";
+const runFlagIndex = args.indexOf("--run");
+const runFlag = runFlagIndex >= 0 ? args[runFlagIndex + 1] : null;
 
-const OUTPUT_ROOT = join(__dirname, "output");
+// A content pack writes its package into the run that produced the video
+// (#1432 S4). Fallbacks, in order: an explicit --run / latest run when history
+// exists, then the legacy output/<content> tree (which keeps old packs working).
+let OUTPUT_ROOT = join(__dirname, "output");
+let resolvedRun = null;
+if (contentDir) {
+  try {
+    resolvedRun = resolveRun({ root: __dirname, slug: contentDir, runId: runFlag });
+    OUTPUT_ROOT = resolvedRun.dir;
+  } catch {
+    OUTPUT_ROOT = join(__dirname, "output", contentDir);
+  }
+}
 const SCENE_DATA_PATH = contentDir
   ? join(__dirname, "content", contentDir, "scene-data.mjs")
   : join(__dirname, "scene-data.mjs");
@@ -69,11 +87,13 @@ async function main() {
   // ─── Generate one package per registered platform profile ───
   const results = generatePublishPackages({
     outputRoot: OUTPUT_ROOT,
-    ...(contentDir ? { pipelineId: contentDir } : {}),
     scenes,
     metadata,
     meta,
   });
+  if (resolvedRun) {
+    console.log(`🆔 Package target: run ${resolvedRun.runId} (${resolvedRun.source})`);
+  }
 
   // ─── Report ───
   const violations = [];

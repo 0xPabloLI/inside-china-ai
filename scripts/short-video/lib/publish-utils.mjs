@@ -206,8 +206,8 @@ export function validateVideoFile(videoPath) {
  *
  * @param {string} postGroupId - Publora post group ID
  * @param {string} publishedAt - ISO timestamp of publish time
- * @param {{slug?: string|null, layoutSignature?: string|null, infoLayoutVersion?: string|null, experimentId?: string|null, variant?: string|null}} [opts]
- * @returns {{ postGroupId: string, slug: string|null, layoutSignature: string|null, infoLayoutVersion: string|null, experimentId: string|null, variant: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string }}
+ * @param {{slug?: string|null, runId?: string|null, layoutSignature?: string|null, infoLayoutVersion?: string|null, experimentId?: string|null, variant?: string|null}} [opts]
+ * @returns {{ postGroupId: string, slug: string|null, runId: string|null, layoutSignature: string|null, infoLayoutVersion: string|null, experimentId: string|null, variant: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string }}
  */
 export function buildPendingAnalysis(postGroupId, publishedAt, opts = {}) {
   const publishedDate = new Date(publishedAt);
@@ -216,6 +216,7 @@ export function buildPendingAnalysis(postGroupId, publishedAt, opts = {}) {
   return {
     postGroupId,
     slug: opts.slug ?? null,
+    runId: opts.runId ?? null,
     layoutSignature: opts.layoutSignature ?? null,
     infoLayoutVersion: opts.infoLayoutVersion ?? null,
     experimentId: opts.experimentId ?? null,
@@ -238,12 +239,13 @@ export function buildPendingAnalysis(postGroupId, publishedAt, opts = {}) {
  *
  * suggestedAnalysisTime = publishedAt + 48 hours.
  *
- * @param {{ slug?: string|null, videoPath?: string|null, publishedAt: string, publishMethod?: string, layoutSignature?: string|null, infoLayoutVersion?: string|null, experimentId?: string|null, variant?: string|null }} opts
- * @returns {{ postGroupId: null, slug: string|null, videoPath: string|null, layoutSignature: string|null, infoLayoutVersion: string|null, experimentId: string|null, variant: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string, publishMethod: string }}
+ * @param {{ slug?: string|null, videoPath?: string|null, runId?: string|null, publishedAt: string, publishMethod?: string, layoutSignature?: string|null, infoLayoutVersion?: string|null, experimentId?: string|null, variant?: string|null }} opts
+ * @returns {{ postGroupId: null, slug: string|null, videoPath: string|null, runId: string|null, layoutSignature: string|null, infoLayoutVersion: string|null, experimentId: string|null, variant: string|null, publishedAt: string, suggestedAnalysisTime: string, status: string, publishMethod: string }}
  */
 export function buildManualPendingAnalysis({
   slug = null,
   videoPath = null,
+  runId = null,
   publishedAt,
   publishMethod = "manual-guide",
   layoutSignature = null,
@@ -258,6 +260,7 @@ export function buildManualPendingAnalysis({
     postGroupId: null,
     slug,
     videoPath,
+    runId,
     layoutSignature,
     infoLayoutVersion,
     experimentId,

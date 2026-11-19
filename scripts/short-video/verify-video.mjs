@@ -85,11 +85,13 @@ try {
 } catch {}
 const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
 
-const OUTPUT_DIR = preMode
+const run = preMode
   ? // --pre judges the authored state; no run has written anything yet, and a
     // leftover run must not stand in for it (#1305).
-    join(__dirname, "output", pipelineId)
-  : resolveRun({ root: __dirname, slug: pipelineId, runId: getArg("run") }).dir;
+    null
+  : resolveRun({ root: __dirname, slug: pipelineId, runId: getArg("run") });
+
+const OUTPUT_DIR = preMode ? join(__dirname, "output", pipelineId) : run.dir;
 /**
  * #1305: the scenes the renderer actually used.
  *
@@ -853,14 +855,17 @@ if (!preMode && results.fail.length === 0) {
     // data. `contentDir` cannot be null here — the script exits above when
     // --content is missing.
     const captionArgs = [join(__dirname, "generate-caption.mjs"), "--content", contentDir];
+    // Pin the verifier's run explicitly: generate-caption must not re-resolve
+    // `latest` and land the package beside a different render (#1432 S4).
+    if (run?.runId) captionArgs.push("--run", run.runId);
     execFileSync(process.execPath, captionArgs, { stdio: "inherit" });
 
     // B6 per-platform (#219 T02): each platform's caption is checked against
-    // ITS profile limit, at ITS publish/{platform}/ path.
+    // ITS profile limit, at ITS publish/{platform}/ path. The path is inside
+    // the run that was just verified, not the slug root.
     for (const profile of listPlatformProfiles()) {
       const paths = packageFilePaths({
-        outputRoot: join(__dirname, "output"),
-        pipelineId: contentDir,
+        outputRoot: OUTPUT_DIR,
         profile,
       });
       if (!existsSync(paths.caption)) continue;
