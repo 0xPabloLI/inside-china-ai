@@ -18,6 +18,7 @@
 
 import { existsSync, readFileSync, realpathSync } from "fs";
 import { join, dirname, basename } from "path";
+import { resolveRun } from "./lib/run-history.mjs";
 import { fileURLToPath } from "url";
 import {
   buildWindowsFromTiming,
@@ -57,7 +58,7 @@ async function main() {
       const metaMod = await import(`file://${join(__dirname, "content", contentDir, "meta.mjs")}`);
       pipelineId = metaMod.meta?.pipelineId || contentDir;
     } catch {}
-    const audioDir = join(__dirname, "output", pipelineId, "audio");
+    const audioDir = join(resolveRun({ root: __dirname, slug: pipelineId }).dir, "audio");
     timingPath = timingPath || join(audioDir, "subtitle-timing.json");
     durationsPath = durationsPath || join(audioDir, "scene-durations.json");
   }

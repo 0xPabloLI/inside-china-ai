@@ -32,6 +32,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 
+import { resolveRun } from "./lib/run-history.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { resolveSceneAudio } from "./lib/audio/sync.mjs";
 import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
@@ -73,7 +74,7 @@ try {
   /* meta.mjs is optional here */
 }
 const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
-const OUTPUT_DIR = join(__dirname, "output", pipelineId);
+const OUTPUT_DIR = resolveRun({ root: __dirname, slug: pipelineId, runId: getArg("run") }).dir;
 
 const filePrefix =
   meta?.subject && meta.subject !== pipelineId ? `${meta.subject}-${pipelineId}` : pipelineId;

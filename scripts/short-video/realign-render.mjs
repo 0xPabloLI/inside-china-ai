@@ -8,6 +8,7 @@ import { readFileSync, existsSync } from "fs";
 import { resolve as pathResolve, join } from "path";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
 import { resolveContentDir, formatContentError } from "./lib/cli-content.mjs";
+import { resolveRun } from "./lib/run-history.mjs";
 
 const baseDir = pathResolve(import.meta.dirname);
 const resolvedContent = resolveContentDir({
@@ -21,10 +22,14 @@ if (!resolvedContent.ok) {
 }
 const CONTENT_DIR = resolvedContent.contentDir;
 const contentDirAbs = join(baseDir, "content", CONTENT_DIR);
-const outputDir = join(baseDir, "output", CONTENT_DIR);
-const audioDir = join(outputDir, "audio");
 
 const { meta } = await import(`./content/${CONTENT_DIR}/meta.mjs`);
+const slug = meta?.pipelineId || CONTENT_DIR.replace(/\//g, "-");
+const runFlag = process.argv.includes("--run")
+  ? process.argv[process.argv.indexOf("--run") + 1]
+  : null;
+const outputDir = resolveRun({ root: baseDir, slug, runId: runFlag }).dir;
+const audioDir = join(outputDir, "audio");
 const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 
 const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");

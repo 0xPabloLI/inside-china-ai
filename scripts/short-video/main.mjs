@@ -17,8 +17,16 @@
  *   scripts/short-video/output/{pipelineId}/final.mp4
  */
 
-import { writeFileSync, mkdirSync, readdirSync, existsSync, readFileSync } from "fs";
-import { join, dirname, resolve, relative } from "path";
+import {
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  existsSync,
+  readFileSync,
+  linkSync,
+  copyFileSync,
+} from "fs";
+import { join, dirname, resolve, relative, basename } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
@@ -40,6 +48,7 @@ import { renderAss } from "./lib/subtitles/ass.mjs";
 import { finalizeRenderedVideo, DEFAULT_BGM_VOLUME } from "./lib/post-process.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
+import { createRun, markRun, RUN_STATUS } from "./lib/run-history.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
 import {
   DEFAULT_AUTO_SCENE_BUDGET,
@@ -140,13 +149,36 @@ async function main() {
     }
   }
 
+  // ── Run allocation (#1432 S2) ──
+  // Every artifact this process produces lands under
+  // output/<slug>/runs/<runId>/, and the manifest entry is appended BEFORE
+  // the first preflight: a run that dies at a gate must be recorded as failed,
+  // not disappear (D3 — a failed run never moves latest).
+  const run = createRun({ root: __dirname, slug: meta.pipelineId, contentDir });
+  const outputDir = run.dir;
+  console.log(`🆔 Run ${run.runId} → ${relative(__dirname, outputDir)}`);
+  process.on("exit", (code) => {
+    if (code === 0) return;
+    try {
+      markRun({
+        root: __dirname,
+        slug: meta.pipelineId,
+        runId: run.runId,
+        status: RUN_STATUS.FAILED,
+        meta: { exitCode: code },
+      });
+    } catch {
+      // Never mask the failure that triggered the exit.
+    }
+  });
+
   // ── Version number (timestamp-based, for output file naming) ──
   const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
   // ── Step profiler (#225) — wall-clock per step; written on process exit
-  // (happy path and failure paths alike) to output/<pipelineId>/profile-<version>.json
+  // (happy path and failure paths alike) into the run directory
   const profiler = createProfiler({
-    outputDir: join(__dirname, "output", meta.pipelineId),
+    outputDir,
     version,
   });
   const prof = {
@@ -211,7 +243,7 @@ async function main() {
   try {
     const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
     await normalizeSceneDataWithLiveRates(scenes, meta, {
-      ratesFile: join(__dirname, "output", meta.pipelineId, "currency-rates.json"),
+      ratesFile: join(outputDir, "currency-rates.json"),
     });
     console.log("💱 Step 0.5: Currency normalization complete (CNY/HKD → USD dual-annotation)\n");
   } catch (e) {
@@ -332,9 +364,14 @@ async function main() {
     console.warn(`⚠️  B-roll stage unavailable: ${e.message}\n`);
   }
 
-  // ── Isolated output directory (the voice track writes TTS audio here) ──
-  const outputDir = join(__dirname, "output", meta.pipelineId);
+  // ── Output directories ──
+  // This run's audio lives in the run dir; generation still writes into the
+  // shared content-addressed cache at output/<slug>/audio (#198) so re-runs
+  // and gate repairs hit approved takes instead of paying for a fresh batch.
+  // The takes used by this run are materialized into the run dir below.
+  const ttsCacheDir = join(__dirname, "output", meta.pipelineId, "audio");
   const audioDir = join(outputDir, "audio");
+  mkdirSync(ttsCacheDir, { recursive: true });
   mkdirSync(audioDir, { recursive: true });
 
   // ── Voice ∥ Media tracks (#225 optimization 1) ──
@@ -377,7 +414,7 @@ async function main() {
       name: "step-1-tts",
       // #689: the gate may only near-miss-rescue names the author declared.
       fn: () =>
-        generateTTS(scenes, audioDir, { qualityGateOptions: { keyEntities: meta.keyEntities } }),
+        generateTTS(scenes, ttsCacheDir, { qualityGateOptions: { keyEntities: meta.keyEntities } }),
       meta: { track: "voice" },
     },
   ]);
@@ -389,6 +426,25 @@ async function main() {
   }
   if (ttsDone.status === "rejected") throw ttsDone.reason;
   ttsResults = ttsDone.value;
+
+  // ── Materialize this run's audio into the run directory (#1432 S2) ──
+  // The TTS cache is shared across runs; the run directory must be
+  // self-contained so a re-render reads this run's bytes even after the cache
+  // changes. Hardlink when possible (same volume, no extra bytes), copy
+  // otherwise. Paths are rewritten so every downstream reader (subtitles,
+  // alignment, render staging, the manifest) sees the run copy.
+  for (const result of ttsResults) {
+    const name = basename(result.audioPath);
+    const dest = join(audioDir, name);
+    if (!existsSync(dest)) {
+      try {
+        linkSync(result.audioPath, dest);
+      } catch {
+        copyFileSync(result.audioPath, dest);
+      }
+    }
+    result.audioPath = dest;
+  }
 
   // ── Step 1.6: Final media gate ──
   // Runs after the join: sourcing (1.5), patch application (1.5c), upscale
@@ -437,7 +493,7 @@ async function main() {
     // anything at that point, and a stale file must not stand in for it.
     // Every other writer keys on `meta.pipelineId` (see outputDir above);
     // verify-video resolves OUTPUT_DIR the same way.
-    const resolvedScenesPath = join(__dirname, "output", meta.pipelineId, "scenes.resolved.json");
+    const resolvedScenesPath = join(outputDir, "scenes.resolved.json");
     mkdirSync(dirname(resolvedScenesPath), { recursive: true });
     writeFileSync(
       resolvedScenesPath,
@@ -707,9 +763,25 @@ async function main() {
     prof.end("step-6-verify");
   }
 
+  // ── Run bookkeeping (#1432 S2) — only a shipped artifact set moves latest.
+  markRun({
+    root: __dirname,
+    slug: meta.pipelineId,
+    runId: run.runId,
+    status: RUN_STATUS.RENDERED,
+    artifacts: {
+      video: relative(outputDir, result.path),
+      subtitles: subtitles ? relative(outputDir, subtitles.assPath) : null,
+      scenes: "scenes.resolved.json",
+      profile: `profile-${version}.json`,
+      audioDir: "audio",
+    },
+  });
+
   profiler.summary();
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`✅ Pipeline complete!`);
+  console.log(`   🆔 Run: ${run.runId}`);
   console.log(`   📁 Output: ${result.path}`);
   console.log(`   ⏱  Duration: ${result.duration}`);
   console.log(`   📐 Resolution: 1080×1920 (9:16)`);

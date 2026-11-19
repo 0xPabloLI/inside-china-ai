@@ -4,6 +4,7 @@ import { renderRemotion } from "./lib/render-remotion.mjs";
 import { normalizeMediaPatch, applyAssignedMedia } from "./lib/apply-media-patch.mjs";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
 import { resolveContentDir, formatContentError } from "./lib/cli-content.mjs";
+import { resolveRun } from "./lib/run-history.mjs";
 import {
   checkFinalMedia,
   formatFinalMediaFailures,
@@ -25,10 +26,14 @@ if (!resolvedContent.ok) {
 }
 const CONTENT_DIR = resolvedContent.contentDir;
 const contentDirAbs = join(baseDir, "content", CONTENT_DIR);
-const outputDir = join(baseDir, "output", CONTENT_DIR);
-const audioDir = join(outputDir, "audio");
 
 const { meta } = await import(`./content/${CONTENT_DIR}/meta.mjs`);
+const slug = meta?.pipelineId || CONTENT_DIR.replace(/\//g, "-");
+const runFlag = process.argv.includes("--run")
+  ? process.argv[process.argv.indexOf("--run") + 1]
+  : null;
+const outputDir = resolveRun({ root: baseDir, slug, runId: runFlag }).dir;
+const audioDir = join(outputDir, "audio");
 const { scenes } = await import(`./content/${CONTENT_DIR}/scene-data.mjs`);
 
 // #421 review: same normalization chain as main.mjs (Step 0.5 currency +
