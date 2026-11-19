@@ -37,8 +37,7 @@ export const scenes = [
         scale: 2,
       },
     },
-    voiceover:
-      "DeepSeek just rented out the parts of its app. Speech costs $0.05 an hour.",
+    voiceover: "DeepSeek just rented out the parts of its app. Speech costs $0.05 an hour.",
     texts: {
       badge: "APP SOLD IN PIECES",
       subject: "DEEPSEEK",
@@ -84,8 +83,7 @@ export const scenes = [
     mediaStrategy: "asset",
     assetNeed: null,
     media: null,
-    voiceover:
-      "Search costs $0.70 per thousand calls. OCR costs $0.21 per thousand pages.",
+    voiceover: "Search costs $0.70 per thousand calls. OCR costs $0.21 per thousand pages.",
     texts: {
       stat: "$0.70",
       statLabel: "PER 1,000 SEARCHES",

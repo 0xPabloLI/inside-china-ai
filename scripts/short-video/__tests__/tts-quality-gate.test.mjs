@@ -648,7 +648,8 @@ describe("heard-side currency mirror", () => {
     const expected = tokenize(
       "DeepSeek just rented out the parts of its app. Speech costs $zero point zero five (zero point three nine yuan) an hour.",
     );
-    const heard = "Deepseek just rented out the parts of its app. Speech cost dollars 0.05, 0.39 yuan, an hour.";
+    const heard =
+      "Deepseek just rented out the parts of its app. Speech cost dollars 0.05, 0.39 yuan, an hour.";
     expect(computeTokenSimilarity(expected, tokenize(heard), heard)).toBeGreaterThanOrEqual(0.75);
   });
 
