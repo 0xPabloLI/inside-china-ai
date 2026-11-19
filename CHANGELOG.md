@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.93.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.92.0...tanstack_start_ts-v1.93.0) (2026-11-19)
+
+
+### Features
+
+* **search:** keep a bounded zero history in the source health log ([#322](https://github.com/0xPabloLI/inside-china-ai/issues/322)) ([#1450](https://github.com/0xPabloLI/inside-china-ai/issues/1450)) ([effa8b7](https://github.com/0xPabloLI/inside-china-ai/commit/effa8b7d7796b00f4e08c7467f79e09945079f67))
+
 ## [1.92.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.91.0...tanstack_start_ts-v1.92.0) (2026-11-19)
 
 
