@@ -84,11 +84,11 @@ export function generateRunId(date = new Date(), suffix = randomBytes(3).toStrin
   return `r-${compactTimestamp(date)}-${hex}`;
 }
 
-export function slugRoot(root, slug) {
+function slugRoot(root, slug) {
   return containedPath(root, "output", assertSafeSlug(slug));
 }
 
-export function runsRoot(root, slug) {
+function runsRoot(root, slug) {
   return containedPath(slugRoot(root, slug), "runs");
 }
 
@@ -122,7 +122,7 @@ export function readManifest(root, slug) {
   return parsed;
 }
 
-export function writeManifest(root, slug, manifest) {
+function writeManifest(root, slug, manifest) {
   const clean = assertSafeSlug(slug);
   const file = manifestFile(root, clean);
   mkdirSync(runsRoot(root, clean), { recursive: true });
@@ -206,10 +206,6 @@ export function readLatest(root, slug) {
   return parsed;
 }
 
-export function listRuns(root, slug) {
-  return readManifest(root, slug).runs.slice();
-}
-
 /**
  * Resolve which artifact directory a consumer should read.
  *
@@ -255,8 +251,4 @@ export function hasRuns(root, slug) {
   return readdirSync(dir, { withFileTypes: true }).some(
     (entry) => entry.isDirectory() && RUN_ID_PATTERN.test(entry.name),
   );
-}
-
-export function isRunId(value) {
-  return RUN_ID_PATTERN.test(String(value ?? ""));
 }
