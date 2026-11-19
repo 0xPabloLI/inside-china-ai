@@ -72,7 +72,7 @@ import { containedPath } from "./path-safety.mjs";
  * ("a robot arm for 'robot arm picking up a block'"); v5 still demanded the
  * action/setting and rejected topically correct stock.
  */
-export const VLM_CACHE_PROMPT_VERSION = "v6-2026-10-27";
+export const VLM_CACHE_PROMPT_VERSION = "v7-2026-11-19";
 
 /**
  * Bump when the pipeline-side analysis semantics change (envelope format,

@@ -256,12 +256,17 @@ check(
     "visible subject" in claim_image,
 )
 check(
-    "first-pass relevance forbids demanding the abstract event",
-    "not whether the asset depicts the abstract event" in claim_image,
+    "first-pass relevance accepts setting and mechanism as support",
+    "any stage for a keynote" in claim_image
+    and "described mechanism/process" in claim_image,
 )
 check(
     "first-pass relevance says foreign-language labels are not negative evidence",
-    "different language" in claim_image and "not negative evidence" in claim_image,
+    "another language" in claim_image and "not negative evidence" in claim_image,
+)
+check(
+    "first-pass relevance rejects logo-only/abstract support for a news claim",
+    "no real scene" in claim_image and "logo or word on a body" in claim_image,
 )
 
 check_image = build_relevance_check_prompt(is_video=False, claim=CLAIM)
@@ -278,27 +283,27 @@ check(
     "Output exactly one word: match or no_match." in check_image,
 )
 check(
-    "subject-check prompt matches on kind, not the exact action or setting",
-    "the same kind of thing the desired visual names" in check_image
-    and "The action, setting, or specific instance does not need to match" in check_image,
+    "subject-check prompt matches on subject type, not the exact action, brand or instance",
+    "the same subject type the narration names" in check_image
+    and "do not need to match" in check_image,
     "a real run rejected a robot arm for not lifting a block",
 )
 check(
-    "subject-check prompt makes the desired visual the standard and the narration context",
-    "The narration is background context" in check_image,
-    "a real run judged a robot arm against the entities named in the narration",
+    "subject-check prompt makes the narration the standard and the desired visual preferred",
+    "Judge against the narration" in check_image
+    and "not the only acceptable subject" in check_image,
 )
 check(
-    "subject-check prompt rules out the abstract-event test",
-    "abstract event" in check_image,
+    "subject-check prompt accepts generic and different-brand instances",
+    "A generic or different-brand instance counts" in check_image,
 )
 check(
     "subject-check prompt keeps the language rule",
     "different language" in check_image,
 )
 check(
-    "subject-check prompt names logos/UI as strong evidence",
-    "A logo, product UI" in check_image,
+    "subject-check prompt qualifies logo-only evidence",
+    "does not show an event, number, or change" in check_image,
     "the 2026-09-29 measured false negative was an official Chinese UI screenshot",
 )
 check(

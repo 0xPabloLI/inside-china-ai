@@ -54,6 +54,7 @@ import subprocess
 import tempfile
 import glob
 import io
+from collections import Counter
 from PIL import Image, ImageOps
 
 # ─── Constants ───
@@ -343,28 +344,67 @@ One of: product_demo, talking_head, landscape, chart, text_screenshot, other
 # of the labels instead of the subject systematically kills the best evidence.
 _RELEVANCE_CHECK_RULES = """## Subject Match
 Output exactly one word: match or no_match.
-- match: the visible subject is the same kind of thing the desired visual names — a robot arm for "robot arm picking up a block", a humanoid robot for "humanoid robot in a kitchen", the named company's logo or UI for a scene about that company. The action, setting, or specific instance does not need to match.
-- no_match: a different kind of thing — a logo for a robot hand, a building for a person, a landscape for a product demo.
-Judge against the desired visual. The narration is background context — an asset does not need to depict the people, companies, or events it names.
-Judge what is visible, not whether the asset depicts the abstract event in the narration (a funding round, a strategy shift, a hiring plan) — no stock or official image can show those.
+- match: the visible subject is the same subject type the narration names (a car for a robotaxi launch, a chip for a chip launch, a stage for a keynote), the setting where the narrated event happens, or a visual that shows the described mechanism/process. A generic or different-brand instance counts; the action, brand and specific instance do not need to match.
+- no_match: a related but different object that does not show the named subject type or mechanism — a motherboard for a GPU cluster, a chip for a lab-investment story; abstract tech mood or a logo-only frame.
+Never no_match because the brand, model, person, city or year differs, or because the named entity is absent. A generic stage, car, chip or robot of the named subject type is a match even without the named speaker, logo or model.
+Judge against the narration. The desired visual is the preferred framing, not the only acceptable subject.
+A logo or brand mark alone identifies an entity but does not show an event, number, or change; for such claims it is not a match by itself.
+A logo-only frame, stylized poster, or abstract CGI with no real-world subject is no_match for a news claim.
 On-screen text in a different language from the narration is not negative evidence by itself: judge the subject, not the language of its labels.
-A logo, product UI, or screenshot of the named company is strong evidence: match.
 
 ## Reason
 One sentence explaining the verdict.
 
-Example:
+Example 1:
+narration: "The CEO unveiled the token exchange at the annual conference."
+image: a generic conference stage with a speaker and an audience.
 ## Subject Match
 match
 
 ## Reason
-The visible subject is a Unitree humanoid robot, the company the scene names."""
+The stage is the setting where the narrated keynote happened; the named speaker need not appear.
+
+Example 2:
+narration: "The company's newest AI chip reaches one petaflop."
+image: a different-brand CPU.
+## Subject Match
+match
+
+## Reason
+Both are chips; a different brand of the same category is support, not a mismatch.
+
+Example 3:
+narration: "Didi's Robotaxi R2 launched driverless service in Beijing and Guangzhou."
+image: a Tesla driving in Rome.
+## Subject Match
+match
+
+## Reason
+Both are cars; another brand and another city are the same category, not a mismatch.
+
+Example 4:
+narration: "The company's stock fell after its peak."
+image: a glowing logo on a man's chest in blue light.
+## Subject Match
+no_match
+
+## Reason
+An abstract logo poster is not a real-world subject for a market event.
+
+Example 5:
+narration: "A lab invested in AI chips."
+image: a generic circuit board.
+## Subject Match
+no_match
+
+## Reason
+A generic circuit is not the lab or the investment event."""
 
 def _relevance_check_prompt(subject_noun):
     """The #294 subject-check prompt for one asset kind (image / video)."""
     return (
-        f"Decide whether this {subject_noun}'s visible subject fits the scene's desired visual. "
-        "This is a second look at a candidate that scored borderline on the stricter claim test.\n\n"
+        f"Decide whether this {subject_noun}'s visible subject fits the scene's narration. "
+        "The first pass found it borderline; generic or different-brand support still counts.\n\n"
         + _RELEVANCE_CHECK_RULES
     )
 
@@ -429,7 +469,7 @@ def _claim_preamble(claim):
     if voiceover:
         context += f'\nScene narration: "{voiceover}"'
     if need:
-        context += f'\nDesired visual: "{need}"'
+        context += f'\nDesired visual (optional): "{need}"'
     return context
 
 
@@ -524,18 +564,15 @@ def build_semantics_prompt(is_video=False, claim=None, transcript=None):
     return (
         base
         + "\n\n## Relevance\n"
-        "Score 0-100: how well the visible subject of this asset supports the scene claim above.\n"
-        "Judge the subject the viewer can see (the company, product, person, place, or object), "
-        "not whether the asset depicts the abstract event in the narration. No stock or official "
-        "image can show a funding round, a strategy shift, or a hiring plan; an image of the "
-        "company, product, or people involved is strong support for such a claim.\n"
-        "On-screen text in a different language from the narration is not negative evidence — "
-        "judge what the asset shows, not the language of its labels.\n"
-        "100 = the visible subject is the exact company, product, person, place, or event the "
-        "claim is about, 50 = same domain but a generic or different subject, 0 = unrelated "
-        "subject. Output the bare integer only.\n\n"
+        "Score 0-100: how well the visible subject supports the narration.\n"
+        "Judge the subject type, not the exact brand or place; another instance is never 0.\n"
+        "60-80: a generic or different-brand instance of the subject type the narration names (any car for a robotaxi launch; any chip for a chip launch; any stage for a keynote), or a visual that shows the described mechanism/process (a pipeline for rendering; a developer coding).\n"
+        "40-59: same domain but a different object that does not show the named subject or mechanism (a motherboard for a GPU cluster; a chip for a lab-investment story).\n"
+        "0-30: no real scene — abstract CGI mood, logo or word on a body, text poster, generic circuits, other domain.\n"
+        "UI text in another language is not negative evidence.\n"
+        "Output the integer only.\n\n"
         "## Relevance Reason\n"
-        "One sentence explaining the score.\n"
+        "One sentence on why.\n"
     )
 
 
@@ -903,9 +940,51 @@ def _extract_response_text(response):
     return str(response)
 
 
+# Degenerate generation guard (#1449). The 30B MoE occasionally falls into a
+# token-repetition loop (observed 6/102 on the #541 expanded set: "H10", "H10",
+# ..., or "Rack 1071", "Rack 1072", ... until max_tokens), which parses to a
+# missing Relevance score and used to be counted as a model false negative.
+# This detector only identifies the failure; `run_vlm_inference_with_retry`
+# makes one retry and, if it persists, surfaces a tool error (fail closed), so
+# repetition never masquerades as a content verdict.
+DEGENERACY_RETRY_SUFFIX = "\n\nDo not repeat tokens or list items; answer every section concisely."
+_DEGENERATE_MIN_TOKENS = 60
+_DEGENERATE_TOP_COUNT = 25
+_DEGENERATE_TOP_SHARE = 0.25
+_DEGENERATE_LONG_TOKEN = 300
+_DEGENERATE_LONG_SHARE = 0.20
+
+
+def is_degenerate_response(text):
+    """True when the output is dominated by one token or one giant run."""
+    if not isinstance(text, str) or len(text) < 200:
+        return False
+    tokens = re.findall(r"\S+", text)
+    if not tokens:
+        return False
+    longest = max(len(token) for token in tokens)
+    if longest >= _DEGENERATE_LONG_TOKEN and longest / len(text) >= _DEGENERATE_LONG_SHARE:
+        return True
+    top = Counter(tokens).most_common(1)[0][1]
+    return top >= _DEGENERATE_TOP_COUNT and top / len(tokens) >= _DEGENERATE_TOP_SHARE
+
+
+def is_incomplete_response(text, prompt_text):
+    """True when a claim prompt's required Relevance section is missing.
+
+    A long Description/Critical Edge Text can consume the budget before the
+    last section is emitted (#1449: one 1779-char output stopped mid-sentence
+    and parsed to `relevance=None`). That is a tool outcome, not a verdict.
+    """
+    return (
+        "## Relevance" in (prompt_text or "")
+        and "## Relevance" not in (text or "")
+    )
+
+
 def generate_response(model, processor, engine=DEFAULT_ENGINE,
                       image_paths=None, prompt_text=None,
-                      video_path=None, audio_path=None, max_tokens=1000):
+                      video_path=None, audio_path=None, max_tokens=1600):
     """Generate a text response for image(s), frames, native video or audio.
 
     Engine dispatch (the two engines take different prompt/input APIs):
@@ -1431,6 +1510,29 @@ def run_vlm_inference(model, processor, path, is_video, prompt_text,
         _unlink_quiet(crop_cleanup)
 
 
+def run_vlm_inference_with_retry(model, processor, path, is_video, prompt_text, **kwargs):
+    """One VLM pass; retry once when the output is a repetition loop.
+
+    A degenerate output carries no usable section (the loop consumes the token
+    budget), so retrying is the cheapest recovery. If the retry also loops, the
+    caller gets a RuntimeError: a tool failure, never a content verdict.
+    """
+    raw = run_vlm_inference(model, processor, path, is_video, prompt_text, **kwargs)
+    if not (is_degenerate_response(raw) or is_incomplete_response(raw, prompt_text)):
+        return raw
+    sys.stderr.write(
+        "[vlm_analyzer] degenerate or incomplete response; retrying once\n"
+    )
+    sys.stderr.flush()
+    raw = run_vlm_inference(
+        model, processor, path, is_video,
+        prompt_text + DEGENERACY_RETRY_SUFFIX, **kwargs,
+    )
+    if is_degenerate_response(raw) or is_incomplete_response(raw, prompt_text):
+        raise RuntimeError("VLM response stayed degenerate/incomplete after one retry")
+    return raw
+
+
 def run_audio_inference(model, processor, path, engine=VLM_ENGINE_MINICPM,
                         prompt_text=None):
     """Run one audio pass (ASR + emotion + tone + style).
@@ -1686,7 +1788,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
         errors = []
         for win in window_list:
             try:
-                raw = run_vlm_inference(
+                raw = run_vlm_inference_with_retry(
                     model, processor, path, is_video, prompt_text,
                     engine=engine,
                     start_ms=win["startMs"], end_ms=win["endMs"],
@@ -1732,7 +1834,7 @@ def handle_analyze_semantics(model, processor, path, engine=DEFAULT_ENGINE,
                 return {}, f"Invalid or corrupt image: {e}"
             source_mode = None  # images don't have sourceMode
 
-        raw = run_vlm_inference(
+        raw = run_vlm_inference_with_retry(
             model, processor, path, is_video, prompt_text,
             engine=engine, start_ms=start_ms, end_ms=end_ms,
             sample_fps=sample_fps, crop_focus=crop_focus,
