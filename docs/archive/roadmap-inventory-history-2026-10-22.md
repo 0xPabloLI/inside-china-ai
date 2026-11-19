@@ -916,3 +916,9 @@ PR #1439 — `3dac3e2e` — `content(deepseek-api-open): salvage the rendered pa
 > 由 `docs/issue-roadmap.md` 近轮一句话档案下沉；完整交付记录见 #462 评论。
 
 **Round CCX**（`#462` Stage 2 pending-analysis：PR #1425 `f01f0275`；发布写 `content/{slug}/pending-analysis.json`、`pending-analysis.mjs list|migrate`、legacy 合并与 twin 抑制；**无产出差异（enabling fix）**；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
+
+## Round CCXI 下沉：`#1406` 盲评交付（2026-11-19）
+
+> 由 `docs/issue-roadmap.md` 近轮一句话档案下沉；完整记录见 #1406 评论。
+
+**Round CCXI**（`#1406` 盲评交付闭票——6 对 stills 全评，`report.json` 落盘：clarity A−B −1.17、偏好 旧 0/新 5/平 1；单人 → ICC `n/a`，n=6 → 仅描述；**无产出差异**；frontier 1A 空、① 空、② `#541`、③④ 空）
