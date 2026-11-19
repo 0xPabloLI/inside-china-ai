@@ -295,7 +295,7 @@ const SHARED_LEGACY_NAMES = new Set(["runs", "latest.json", "manifest.json", ".D
  * counts at each link), which is the honest question for "how much can be
  * reclaimed by deleting this tree".
  */
-export function runFootprint(dir) {
+function runFootprint(dir) {
   if (!dir || !existsSync(dir)) return { files: 0, bytes: 0 };
   let files = 0;
   let bytes = 0;
