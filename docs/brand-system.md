@@ -314,7 +314,8 @@ support (840–1298)   [stats]    optional stat cards (staggered 1.3s+)
 The support band grew 200 → 310px because the copy it holds did: the `source` line went 20 → 40px and now wraps to two lines, and the stat card's label went 0.36em → 0.5em of the card (20 → 32px at the 64px card). Measured on the real packs, the worst case is 305.8px of stat card + source. The kicker band gave up the difference — it only ever holds the badge pill (71px) — and the badge pill's vertical padding went 16 → 12px. The three bands' worst cases sum to 915.8 of the 930px safe zone, so the split is tight but not over-subscribed.
 
 - Background layers: blue `scan-sweep` only — no corner tint (#738 removed it as a second key light); the 60px grid and scanline textures were retired in `#1215`
-- Animation contract: badge 0.2s → subject 0.2s → hookText **frame 1** (thumbnail carries the claim) → bigNumber 0.3s / revealText 0.8s → stats 0.8s+ → source 1.3s
+- Animation contract: badge 0.2s → subject / bigNumber / numberLabel **frame 0** (the cover frame must carry the claim) → hookText **frame 1** (thumbnail carries the claim) → revealText 0.8s → stats 0.8s+ → source 1.3s
+- Delta contract: a negative delta must show both direction and baseline on the cover (`-62%` + `TASK COST VS QWEN3.8-MAX`); a bare `62%` reads as an amount, not a drop.
 - Amber-dominant numbers + red accent badge follow the 60-30-10 doctrine; `glowPulse` is a blue-only keyframe, so non-blue reveal colors get a static same-color glow instead
 - Data contract: `badge` / `subject` / `subjectLogo` (logo registry key into `assets/logos/`) / `bigNumber`+`numberLabel` / `hookText`+`revealText` / `stats[]` / `source` / `color` — see the `hookScene()` docblock. Focal is mandatory and exclusive, enforced FAIL-level by `checkHookContract`
 
@@ -355,7 +356,9 @@ Native chart grammar:
 - **Motion**: one entrance cue per chart — bars grow from the baseline, line draws once, proportion segments reveal once. No ambient loop, no decorative particles.
 - **Source**: `texts.source` must be visible; a chart without attribution is not publishable.
 
-`checkInfoSpec` enforces the mechanical contract (relationship/chart match, data bounds, unit/source, one highlight, zero baseline). `checkChartClaimAgreement`, `checkNarrativeArc` and `checkAttentionBudget` are advisory; they do not block a render but are reported in the HITL review. Geometry and authoring rules live in `docs/conventions/visual-design-loop.md` → 原生信息图表; the external evidence and its grades are in `docs/research/information-design-evidence-2026-11.md`.
+`checkInfoSpec` enforces the mechanical contract (relationship/chart match, data bounds, unit/source, one highlight, zero baseline). `checkChartClaimAgreement`, `checkNarrativeArc`, `checkAttentionBudget` and `auditInfoLayoutPreference` are advisory; they do not block a render but are reported in the HITL review. Geometry and authoring rules live in `docs/conventions/visual-design-loop.md` → 原生信息图表; the external evidence and its grades are in `docs/research/information-design-evidence-2026-11.md`.
+
+The native-first default is also backed by the 2026-11-17 L1 blind review: 6 pairs, one rater, native chart preferred **5 / legacy 0 / tie 1**, clarity **6.67 vs 5.50**. With n=6 the result is descriptive, not a statistical verdict; it is encoded in `scripts/short-video/lib/info-layout-preference.mjs` and surfaced by `auditInfoLayoutPreference`. `chart-card` remains correct for a real screenshot, a custom annotation, or a relationship native charts cannot draw.
 
 **Deprecated treatment**: gradient bar fills, price labels inside bars, and 3-column stat rows are not part of the native chart grammar; use the chart types above, or `data.year-source` for a text-led composition.
 

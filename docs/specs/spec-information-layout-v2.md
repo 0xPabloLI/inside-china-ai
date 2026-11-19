@@ -210,10 +210,11 @@ Field-test protocol:
 
 Tickets stayed local while GitHub sub-issues were unauthorised; the blind-review half now runs as native sub-issue #1406 under #1398. Each ticket is a vertical slice with its own demo and acceptance.
 
-## Delivery Status（2026-11-16）
+## Delivery Status（2026-11-19）
 
 - **已落地**：`scene.info` + `data.chart` + 6 个原生图表；`checkInfoSpec`（FAIL）、`checkChartPinContract`（FAIL）、`checkChartClaimAgreement` / `checkNarrativeArc` / `checkAttentionBudget`（advisory）；布局签名与发布元数据；实验 CLI；盲评包生成。
 - **盲评分析入口（2026-11-17 补）**：`experiment-review.mjs --analyze` 已落地——变体映射走 `key.json`，四维 A−B + 种子化 bootstrap CI + sign/Wilcoxon + 偏好 Wilson 区间；≥2 位评分者自动补 ICC(2,1)，单人记 `n/a`，n<8 只出描述性结论。评分与报告的执行范围登记为子票 **#1406**。
 - **真实包**：49 个 content pack 新增门禁 0 FAIL；45 个包无 `arcRole`（advisory），4 个包连续 3 个同版式信息镜（advisory）。4 个迁移包 `kimi-ipo` / `deepinfer` / `china-us-token-divide` / `zhipu-valuation` 的 `verify-video --pre` 均为 0 FAIL；`checkChartClaimAgreement` 对 Kimi 时间窗和 DeepInfer 的「nearly in half」各给 1 条 advisory（未改文案）。
-- **盲评**：`output/experiments/info-layout-v2-blind-review/index.html` 已生成 6 对（seed 20261116，左右随机），`key.json` 只在分析师侧。**人类评分尚未收集**；ICC、win rate 与「原生图表更好」的结论均未产生。
-- **未完成**：S5 的 ≥6 对离线盲评需要评审实际打分；L2 有机配对实验需要发布 20 对（约 10 周）。本 spec 不把待收集数据写成结果。
+- **盲评结果（2026-11-17 采集，6/6 对已评分）**：`report.json` 记录 native chart 偏好 **5 / legacy 0 / tie 1**；clarity native **6.67** vs legacy **5.50**（A−B **−1.17**，CI [−1.833, −0.167]），credibility **6.67** vs **6.00**，memorability **6.50** vs **5.83**，hierarchy **6.50** vs **6.17**。单人、n=6，低于 8 对分析地板，结论为 **descriptive only**，不作统计判决。
+- **偏好已接进管线**：`scripts/short-video/lib/info-layout-preference.mjs` 把上述结果固化为可审计常量与 `preferredDataLayout()`；`auditInfoLayoutPreference()` 进入 `runAllSceneDataChecks` 的 editorial/advisory 桶。数据镜头仍用 `chart-card` 时，HITL 会收到一条具名 advisory；`checkInfoSpec` 的 FAIL 契约不变，因此这不会放宽合法渲染。
+- **未完成**：S5 的 ≥6 对离线盲评已完成；**L2 有机配对实验仍需发布 20 对（约 10 周）**，`#1398` 仍 open。单轮盲评只能作为设计先验，不能替代 L2 的分布证据。

@@ -218,25 +218,14 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
         <Slot variant="hero" top={HOOK_BANDS.hero.top} height={HOOK_BANDS.hero.height}>
           {/* Subject row (logo 96px + name 64px) */}
           {(txt.subjectLogo || txt.subject) && (
-            <SlideUp
-              delay={0.2}
-              duration={0.4}
-              dataMeasureBox="subject-row"
-              // #422: the row is a flex item of a centre-aligned column band, so
-              // its cross size is fit-content — with the logo it measured
-              // 96+24+820 = 940, 120px wider than the band, and the centred row
-              // pushed the logo (and the gate) past the safe zone on BOTH sides.
-              // Capping it at the band's content box makes the overflow
-              // impossible regardless of what the row's children claim.
+            <div
+              data-measure-box="subject-row"
+              // Cover-frame contract: the subject is part of the claim at
+              // frame 0, not an entrance reveal. Without it the thumbnail
+              // shows a percentage with no product to attach it to.
               style={{
                 display: "flex",
                 alignItems: "center",
-                // Only bites when the row is narrower than the band — i.e. the
-                // logo-only shape, where it keeps the mark centred as before.
-                // With a subject the gate's width is fixed at the reserved
-                // budget, so the lockup fills the row and reads left-anchored
-                // (exactly as the no-logo shape always did); optically centring
-                // a short name is a #291 design question, not this fix's.
                 justifyContent: "center",
                 gap: HOOK_SUBJECT_ROW.gap,
                 width: "100%",
@@ -304,7 +293,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   </TextGate>
                 </div>
               )}
-            </SlideUp>
+            </div>
           )}
 
           {/* Focal — number-led preferred (contract bigNumber 240, amber) */}
@@ -357,7 +346,13 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                 )}
               </TextGate>
               {txt.numberLabel && (
-                <SlideUp delay={0.6} duration={0.5}>
+                // Cover-frame contract: the number's meaning must be readable
+                // in the TikTok thumbnail, which is frame 0. A 0.6s entrance
+                // left "62%" (or "$0.05") alone on the cover and pushed the
+                // label into the first playback second; the label now sits at
+                // rest from frame one. The number's own pulse still carries
+                // motion, and stats/source keep their stagger.
+                <div>
                   <TextGate sceneId={sceneId} slotId="hook.hero-center.numberLabel">
                     {(fontSize) => (
                       <Interactive.Div
@@ -381,7 +376,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                       </Interactive.Div>
                     )}
                   </TextGate>
-                </SlideUp>
+                </div>
               )}
               {/* F7 (decision 7): the circle vs subject / numberLabel, each its
                 own ≤2% denominator — mounted only when the circle exists. */}
