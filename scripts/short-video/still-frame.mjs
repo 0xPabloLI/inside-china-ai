@@ -22,6 +22,7 @@ import { existsSync } from "fs";
 import { join, dirname, basename, isAbsolute, relative, resolve } from "path";
 import { fileURLToPath } from "url";
 import { readSceneDurationsForTimeline } from "./lib/avatar-frame-audit.mjs";
+import { resolveRun } from "./lib/run-history.mjs";
 import {
   buildStillRenderArgs,
   propsPathFor,
@@ -65,7 +66,11 @@ if (!/^[a-z0-9_][a-z0-9._-]*$/.test(contentId)) {
 // The still lives next to its manifest: a replay re-runs the recorded command
 // with the recorded output path, and the replay refuses paths outside the
 // content's output tree, so a still written to /tmp would not be replayable.
-const outRoot = join(__dirname, "output", contentId);
+const contentDir = join(__dirname, "content", contentId);
+const { meta } = await import(join(contentDir, "meta.mjs")).catch(() => ({ meta: null }));
+const slug = meta?.pipelineId || contentId.replace(/\//g, "-");
+const run = resolveRun({ root: __dirname, slug, runId: getArg("run") });
+const outRoot = run.dir;
 const out = getArg("out") || join(outRoot, "render", `still-${frame}`, `frame-${frame}.png`);
 const outRel = relative(resolve(outRoot), resolve(out));
 if (outRel.length === 0 || outRel.startsWith("..") || isAbsolute(outRel)) {
@@ -75,14 +80,13 @@ if (outRel.length === 0 || outRel.startsWith("..") || isAbsolute(outRel)) {
   process.exit(1);
 }
 
-const contentDir = join(__dirname, "content", contentId);
 const { scenes } = await import(join(contentDir, "scene-data.mjs"));
 
 // The same reader every sibling consumer uses: it sorts by sceneId (the file's
 // entry order is not guaranteed), accepts the legacy `{scenes:[...]}` shape, and
 // falls back to the per-scene sidecars. It throws when the timeline cannot be
 // trusted — surface that as a plain message, not a stack trace.
-const audioDir = join(__dirname, "output", contentId, "audio");
+const audioDir = join(outRoot, "audio");
 let durations;
 try {
   durations = readSceneDurationsForTimeline(audioDir, scenes.length).map((d) => d.duration);
@@ -131,7 +135,7 @@ const props = {
 // Same artifact contract as a full render (lib/render-manifest.mjs): props to
 // disk, the command carries a path. A still failure is exactly the moment you
 // want to re-run without redoing TTS, so it gets a replayable manifest too.
-const outputDir = join(__dirname, "output", contentId);
+const outputDir = outRoot;
 const version = `still-${frame}`;
 const artifactDir = renderArtifactDir(outputDir, version);
 const argv = buildStillRenderArgs({ out, frame, propsPath: propsPathFor(artifactDir) });

@@ -30,6 +30,7 @@ import {
 } from "fs";
 import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { resolveRun } from "./lib/run-history.mjs";
 import { readSceneDurationsForTimeline } from "./lib/avatar-frame-audit.mjs";
 import { extractFramesAtIndexes } from "./lib/frame-extract.mjs";
 import {
@@ -70,7 +71,10 @@ if (!isValidContentId(contentId)) {
 }
 
 const contentDir = join(__dirname, "content", contentId);
-const qaDir = join(__dirname, "output", contentId, "qa");
+const { meta } = await import(join(contentDir, "meta.mjs")).catch(() => ({ meta: null }));
+const slug = meta?.pipelineId || contentId.replace(/\//g, "-");
+const run = resolveRun({ root: __dirname, slug, runId: getArg("run") });
+const qaDir = join(run.dir, "qa");
 const framesDir = join(qaDir, "frames");
 const sheetsDir = join(qaDir, "sheets");
 const planOnly = hasFlag("plan-only");
@@ -91,7 +95,7 @@ if (videoPath && !existsSync(videoPath)) {
 }
 
 const { scenes } = await import(join(contentDir, "scene-data.mjs"));
-const audioDir = join(__dirname, "output", contentId, "audio");
+const audioDir = join(run.dir, "audio");
 let durations;
 try {
   durations = readSceneDurationsForTimeline(audioDir, scenes.length);

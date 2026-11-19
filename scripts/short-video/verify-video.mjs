@@ -39,6 +39,7 @@ import {
 import { getPlatformProfile, listPlatformProfiles } from "./lib/platforms/index.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
 import { loadEnv } from "./lib/load-env.mjs";
+import { resolveRun } from "./lib/run-history.mjs";
 
 // #287: the entry owns env loading. The TTS preview selects engines by
 // TTS_ENGINE / TTS_NO_CACHE / TTS_SKIP_QUALITY_GATE, so a standalone --pre
@@ -84,7 +85,11 @@ try {
 } catch {}
 const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
 
-const OUTPUT_DIR = join(__dirname, "output", pipelineId);
+const OUTPUT_DIR = preMode
+  ? // --pre judges the authored state; no run has written anything yet, and a
+    // leftover run must not stand in for it (#1305).
+    join(__dirname, "output", pipelineId)
+  : resolveRun({ root: __dirname, slug: pipelineId, runId: getArg("run") }).dir;
 /**
  * #1305: the scenes the renderer actually used.
  *

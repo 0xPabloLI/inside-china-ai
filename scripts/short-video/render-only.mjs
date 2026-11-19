@@ -26,6 +26,7 @@ import { DEFAULT_BGM_VOLUME } from "./lib/post-process.mjs";
 import { getDurationSync } from "./lib/tts/ffmpeg-cmd.mjs";
 import { assertSubtitleTiming, regenerateSubtitles } from "./lib/subtitles/generate.mjs";
 import { resolveSceneAudioPath } from "./lib/scene-audio.mjs";
+import { resolveRun } from "./lib/run-history.mjs";
 import { runCanonicalTextGate } from "./lib/verify-canonical-text.mjs";
 import { verifySubtitles } from "./lib/verify-subtitles.mjs";
 
@@ -51,6 +52,15 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Resolve the run (#1432 S3) ──
+  // Explicit --run wins; otherwise the latest released run; otherwise the
+  // legacy output/<slug>/ package. Legacy packs keep rendering unchanged.
+  const run = resolveRun({ root: __dirname, slug: meta.pipelineId, runId: getArg("run") });
+  const outputDir = run.dir;
+  if (run.runId) {
+    console.log(`🆔 Run: ${run.runId} (${run.source})\n`);
+  }
+
   // #421: reproduce main.mjs's normalization chain (Step 0.5 currency +
   // Step 0.6 TTS dual-track) before anything reads the scene text. The
   // subtitle render boundary below recomputes the alignment signature from
@@ -61,9 +71,7 @@ async function main() {
   const { readRateReport, DEFAULT_RATES } = await import("./lib/exchange-rates.mjs");
   // Reuse the rates the audio-generating run recorded: a fresh quote could
   // change the annotated text and make the alignment signature look stale.
-  const rateReport = readRateReport(
-    join(__dirname, "output", meta.pipelineId, "currency-rates.json"),
-  );
+  const rateReport = readRateReport(join(outputDir, "currency-rates.json"));
   await normalizeSceneDataWithLiveRates(scenes, meta, {
     rates: rateReport?.rates ?? DEFAULT_RATES,
     rateSource: rateReport ? `run-artifact:${rateReport.source}` : "fallback",
@@ -81,7 +89,6 @@ async function main() {
   }
 
   const version = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const outputDir = join(__dirname, "output", meta.pipelineId);
   const audioDir = join(outputDir, "audio");
 
   console.log(`🎬 Render-only (no TTS)`);

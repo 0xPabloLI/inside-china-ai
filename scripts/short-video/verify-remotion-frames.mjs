@@ -28,6 +28,7 @@ import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { MEDIA_BAND, SAFE_ZONES } from "./lib/safe-zones.mjs";
 import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./lib/timeline.mjs";
+import { resolveRun } from "./lib/run-history.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { runFrameAnalysis, checkFinalFrameHasContent } from "./lib/frame-analysis.mjs";
 import { extractFramesAtIndexes } from "./lib/frame-extract.mjs";
@@ -54,7 +55,7 @@ if (!contentDir) {
 }
 
 const pipelineId = contentDir.replace(/\//g, "-");
-const OUTPUT_DIR = join(__dirname, "output", pipelineId);
+const OUTPUT_DIR = resolveRun({ root: __dirname, slug: pipelineId, runId: getArg("run") }).dir;
 const SCENE_DATA_PATH = join(__dirname, "content", contentDir, "scene-data.mjs");
 const META_PATH = join(__dirname, "content", contentDir, "meta.mjs");
 
