@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.92.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.91.0...tanstack_start_ts-v1.92.0) (2026-11-19)
+
+
+### Features
+
+* **short-video:** bind publish receipts and migrate legacy runs ([#1432](https://github.com/0xPabloLI/inside-china-ai/issues/1432) S4/S5) ([#1446](https://github.com/0xPabloLI/inside-china-ai/issues/1446)) ([e012e08](https://github.com/0xPabloLI/inside-china-ai/commit/e012e0845e2ac3501e46caf71c9102132c0055fd))
+
 ## [1.91.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.90.0...tanstack_start_ts-v1.91.0) (2026-11-19)
 
 
