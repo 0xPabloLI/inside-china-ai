@@ -103,8 +103,7 @@ export const scenes = [
     mediaStrategy: "asset",
     assetNeed: null,
     media: null,
-    voiceover:
-      "OpenAI charges nearly five times as much. Google, more than sixteen times.",
+    voiceover: "OpenAI charges nearly five times as much. Google, more than sixteen times.",
     texts: {
       title: "SPEECH TO TEXT, PER HOUR",
       left: ["DEEPSEEK", "0.39 YUAN"],

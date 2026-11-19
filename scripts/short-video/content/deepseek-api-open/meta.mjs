@@ -5,14 +5,7 @@ export const meta = {
   article: "deepseek-api-open-2026-11-13",
   renderer: "remotion",
   createdAt: "2026-11-17",
-  topics: [
-    "deepseek",
-    "api",
-    "pricing",
-    "speech",
-    "open-source",
-    "china-ai",
-  ],
+  topics: ["deepseek", "api", "pricing", "speech", "open-source", "china-ai"],
   keyEntities: {
     companies: ["deepseek", "openai", "google"],
     people: [],
