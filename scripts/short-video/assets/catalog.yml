@@ -356,3 +356,53 @@
       evidence,
       screenshot,
     ]
+
+- file: content/qwen4-max-release/assets/qwen4max-launch.jpg
+  type: image
+  description: "Official Qwen4 launch visual: Qwen 4 正式上线, with the Qwen wordmark, pagoda render and New Teammate / Qwen FOR U footer, published 2026-11-16"
+  source: "Qwen official release visual, 2026-11-16; https://qwen.ai/blog?id=qwen4-max; CDN mirror https://aka.doubaocdn.com/l/aZRekBVrGt"
+  license: "Qwen official release visual — editorial/news use with attribution"
+  width: 1440
+  height: 810
+  used_in: [qwen4-max-release/S2]
+  keywords: [qwen, qwen4, qwen4-max, alibaba, launch, official, 正式上线, new teammate, 2026-11-16]
+
+- file: content/qwen4-max-release/assets/qwen4max-platform.jpg
+  type: image
+  description: "Official Qwen4-Max platform poster: Qwen4-Max 首发上线千问AI平台, API 服务 / Token Plan / 已开放"
+  source: "Qwen official launch poster, 2026-11-16; CDN mirror https://aka.doubaocdn.com/l/eWDNA2heUp"
+  license: "Qwen official release visual — editorial/news use with attribution"
+  width: 672
+  height: 378
+  used_in: []
+  keywords: [qwen, qwen4-max, alibaba, qianwen, platform, api, token plan, launch, official, poster]
+
+- file: content/qwen4-max-release/assets/qwen4max-work360.jpg
+  type: image
+  description: "Official Work360 industry benchmark chart: Qwen4-Max 52.69 vs Qwen3.8-Max 47.74 across 26 domains, 182 categories and 721 specialized fields"
+  source: "Qwen official Work360 chart, 2026-11-16; https://qwen.ai/blog?id=qwen4-max; CDN mirror https://aka.doubaocdn.com/l/3Ytnc77B66"
+  license: "Qwen official benchmark chart — editorial/news use with attribution"
+  width: 750
+  height: 412
+  used_in: [qwen4-max-release/S5]
+  keywords: [qwen, qwen4-max, alibaba, work360, benchmark, 52.69, 47.74, 721 fields, official]
+
+- file: content/qwen4-max-release/assets/qwen4max-industrial.jpg
+  type: image
+  description: "Official Qwen4-Max industrial delivery visual: 从草图布局 到真实工业交付, car body sketch and production-line equipment, SANF and Pacific Union case credit"
+  source: "Qwen official Qwen4-Max industrial case visual, 2026-11-16; CDN mirror https://aka.doubaocdn.com/l/hOzG3vGvXl"
+  license: "Qwen official release visual — editorial/news use with attribution"
+  width: 750
+  height: 431
+  used_in: [qwen4-max-release/S7]
+  keywords: [qwen, qwen4-max, alibaba, industrial, manufacturing, car parts, 475 minutes, 24 minutes, official]
+
+- file: content/qwen4-max-release/assets/qwen4max-architecture.jpg
+  type: image
+  description: "Official Qwen4 architecture diagram: GDN + QSA hybrid stack, one QSA layer per three GDN layers, four-branch Gated Residual, N-gram Embedding at layer two"
+  source: "Qwen official Qwen4-Max architecture diagram, 2026-11-16; https://qwen.ai/blog?id=qwen4-max; CDN mirror https://aka.doubaocdn.com/l/ihIOa3mpO6"
+  license: "Qwen official architecture diagram — editorial/news use with attribution"
+  width: 1080
+  height: 1112
+  used_in: [qwen4-max-release/S3]
+  keywords: [qwen, qwen4-max, alibaba, architecture, gdn, qsa, gated delta net, sparse attention, gated residual, n-gram embedding]

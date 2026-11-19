@@ -68,6 +68,9 @@ Before writing scene-data, review this checklist. Every item here will be verifi
 - [ ] Voiceover contains a **number** ($1.4B, 20K GPUs, etc.) OR a **strong word** (leaked, paused, revealed, crisis, etc.)
 - [ ] Hook is **factual**, NOT clickbait (no "you won't believe", "shocking truth", etc.)
 - [ ] Hook delivers the core message, not a setup/intro
+- [ ] **Delta numbers carry direction and baseline in frame one**: `-62%` alone is incomplete; the label must say what moved and against what (`TASK COST VS QWEN3.8-MAX`). A bare `62%` reads as an amount, not a drop.
+- [ ] **The hero number and its label are visible at frame 0**: no entrance animation on either. TikTok uses the first frame as the thumbnail, so a `SlideUp` that starts off-screen means the published cover is blank or partial.
+- [ ] **Measure the label with its real letter spacing**: `numberLabel` at 48px with `letterSpacing: 3px` can measure single-line at default spacing and still wrap in render. Measure the actual styled string, not the plain text.
 - [ ] **Subject visibility** (soft check): Can viewers tell WHO this video is about within the first 3 seconds? If the hook text doesn't mention the company name, ensure the company logo + name are large enough (≥60px, white or brand color — not muted gray) to be readable at thumbnail scale
 
 **SEO Keywords**:
@@ -187,6 +190,12 @@ SLOT_WIDTH=744 node scripts/short-video/measure-text-width.mjs 'EXTREME TESTING.
 A `WRAPS` verdict is only fatal where the container has room for one line. `media-bottom-bar`'s three rows are that case; elsewhere `SLOT_DEFAULTS.maxLines` is 2 and a two-line field is fine (the hook's `source` and the context card's `title` both ship wrapped). Sizes and weights per field are in `SLOT_FIELDS`; the slot width per template is in `MEASURED_MAX_WIDTH` (`lib/text-slots.mjs`).
 
 **Completion criterion**: scene-data.mjs is valid JS, every scene has `id`, `voiceover`, `texts`, total estimated duration follows the content (no fixed band; ≤70s per part), and every `media-bottom-bar` field measures one line.
+
+#### Data scenes: native chart is the default
+
+When the scene has 2–12 known values and the relationship is magnitude / ranking / change-over-time / part-to-whole / deviation / distribution, use `visualType: "data"` + `layout: "chart"` + `scene.info`; do not shop for a near-match screenshot. `layout: "chart-card"` is reserved for a real screenshot / custom annotation / market chart, or a relationship native charts cannot draw (scatter, map, flow, spatial).
+
+This is not only a spelling rule: the 2026-11-17 L1 blind review (6 pairs, one rater, descriptive) preferred the native chart **5 / legacy 0 / tie 1**, with clarity **6.67 vs 5.50**. `lib/info-layout-preference.mjs` encodes that result, `preferredDataLayout()` exposes the policy, and `auditInfoLayoutPreference` adds a named advisory when a data scene still uses `chart-card`. Advisory only — it never overrides `checkInfoSpec` or blocks a legal render.
 
 ### 3. Run the pipeline
 

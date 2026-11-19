@@ -21,6 +21,7 @@ import {
   splitDigitUnitToken,
   cardinalSpokenWords,
   currencySpokenWords,
+  decimalSpokenWords,
 } from "../normalize-tts-text.mjs";
 import { FAILURE_CLASS, asrOptOutEnabled } from "./failure-class.mjs";
 import { validateInstructSignature } from "./instruct.mjs";
@@ -423,6 +424,12 @@ function buildAsrEvidence(asrTokens, rawText = null, options = {}) {
     // similarity scored 73.3% against the 75% floor, and the fixed TTS seed
     // made the self-heal loop regenerate the identical take three times.
     for (const w of currencySpokenWords(rawText)) expanded.add(w);
+    // Heard-side decimal mirror: price copy such as "$0.05" is written as
+    // digits by whisper.cpp while the spoken track says "zero point zero
+    // five". Without this expansion a CORRECT take fails similarity even
+    // though every word is present. Observed 2026-11-19 on the DeepSeek
+    // USD-first rerun (scene 1 68.2%, scene 3 69.6% against the 75% floor).
+    for (const w of decimalSpokenWords(rawText)) expanded.add(w);
   }
 
   // #689: whisper.cpp sometimes splits one brand token into adjacent words

@@ -5,7 +5,7 @@
  * (Nov 17, 2026) on the limits that appeared Nov 15.
  *
  * Narrative type: breaking news with a two-part turn (open, then throttle).
- * Hook pattern: P1 Result-First, number-led (0.39 yuan an hour).
+ * Hook pattern: P1 Result-First, number-led ($0.05 / 0.39 yuan an hour).
  * Loop close: scene 8 reframes the hook price as the whole point.
  *
  * Media: one first-party screenshot of the official API docs (dark theme);
@@ -37,13 +37,12 @@ export const scenes = [
         scale: 2,
       },
     },
-    voiceover:
-      "DeepSeek just rented out the parts of its app. Speech costs thirty nine fen an hour.",
+    voiceover: "DeepSeek just rented out the parts of its app. Speech costs $0.05 an hour.",
     texts: {
       badge: "APP SOLD IN PIECES",
       subject: "DEEPSEEK",
-      bigNumber: "0.39",
-      numberLabel: "YUAN PER HOUR OF SPEECH",
+      bigNumber: "$0.05",
+      numberLabel: "PER HOUR OF SPEECH",
       source: "SOURCE: DeepSeek price list, Nov 13",
     },
   },
@@ -84,12 +83,11 @@ export const scenes = [
     mediaStrategy: "asset",
     assetNeed: null,
     media: null,
-    voiceover:
-      "Search costs five yuan per thousand calls. OCR, one point five yuan per thousand pages.",
+    voiceover: "Search costs $0.70 per thousand calls. OCR costs $0.21 per thousand pages.",
     texts: {
-      stat: "5",
-      statLabel: "YUAN PER 1,000 SEARCHES",
-      subtext: "OCR 1.5 PER 1,000 PAGES",
+      stat: "$0.70",
+      statLabel: "PER 1,000 SEARCHES",
+      subtext: "OCR $0.21 PER 1,000 PAGES",
       source: "SOURCE: DeepSeek price list, Nov 13",
     },
   },
@@ -106,10 +104,10 @@ export const scenes = [
     voiceover: "OpenAI charges nearly five times as much. Google, more than sixteen times.",
     texts: {
       title: "SPEECH TO TEXT, PER HOUR",
-      left: ["DEEPSEEK", "0.39 YUAN"],
-      right: ["OPENAI", "1.81 YUAN"],
+      left: ["DEEPSEEK", "$0.05"],
+      right: ["OPENAI", "$0.25"],
       vs: "·",
-      note: "GOOGLE CLOUD: 6.43 YUAN",
+      note: "GOOGLE CLOUD: $0.90",
     },
   },
   {
@@ -155,7 +153,7 @@ export const scenes = [
       company: "72 HOURS INACTIVE",
       context: "LONG CHATS STOPPED",
       action: "INPUT CAP 40,000 CHARS",
-      result: "NOT ENOUGH COMPUTE",
+      result: "COMPUTE SHORTAGE",
       source: "SOURCE: DeepSeek notice, Nov 15",
     },
   },
