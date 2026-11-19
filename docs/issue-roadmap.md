@@ -9,7 +9,7 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-11-19（**Round CCXVI：`#1432` S4/S5 交付，Stage 3 收口**——发布包/回执/pending-analysis 绑定 `runId`，`run-history receipts` 可审计 run→回执；legacy 包 dry-run 迁移与引用保护 prune 默认 dry-run；spec 归档 `docs/archive/specs/spec-run-history-stage3.md`；产品验证门：**无产出差异（enabling fix）**——用户可见成片/发布动作不变。frontier 复算：1A 空、① 空、② `#541`/`#1183`、③④ 空。）
+> **Last inventory**: 2026-11-19（**Round CCXVI：`#1432` S4/S5 交付，Stage 3 收口**（PR #1446）——发布包/回执/pending-analysis 绑定 `runId`，`run-history receipts` 可审计 run→回执；legacy 包 dry-run 迁移与引用保护 prune 默认 dry-run；spec 归档 `docs/archive/specs/spec-run-history-stage3.md`；产品验证门：**无产出差异（enabling fix）**——用户可见成片/发布动作不变。frontier 复算：1A 空、① 空、② `#541`/`#1183`、③④ 空。）
 > **2026-11-09 HITL 裁决**：③ 段 `#738`/`#734`/`#735`/`#739`/`#747` 转 `ready-for-agent`，`#1160`/`#733` 转 `dormant`；② `#320` 已交付闭票（PR #1203，squash `5ffedbc6`）、`#434` 已核查闭票（评论 `6740307743`），② 段清空；`#734` 已于 Round CLXIV 交付闭票（PR #1207，squash `905a2a77`）、`#735` 已于 Round CLXV 交付闭票（PR #1211，squash `00d6bbd6`）、`#739` 已于 Round CLXVI 交付闭票（PR #1216，squash `b0c8a030`）、`#738` 已于 Round CLXVII 交付闭票（PR #1220，squash `cb69029e`）、`#747` 已于 Round CLXVIII 交付闭票（PR #1223，squash `023e7eaa`），③ 段 5 张全部清空；其延后的「新逐词强调手法」按同一裁决另立 **#1224**（won't fix）并换入继任票 **#1228**（2026-11-11 拍板 68px，转 `ready-for-agent`，归 ④ 段）；现行 frontier 见 Step 4。
 > **frontier（三轨制，默认跨轨单入口瀑布见 `### Execution Semantics`）**：
 >
