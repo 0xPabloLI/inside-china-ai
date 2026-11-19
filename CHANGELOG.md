@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.91.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.90.0...tanstack_start_ts-v1.91.0) (2026-11-19)
+
+
+### Features
+
+* **short-video:** write run artifacts under runs/&lt;runId&gt; and read them back ([#1432](https://github.com/0xPabloLI/inside-china-ai/issues/1432) S2/S3) ([#1443](https://github.com/0xPabloLI/inside-china-ai/issues/1443)) ([0c31431](https://github.com/0xPabloLI/inside-china-ai/commit/0c3143182ba46f073a8989a730887b74ee8e98e9))
+
 ## [1.90.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.89.0...tanstack_start_ts-v1.90.0) (2026-11-19)
 
 
