@@ -1,6 +1,6 @@
 # Spec — Run 身份与产物历史（#1432 Stage 3）
 
-Status: active（2026-11-19） · Parent issue: #1432 · Planning scale: S2 · Risk: R3（产物路径、发布回执、清理授权）
+Status: archived（2026-11-19，S1–S5 全部交付） · Parent issue: #1432 · Planning scale: S2 · Risk: R3（产物路径、发布回执、清理授权）
 
 ## Problem Statement
 

@@ -178,6 +178,9 @@
  *   --video <path>        Video file to upload (required)
  *   --content <dir>       Pipeline id — caption defaults to
  *                         output/{dir}/publish/tiktok/tiktok-caption.txt
+ *   --run <runId>         Prepare from this run instead of latest (#1432 S4).
+ *                         When --video lives under runs/<runId>/, that run is
+ *                         used automatically unless --run overrides it.
  *   --caption <text>      Caption override (else the --content default)
  *   --caption-file <path> Caption file override
  *   --sound <query>       Sound to search for (default: the account's usual)
@@ -240,6 +243,12 @@ import { fileURLToPath } from "url";
 import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab, waitForPageLoad } from "./lib/cdp-client.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
+import {
+  detectRunIdFromPath,
+  PUBLISH_RECEIPT_STATE,
+  writePublishReceipt,
+} from "./lib/publish-receipt.mjs";
+import { resolveRun, updateRun } from "./lib/run-history.mjs";
 import {
   clickAtPoint,
   emulateFocus,
@@ -884,7 +893,7 @@ const REVIEW_STATE = `
  * typo cannot create a stray output tree. Without a log file the same entries
  * go nowhere; stdout remains the operator-facing trace.
  */
-export function makePublishLogger(contentId) {
+export function makePublishLogger(contentId, outputRoot = null) {
   if (!contentId) return () => {};
   // `contentId` arrives from argv and is about to become a path component.
   // Pipeline ids are slugs; anything else is a typo or an attempt to climb out
@@ -892,9 +901,12 @@ export function makePublishLogger(contentId) {
   if (!/^[A-Za-z0-9._-]+$/.test(contentId) || contentId === "." || contentId === "..") {
     throw new Error(`--content must be a pipeline id, not a path: ${JSON.stringify(contentId)}`);
   }
-  const outDir = join(__dirname, "output", contentId);
-  if (!existsSync(outDir)) return () => {};
-  const dir = join(outDir, "publish", "tiktok");
+  // Run-scoped (#1432 S4): a resolved run writes its log inside the run, so
+  // two runs of one slug keep separate prepare/review trails. The legacy
+  // fallback keeps the old output/{slug}/publish/tiktok path.
+  const baseDir = outputRoot || join(__dirname, "output", contentId);
+  if (!existsSync(baseDir)) return () => {};
+  const dir = join(baseDir, "publish", "tiktok");
   mkdirSync(dir, { recursive: true });
   const file = join(dir, "publish-log.jsonl");
   return (step, detail = {}) => {
@@ -1646,6 +1658,22 @@ async function main() {
   }
 
   const contentId = getArg("content");
+  // Run-scoped prepare (#1432 S4): caption + publish log live in the run that
+  // produced the video. Explicit --run wins, then the run named by the video
+  // path, then latest; an output tree without runs keeps the legacy path.
+  let publishRun = null;
+  if (contentId) {
+    try {
+      publishRun = resolveRun({
+        root: __dirname,
+        slug: contentId,
+        runId: getArg("run") || detectRunIdFromPath(videoArg),
+      });
+    } catch {
+      publishRun = null;
+    }
+  }
+  const publishRoot = publishRun?.dir ?? (contentId ? join(__dirname, "output", contentId) : null);
   const sound = getArg("sound") || DEFAULT_SOUND;
   const soundOwner = getArg("sound-owner") ?? DEFAULT_SOUND_OWNER;
 
@@ -1668,9 +1696,7 @@ async function main() {
   let caption = getArg("caption");
   const captionFile =
     getArg("caption-file") ||
-    (contentId
-      ? join(__dirname, "output", contentId, "publish", "tiktok", "tiktok-caption.txt")
-      : null);
+    (publishRoot ? join(publishRoot, "publish", "tiktok", "tiktok-caption.txt") : null);
   if (!caption && captionFile && existsSync(captionFile)) {
     caption = readFileSync(captionFile, "utf8").trim();
   }
@@ -1713,10 +1739,11 @@ async function main() {
   // without the account's login state.
   await ensureCdpProfileGuard();
 
-  const log = makePublishLogger(contentId);
+  const log = makePublishLogger(contentId, publishRoot);
   // The profile decision is recorded before anything else, so a run's publish
   // method and AIGC posture are auditable even when it later aborts (#951).
   log("profile", {
+    runId: publishRun?.runId ?? null,
     publishMethod,
     publishMethodEnabled: tiktokProfile.enabledPublishMethods,
     aigcRequired: aigcPolicy.required,
@@ -2291,6 +2318,43 @@ async function main() {
       console.log("   To end with a saved Studio draft instead, re-run with --save-draft.");
       console.log(`   Tab: ${tab}`);
       keepTab = true;
+    }
+    // A successful terminal action gets a receipt in the run it prepared from
+    // (#1432 S4). This is NOT a publish receipt: the public click stays with
+    // the operator (#1181), so the state is draft/prepared and postGroupId is
+    // null. A second run of the same slug therefore cannot overwrite this
+    // run's prepare record.
+    if (publishRun && contentId) {
+      const receiptState = draftSaved
+        ? PUBLISH_RECEIPT_STATE.DRAFT
+        : PUBLISH_RECEIPT_STATE.PREPARED;
+      try {
+        const receipt = writePublishReceipt({
+          root: __dirname,
+          slug: contentId,
+          runId: publishRun.runId,
+          receipt: {
+            publishMethod: "cdp",
+            state: receiptState,
+            postGroupId: null,
+            publishedAt: null,
+            videoPath,
+          },
+        });
+        updateRun({
+          root: __dirname,
+          slug: contentId,
+          runId: publishRun.runId,
+          artifacts: { publishReceipt: "publish/receipt.json" },
+          meta: { publishMethod: "cdp", publishState: receiptState },
+        });
+        log("receipt", { path: receipt.path, state: receiptState });
+      } catch (error) {
+        // The draft/editor already exists. A missing receipt is an audit gap;
+        // reporting the run as failed here would invite a duplicate save.
+        console.warn(`   ⚠️  Publish receipt not recorded: ${error.message}`);
+        log("receipt.error", { message: error.message, state: receiptState });
+      }
     }
     log("prepared", { action: terminalAction.action, published: false });
     // #1288: only a SUCCESSFUL terminal action consumes a slot. Failures land

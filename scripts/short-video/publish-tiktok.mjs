@@ -23,6 +23,9 @@
  *   --content <dir>     Content pipeline ID — metadata default becomes
  *                       output/{dir}/publish/tiktok/tiktok-metadata.json (#219 T02)
  *   --metadata <path>   Metadata JSON (overrides --content default)
+ *   --run <runId>      Publish from this run instead of latest (#1432 S4).
+ *                       When --video lives under runs/<runId>/, that run is
+ *                       used automatically unless --run overrides it.
  *   --auto              Enable API auto-publish (bypasses algorithm signals)
  *   --schedule <iso>    Schedule time (ISO 8601, e.g. 2026-08-03T12:00:00Z) [--auto only]
  *   --draft             Leave as draft (don't schedule) [--auto only]
@@ -54,6 +57,12 @@ import { getPlatformProfile } from "./lib/platforms/index.mjs";
 import { writePendingAnalysis } from "./lib/pending-analysis.mjs";
 import { INFO_LAYOUT_VERSION, layoutSignature } from "./lib/layout-signature.mjs";
 import { packageFilePaths } from "./lib/platforms/generate-publish-package.mjs";
+import {
+  detectRunIdFromPath,
+  PUBLISH_RECEIPT_STATE,
+  writePublishReceipt,
+} from "./lib/publish-receipt.mjs";
+import { markRun, resolveRun, RUN_STATUS, updateRun } from "./lib/run-history.mjs";
 import {
   detectPinnedCommentPromise,
   resolveArticleLinkReadiness,
@@ -102,9 +111,29 @@ if (!videoPath) {
 // output/{dir}/publish/tiktok/…; standalone → output/publish/tiktok/…
 const contentDir = getArg("content");
 assertPathId(contentDir, "--content");
+const runFlag = getArg("run");
+
+// Run-scoped package (#1432 S4): the publish package now lives inside the run
+// that produced it. Precedence is explicit --run → the run named by the video
+// path → latest → legacy. Inferring from the video path is deliberate: pairing
+// an old render with a newer latest package is exactly how captions and videos
+// drift apart. A missing output tree falls back to the legacy path so the
+// "metadata not found" error stays where it was.
+let publishRun = null;
+if (contentDir) {
+  try {
+    publishRun = resolveRun({
+      root: __dirname,
+      slug: contentDir,
+      runId: runFlag || detectRunIdFromPath(videoPath),
+    });
+  } catch {
+    publishRun = null;
+  }
+}
+const PUBLISH_ROOT = publishRun?.dir ?? (contentDir ? join(OUTPUT_DIR, contentDir) : OUTPUT_DIR);
 const DEFAULT_METADATA = packageFilePaths({
-  outputRoot: OUTPUT_DIR,
-  ...(contentDir ? { pipelineId: contentDir } : {}),
+  outputRoot: PUBLISH_ROOT,
   profile: getPlatformProfile("tiktok"),
 }).metadata;
 const metadataPath = getArg("metadata") || DEFAULT_METADATA;
@@ -148,6 +177,55 @@ async function layoutMetaForSlug(slug) {
 }
 
 // ─── Shared: load metadata + build caption + validate video ───
+
+/**
+ * Record the publish attempt in the run it belongs to (#1432 S4). A no-op for
+ * a legacy pack: there is no run to bind a receipt to, and inventing one would
+ * hide the missing history. The receipt lands in `publish/receipt.json` inside
+ * the run, while the manifest records its path and method for audit.
+ */
+function recordPublishReceipt({ method, state, postGroupId = null, publishedAt = null }) {
+  if (!publishRun || !contentDir) return null;
+  try {
+    const written = writePublishReceipt({
+      root: __dirname,
+      slug: contentDir,
+      runId: publishRun.runId,
+      receipt: {
+        publishMethod: method,
+        state,
+        postGroupId,
+        publishedAt,
+        videoPath: resolve(videoPath),
+      },
+    });
+    if (["api"].includes(method) && state === PUBLISH_RECEIPT_STATE.PUBLISHED) {
+      markRun({
+        root: __dirname,
+        slug: contentDir,
+        runId: publishRun.runId,
+        status: RUN_STATUS.PUBLISHED,
+        artifacts: { publishReceipt: "publish/receipt.json" },
+        meta: { postGroupId, publishMethod: method },
+      });
+    } else {
+      updateRun({
+        root: __dirname,
+        slug: contentDir,
+        runId: publishRun.runId,
+        artifacts: { publishReceipt: "publish/receipt.json" },
+        meta: { publishMethod: method, publishState: state, postGroupId },
+      });
+    }
+    return written.path;
+  } catch (error) {
+    // The publish already happened (or was scheduled) by the time this runs.
+    // Losing the receipt is an audit gap, not a reason to report the publish as
+    // failed and invite a duplicate retry.
+    console.warn(`  ⚠️  Publish receipt not recorded: ${error.message}`);
+    return null;
+  }
+}
 
 function preparePublishData() {
   // Read metadata
@@ -271,8 +349,7 @@ async function runManualMode() {
     console.log(readiness.pinnedComment);
     console.log("─".repeat(40));
     const paths = packageFilePaths({
-      outputRoot: OUTPUT_DIR,
-      ...(contentDir ? { pipelineId: contentDir } : {}),
+      outputRoot: PUBLISH_ROOT,
       profile: getPlatformProfile("tiktok"),
     });
     if (existsSync(paths.pinnedComment)) {
@@ -298,10 +375,17 @@ async function runManualMode() {
   // analytics workflow flips status to "done" once the video is analyzed.
   if (!isDraft) {
     const pendingSlug = postSlug || contentDir || null;
+    const publishedAt = new Date().toISOString();
+    recordPublishReceipt({
+      method: "manual-guide",
+      state: PUBLISH_RECEIPT_STATE.GUIDE,
+      publishedAt,
+    });
     const pending = buildManualPendingAnalysis({
       slug: pendingSlug,
+      runId: publishRun?.runId ?? null,
       videoPath: resolve(videoPath),
-      publishedAt: new Date().toISOString(),
+      publishedAt,
       ...(await layoutMetaForSlug(postSlug)),
       experimentId: experimentId || null,
       variant: experimentVariant || null,
@@ -433,12 +517,26 @@ async function runAutoMode() {
   console.log(`  Video:       ${(videoValidation.size / 1024 / 1024).toFixed(1)}MB`);
   console.log("=".repeat(60));
 
-  // 8. Write pending-analysis.json — only for non-draft
+  // 8. Publish receipt (#1432 S4) — lands in the run's own directory, so a
+  // second run of the same slug cannot overwrite this run's postGroupId.
+  const publishedAt = isDraft ? null : scheduleTime || new Date().toISOString();
+  recordPublishReceipt({
+    method: "api",
+    state: isDraft
+      ? PUBLISH_RECEIPT_STATE.DRAFT
+      : scheduleTime
+        ? PUBLISH_RECEIPT_STATE.SCHEDULED
+        : PUBLISH_RECEIPT_STATE.PUBLISHED,
+    postGroupId,
+    publishedAt,
+  });
+
+  // 9. Write pending-analysis.json — only for non-draft
   if (!isDraft) {
-    const publishedAt = new Date().toISOString();
     const pendingSlug = postSlug || contentDir || null;
     const pending = buildPendingAnalysis(postGroupId, publishedAt, {
       slug: pendingSlug,
+      runId: publishRun?.runId ?? null,
       ...(await layoutMetaForSlug(postSlug)),
       experimentId: experimentId || null,
       variant: experimentVariant || null,
@@ -450,7 +548,7 @@ async function runAutoMode() {
     console.log(buildAnalyticsGuidance(OUTPUT_DIR, pendingFile.path));
   }
 
-  // 9. Output pinned comment for series
+  // 10. Output pinned comment for series
   if (pinnedComment) {
     console.log("\n📌 Pinned Comment (copy & pin manually):");
     console.log("─".repeat(40));
@@ -458,7 +556,7 @@ async function runAutoMode() {
     console.log("─".repeat(40));
   }
 
-  // 10. Auto-save TikTok URL to post
+  // 11. Auto-save TikTok URL to post
   if (postSlug && !isDraft) {
     await autoSaveTikTokUrl(postGroupId, postSlug, apiKey, publoraGet);
   }
@@ -559,6 +657,15 @@ async function autoSaveTikTokUrl(postGroupId, slug, apiKey, publoraGet) {
 // This entry point still resolves `manual-guide` unless --auto asks for `api`.
 // The resolved method drives the branch so future enablement of `api` only
 // flips the profile, not this entry point.
+// Run-scoped publish (#1432 S4): say which run the package came from, so an
+// operator publishing an old render sees the binding before the irreversible
+// action rather than after.
+if (publishRun) {
+  console.log(`🆔 Publish source: ${publishRun.runId} (${publishRun.source})`);
+} else if (contentDir) {
+  console.log("🆔 Publish source: legacy output tree (no run history)");
+}
+
 const publishMethod = resolvePublishMethod(getPlatformProfile("tiktok"), { auto: isAuto });
 
 if (publishMethod === "api") {

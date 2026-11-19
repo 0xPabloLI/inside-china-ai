@@ -12,7 +12,7 @@
  *   output/<slug>/latest.json          pointer to the last SUCCESSFUL run
  *   output/<slug>/                     legacy layout, still readable
  *
- * Decisions (durable contract: docs/specs/spec-run-history-stage3.md):
+ * Decisions (durable contract: docs/archive/specs/spec-run-history-stage3.md):
  *
  * - runId is `r-<UTC timestamp>-<6 hex>`; a collision with an existing run or
  *   directory is refused, not overwritten.
@@ -27,10 +27,21 @@
  *   backwards-compatible for packs produced before run history existed.
  */
 
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import {
+  copyFileSync,
+  existsSync,
+  linkSync,
+  mkdirSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { dirname, join } from "node:path";
 import { containedPath } from "./path-safety.mjs";
 import { isJsonObject, readJsonFile, writeJsonAtomic } from "./json-file.mjs";
+import { listPendingAnalysis } from "./pending-analysis.mjs";
 
 export const RUN_STATUS = Object.freeze({
   RUNNING: "running",
@@ -165,30 +176,52 @@ export function createRun({ root, slug, runId, now = new Date(), contentDir = nu
   return { runId: id, dir, manifest };
 }
 
+function patchRun({ root, slug, runId, status, artifacts, meta, now }) {
+  const clean = assertSafeSlug(slug);
+  const id = assertRunId(runId);
+  const manifest = readManifest(root, clean);
+  const entry = manifest.runs.find((run) => run.runId === id);
+  if (!entry) throw new Error(`run history: run ${id} is not in the manifest for ${clean}`);
+
+  if (status !== undefined) {
+    if (!Object.values(RUN_STATUS).includes(status)) {
+      throw new Error(`run history: unknown status ${JSON.stringify(status)}`);
+    }
+    entry.status = status;
+  }
+  entry.updatedAt = now.toISOString();
+  if (status !== undefined && status !== RUN_STATUS.RUNNING && !entry.endedAt) {
+    entry.endedAt = now.toISOString();
+  }
+  if (isJsonObject(artifacts)) entry.artifacts = { ...(entry.artifacts ?? {}), ...artifacts };
+  if (isJsonObject(meta)) entry.meta = { ...(entry.meta ?? {}), ...meta };
+  writeManifest(root, clean, manifest);
+  return entry;
+}
+
+/**
+ * Record artifacts/metadata on a known run without touching its status or the
+ * latest pointer. S4 uses this for guide/draft receipts: the run keeps its
+ * render status until an actual publish happens, but the receipt path and
+ * method still become auditable from the manifest.
+ */
+export function updateRun({ root, slug, runId, artifacts, meta, now = new Date() } = {}) {
+  return patchRun({ root, slug, runId, artifacts, meta, now });
+}
+
 /**
  * Update one run. Moving `latest` is limited to terminal success, which is what
  * keeps a failed run from displacing the previous package.
  */
 export function markRun({ root, slug, runId, status, artifacts, meta, now = new Date() } = {}) {
-  const clean = assertSafeSlug(slug);
-  const id = assertRunId(runId);
-  if (!Object.values(RUN_STATUS).includes(status)) {
-    throw new Error(`run history: unknown status ${JSON.stringify(status)}`);
+  if (status === undefined) {
+    throw new Error("run history: markRun needs a status (use updateRun for metadata only)");
   }
-  const manifest = readManifest(root, clean);
-  const entry = manifest.runs.find((run) => run.runId === id);
-  if (!entry) throw new Error(`run history: run ${id} is not in the manifest for ${clean}`);
-
-  entry.status = status;
-  entry.updatedAt = now.toISOString();
-  if (status !== RUN_STATUS.RUNNING && !entry.endedAt) entry.endedAt = now.toISOString();
-  if (isJsonObject(artifacts)) entry.artifacts = { ...(entry.artifacts ?? {}), ...artifacts };
-  if (isJsonObject(meta)) entry.meta = { ...(entry.meta ?? {}), ...meta };
-  writeManifest(root, clean, manifest);
+  const entry = patchRun({ root, slug, runId, status, artifacts, meta, now });
 
   if (SUCCESS_STATUSES.has(status)) {
-    writeJsonAtomic(latestFile(root, clean), {
-      runId: id,
+    writeJsonAtomic(latestFile(root, slug), {
+      runId: entry.runId,
       status,
       updatedAt: entry.updatedAt,
     });
@@ -251,4 +284,295 @@ export function hasRuns(root, slug) {
   return readdirSync(dir, { withFileTypes: true }).some(
     (entry) => entry.isDirectory() && RUN_ID_PATTERN.test(entry.name),
   );
+}
+
+// ─── Maintenance: footprint, listing, legacy migration, prune (#1432 S5) ───
+
+const SHARED_LEGACY_NAMES = new Set(["runs", "latest.json", "manifest.json", ".DS_Store"]);
+
+/**
+ * Recursive size of a run directory. Counted per file (a hardlinked TTS take
+ * counts at each link), which is the honest question for "how much can be
+ * reclaimed by deleting this tree".
+ */
+function runFootprint(dir) {
+  if (!dir || !existsSync(dir)) return { files: 0, bytes: 0 };
+  let files = 0;
+  let bytes = 0;
+  const walk = (current) => {
+    for (const dirent of readdirSync(current, { withFileTypes: true })) {
+      const full = join(current, dirent.name);
+      if (dirent.isDirectory()) {
+        walk(full);
+      } else if (dirent.isFile()) {
+        files += 1;
+        bytes += statSync(full).size;
+      }
+    }
+  };
+  walk(dir);
+  return { files, bytes };
+}
+
+function receiptSummary(root, slug, runId) {
+  const file = join(runDir(root, slug, runId), "publish", "receipt.json");
+  if (!existsSync(file)) return null;
+  const parsed = readJsonFile(file, "publish receipt");
+  return isJsonObject(parsed) ? parsed : null;
+}
+
+/**
+ * Operator view of every run in a slug (or every slug that has runs):
+ * status, footprint, latest flag, and publish receipt if one exists.
+ */
+export function listRuns({ root, slug = null } = {}) {
+  const slugs = [];
+  if (slug) {
+    slugs.push(assertSafeSlug(slug));
+  } else {
+    const outputRoot = containedPath(root, "output");
+    if (existsSync(outputRoot)) {
+      for (const dirent of readdirSync(outputRoot, { withFileTypes: true })) {
+        if (!dirent.isDirectory() || dirent.name.startsWith(".")) continue;
+        if (existsSync(manifestFile(root, dirent.name))) slugs.push(dirent.name);
+      }
+    }
+  }
+
+  const rows = [];
+  for (const clean of slugs) {
+    const manifest = readManifest(root, clean);
+    const latest = readLatest(root, clean);
+    for (const run of manifest.runs) {
+      const receipt = receiptSummary(root, clean, run.runId);
+      const footprint = runFootprint(runDir(root, clean, run.runId));
+      rows.push({
+        slug: clean,
+        runId: run.runId,
+        status: run.status,
+        createdAt: run.createdAt ?? null,
+        updatedAt: run.updatedAt ?? null,
+        latest: latest?.runId === run.runId,
+        receiptState: receipt?.state ?? null,
+        postGroupId: receipt?.postGroupId ?? null,
+        dir: runDir(root, clean, run.runId),
+        ...footprint,
+      });
+    }
+  }
+  rows.sort((a, b) => `${a.slug}:${a.createdAt}`.localeCompare(`${b.slug}:${b.createdAt}`));
+  return rows;
+}
+
+function collectTree(dir, prefix = "") {
+  const files = [];
+  let bytes = 0;
+  for (const dirent of readdirSync(dir, { withFileTypes: true })) {
+    if (dirent.name.startsWith(".")) continue;
+    const rel = prefix ? `${prefix}/${dirent.name}` : dirent.name;
+    const full = join(dir, dirent.name);
+    if (dirent.isDirectory()) {
+      const nested = collectTree(full, rel);
+      files.push(...nested.files);
+      bytes += nested.bytes;
+    } else if (dirent.isFile()) {
+      files.push(rel);
+      bytes += statSync(full).size;
+    }
+    // Symlinks are skipped deliberately: a legacy pack that links outside its
+    // own tree must not be adopted as a self-contained run.
+  }
+  return { files, bytes };
+}
+
+function linkOrCopy(source, target) {
+  mkdirSync(dirname(target), { recursive: true });
+  try {
+    linkSync(source, target);
+  } catch {
+    copyFileSync(source, target);
+  }
+}
+
+/**
+ * Adopt the legacy `output/<slug>/` tree as a run, without deleting the
+ * original and without touching shared caches beyond a hardlink. Dry-run is
+ * the default; `apply: true` is the explicit confirmation.
+ *
+ * The run id is derived from the legacy tree's mtime and real path, so the
+ * dry-run and the apply agree and a repeat call is idempotent rather than
+ * creating a second copy.
+ */
+export function migrateLegacyRun({ root, slug, apply = false, now = new Date() } = {}) {
+  const clean = assertSafeSlug(slug);
+  const legacyRoot = slugRoot(root, clean);
+  if (!existsSync(legacyRoot) || !statSync(legacyRoot).isDirectory()) {
+    return { action: "missing", slug: clean, legacyRoot };
+  }
+
+  const entries = readdirSync(legacyRoot, { withFileTypes: true })
+    .filter(
+      (dirent) =>
+        !SHARED_LEGACY_NAMES.has(dirent.name) &&
+        !dirent.name.startsWith(".") &&
+        (dirent.isDirectory() || dirent.isFile()),
+    )
+    .map((dirent) => {
+      const full = join(legacyRoot, dirent.name);
+      const tree = dirent.isDirectory()
+        ? collectTree(full, dirent.name)
+        : { files: [dirent.name], bytes: statSync(full).size };
+      return {
+        name: dirent.name,
+        kind: dirent.isDirectory() ? "dir" : "file",
+        files: tree.files.length,
+        bytes: tree.bytes,
+      };
+    });
+
+  const totals = entries.reduce(
+    (acc, entry) => ({ files: acc.files + entry.files, bytes: acc.bytes + entry.bytes }),
+    { files: 0, bytes: 0 },
+  );
+  if (entries.length === 0) {
+    return { action: "empty", slug: clean, legacyRoot };
+  }
+
+  const mtime = statSync(legacyRoot).mtime;
+  // The id must stay stable across the apply: creating runs/ inside the legacy
+  // root bumps its mtime, and a second call must find the same run rather than
+  // migrate a second copy. Birth time survives that write; mtime is the
+  // fallback on filesystems that do not record it.
+  const identityTime = statSync(legacyRoot).birthtimeMs || mtime.getTime();
+  const hash = createHash("sha1").update(realpathSync(legacyRoot)).digest("hex").slice(0, 6);
+  const id = generateRunId(new Date(identityTime), hash);
+  const manifest = readManifest(root, clean);
+  if (manifest.runs.some((run) => run.runId === id)) {
+    return { action: "already-migrated", slug: clean, runId: id, legacyRoot };
+  }
+  const target = runDir(root, clean, id);
+  if (existsSync(target)) {
+    // A crashed earlier attempt left a directory the manifest does not know.
+    // Refuse instead of writing a second, partial copy over it.
+    return {
+      action: "partial",
+      slug: clean,
+      runId: id,
+      legacyRoot,
+      dir: target,
+      message: `run directory exists but is not registered: ${target}`,
+    };
+  }
+
+  const plan = {
+    action: apply ? "migrated" : "would-migrate",
+    slug: clean,
+    legacyRoot,
+    runId: id,
+    dir: target,
+    entries,
+    ...totals,
+  };
+  if (!apply) return plan;
+
+  mkdirSync(target, { recursive: true });
+  for (const entry of entries) {
+    const source = join(legacyRoot, entry.name);
+    if (entry.kind === "dir") {
+      mkdirSync(join(target, entry.name), { recursive: true });
+      const collectFiles = (dir, prefix) => {
+        for (const dirent of readdirSync(dir, { withFileTypes: true })) {
+          if (dirent.name.startsWith(".")) continue;
+          const rel = prefix ? `${prefix}/${dirent.name}` : dirent.name;
+          const full = join(dir, dirent.name);
+          if (dirent.isDirectory()) {
+            mkdirSync(join(target, rel), { recursive: true });
+            collectFiles(full, rel);
+          } else if (dirent.isFile()) linkOrCopy(full, join(target, rel));
+        }
+      };
+      collectFiles(source, entry.name);
+    } else {
+      linkOrCopy(source, join(target, entry.name));
+    }
+  }
+
+  const createdAt = mtime.toISOString();
+  manifest.runs.push({
+    runId: id,
+    createdAt,
+    endedAt: createdAt,
+    status: RUN_STATUS.RENDERED,
+    legacy: true,
+    migratedAt: now.toISOString(),
+    migratedFrom: `output/${clean}`,
+  });
+  writeManifest(root, clean, manifest);
+  writeJsonAtomic(latestFile(root, clean), {
+    runId: id,
+    status: RUN_STATUS.RENDERED,
+    updatedAt: now.toISOString(),
+  });
+  return plan;
+}
+
+/**
+ * Delete one run, but only when nothing still points at it. The reference
+ * guards are the whole point: keep-all is the policy, and a prune that loses a
+ * published post's receipt or an analytics record is unrecoverable.
+ *
+ * Guards: latest pointer, in-flight (`running`), any publish receipt, any
+ * pending-analysis record carrying the runId, and an unknown target. Dry-run
+ * is the default; `apply: true` deletes.
+ */
+export function pruneRun({ root, slug, runId, apply = false } = {}) {
+  const clean = assertSafeSlug(slug);
+  const id = assertRunId(runId);
+  const manifest = readManifest(root, clean);
+  const entry = manifest.runs.find((run) => run.runId === id);
+  if (!entry) {
+    return {
+      action: "blocked",
+      slug: clean,
+      runId: id,
+      guards: [{ kind: "unknown-run", detail: `run ${id} is not in the manifest for ${clean}` }],
+    };
+  }
+
+  const guards = [];
+  const latest = readLatest(root, clean);
+  if (latest?.runId === id) {
+    guards.push({ kind: "latest", detail: `latest.json points at ${id}` });
+  }
+  if (entry.status === RUN_STATUS.RUNNING) {
+    guards.push({ kind: "running", detail: "run is still marked running (in-flight)" });
+  }
+  const receipt = receiptSummary(root, clean, id);
+  if (receipt) {
+    guards.push({
+      kind: "receipt",
+      detail: `publish receipt recorded (${receipt.state}${receipt.postGroupId ? `, ${receipt.postGroupId}` : ""})`,
+    });
+  }
+  const pending = listPendingAnalysis(root).filter((record) => record.record?.runId === id);
+  if (pending.length > 0) {
+    guards.push({
+      kind: "pending-analysis",
+      detail: `referenced by ${pending.map((record) => record.path).join(", ")}`,
+    });
+  }
+
+  const dir = runDir(root, clean, id);
+  const footprint = runFootprint(dir);
+  if (guards.length > 0) {
+    return { action: "blocked", slug: clean, runId: id, guards, dir, ...footprint };
+  }
+  if (!apply) {
+    return { action: "would-delete", slug: clean, runId: id, guards: [], dir, ...footprint };
+  }
+
+  rmSync(dir, { recursive: true, force: true });
+  manifest.runs = manifest.runs.filter((run) => run.runId !== id);
+  writeManifest(root, clean, manifest);
+  return { action: "deleted", slug: clean, runId: id, dir, ...footprint };
 }

@@ -735,6 +735,22 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 发布步骤运行时，`manual-guide` 档在生成发布指南时写入 `content/{slug}/pending-analysis.json`（`publishedAt` 取指南生成时刻，为真实发布时间的最佳估计；`postGroupId` 为 null），`api` 档在排期成功后写入同一位置；没有 `--slug`/`--content` 的 standalone 发布继续写 legacy `output/pending-analysis.json`。**`cdp` 草稿档不写**：草稿没有 `publishedAt`，按存草稿时刻起算 48h 会给一个可能永远不会公开的帖子启动 Analytics 提醒（#1181）。用户人工公开后，若要启用 48h 提醒，按 `manual-guide` 流程生成一次指南，或手工补记该文件。Analytics 是独立工作流，见 `docs/analytics-workflow.md`。
 
+> **run 绑定与回执（#1432 S4/S5，2026-11-19）**：发布产物按 run 隔离，回执写在 run 内而不是 slug 根。
+>
+> - **布局**：`output/<slug>/runs/<runId>/publish/{platform}/` 放 caption/metadata/pinned-comment；`output/<slug>/runs/<runId>/publish/receipt.json` 放本次发布尝试的回执（`runId`、`publishMethod`、`state`、`postGroupId`、`publishedAt`）。`pending-analysis.json` 仍是每 slug 一条活动记录，但新增 `runId` 字段；同 slug 两次 run 的 `postGroupId` 不会再互相覆盖——回执按 run 留档。
+> - **发布命令**：`tiktok-upload-prep.mjs` / `publish-tiktok.mjs` 均接受 `--run <runId>`；不传时按 `--video` 路径里的 `runs/<runId>/` 自动推断，再退到 `latest`。从旧 run 拷出的成片不会错配新 run 的 caption。
+> - **回执状态**：`manual-guide` → `guide`；`cdp` 存草稿 → `draft`，保留编辑器 → `prepared`；Publora `--auto` → `draft` / `scheduled` / `published`。只有 `api` 的 `published` 会把 run 状态推进到 `published` 并移动 `latest`；指南/草稿不改变渲染状态。
+> - **审计与维护**（默认 dry-run，`--apply` 才写）：
+>
+> ```bash
+> node scripts/short-video/run-history.mjs list --slug <slug>
+> node scripts/short-video/run-history.mjs receipts --slug <slug>
+> node scripts/short-video/run-history.mjs migrate --slug <slug> --apply   # 把 legacy output/<slug>/ 采纳为 run（硬链接，原树保留）
+> node scripts/short-video/run-history.mjs prune --slug <slug> --run <runId> --apply
+> ```
+>
+> - **prune 保护**：`latest` 指向、`status=running`、存在任意发布回执、被 `pending-analysis` 的 `runId` 引用、目标 run 不在 manifest —— 任一命中即拒绝删除。策略是 keep-all，prune 只做显式清理。
+
 > **真机农场研究的归属（#1186，2026-11-13）**：`Git-Agni/prod-FARM-IOS-Core`（Apache-2.0）与 `gethandler.ai/tiktok-iphone-farm` 的三条做法里，PC 网页发布路径承接第一条，另两条属真机 App 路径。
 >
 > **幂等已实现**：`resolveUploadPrepAction()` 是终止动作的单一契约（存草稿 / 交给操作者），草稿未确认时脚本要求先查 Studio Drafts 再重跑；改发布链时沿用这条 at-most-once 语义，见 `tiktok-upload-prep.mjs:2257` 的 `pollFor(DRAFT_STATE)`。
