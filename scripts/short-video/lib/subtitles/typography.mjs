@@ -22,11 +22,6 @@ function chars(text) {
   return [...String(text ?? "")];
 }
 
-/** Does this text contain a script written without word spaces? */
-export function isCjkText(text) {
-  return chars(text).some((ch) => CJK_CHAR.test(ch));
-}
-
 function needsSpace(previous, next) {
   const last = chars(previous).pop() ?? "";
   const first = chars(next)[0] ?? "";
