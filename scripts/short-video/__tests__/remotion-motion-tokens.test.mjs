@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
+import { BRAND_FONT_STACK } from "../lib/safe-zones.mjs";
 import {
   COLOR,
   TYPE,
@@ -37,8 +38,11 @@ describe("colour and type tokens", () => {
 
   it("pins the video surface to the pipeline's single brand font stack", () => {
     // BRAND_FONT_STACK (lib/safe-zones.mjs) is the established video face;
-    // the token layer must not introduce a second family.
-    expect(TYPE.family).toBe("'Times New Roman', Times, serif");
+    // the token layer must not introduce a second family, so the two strings
+    // are the same string. #1466 appended CJK families to the stack — the
+    // invariant is identity, not a frozen literal, because the face list is
+    // allowed to grow and a second family is what this test is guarding.
+    expect(TYPE.family).toBe(BRAND_FONT_STACK);
   });
 });
 

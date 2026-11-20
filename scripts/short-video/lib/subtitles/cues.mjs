@@ -19,6 +19,7 @@ import { FPS, sceneTimeline, findScene } from "../timeline.mjs";
 import { SUBTITLE_LANE } from "../safe-zones.mjs";
 import { measureWidth } from "./measure.mjs";
 import { isSentenceEnd, isClauseBreak } from "./boundaries.mjs";
+import { joinTokens } from "./typography.mjs";
 
 /** Maximum words per cue — beyond this the karaoke sweep is too fast to track. */
 export const MAX_WORDS = 6;
@@ -61,10 +62,15 @@ const ONE_FRAME = 1 / FPS;
  * @returns {string}
  */
 function joinWords(words) {
-  return words
-    .map((w) => w.text)
-    .join(" ")
-    .replace(/\s+([,.;:!?])/g, "$1");
+  return joinTokens(words.map((w) => w.text));
+}
+
+/** Closing punctuation that may sit after a sentence terminator ("KPIs."). */
+const CLOSING_PUNCT = /["'”’)\]】」』）]$/;
+
+/** Strip one trailing closing bracket/quote so `isSentenceEnd` sees the terminator. */
+function withoutClosingQuote(text) {
+  return String(text ?? "").replace(CLOSING_PUNCT, "");
 }
 
 function makeChunk(words) {
@@ -105,7 +111,8 @@ function mergeTrailingOrphan(chunks) {
   // A sentence-final word belongs to the page whose sentence it ends (the same
   // rule `lastClauseSplit` follows), so it never crosses the break — a short
   // orphan page is the lesser cost.
-  if (/[.!?]["'”’)]?$/.test(carried.text)) return chunks;
+  if (/[.!?]["'”’)]?$/.test(carried.text) || isSentenceEnd(withoutClosingQuote(carried.text)))
+    return chunks;
   const rebPrev = prev.words.slice(0, -1);
   const rebLast = [carried, ...last.words];
   if (measureWidth(joinWords(rebLast)) > HARD_PX) return chunks;
@@ -284,7 +291,7 @@ function canMerge(a, b) {
   if ((a.words.length === 0) !== (b.words.length === 0)) return false;
   const words = [...a.words, ...b.words];
   // Text-only segments carry no word timings: they can only share one line.
-  if (words.length === 0) return measureWidth(`${a.text} ${b.text}`) <= HARD_PX;
+  if (words.length === 0) return measureWidth(joinTokens([a.text, b.text])) <= HARD_PX;
   if (words.length > MAX_MERGE_WORDS) return false;
   if (measureWidth(joinWords(words)) <= HARD_PX) return true;
   return planLineBreak(words) !== null;
@@ -292,7 +299,7 @@ function canMerge(a, b) {
 
 function mergeCues(a, b) {
   const words = [...a.words, ...b.words];
-  const text = words.length > 0 ? joinWords(words) : `${a.text} ${b.text}`;
+  const text = words.length > 0 ? joinWords(words) : joinTokens([a.text, b.text]);
   const lineBreak =
     words.length > 0 && measureWidth(text) > HARD_PX ? planLineBreak(words) : undefined;
   return {

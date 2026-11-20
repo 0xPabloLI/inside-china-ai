@@ -256,6 +256,28 @@ describe("chunkWords", () => {
   it("returns nothing for an empty word list", () => {
     expect(chunkWords([])).toEqual([]);
   });
+
+  // #1466 — the alignment tokens for a Chinese scene are CJK, but the cue
+  // builder was written against whitespace-separated English words. Joining
+  // every token with a space turns 中文 into 「中 文」.
+  it("joins consecutive CJK tokens without spaces", () => {
+    const input = words(["阿里"], ["发布"], ["Qwen4"]);
+    const [chunk] = chunkWords(input);
+    expect(chunk.text).toBe("阿里发布Qwen4");
+    expect(chunk.words.map((w) => w.text)).toEqual(["阿里", "发布", "Qwen4"]);
+  });
+
+  it("does not leave a space before CJK punctuation", () => {
+    const input = words(["成本"], ["下降"], ["62%。"]);
+    const [chunk] = chunkWords(input);
+    expect(chunk.text).toBe("成本下降62%。");
+  });
+
+  it("keeps Latin words spaced apart", () => {
+    const input = words(["cost"], ["down"], ["62%."]);
+    const [chunk] = chunkWords(input);
+    expect(chunk.text).toBe("cost down 62%.");
+  });
 });
 
 describe("buildCues", () => {

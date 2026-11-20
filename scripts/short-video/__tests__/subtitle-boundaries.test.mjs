@@ -47,6 +47,15 @@ describe("isSentenceEnd", () => {
     expect(isSentenceEnd("")).toBe(false);
     expect(isSentenceEnd(undefined)).toBe(false);
   });
+
+  // #1466 — Chinese sentence terminators were never in the predicate, so a
+  // Chinese sentence only broke when the word budget ran out.
+  it("ends a sentence on CJK terminators", () => {
+    expect(isSentenceEnd("下降了。")).toBe(true);
+    expect(isSentenceEnd("真的吗？")).toBe(true);
+    expect(isSentenceEnd("停下！")).toBe(true);
+    expect(isSentenceEnd("然后……")).toBe(true);
+  });
 });
 
 describe("isClauseBreak", () => {
@@ -63,5 +72,12 @@ describe("isClauseBreak", () => {
   it("does not treat a plain word as a clause boundary", () => {
     expect(isClauseBreak("denoising")).toBe(false);
     expect(isClauseBreak("")).toBe(false);
+  });
+
+  it("recognises CJK clause punctuation", () => {
+    expect(isClauseBreak("下降，")).toBe(true);
+    expect(isClauseBreak("成本；")).toBe(true);
+    expect(isClauseBreak("结论：")).toBe(true);
+    expect(isClauseBreak("第一、")).toBe(true);
   });
 });

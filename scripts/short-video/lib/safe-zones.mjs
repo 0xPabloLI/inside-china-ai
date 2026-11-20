@@ -531,8 +531,14 @@ export const WATERMARK_POS = { top: 60, left: 60 };
  * module because the render root and the gate verifiers both consume it,
  * and the Remotion bundler must not pull in node-only modules (the retired
  * HTML templates read the brand SVG via fs).
+ *
+ * #1466: CJK families are appended AFTER the Latin ones. English text keeps
+ * resolving to Times New Roman exactly as before; Chinese text now names a
+ * face instead of falling through to whatever the platform picks, so the Node
+ * width gate and headless Chrome measure the same glyphs.
  */
-export const BRAND_FONT_STACK = "'Times New Roman', Times, serif";
+export const BRAND_FONT_STACK =
+  "'Times New Roman', Times, serif, 'PingFang SC', 'Hiragino Sans GB', 'Heiti SC', 'Noto Sans CJK SC', sans-serif";
 
 // ─── Avatar foreground card (#214, spec Implementation Decision 2) ───
 

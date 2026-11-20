@@ -16,6 +16,7 @@
  */
 
 import { findRunAt, normWord, orderReplacements } from "./dual-track.mjs";
+import { joinTokens } from "./typography.mjs";
 
 /**
  * Length of the longest suffix of `run` that is also a prefix of `original`.
@@ -112,10 +113,7 @@ export function restoreTimingTokens(timingData, scenes) {
         // replacement — emit an empty segment so no spoken word leaks through.
         return { ...seg, text: "", words: [] };
       }
-      const text = words
-        .map((w) => w.text)
-        .join(" ")
-        .replace(/\s+([,.;:!?])/g, "$1");
+      const text = joinTokens(words.map((w) => w.text));
       return { ...seg, text, words };
     });
   }
