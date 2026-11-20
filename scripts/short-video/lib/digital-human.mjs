@@ -675,7 +675,7 @@ export function writePlanFile(planPath, plan) {
  * Absolute path of the avatar-decision record: output/{pipelineId}/
  * avatar-decision.json.
  */
-export function avatarDecisionPathFor(outputRoot, pipelineId) {
+function avatarDecisionPathFor(outputRoot, pipelineId) {
   return join(outputRoot, pipelineId, DECISION_FILE_NAME);
 }
 
@@ -688,7 +688,7 @@ export function avatarDecisionPathFor(outputRoot, pipelineId) {
  * @param {{choice: "use"|"skip", reason?: string|null, now?: Date}} decision
  * @returns {{decisionPath: string, decision: object}}
  */
-export function writeAvatarDecisionFile(
+function writeAvatarDecisionFile(
   { outputRoot, pipelineId },
   { choice, reason = null, now = new Date() } = {},
 ) {
