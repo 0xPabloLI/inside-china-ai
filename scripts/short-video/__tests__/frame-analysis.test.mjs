@@ -19,7 +19,7 @@ import {
   SAMPLE_STEP,
   BLACK_THRESHOLD,
 } from "../lib/frame-analysis.mjs";
-import { SAFE_ZONES, CANVAS } from "../lib/safe-zones.mjs";
+import { SAFE_ZONES, CANVAS, SUBTITLE_LANE_TOP } from "../lib/safe-zones.mjs";
 
 // ─── Helpers: construct synthetic PixelBuffers ───
 
@@ -276,12 +276,14 @@ describe("checkSafeZoneBottom", () => {
     expect(result.level).toBe("pass");
   });
 
-  it("fails when content present in bottom gap (y 1298-1328)", () => {
+  it("fails when content present in the content-to-lane gap", () => {
+    // Derived from the constants so the fixture can never sit outside the band
+    // it is meant to test (#230 moved the band from y 1298-1328 to 1206-1236).
     const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
       xStart: 100,
       xEnd: 800,
-      yStart: 1299,
-      yEnd: 1327,
+      yStart: CANVAS.height - SAFE_ZONES.bottom + 1,
+      yEnd: SUBTITLE_LANE_TOP - 1,
     });
     const result = checkSafeZoneBottom(buf, SAFE_ZONES);
     expect(result.level).toBe("fail");
@@ -532,7 +534,7 @@ describe("checkFinalFrameHasContent", () => {
   });
 
   it("FAILS when only the subtitle lane has content (tail with captions)", () => {
-    // Subtitles live at y 1328-1420, outside the content area (≤1298).
+    // Subtitles live in the lane below the content area (#230: y 1236-1420).
     const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
       xStart: 200,
       xEnd: 880,

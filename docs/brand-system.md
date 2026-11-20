@@ -134,13 +134,13 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Position           | Bottom-center (Alignment=2), in the lower third below the content band                                    |
 | Margin from bottom | 500px (cue bottom edge y=1420, 256px above the measured TikTok caption top)                               |
 | Margins L/R        | 110/250 (left-shifted to match content band center; cue right edge x=830, clears the action rail by 50px) |
-| Max lines          | 1 (`SUBTITLE_LANE.maxLines`; a wrapping cue FAILS the run, it does not share the lane)                    |
+| Max lines          | 2 (`SUBTITLE_LANE.maxLines`; a *third* line FAILS the run — a two-line cue is a rescue merge, not a licence) |
 | Background         | None (transparent, text outline only)                                                                     |
 | Style              | Karaoke `\kt` + `\kf` (word-by-word highlight, absolute per-word anchors)                                 |
 | Timing             | wav2vec2 forced alignment (`text-align.py`), per-word timestamps                                          |
 | Generation         | `lib/subtitles/` (JS, see docs/video-production-runbook.md)                                               |
 
-Subtitle values have two single sources: the **look** (karaoke colour pair, family/weight, outline/shadow, glyph spacing) lives in `SUBTITLE_STYLE` (`scripts/short-video/lib/subtitles/style-tokens.mjs`), and **position/size** (font size, bottom-centre alignment, the three margins) lives in `SUBTITLE_LANE` (`scripts/short-video/lib/safe-zones.mjs`). The two palette hexes are declared once in `scripts/short-video/lib/video-palette.mjs`, which the composition's `COLOR` also imports. `lib/subtitles/ass.mjs` only serialises them — never hardcode either. The subtitle lane (y=1328–1420) is structurally separated from the content band (ends y=1298), so burned subtitles can never overlap scene content.
+Subtitle values have two single sources: the **look** (karaoke colour pair, family/weight, outline/shadow, glyph spacing) lives in `SUBTITLE_STYLE` (`scripts/short-video/lib/subtitles/style-tokens.mjs`), and **position/size** (font size, bottom-centre alignment, the three margins) lives in `SUBTITLE_LANE` (`scripts/short-video/lib/safe-zones.mjs`). The two palette hexes are declared once in `scripts/short-video/lib/video-palette.mjs`, which the composition's `COLOR` also imports. `lib/subtitles/ass.mjs` only serialises them — never hardcode either. The subtitle lane (y=1236–1420, two lines reserved since `#230`) is structurally separated from the content band (ends y=1206), so burned subtitles never overlap scene text; a wrapped cue may sit over full-bleed media, which is why the lane is filled with an outline rather than a panel.
 
 ASS Style line (pinned by `scripts/short-video/__tests__/subtitle-tokens.test.mjs`):
 
@@ -262,10 +262,10 @@ Calibrated against real FYP playback screenshots cross-checked with 2026 researc
 | ------ | ---------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------- |
 | Top    | 220                          | y ≥ 220      | Below this: top tabs/search overlays stay clear. Brand chrome (brandBar top:236) is exempt.                    |
 | Right  | 200                          | x ≤ 880      | Right action rail (avatar/like/comment/save/share/music, y≈655–1775). brandBar right:200 matches.             |
-| Bottom | 622                          | y ≤ 1298     | Bottom UI: caption, progress bar; also clears the subtitle lane                                               |
+| Bottom | 714                          | y ≤ 1206     | Bottom UI: caption, progress bar; also clears the subtitle lane (two lines since `#230`)                      |
 | Left   | 60                           | x ≥ 60       | Left margin (no overlay, but content breathes here)                                                           |
 
-Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1298]**. The subtitle lane sits below it (y=1328–1420, left-shifted to x∈[110,830]); the TikTok caption UI starts at the measured y≈1676.
+Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1206]**. The subtitle lane sits below it (y=1236–1420, two lines, left-shifted to x∈[110,830]); the TikTok caption UI starts at the measured y≈1676.
 
 Enforcement semantics (top / bottom band crossing → FAIL; right band crossing x > 880 → FAIL when the element's bottom is inside the action rail y > 640, WARN above it) are implemented by TextGate/text-geometry on the Remotion side.
 
@@ -280,14 +280,14 @@ and the frame-analysis exempt region remain as geometry constants only.
 
 ### Bottom Elements Strategy
 
-- **No content anchor below y = 1298** (`1920 − SAFE_ZONES.bottom`). Critical copy, numbers, CTAs, and labels must sit above it, clear of the subtitle lane.
+- **No content anchor below y = 1206** (`1920 − SAFE_ZONES.bottom`). Critical copy, numbers, CTAs, and labels must sit above it, clear of the subtitle lane.
 - If a scene has a bottom slot, use the shared fade-to-black (Remotion 场景组件的共享渐隐) — not a local footer element.
 
 ## Scene Layout Templates
 
 9 layout patterns for **1080×1920 vertical mobile video** scenes. CSS-animated, timed to TTS duration. All scenes must be 9:16 — never horizontal.
 
-> **Slot system (mandatory).** Every scene composes its content into fixed vertical slots — never a hand-rolled full-screen `flex` with `justify-content: space-between` (that pattern stretched scenes into three islands with dead space and pushed content into the subtitle lane). Remotion scenes use `<Slot>` from `remotion/src/components/visuals.tsx`; the default split is `kicker` 220–400, `hero` 400–950, `support` 950–1298. Slot edges derive from `SAFE_ZONES`, so a scene either fits the grid or TextGate refuses to ship it.
+> **Slot system (mandatory).** Every scene composes its content into fixed vertical slots — never a hand-rolled full-screen `flex` with `justify-content: space-between` (that pattern stretched scenes into three islands with dead space and pushed content into the subtitle lane). Remotion scenes use `<Slot>` from `remotion/src/components/visuals.tsx`; the default split is `kicker` 220–400, `hero` 400–950, `support` 950–1206. Slot edges derive from `SAFE_ZONES`, so a scene either fits the grid or TextGate refuses to ship it.
 >
 > A template whose own content needs a different split overrides the band's `top`/`height` in the scene component — `HOOK_BANDS` in `HookScene.tsx`, the hero/support pair in `CtaScene.tsx`, and `ContrastScene.tsx`'s single full-safe-zone band. Bands must stay inside `SAFE_ZONES` and stay contiguous; `lib/scene-layout.mjs` still carries the original HTML-path split for the retired `sceneFrame()` and is not the live source.
 
@@ -307,7 +307,7 @@ hero   (298–840)     [subject]  optional logo 96px + name 64px/900
                                      + numberLabel (highlight wraps .hl)
                        B claim-led:  hookText (frame-1, no delay)
                                      + revealText (1.5s stampIn payoff)
-support (840–1298)   [stats]    optional stat cards (staggered 1.3s+)
+support (840–1150)   [stats]    optional stat cards (staggered 1.3s+)
                      [source]   optional source line (2.1s)
 ```
 
@@ -406,7 +406,7 @@ Numbered analysis cards.
 Brand closer — the single shared CtaScene component (`remotion/src/scenes/CtaScene.tsx`), routed through the slot system. No URL (testing phase).
 
 - **Hero slot (335–885)**: brand logo (160×104 `CanvasImage` box) → brand name `CHINA AI NEWS` (72px, 900, "AI" in blue) → tagline `CHINA AI, DECODED` (48px, sec)
-- **Support slot (885–1298)**: action stamp `FOLLOW FOR MORE →` (amber stampBox) → optional series `topic` teaser
+- **Support slot (885–1150)**: action stamp `FOLLOW FOR MORE →` (amber stampBox) → optional series `topic` teaser
 - Fade-to-black at end (0.8s before duration ends)
 
 ## Implementation

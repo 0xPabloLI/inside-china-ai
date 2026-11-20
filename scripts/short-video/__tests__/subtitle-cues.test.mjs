@@ -484,6 +484,90 @@ describe("buildCues", () => {
     expect(cues).toHaveLength(1);
     expect(cues[0].words.map((w) => w.text)).toEqual(["Go", "now.", "Right", "here."]);
     expect(cues[0].end - cues[0].start).toBeGreaterThanOrEqual(0.8);
+    // This pair fits one line, so it carries no line break.
+    expect(cues[0].lineBreak).toBeUndefined();
+  });
+
+  it("merges a crowded pair across two lines when one line cannot hold it", () => {
+    // Merged text measures 1035px: past the 720px single line, inside two.
+    // A 4/2 split measures 480px / 537px — both legal, so the pair merges and
+    // records where the second line starts instead of flashing a 0.55s page.
+    const timing = [
+      {
+        sceneId: 1,
+        segments: [
+          {
+            text: "The trick is the",
+            start: 1.0,
+            end: 1.55,
+            words: words(
+              ["The", 1.0, 1.12],
+              ["trick", 1.12, 1.28],
+              ["is", 1.28, 1.4],
+              ["the", 1.4, 1.55],
+            ),
+          },
+          {
+            text: "layers compress",
+            start: 1.62,
+            end: 2.1,
+            words: words(["layers", 1.62, 1.85], ["compress", 1.85, 2.1]),
+          },
+        ],
+      },
+    ];
+    const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
+    expect(cues).toHaveLength(1);
+    expect(cues[0].words.map((w) => w.text)).toEqual([
+      "The",
+      "trick",
+      "is",
+      "the",
+      "layers",
+      "compress",
+    ]);
+    expect(cues[0].lineBreak).toBe(4);
+    expect(cues[0].end - cues[0].start).toBeGreaterThanOrEqual(0.8);
+    expect(measureWidth("The trick is the")).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
+    expect(measureWidth("layers compress")).toBeLessThanOrEqual(SUBTITLE_LANE.maxWidth);
+  });
+
+  it("leaves a crowded pair alone when the merge would exceed the word budget", () => {
+    // 5 + 4 words = 9: a two-line page would ask the viewer to read nine words
+    // in the same window, so the pair stays two pages.
+    const timing = [
+      {
+        sceneId: 1,
+        segments: [
+          {
+            text: "one two three four go",
+            start: 1.0,
+            end: 1.7,
+            words: words(
+              ["one", 1.0, 1.1],
+              ["two", 1.1, 1.25],
+              ["three", 1.25, 1.4],
+              ["four", 1.4, 1.55],
+              ["go", 1.55, 1.7],
+            ),
+          },
+          {
+            text: "five six seven eight",
+            start: 1.75,
+            end: 2.2,
+            words: words(
+              ["five", 1.75, 1.85],
+              ["six", 1.85, 1.95],
+              ["seven", 1.95, 2.1],
+              ["eight", 2.1, 2.2],
+            ),
+          },
+        ],
+      },
+    ];
+    const cues = buildCues(timing, [{ sceneId: 1, duration: 10.0 }]);
+    expect(cues).toHaveLength(2);
+    expect(cues.every((c) => c.lineBreak === undefined)).toBe(true);
   });
 
   it("throws when a scene has alignment data but no recorded duration", () => {

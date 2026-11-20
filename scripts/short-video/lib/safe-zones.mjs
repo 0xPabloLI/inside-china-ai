@@ -57,13 +57,18 @@ export const SAFE_ZONES = {
    * only grows upward; the 11px comes out of the content band rather than out
    * of the gap or the platform's caption zone.
    *
+   * 622 → 714 (#230, 2026-11-20): the lane reserves two lines again (92 →
+   * 184px) so a cue that cannot hold 0.8s on one line can merge with its
+   * neighbour instead of flashing. The extra 92px comes out of the content
+   * band, same as the 11px above, and the 30px gap is kept unchanged.
+   *
    * Everything below this line is reservation, not picture:
-   *   30px  declared content → lane gap        (1298 → 1328)
-   *   92px  the lane's full reservation         (1328 → 1420)
-   *   500px the lane's bottom offset, marginV   (1420 → 1920)
-   * 30 + 92 + 500 = 622.
+   *   30px  declared content → lane gap        (1206 → 1236)
+   *  184px  the lane's full reservation         (1236 → 1420)
+   *  500px the lane's bottom offset, marginV    (1420 → 1920)
+   * 30 + 184 + 500 = 714.
    */
-  bottom: 622,
+  bottom: 714,
   /** Content must stay at least this many px from the left edge */
   left: 60,
 };
@@ -223,26 +228,22 @@ export const SUBTITLE_LANE = {
   /**
    * Reserved line count.
    *
-   * 2 → 1 on 2026-10-29. This is NOT a subtitle change — the cue is
-   * bottom-anchored at `marginV`, so `maxLines` moves nothing on screen. What
-   * it moves is SUBTITLE_LANE_TOP, and therefore how low the CONTENT band is
-   * allowed to reach: 1258 → 1339, i.e. 81px the content stack can claim.
-   * (That ceiling is 1328 since 2026-11-11, when #1228's 68px cue grew the lane
-   * to 92px.)
+   * 2 → 1 on 2026-10-29; 1 → 2 on 2026-11-20 (#230).
    *
-   * The 2-line reservation is a worst-case guard, and it costs every scene that
-   * never wraps. This pack has 46 cues and ZERO `\N` breaks — the reserved
-   * second line has never rendered once. Dropping to 1 spends a guarantee the
-   * video does not use on the composition the user actually asked for.
+   * The 2026-10-29 pass dropped the reservation because no pack had ever
+   * rendered a `\N` and the 81px went back to the content band. #230 then
+   * measured six real packs: 12–23 cues per pack sit under the 0.8s readable
+   * floor, and every one of those pairs is a *crowded* pair — the next cue
+   * arrives before this one can hold 0.8s. No such pair fits one 720px line
+   * (0 of 6 packs), while every one of them fits two. So the second line is
+   * spent where it was never spent before: on rescue merges.
    *
-   * Guarded, not just documented: `enforceSubtitleCompliance` reads this value
-   * (via `maxLines: SUBTITLE_LANE.maxLines`) and throws on a `lines` violation
-   * in EVERY mode, not only `fail`. So a cue that wraps fails the run instead of
-   * silently rendering upward from the bottom anchor to y 1258, inside the
-   * content band — ASS does not clip to this box, so the overlap would ship.
-   * A pack that genuinely needs two lines moves this to 2 and the gate follows.
+   * The switch is not just a style constant: SUBTITLE_LANE_TOP moves with it
+   * (1328 → 1236) and SAFE_ZONES.bottom follows (622 → 714), so the content
+   * band gives back exactly the lane's 92px. The gate reads this value via
+   * `maxLines`, so a cue that wraps to a third line still fails the run.
    */
-  maxLines: 1,
+  maxLines: 2,
   /** Per-line height factor (font ascent/descent + safety) */
   lineHeight: 1.35,
   /** Max single-line cue width in px */
