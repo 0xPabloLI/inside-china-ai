@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.3...tanstack_start_ts-v1.94.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* **short-video:** drop dead text keys and name the real gate error ([#1463](https://github.com/0xPabloLI/inside-china-ai/issues/1463)) ([#1464](https://github.com/0xPabloLI/inside-china-ai/issues/1464)) ([e2ab892](https://github.com/0xPabloLI/inside-china-ai/commit/e2ab89263f7b38d795452d56ed7289e346adae92))
+
 ## [1.94.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.2...tanstack_start_ts-v1.94.3) (2026-11-20)
 
 
