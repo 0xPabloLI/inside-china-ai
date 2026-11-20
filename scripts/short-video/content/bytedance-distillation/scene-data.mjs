@@ -14,6 +14,7 @@
  */
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -79,7 +80,6 @@ export const scenes = [
       "Zhang said: We can accept being temporarily behind, but do not distill. Not from closed models. Not from open ones either.",
     texts: {
       quote: "ACCEPT BEING BEHIND. DO NOT DISTILL.",
-      speaker: "Zhang Yiming",
       source: "VIA GUIXINREN REPORT",
     },
   },
@@ -125,9 +125,7 @@ export const scenes = [
     texts: {
       title: "SAME DAY, AUG 6",
       left: "DeepSeek",
-      leftAction: "RAISES API PRICES",
       right: "ByteDance",
-      rightAction: "BANS THE SHORTCUT",
       vs: "VS",
     },
   },

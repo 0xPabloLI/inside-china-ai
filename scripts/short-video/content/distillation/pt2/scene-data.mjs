@@ -17,6 +17,7 @@ export const seriesMeta = {
 };
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -98,10 +99,7 @@ export const scenes = [
     visualType: "hook",
     voiceover:
       "A White House official stated China's K3 clones US tech. Microsoft and Nvidia C-E-Os backed Moonshot.",
-    texts: {
-      line1: "WHITE HOUSE:",
-      line2: "CLONING US TECH",
-    },
+    texts: {},
   },
   {
     id: 8,

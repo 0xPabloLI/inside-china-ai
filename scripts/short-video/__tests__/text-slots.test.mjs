@@ -672,9 +672,9 @@ describe("hook media-led layout contract (2026-11-15)", () => {
         hookText: "SOME CLAIM",
         subject: "X",
       }),
-    ).toThrow(/hook\.media-led\.hookText has no measured maxWidth/);
-    // stats has no SLOT_FIELDS entry at all — the plain "Unknown text field"
-    // registration error, not the width one.
+    ).toThrow(/Unknown text field "hookText" .* does not render it/);
+    // stats has no SLOT_FIELDS entry at all — the plain registration error,
+    // not the per-layout "does not render it" one.
     expect(() =>
       assertKnownTextFields("hook", "media-led", {
         subject: "X",
