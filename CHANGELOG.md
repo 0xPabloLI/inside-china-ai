@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.2...tanstack_start_ts-v1.94.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **short-video:** survive a silent track and retire dead text keys ([#1460](https://github.com/0xPabloLI/inside-china-ai/issues/1460)) ([#1461](https://github.com/0xPabloLI/inside-china-ai/issues/1461)) ([acdd0bd](https://github.com/0xPabloLI/inside-china-ai/commit/acdd0bd9a66dfddbed0f29e3166fe9710ea25cd3))
+
 ## [1.94.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.1...tanstack_start_ts-v1.94.2) (2026-11-20)
 
 
