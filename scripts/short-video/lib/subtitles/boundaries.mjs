@@ -19,7 +19,7 @@
  * a period is a sentence end far more often than "No. 5" is.
  */
 
-const STRONG_END = /[!?]$/;
+const STRONG_END = /[!?。！？…]$/;
 const PERIOD = /\.$/;
 
 /** Abbreviations whose trailing period does not end a sentence. */
@@ -74,9 +74,11 @@ export function isSentenceEnd(text) {
 /**
  * May the line break after this token?
  *
- * Clause punctuation (`,` `;` `:`) and sentence terminators all qualify; the
- * splitter uses this to back off to the nearest clause boundary when a limit
- * forces a break, instead of cutting mid-phrase.
+ * Clause punctuation (`,` `;` `:` and the CJK forms `，` `；` `：` `、`) and
+ * sentence terminators all qualify; the splitter uses this to back off to the
+ * nearest clause boundary when a limit forces a break, instead of cutting
+ * mid-phrase. CJK punctuation was added in #1466 — Chinese text had no
+ * recognised break at all and only ever split when the word budget ran out.
  *
  * @param {string} text
  * @returns {boolean}
@@ -84,5 +86,5 @@ export function isSentenceEnd(text) {
 export function isClauseBreak(text) {
   const token = String(text ?? "").trim();
   if (!token) return false;
-  return /[,;:]$/.test(token) || PERIOD.test(token) || STRONG_END.test(token);
+  return /[,;:，；：、]$/.test(token) || PERIOD.test(token) || STRONG_END.test(token);
 }

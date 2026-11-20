@@ -10,6 +10,7 @@ import {
   MEDIA_BOTTOM_BAR,
   MEDIA_BAND,
   BRAND_BAR,
+  BRAND_FONT_STACK,
   scrimGradient,
   RAIL_VIGNETTE,
   railVignetteGradient,
@@ -344,5 +345,18 @@ describe("railVignetteGradient", () => {
     expect(RAIL_VIGNETTE.alpha).toBe(MEDIA_BAND.vignetteAlpha);
     const custom = parseRight(railVignetteGradient(0.9));
     expect(custom[custom.length - 1].alpha).toBeCloseTo(0.9, 3);
+  });
+});
+
+// #1466 — Chinese scene text fell through to the system fallback family, which
+// Node canvas (the width gate) and headless Chrome (Remotion) need not resolve
+// to the same face. The brand stack now names CJK families explicitly, after
+// the Latin ones so English text keeps resolving to Times New Roman first.
+describe("brand font stack (CJK)", () => {
+  it("keeps the Latin face first and appends CJK families", () => {
+    expect(BRAND_FONT_STACK.startsWith("'Times New Roman'")).toBe(true);
+    for (const family of ["PingFang SC", "Hiragino Sans GB", "Heiti SC", "Noto Sans CJK SC"]) {
+      expect(BRAND_FONT_STACK).toContain(family);
+    }
   });
 });
