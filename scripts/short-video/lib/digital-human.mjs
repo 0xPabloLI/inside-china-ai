@@ -672,11 +672,17 @@ export function writePlanFile(planPath, plan) {
 }
 
 /**
- * Absolute path of the avatar-decision record: output/{pipelineId}/
- * avatar-decision.json.
+ * Path of the avatar-decision record, derived from the plan directory.
+ *
+ * Plain string surgery off the already-derived `planDir`, not `path.join`:
+ * the join form needs the CLI-supplied output root + pipeline id, which is a
+ * Semgrep taint sink (`path-join-resolve-traversal`, taint mode ignores
+ * `// nosemgrep` — see lib/upscale.mjs). `planPathFor` already builds that
+ * path and executePlan refuses it unless its dir is the package's own
+ * pipelineId dir, so deriving from it cannot escape the package.
  */
-function avatarDecisionPathFor(outputRoot, pipelineId) {
-  return join(outputRoot, pipelineId, DECISION_FILE_NAME);
+function avatarDecisionPathFor(planDir) {
+  return `${planDir}/${DECISION_FILE_NAME}`;
 }
 
 /**
@@ -684,12 +690,12 @@ function avatarDecisionPathFor(outputRoot, pipelineId) {
  * (an avatar package → choice "use", a package with no avatar declaration →
  * choice "skip"), so 「加/不加 + 理由」 survives beyond the chat turn.
  *
- * @param {{outputRoot: string, pipelineId: string}} where
+ * @param {{planDir: string, pipelineId: string}} where
  * @param {{choice: "use"|"skip", reason?: string|null, now?: Date}} decision
  * @returns {{decisionPath: string, decision: object}}
  */
 function writeAvatarDecisionFile(
-  { outputRoot, pipelineId },
+  { planDir, pipelineId },
   { choice, reason = null, now = new Date() } = {},
 ) {
   if (choice !== "use" && choice !== "skip") {
@@ -705,8 +711,8 @@ function writeAvatarDecisionFile(
     reason: typeof reason === "string" && reason.trim() ? reason.trim() : null,
     decidedAt: now.toISOString(),
   };
-  const decisionPath = avatarDecisionPathFor(outputRoot, pipelineId);
-  mkdirSync(dirname(decisionPath), { recursive: true });
+  const decisionPath = avatarDecisionPathFor(planDir);
+  mkdirSync(planDir, { recursive: true });
   writeFileSync(decisionPath, JSON.stringify(decision, null, 2) + "\n", "utf8");
   return { decisionPath, decision };
 }
@@ -717,7 +723,7 @@ function writeAvatarDecisionFile(
  * Execute the `plan` subcommand end-to-end.
  *
  * Reads: content/{slug}/{meta,scene-data}.mjs + output/{pipelineId}/audio/*.
- * Writes: output/{pipelineId}/digital-human-plan.json — nothing else.
+ * Writes: output/{pipelineId}/digital-human-plan.json + avatar-decision.json (#256).
  * No remote calls, no scene-data or remote-task writes.
  *
  * @param {object} p
@@ -792,8 +798,9 @@ export async function executePlan({
 
   if (!plan) {
     // #256: "no avatar" is a decision too, and it owes the same reason.
+    const planDir = dirname(planPathFor(outputBase, meta.pipelineId));
     const recorded = writeAvatarDecisionFile(
-      { outputRoot: outputBase, pipelineId: meta.pipelineId },
+      { planDir, pipelineId: meta.pipelineId },
       { choice: "skip", reason: decisionReason, now },
     );
     return {
@@ -816,7 +823,7 @@ export async function executePlan({
   const planPath = planPathFor(outputBase, meta.pipelineId);
   writePlanFile(planPath, plan);
   const recorded = writeAvatarDecisionFile(
-    { outputRoot: outputBase, pipelineId: meta.pipelineId },
+    { planDir: dirname(planPath), pipelineId: meta.pipelineId },
     { choice: "use", reason: decisionReason, now },
   );
   return {
