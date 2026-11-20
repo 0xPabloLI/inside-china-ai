@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.4...tanstack_start_ts-v1.94.5) (2026-11-20)
+
+
+### Bug Fixes
+
+* **subtitles:** treat CJK tokens as CJK when joining and breaking ([#1466](https://github.com/0xPabloLI/inside-china-ai/issues/1466)) ([#1467](https://github.com/0xPabloLI/inside-china-ai/issues/1467)) ([cf18389](https://github.com/0xPabloLI/inside-china-ai/commit/cf183893b70d839832d27caffc0322a9f4f45ee0))
+
 ## [1.94.4](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.3...tanstack_start_ts-v1.94.4) (2026-11-20)
 
 
