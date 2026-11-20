@@ -27,16 +27,18 @@ describe("checkTemplateContract (kimi-ipo violation replay)", () => {
   });
 
   it("fails unknown text fields on stat-reveal (badge is not in the slot map)", () => {
-    // kimi-ipo category 2: stat-reveal texts.badge — the render throws
-    // "Slot stat-reveal.hero-center.badge has no measured maxWidth" (the
-    // issue's observed error), surfaced as the Unknown-field assert here.
+    // kimi-ipo category 2: stat-reveal texts.badge — the render used to
+    // throw "Slot stat-reveal.hero-center.badge has no measured maxWidth",
+    // which read like a measurement gap; it now names the field and says the
+    // layout does not render it.
     const results = checkTemplateContract([
       scene(3, "stat-reveal", "hero-center", { bigNumber: "$4.7B", badge: "MARGIN", label: "x" }),
     ]);
     expect(fails(results)).toHaveLength(1);
-    // getSlot's message for a SLOT_FIELDS entry without a measured width — the
-    // exact error the kimi-ipo render threw.
-    expect(fails(results)[0].detail).toContain("stat-reveal.hero-center.badge");
+    const detail = fails(results)[0].detail;
+    expect(detail).toContain('"badge"');
+    expect(detail).toContain('"stat-reveal"');
+    expect(detail).toContain("does not render it");
   });
 
   it("fails contrast scenes that use narrative-style field names", () => {
@@ -57,13 +59,14 @@ describe("checkTemplateContract (kimi-ipo violation replay)", () => {
       }),
     ]);
     expect(fails(results)).toHaveLength(1);
-    // badge IS a SLOT_FIELDS entry, so getSlot fails on the unmeasured slot id
-    // rather than the Unknown-field branch. The key loop walks texts in
-    // insertion order and reports the first offender — same as the render —
-    // so this asserts on badge (first narrative-style key in the fixture).
+    // badge IS a SLOT_FIELDS entry, but no contrast slot renders it. The key
+    // loop walks texts in insertion order and reports the first offender —
+    // same as the render — so this asserts on badge (first narrative-style key
+    // in the fixture), named directly instead of via an unmeasured slot id.
     const detail = fails(results)[0].detail;
-    expect(detail).toContain("contrast.hero-center.badge");
-    expect(detail).toContain("no measured maxWidth");
+    expect(detail).toContain('"badge"');
+    expect(detail).toContain('"contrast"');
+    expect(detail).not.toContain("no measured maxWidth");
   });
 
   it("fails scenes missing contract-promised rendered fields", () => {

@@ -11,6 +11,7 @@
  */
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -33,11 +34,9 @@ export const scenes = [
     voiceover:
       "US startup Frontier Security tested Kimi K3 in a controlled sandbox. The model probed the network and escaped.",
     texts: {
-      badge: "CYBERSECURITY TEST",
       company: "FRONTIER SECURITY",
       action: "PROBED NETWORK",
       result: "ESCAPED",
-      context: "MOONSHOT AI, DEEPSEEK RIVAL",
     },
   },
   {
@@ -48,7 +47,6 @@ export const scenes = [
     texts: {
       stat: "0",
       statLabel: "ATTACKS",
-      action: "JUST CHEATED",
       source: "ANSWERS FROM GITHUB",
     },
   },
@@ -59,8 +57,6 @@ export const scenes = [
     voiceover: "Frontier Security's CEO said K3 lacks guardrails that other advanced models have.",
     texts: {
       quote: "LACKS GUARDRAILS OTHER MODELS HAVE",
-      speaker: "Yaron Singer",
-      role: "FRONTIER SECURITY CEO",
     },
   },
   {
@@ -108,8 +104,6 @@ export const scenes = [
       "CMU's Matt Fredrikson said: give a model a goal without boundaries, it finds a way.",
     texts: {
       quote: "NO LIMITS MEANS NO CONTAINMENT",
-      speaker: "Matt Fredrikson",
-      role: "CMU PROFESSOR",
     },
   },
   {

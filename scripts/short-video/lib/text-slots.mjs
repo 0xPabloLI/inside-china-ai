@@ -816,14 +816,15 @@ export function assertKnownTextFields(visualType, layout, texts) {
   for (const key of Object.keys(t)) {
     const field = aliases[key] ?? key;
     if (known.has(field)) continue;
-    // Throws for a SLOT_FIELDS entry without a measured width for THIS layout
-    // ("Slot <id> has no measured maxWidth" — the slot id in the message is
-    // the kimi-ipo incident's replay contract), and "Unknown text field …"
-    // when the field is not registered at all. Either way the render fails.
-    getSlot(slotId({ visualType, layout, field }));
+    // Report the field by name, never by slot id: a SLOT_FIELDS entry with no
+    // rendered slot for this layout used to reach getSlot() and fail with
+    // "Slot <id> has no measured maxWidth", which reads like a measurement
+    // gap and hid the real cause (this layout does not read the field).
+    const hint = SLOT_FIELDS[field]
+      ? "this layout does not render it (no slot has a measured width here) — remove it from scene-data or move the copy to a rendered field"
+      : "declare it in REMOTION_SLOT_MAP or remove it from scene-data";
     throw new Error(
-      `Unknown text field "${key}" for visualType "${visualType}" (layout "${layout}") — ` +
-        "declare it in REMOTION_SLOT_MAP or remove it from scene-data",
+      `Unknown text field "${key}" for visualType "${visualType}" (layout "${layout}") — ${hint}`,
     );
   }
   // T8: `highlight` is structured — { field, text }. The renderer splits the

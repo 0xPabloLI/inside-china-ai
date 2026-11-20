@@ -21,6 +21,7 @@ export const seriesMeta = {
 };
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -83,7 +84,6 @@ export const scenes = [
     voiceover: "We started with great kindness toward the world. Beyond money.",
     texts: {
       quote: "GREAT KINDNESS BEYOND MONEY",
-      speaker: "Liang Wenfeng",
       source: "DEEPSEEK CEO",
     },
   },

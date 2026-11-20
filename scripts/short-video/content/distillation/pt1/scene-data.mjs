@@ -17,6 +17,7 @@ export const seriesMeta = {
 };
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -39,9 +40,7 @@ export const scenes = [
     texts: {
       title: "NOT JUST COPYING ANSWERS",
       vs: "VS",
-      leftTitle: "SURFACE LEVEL",
       left: ["ANSWERS", "CODE", "TOOL CALLS"],
-      rightTitle: "WHAT THEY STOLE",
       right: ["REASONING", "CHAIN OF THOUGHT", "PERSONA"],
     },
   },

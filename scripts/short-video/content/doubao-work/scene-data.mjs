@@ -9,6 +9,7 @@
  */
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -44,12 +45,10 @@ export const scenes = [
     voiceover:
       "26 days earlier, Sina Finance reported ByteDance folded Feishu into Doubao. The question is why.",
     texts: {
-      badge: "26 DAYS EARLIER",
       company: "FEISHU MERGED INTO DOUBAO",
       action: "JULY 30, 2026",
       result: "WHY?",
       highlight: { field: "result", text: "WHY" },
-      context: "FEISHU CEO XIE XIN NOW REPORTS TO DOUBAO LEAD ZHAO QI",
       source: "SOURCE: Sina Finance, July 30, 2026",
     },
   },
@@ -68,12 +67,10 @@ export const scenes = [
     voiceover:
       "Doubao Work doesn't just generate content. It writes plans, analyzes data, builds apps.",
     texts: {
-      badge: "CAPABILITIES",
       company: "NOT JUST CHAT",
       action: "WRITES, ANALYZES, CREATES",
       result: "EVEN BUILDS APPS",
       highlight: { field: "result", text: "BUILDS" },
-      context: "GENERATES AND EDITS IMAGES, VIDEO, WEB, APPLICATIONS",
       source: "SOURCE: pedaily.cn, Aug 25, 2026",
     },
   },
@@ -92,7 +89,6 @@ export const scenes = [
     voiceover:
       "Here's the wild part. It controls your browser, fills forms, runs software. PC off? Cloud takes over. Tasks keep running.",
     texts: {
-      badge: "PATTERN INTERRUPT",
       company: "IT CONTROLS YOUR PC",
       action: "BROWSER + SOFTWARE + CLOUD",
       result: "WORKS WHILE YOU SLEEP",
@@ -116,7 +112,6 @@ export const scenes = [
     voiceover:
       "The differentiator is Feishu, or Lark overseas. ByteDance's Slack rival. Log in and it inherits your enterprise context: chats, docs, meetings.",
     texts: {
-      badge: "THE SECRET WEAPON",
       company: "DEEP FEISHU INTEGRATION",
       action: "INHERITS ENTERPRISE CONTEXT",
       result: "CHATS, DOCS, MEETINGS",

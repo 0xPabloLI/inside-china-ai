@@ -8,6 +8,7 @@
  */
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -18,8 +19,6 @@ export const scenes = [
       badge: "VIRAL",
       subject: "LIGHT SOCIETY",
       bigNumber: "1B",
-      subtitle: "AI AGENTS",
-      subtitleHighlight: "SIMULATED",
       stats: [
         { num: "14", unit: "HRS", label: "RUNTIME" },
         { num: "4M", unit: "", label: "BELIEFS CHANGED" },
@@ -52,7 +51,6 @@ export const scenes = [
       title: "THE REAL",
       titleHighlight: "PAPER",
       subtitle: "arXiv: 2506.12078",
-      institutions: ["USTC + Tsinghua + Fudan"],
       points: ["1B+ AI agents simulated", "LLM-powered behavior", "Real demographic data"],
     },
   },
@@ -64,14 +62,12 @@ export const scenes = [
       "Agent profiles come from the World Values Survey. 96,000 real respondents. Age, income, education, and values. Not random bots.",
     texts: {
       title: "NOT RANDOM BOTS",
-      leftTitle: "REAL DATA SOURCE",
       left: [
         "96,000 survey respondents",
         "Age + gender + income",
         "Education + social class",
         "Personal values",
       ],
-      rightTitle: "AGENT CAPABILITIES",
       right: [
         "Personality traits",
         "Memory + beliefs",

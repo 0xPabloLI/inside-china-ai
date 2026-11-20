@@ -9,6 +9,7 @@
  */
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -41,11 +42,9 @@ export const scenes = [
     voiceover:
       "According to SenseTime's 2025 results, generative AI revenue hit $500M, or 3.6 billion RMB, up 51%, now over 70% of total revenue.",
     texts: {
-      badge: "THE NUMBERS",
       company: "GENERATIVE AI",
       action: "REVENUE SURGED 51%",
       result: "$500M / ¥3.6B",
-      context: "NOW 70%+ OF TOTAL REVENUE",
       source: "SOURCE: SenseTime Financial Report, March 2026",
     },
   },
@@ -63,11 +62,9 @@ export const scenes = [
     voiceover:
       "Yicai reported the real milestone: second-half EBITDA hit $53M, or 380 million RMB, and operating cash flow turned positive for the first time since listing.",
     texts: {
-      badge: "MILESTONE",
       company: "CASH FLOW",
       action: "EBITDA TURNED POSITIVE",
       result: "FIRST TIME SINCE IPO",
-      context: "$53M (¥380M) H2 EBITDA + $1.5B (¥10.9B) CASH RESERVES",
       source: "SOURCE: Yicai, March 2026",
     },
   },
@@ -85,11 +82,9 @@ export const scenes = [
     voiceover:
       "At WAIC 2026, SenseTime co-founder Yang Fan announced the Galaxy Plan with 20 partners to build 5 domestic ten-thousand-card compute clusters.",
     texts: {
-      badge: "WAIC 2026",
       company: "GALAXY PLAN",
       action: "5 TEN-THOUSAND-CARD CLUSTERS",
       result: "20 PARTNERS JOINED",
-      context: "DAILY TOKEN VOLUME: 2.4T, TARGETING 10T BY YEAR-END",
       source: "SOURCE: SenseTime, July 2026",
     },
   },
@@ -107,11 +102,9 @@ export const scenes = [
     voiceover:
       "CEO Xu Li also unveiled SenseNova U1 Pro, a delivery-grade multimodal agent model that moves AI from generating content to completing tasks.",
     texts: {
-      badge: "NEW MODEL",
       company: "SENSENOVA U1 PRO",
       action: "FROM GENERATION TO DELIVERY",
       result: "MULTIMODAL AGENT",
-      context: "DELIVERY-GRADE FOUNDATION MODEL FOR AGENTS",
       source: "SOURCE: SenseTime, July 2026",
     },
   },
@@ -129,11 +122,9 @@ export const scenes = [
     voiceover:
       "For China AI, SenseTime's turnaround signals that domestic AI infrastructure is moving from burning cash to generating real revenue.",
     texts: {
-      badge: "BIGGER PICTURE",
       company: "CHINA AI INFRA",
       action: "FROM BURNING CASH",
       result: "TO REAL REVENUE",
-      context: "GROSS MARGIN 20%+ AND SERVICE GROWTH 25X",
       source: "CHINA AI NEWS ANALYSIS",
     },
   },

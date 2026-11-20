@@ -10,6 +10,7 @@
  */
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -18,10 +19,7 @@ export const scenes = [
     texts: {
       badge: "BREAKING",
       subject: "UNITREE",
-      subjectName: "UNITREE ROBOTICS",
       bigNumber: "+629%",
-      subtitle: "OPENING POP",
-      subtitleHighlight: "FIRST HUMANOID ROBOT IPO",
       stats: [
         { num: "¥445B", unit: "", label: "MARKET CAP" },
         { num: "¥1100", unit: "/share", label: "OPENING PRICE" },
@@ -42,11 +40,9 @@ export const scenes = [
     voiceover:
       "Caixin reported Yu-shu listed on Shanghai's STAR Market. First humanoid robot stock in China. Price went 150 to 1100.",
     texts: {
-      badge: "SHANGHAI STAR MARKET",
       company: "UNITREE ROBOTICS",
       action: "CHINA'S FIRST ROBOT LISTING",
       result: "¥150 → ¥1100",
-      context: "CHINA'S FIRST LISTED ROBOT MAKER",
     },
   },
   {
@@ -101,11 +97,9 @@ export const scenes = [
     voiceover:
       "Two days before listing, the company unveiled Superman. Jumps 2 meters. Top speed 12.66 meters per second. Both beat human records.",
     texts: {
-      badge: "2 DAYS BEFORE IPO",
       company: "SUPERMAN ROBOT",
       action: "JUMPS 2M, RUNS 12.66 M/S",
       result: "BEATS HUMAN RECORDS",
-      context: "BUILT IN 3 MONTHS",
     },
   },
   {

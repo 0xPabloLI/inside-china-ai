@@ -10,6 +10,7 @@
  */
 
 export const scenes = [
+  // 2026-11-20 (#1463): dropped text keys no current template reads for this pack's layouts — they never rendered, so no pixel changes.
   {
     id: 1,
     name: "hook",
@@ -51,11 +52,9 @@ export const scenes = [
     voiceover:
       "First new stock sale since 2019. Jack Ma is buying shares himself. But where is all that money going?",
     texts: {
-      badge: "FIRST SINCE 2019",
       company: "INSIDERS BUYING",
       action: "JACK MA + EXEC TEAM",
       result: "WHY NOW?",
-      context: "FIRST NEW EQUITY OFFERING SINCE 2019 HK LISTING",
       source: "SOURCE: STC Daily, Aug 25, 2026",
     },
   },
@@ -74,11 +73,9 @@ export const scenes = [
     voiceover:
       "According to BofA, 710 million shares at 3x oversubscription. Net cash jumps to 41 billion. Sovereign funds led demand.",
     texts: {
-      badge: "THE DEAL",
       company: "710M SHARES",
       action: "3X OVERSUBSCRIBED",
       result: "NET CASH: $41B+",
-      context: "SOVEREIGN WEALTH FUNDS LED DEMAND",
       source: "SOURCE: BofA Securities, STC Daily",
     },
   },
@@ -97,7 +94,6 @@ export const scenes = [
     voiceover:
       "Alibaba IR reported cloud revenue grew 45 percent. AI revenue hit 12.4 billion RMB. 12 straight quarters of triple-digit growth.",
     texts: {
-      badge: "Q1 FY2027 RESULTS",
       company: "CLOUD REVENUE +45%",
       action: "12 QUARTERS OF 3X GROWTH",
       result: "AI REV: 12.4B RMB",
@@ -121,7 +117,6 @@ export const scenes = [
     voiceover:
       "But growth costs money. Capex hit 67.7 billion RMB, up 75 percent. Free cash flow went negative 44 billion.",
     texts: {
-      badge: "THE BURN",
       company: "CAPEX: 67.7B RMB",
       action: "UP 75% YEAR OVER YEAR",
       result: "FCF: NEG 44.7B RMB",
