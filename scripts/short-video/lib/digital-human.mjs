@@ -38,11 +38,21 @@
  *     tier: "free" | "quality",
  *     model: { name, platform, segmentCapSeconds },
  *     qualityTier: { authorized: boolean, switch: string },
+ *     decision: { choice: "use" | "skip", reason: string | null,
+ *                 decidedAt: ISO, recorded: true }            ← #256
+ *       // ↑ the Agent's own avatar decision + the reason it owes the user.
+ *       //   `run` no longer gates on it (approve is legacy, kept for the
+ *       //   record); the reason's absence is surfaced loudly, never blocking.
  *     approval: { approved: false, approvedAt: null },
- *       // ↑ run --plan must REFUSE unless approval.approved === true.
- *       //   Approval is granted by a human reviewing the plan, then flipping
- *       //   approved/approvedAt in this file (or T4's explicit --approve
- *       //   flag once the user has approved in chat).
+ *       // LEGACY (#214): `approve` still writes it, `run` no longer refuses
+ *       // when it is false — #256 removed the human-approve hard gate.
+ *   output/{pipelineId}/avatar-decision.json                     ← #256
+ *   {
+ *     schemaVersion: 1, kind: "avatar-decision", pipelineId,
+ *     choice: "use" | "skip", reason, decidedAt
+ *   }
+ *     // ↑ written by `plan` for BOTH outcomes (use AND skip), because the
+ *     //   reason obligation covers both: "no avatar" needs its reason too.
  *     scenes: [{
  *       sceneId, status: "needs-generation" | "already-generated",
  *       audioPath, durationSeconds, durationSource:
@@ -135,6 +145,13 @@ export const MODEL_TIERS = {
 const PLAN_SCHEMA_VERSION = 1;
 /** Plan file name inside output/{pipelineId}/ (beside b-roll-report.json etc.). */
 export const PLAN_FILE_NAME = "digital-human-plan.json";
+/**
+ * Avatar-decision record (#256). Written by `plan` for BOTH outcomes, so the
+ * "why we did / did not add the digital human" answer is durable and visible
+ * instead of living only in chat history.
+ */
+export const DECISION_FILE_NAME = "avatar-decision.json";
+const DECISION_SCHEMA_VERSION = 1;
 /**
  * Per-package quality-tier authorization marker (empty file, presence =
  * authorized). Lives in the package's content dir; single-run override via
@@ -644,7 +661,8 @@ export function planPathFor(outputRoot, pipelineId) {
 }
 
 /**
- * Serialize + write the plan file (the ONLY file plan ever writes).
+ * Serialize + write the plan file (plan's own artifact; #256 adds exactly one
+ * sibling, the avatar-decision record — see writeAvatarDecisionFile).
  * @returns {string} the written path
  */
 export function writePlanFile(planPath, plan) {
@@ -653,13 +671,59 @@ export function writePlanFile(planPath, plan) {
   return planPath;
 }
 
+/**
+ * Path of the avatar-decision record, derived from the plan directory.
+ *
+ * Plain string surgery off the already-derived `planDir`, not `path.join`:
+ * the join form needs the CLI-supplied output root + pipeline id, which is a
+ * Semgrep taint sink (`path-join-resolve-traversal`, taint mode ignores
+ * `// nosemgrep` — see lib/upscale.mjs). `planPathFor` already builds that
+ * path and executePlan refuses it unless its dir is the package's own
+ * pipelineId dir, so deriving from it cannot escape the package.
+ */
+function avatarDecisionPathFor(planDir) {
+  return `${planDir}/${DECISION_FILE_NAME}`;
+}
+
+/**
+ * Write the avatar-decision record (#256). Called by `plan` for both outcomes
+ * (an avatar package → choice "use", a package with no avatar declaration →
+ * choice "skip"), so 「加/不加 + 理由」 survives beyond the chat turn.
+ *
+ * @param {{planDir: string, pipelineId: string}} where
+ * @param {{choice: "use"|"skip", reason?: string|null, now?: Date}} decision
+ * @returns {{decisionPath: string, decision: object}}
+ */
+function writeAvatarDecisionFile(
+  { planDir, pipelineId },
+  { choice, reason = null, now = new Date() } = {},
+) {
+  if (choice !== "use" && choice !== "skip") {
+    throw new Error(
+      `avatar decision choice must be "use" or "skip" — got ${JSON.stringify(choice)}`,
+    );
+  }
+  const decision = {
+    schemaVersion: DECISION_SCHEMA_VERSION,
+    kind: "avatar-decision",
+    pipelineId,
+    choice,
+    reason: typeof reason === "string" && reason.trim() ? reason.trim() : null,
+    decidedAt: now.toISOString(),
+  };
+  const decisionPath = avatarDecisionPathFor(planDir);
+  mkdirSync(planDir, { recursive: true });
+  writeFileSync(decisionPath, JSON.stringify(decision, null, 2) + "\n", "utf8");
+  return { decisionPath, decision };
+}
+
 // ─── CLI-facing orchestration (thin — printing/exit codes live in the CLI) ───
 
 /**
  * Execute the `plan` subcommand end-to-end.
  *
  * Reads: content/{slug}/{meta,scene-data}.mjs + output/{pipelineId}/audio/*.
- * Writes: output/{pipelineId}/digital-human-plan.json — nothing else.
+ * Writes: output/{pipelineId}/digital-human-plan.json + avatar-decision.json (#256).
  * No remote calls, no scene-data or remote-task writes.
  *
  * @param {object} p
@@ -679,6 +743,7 @@ export async function executePlan({
   contentRoot,
   outputRoot,
   tier = "free",
+  decisionReason,
   now = new Date(),
 }) {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -732,20 +797,55 @@ export async function executePlan({
   });
 
   if (!plan) {
-    return { outcome: "no-avatar", avatarSceneCount: 0 };
+    // #256: "no avatar" is a decision too, and it owes the same reason.
+    const planDir = dirname(planPathFor(outputBase, meta.pipelineId));
+    const recorded = writeAvatarDecisionFile(
+      { planDir, pipelineId: meta.pipelineId },
+      { choice: "skip", reason: decisionReason, now },
+    );
+    return {
+      outcome: "no-avatar",
+      avatarSceneCount: 0,
+      decisionPath: recorded.decisionPath,
+      decision: recorded.decision,
+      reasonMissing: recorded.decision.reason === null,
+    };
   }
 
+  const decision = {
+    choice: "use",
+    reason:
+      typeof decisionReason === "string" && decisionReason.trim() ? decisionReason.trim() : null,
+    decidedAt: now.toISOString(),
+    recorded: true,
+  };
+  plan.decision = decision;
   const planPath = planPathFor(outputBase, meta.pipelineId);
   writePlanFile(planPath, plan);
-  return { outcome: "written", planPath, plan, avatarSceneCount };
+  const recorded = writeAvatarDecisionFile(
+    { planDir: dirname(planPath), pipelineId: meta.pipelineId },
+    { choice: "use", reason: decisionReason, now },
+  );
+  return {
+    outcome: "written",
+    planPath,
+    plan,
+    avatarSceneCount,
+    decisionPath: recorded.decisionPath,
+    decision: recorded.decision,
+    reasonMissing: recorded.decision.reason === null,
+  };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ─── Run engine (#214 ticket 04) — approve / run / resume ─────────────────
 //
-// Contract (spec Behavioral Scenarios 3/4/5, ticket 04):
-//   * approval gate FIRST: an unapproved plan gets ZERO remote calls and
-//     ZERO fs writes (report/artifacts/scene-data all untouched);
+// Contract (spec Behavioral Scenarios 4/5, ticket 04; #256 revised):
+//   * NO approval gate (#256): the human-approve hard gate was removed —
+//     the Agent decides whether a package uses the digital human. What
+//     remains is the reason obligation, surfaced as `decision` +
+//     `reasonMissing` on every run (`choice: "unrecorded"` when Step 8c was
+//     never recorded). Approve stays available as an optional record;
 //   * one Kaggle kernel per generation unit, recorded in the shared
 //     remote-task state machine (scripts/cloud-gpu/output/remote-tasks.json)
 //     so a dead driver resumes without re-billing completed units;
@@ -1443,18 +1543,13 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
     );
   }
 
-  // GATE 1 — approval (spec scenario 3): refuse before ANY remote call or write.
-  if (plan.approval?.approved !== true) {
-    return {
-      outcome: "refused",
-      reason:
-        "Plan is not approved (approval.approved !== true) — review output/" +
-        plan.pipelineId +
-        "/" +
-        PLAN_FILE_NAME +
-        " then run: node scripts/short-video/digital-human.mjs approve --plan <file>. Zero remote calls were made.",
-    };
-  }
+  // #256: the human-approve hard gate is GONE. The Agent owns the avatar
+  // decision; `approve` survives only as an optional record. What replaces the
+  // gate is visibility: the decision + its reason are echoed in every run
+  // (`decision` / `reasonMissing`), so a silent Step 8c skip shows up as
+  // `choice: "unrecorded"` instead of passing unnoticed.
+  const decision = plan.decision ?? { choice: "unrecorded", reason: null, recorded: false };
+  const reasonMissing = !decision.reason;
 
   // GATE 2 — quality-tier authorization re-check (spec scenario 8).
   if (plan.tier === "quality" && !isQualityTierAuthorized(plan.contentDir)) {
@@ -1799,6 +1894,8 @@ async function executeRunPlan({ planPath, portrait, outputRoot, deps, mode, forc
     report,
     writtenBack,
     forceReset,
+    decision,
+    reasonMissing,
   };
 }
 

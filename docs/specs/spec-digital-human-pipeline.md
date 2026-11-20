@@ -38,7 +38,7 @@
 5. **生成编排**：新独立 CLI（计划/批准/执行三态）：`plan` 输出 dry-run 计划文件；`run --plan` 经用户批准后执行——远端任务走 `run-gpu`（Kaggle kernel）+ `remote-task` 状态机（断点恢复沿用 `--resume` 机制）；产物经 `upscaleDigitalHuman()` 超分后回写 `scene.avatar.videoPath`。生成耗时/平台/费用落包内 report。
 6. **主流程接线**：Remotion 渲染前若 `scene.avatar.videoPath` 存在且文件存在 → 拷贝进 `remotion/public/`（同 media 路径改写机制）并启用卡片层；缺失/损坏 → fail-closed 报错（不静默降级为无数字人，因为用户已为该 scene 付费生成）。
 7. **段内切出（grill 定案 8）**：`scene.avatar.present?: [{from, to}]` 声明在屏区间（省略 = 满段在屏）；切出区间素材满屏。tickets 阶段验证 Remotion 序列裁切即可实现，不引入新渲染机制。
-8. ** HITL（grill 定案 6）**：双重门 = 生成前 plan 批准（必须，天然人审）+ 生成后帧审计自动检查（卡片 safe-zone 合规、唇动存在、音画同步）。无硬 cap。三道关卡统一建立在渲染帧逐像素**时间标准差**上（10Hz 抽样、270px 工作分辨率，`lib/avatar-frame-audit.mjs`）：
+8. **决策与审计（#256 改判，原 grill 定案 6 的「双重门」已作废）**：**生成前不再有 human-approve 硬门**——是否用数字人由脚本 Agent 自主判断，理由是双向义务（加/不加都要给），结论落 `output/{pipelineId}/avatar-decision.json` 并在对话中明说；`approve` 保留为可选记录，`run` 不因 `approval.approved=false` 拒绝。保留的一道门是**生成后帧审计自动检查**（卡片 safe-zone 合规、唇动存在、音画同步）。无硬 cap。三道关卡统一建立在渲染帧逐像素**时间标准差**上（10Hz 抽样、270px 工作分辨率，`lib/avatar-frame-audit.mjs`）：
    - **safe-zone**：强运动阈值（std>25）+ 连通域追溯——卡片被裁切在声明矩形内，其内容只能以连通的强运动延伸越界；无连通关系的背景动画（实测 std≤31）不触发（首版弱阈值全图判定被真实 E2E 的动画渐变背景误报，已由 dh-pilot-qwen4 scene 10 实测校准）。
    - **唇动**：嘴部区域时间标准差 ≥5.0。帧差均值在真实模型输出上不可分（实测 5.2 < 合成 fixture 标定的 6.0 下限），而时间标准差 35.6 vs 噪声 ≤3（约 10× 分离度）。
    - **音画同步**：TTS 能量包络与唇动序列的**首次起始点对齐**（±0.15s）。互相关在真实内容上被稀疏头部运动尖峰削平（峰 0.305 vs 滞后 0 处 0.280），起始点对齐同数据测得 +33ms。
@@ -61,7 +61,7 @@
 
 1. 包无任何 avatar 声明 → 全管线行为与现状逐字节等价（校验、TTS、sourcing、渲染、审计零变化）。
 2. scene 声明 avatar 但未生成（无 videoPath）→ preflight 校验 WARN 提示「待生成」，生成 CLI plan 可见；渲染期仍无文件 → FAIL（fail-closed），错误信息含补救命令。
-3. plan → 未批准 → 不发生任何远端调用与文件写入。
+3. （#256 改判）plan 未批准 → `run` 照常执行（无 approve 硬门）；替代它的是可见性：`plan` 写出 `avatar-decision.json`（含 choice + reason），`run` 打出 `[Digital Human] Decision: …`，缺理由时给 WARN 但不阻断。
 4. Kaggle kernel 中断 → remote-tasks 记录断点，resume 只重跑未完成段落，已完成段不重新计费。
 5. 生成成功但超分失败 → scene-data 不回写，包保持「待生成」态，错误含 dh-upscale stderr。
 6. avatar 卡片与字幕带/CTA 区重叠（position 非法值或未来模板改动）→ 帧审计 FAIL，指明侵入的 safe zone 名称。

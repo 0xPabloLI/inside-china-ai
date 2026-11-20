@@ -50,7 +50,7 @@ Agent 在 Content Pipeline 的 Stage 3 中写或改 scene-data 时按此文档�
 | T      | Tease     | 5-8s   | Open loop：开始一个想法，不结束它                                |
 | A      | Authority | 8-20s  | 引用源、数据，建立权威                                           |
 | R      | Relay     | 20-50s | 揭示答案、高潮、pattern interrupt                                |
-| T-Tell | Tell      | 收尾    | CTA：具体、回扣 Hook                                             |
+| T-Tell | Tell      | 收尾   | CTA：具体、回扣 Hook                                             |
 
 > 时间列按 60s 片长给出参考比例；实际时长跟随内容（用户裁决 2026-11-09）：按比例缩放，不填充到 60 秒，超过 70 秒拆集。S 段的 0-5s 是 **VO 目标带**——实测 VO 可在 4.1–6.6s（成片 clip 另加 0.5s 录制缓冲）；T 段起点跟着 hook VO 结束走，不按表内秒数硬切。
 
@@ -210,16 +210,16 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 ## Step 4: 应用写作风格规则
 
-| 规则                   | 怎么做                                          |
-| ---------------------- | ----------------------------------------------- |
-| **Write for the ear**  | 缩写（don't, can't, it's）、句子片段、口语化    |
+| 规则                   | 怎么做                                                    |
+| ---------------------- | --------------------------------------------------------- |
+| **Write for the ear**  | 缩写（don't, can't, it's）、句子片段、口语化              |
 | **短句**               | Hook 见 Scene 1 的目标带（4.5–5s）；body ≤25 词（一口气） |
-| **Vary line length**   | 在 15 词的 context 行之间插入 3-5 词 punch line |
-| **No hedging**         | 删除 maybe, sort of, kinda, perhaps             |
-| **No written openers** | 不以 "In this video," "Today we'll" 开头        |
-| **One idea per line**  | 每个 VO 行只承载一个想法                        |
-| **No em-dashes**       | 不用 em/en/double dashes                        |
-| **No AI vocabulary**   | 不用 leverage, delve, utilize 等                |
+| **Vary line length**   | 在 15 词的 context 行之间插入 3-5 词 punch line           |
+| **No hedging**         | 删除 maybe, sort of, kinda, perhaps                       |
+| **No written openers** | 不以 "In this video," "Today we'll" 开头                  |
+| **One idea per line**  | 每个 VO 行只承载一个想法                                  |
+| **No em-dashes**       | 不用 em/en/double dashes                                  |
+| **No AI vocabulary**   | 不用 leverage, delve, utilize 等                          |
 
 > scene-rules.mjs 已强制部分规则。此处补足 scene-rules 未覆盖的写作风格。
 
@@ -250,10 +250,10 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 #### 正面基准 · 内部已验证（#244，2026-09-13 HITL 实听）
 
-| 样本 | 原始 take 文本 | 轴 1–3 拆解 | 机检 |
-| --- | --- | --- | --- |
-| **303**（胜出，用户裁决「情感充沛很多」） | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 **N/A**（无度量数字）；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指。非轴补记：「brand new architecture」与上代形成对照（对照质量，非数字锚点，不计轴 2） | ✗ 无阿拉伯数字（"V four point one" 为拼写）、"bombshell" 不在强词表 |
-| **405**（疑问句，多内容泛化最佳；整体仍不如 303） | What if one GPU could run a world model for 1.3 billion people? Ant Group just proved it. In real time. | 轴1 首分句 13 词，但前 3 词已抛假设冲突；轴2 "1.3 billion people" 自带体量反差，第二句给主体；轴3 三拍短句，屏上焦点可同步 | ✓ 含 "1.3" |
+| 样本                                              | 原始 take 文本                                                                                                                  | 轴 1–3 拆解                                                                                                                                                                                                        | 机检                                                                |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| **303**（胜出，用户裁决「情感充沛很多」）         | DeepSeek just dropped a bombshell! V four point one Flash — brand new architecture, native multimodal. This changes everything. | 轴1 首分句 5 词即落 "bombshell"（冲突先于对象）；轴2 **N/A**（无度量数字）；轴3 锚点词 = 模型名，与 hook 屏上 `subject` 同指。非轴补记：「brand new architecture」与上代形成对照（对照质量，非数字锚点，不计轴 2） | ✗ 无阿拉伯数字（"V four point one" 为拼写）、"bombshell" 不在强词表 |
+| **405**（疑问句，多内容泛化最佳；整体仍不如 303） | What if one GPU could run a world model for 1.3 billion people? Ant Group just proved it. In real time.                         | 轴1 首分句 13 词，但前 3 词已抛假设冲突；轴2 "1.3 billion people" 自带体量反差，第二句给主体；轴3 三拍短句，屏上焦点可同步                                                                                         | ✓ 含 "1.3"                                                          |
 
 **落地改写（必读）**：303 原始 take 文本有两处机检风险——含 `—`（`checkNoEmDashes` 对 em/en/double dash 是 fail）且无阿拉伯数字/强词（见上表）。落地版把版本号写回**阿拉伯数字形式**（TTS 朗读形式由管线 Step 0.6 从版本号派生，不需要在 voiceover 里拼写）并按 #278 降级规则用句号切分：
 
@@ -265,23 +265,23 @@ Grounded after Scene 3: [+ Doubao Work capabilities]
 
 #### 正面基准 · 外部（#300，2026-10-17 抓取快照；样本 = 各账号播放量 Top 5）
 
-| 账号（档位） | 原文（ASR 首段） | 句子族 | 轴 1–3 拆解 | 机检 |
-| --- | --- | --- | --- | --- |
-| `maverickgpt`（prompt 教程） | China just dropped an AI model that beats GPT-5 on almost every benchmark, and nobody's talking about it. | `just` + 事件 | 轴1 首分句 13 词，但 "beats GPT-5" 即冲突；轴2 **N/A**（无度量数字）；轴3 首帧真人对镜口播，与口播锚点同指。非轴补记：对手名（GPT-5）即参照系，非数字锚点，不计轴 2 | ✓ 含 "GPT-5" |
-| `kanekallaway`（科技新闻、分屏） | Elon is now creating the biggest building in human history, the TerraFab. | 规模 / 最高级锚点 | 轴1 "biggest building in human history" 先于主体名落地；轴2 **N/A**（无度量数字）；轴3 首帧分屏（Elon 舞台 + 口播），画面与口播同指。非轴补记：最高级（biggest…in history）即参照系，非数字锚点 | ✗ 无数字、无强词 |
-| `kanekallaway` | This is the most insane tech company in the world, ASML. | 规模 / 最高级锚点 | 轴1 悬念前置（"the most insane"）再给主体；轴2 **N/A**（无度量数字）；轴3 首帧是芯片特写而非人像——**吸收其句式，不要照搬首帧策略**（首帧策略归 #299）。非轴补记：最高级即参照系，非数字锚点 | ✗ 无数字、无强词 |
-| `sineadbovell`（科技评论、口播） | What's a professor to do to, like, I don't know, prevent cheating? | 提问式 | 轴1 疑问句开场，冲突藏在「提问者无解」里；轴2 **N/A**（无度量数字）；轴3 首帧真人出镜说话 | ✗ 无数字、无强词 |
+| 账号（档位）                     | 原文（ASR 首段）                                                                                          | 句子族            | 轴 1–3 拆解                                                                                                                                                                                     | 机检             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `maverickgpt`（prompt 教程）     | China just dropped an AI model that beats GPT-5 on almost every benchmark, and nobody's talking about it. | `just` + 事件     | 轴1 首分句 13 词，但 "beats GPT-5" 即冲突；轴2 **N/A**（无度量数字）；轴3 首帧真人对镜口播，与口播锚点同指。非轴补记：对手名（GPT-5）即参照系，非数字锚点，不计轴 2                             | ✓ 含 "GPT-5"     |
+| `kanekallaway`（科技新闻、分屏） | Elon is now creating the biggest building in human history, the TerraFab.                                 | 规模 / 最高级锚点 | 轴1 "biggest building in human history" 先于主体名落地；轴2 **N/A**（无度量数字）；轴3 首帧分屏（Elon 舞台 + 口播），画面与口播同指。非轴补记：最高级（biggest…in history）即参照系，非数字锚点 | ✗ 无数字、无强词 |
+| `kanekallaway`                   | This is the most insane tech company in the world, ASML.                                                  | 规模 / 最高级锚点 | 轴1 悬念前置（"the most insane"）再给主体；轴2 **N/A**（无度量数字）；轴3 首帧是芯片特写而非人像——**吸收其句式，不要照搬首帧策略**（首帧策略归 #299）。非轴补记：最高级即参照系，非数字锚点     | ✗ 无数字、无强词 |
+| `sineadbovell`（科技评论、口播） | What's a professor to do to, like, I don't know, prevent cheating?                                        | 提问式            | 轴1 疑问句开场，冲突藏在「提问者无解」里；轴2 **N/A**（无度量数字）；轴3 首帧真人出镜说话                                                                                                       | ✗ 无数字、无强词 |
 
 **取证边界**：原文 = 各条 ASR 首段，取自 `scripts/short-video/output/competitor-benchmarks/analysis/<账号>/<videoId>.asr.json`（gitignored 不入库）。**该目录是唯一带 ASR 侧车的目录**——`analysis-recompute/` 只有修复后的分析记录、无 ASR 文本；两目录按 `docs/research/competitor-video-benchmarks-research.md` §10 的「勿混用」纪律分工：**数字类结论**出自 `analysis-recompute/`，**ASR 原文**出自 `analysis/`。本表四条（`7580410789442440479` / `7676104609177423134` / `7666090654434413855` / `7276858408584727838`）与已知坏记录 `7599711388939980063` 无关（后者在 `analysis/` 仍是 `error: unparseable-json`，本表未引用）。句子族归类取自 §10.2（该节实例为**节选**，故与 ASR 首段并非逐字相同；族名含「锚点」二字是 §10.2 的用词，与轴 2 的「数字锚点」不是同一概念）。播放量同为抓取快照。账号赛道归属的完整校验归 **#748**（本表 4 条取自 #300 的 AI 六号，不在已落盘 5 条非赛道样本内）。
 
 #### 反面教材（Anti-Patterns）
 
-| 反例 | 文本 | 病在哪 | 按轴 1–3 改写 |
-| --- | --- | --- | --- |
-| **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢） | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 **N/A**（无度量数字——「new architecture」无对照物属对照质量问题，不计轴 2） | 同上方 303 落地改写（先落冲突、版本号写阿拉伯数字形式，两处机检风险一并解决） |
-| **平静陈述句开场**（#278 明令不满足） | 泛指：`X 公司今天发布了 Y 模型` | 轴1 铺垫先行，1.5s 内无冲突 | 结果先行：把 Y 的反常之处提到第一句 |
-| **续集式钩子 / 不自足**（Step 0 hook 预览门禁拦下的那一类，见 Stage 3 Step 0） | 泛指：承接上一条的数字/悬念，陌生观众缺前置 | 陌生观众听不出「发生了什么」 | 本包自足：hook 只由本包素材支撑；跨包引用需用户显式授权（Stage 3 Step 0） |
-| **裸报大数字无锚点**（#278 硬性要求 1 的反面） | 泛指：`它训练用了 10T tokens` | 轴2 绝对量无参照系 | 补锚点：10T tokens, twice what GPT-5 used. |
+| 反例                                                                           | 文本                                                                                         | 病在哪                                                                                                                       | 按轴 1–3 改写                                                                 |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **302 原文案**（#244 R2 裁决「只是快了」：同 instruct、同语速下听着仍慢）      | DeepSeek just dropped V four point one Flash, with a new architecture and native multimodal. | 轴1 首分句是「发布 + 对象」顺叙，冲突没落地；轴2 **N/A**（无度量数字——「new architecture」无对照物属对照质量问题，不计轴 2） | 同上方 303 落地改写（先落冲突、版本号写阿拉伯数字形式，两处机检风险一并解决） |
+| **平静陈述句开场**（#278 明令不满足）                                          | 泛指：`X 公司今天发布了 Y 模型`                                                              | 轴1 铺垫先行，1.5s 内无冲突                                                                                                  | 结果先行：把 Y 的反常之处提到第一句                                           |
+| **续集式钩子 / 不自足**（Step 0 hook 预览门禁拦下的那一类，见 Stage 3 Step 0） | 泛指：承接上一条的数字/悬念，陌生观众缺前置                                                  | 陌生观众听不出「发生了什么」                                                                                                 | 本包自足：hook 只由本包素材支撑；跨包引用需用户显式授权（Stage 3 Step 0）     |
+| **裸报大数字无锚点**（#278 硬性要求 1 的反面）                                 | 泛指：`它训练用了 10T tokens`                                                                | 轴2 绝对量无参照系                                                                                                           | 补锚点：10T tokens, twice what GPT-5 used.                                    |
 
 ## Hook 媒体策展（#299）
 
@@ -329,7 +329,11 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 ## 数字人（scene.avatar）使用策略
 
-是否声明 `scene.avatar`（数字人主持人）由脚本 Agent 按本节策略判断，`plan dry-run` 时用户可改。证据基础见 `docs/research/dh-presenter-usage-strategy-research.md`（85 源，2026-09）。
+是否声明 `scene.avatar`（数字人主持人）由脚本 Agent 按本节策略判断，`plan dry-run` 时用户可改。
+
+**决策权与理由义务（#256）**：判定权在脚本 Agent，不再有 human-approve 硬门——`run` 不会因为 `approval.approved=false` 拒绝执行。作为交换，**加与不加都必须给理由**：在对话里明说「本包加/不加数字人及理由」，并用 `plan --reason "<理由>"` 把结论写进 `output/<pipelineId>/avatar-decision.json`（`choice: use|skip` + `reason`）。缺理由不阻断，但 `plan`/`run` 都会打出 `[Digital Human] Decision: …` 与「未记录决策理由」WARN。**只说不记、或只记不说，都算未完成 Step 8c。**
+
+**白/黑名单的现状与重审（2026-11-20 裁决）**：本轮**维持**下列白/黑名单，理由两条——(1) 现策略已有 85 源支撑 + 2026-09-11 评审逐条论证（hook 前 3 秒人脸效应小且 30s 转负）；(2) 决策权刚改为 Agent 自主，阈值该更保守还是可放宽，缺的是实拍数据而不是文献。重审另立 **`#1472`**（解冻条件：数字人上线包 ≥10 个，或首条数字人成片发布 ≥4 周且有 Analytics 留存）。证据基础见 `docs/research/dh-presenter-usage-strategy-research.md`（85 源，2026-09）。
 
 **定位（硬约束）**：数字人是**频道品牌符号/解读框架呈现者**——点题、解读观点、CTA。不做拟真"记者人设"，文案与视觉不得暗示是真人主播。新闻解读是 AI 主持人接受度最低的内容类型（Reuters：虚拟主播舒适度 19%），程式化/数据型时刻是可接受区（国内调查：超四成支持 AI 播快讯类）。
 
@@ -371,13 +375,13 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 `visualType` 取值很多（>`hook`/`narrative`/`data`/`stat-reveal`/`info-card`/`quote`/`context`/`contrast`/`comparison`/`cta` 等，含各包自定义值），但**镜头建议只按 7 个 canonical 桶**给（`VISUAL_TYPE_DIMENSION_DEFAULTS` 的键）；不在表内的 visualType 回落到 `narrative` 桶。重心如下：
 
-| canonical 桶（`VISUAL_TYPE_DIMENSION_DEFAULTS` 键） | prompt 重心                                                     |
-| -------------------------------------------------- | --------------------------------------------------------------- |
-| `hook`                                             | 冲击力主导：单一强主体 + 快推近；避免静态平铺                   |
-| `narrative`（含所有非表内 visualType 的兜底）      | 叙事动作：一个清晰方向的动作流，镜头随之运动                    |
-| `data` / `stat-reveal`                             | 数据元素可视化：数字**不进 prompt**（移入 `texts`），画面表现"变化/增长/对比"本身 |
-| `contrast` / `comparison`                          | 两侧对撞：对称构图 + `whip-pan`/分屏，用色温或明暗区分两侧       |
-| `cta`                                              | 收束：缓拉远的稳定画面，留给品牌 end card                      |
+| canonical 桶（`VISUAL_TYPE_DIMENSION_DEFAULTS` 键） | prompt 重心                                                                       |
+| --------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `hook`                                              | 冲击力主导：单一强主体 + 快推近；避免静态平铺                                     |
+| `narrative`（含所有非表内 visualType 的兜底）       | 叙事动作：一个清晰方向的动作流，镜头随之运动                                      |
+| `data` / `stat-reveal`                              | 数据元素可视化：数字**不进 prompt**（移入 `texts`），画面表现"变化/增长/对比"本身 |
+| `contrast` / `comparison`                           | 两侧对撞：对称构图 + `whip-pan`/分屏，用色温或明暗区分两侧                        |
+| `cta`                                               | 收束：缓拉远的稳定画面，留给品牌 end card                                         |
 
 具体 camera/motion/lighting 词面以 `VISUAL_TYPE_DIMENSION_DEFAULTS` / `dimensionDefaultsFor(scene.visualType)` 为准，改写成本 scene 的词，不要照抄。
 

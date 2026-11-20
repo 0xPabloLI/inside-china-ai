@@ -35,6 +35,7 @@ import {
   planDigitalHumanPackage,
   executePlan,
   planPathFor,
+  DECISION_FILE_NAME,
   readSceneAudioInfo,
 } from "../lib/digital-human.mjs";
 
@@ -437,7 +438,7 @@ describe("executePlan", () => {
     cleanup();
   });
 
-  it("writes ONLY the plan file; scene-data and remote-tasks stay byte-identical", async () => {
+  it("writes the plan + the avatar-decision record only; scene-data and remote-tasks stay byte-identical", async () => {
     const { contentRoot, outputRoot, pkg } = makePackage();
     const sceneDataPath = join(pkg, "scene-data.mjs");
     const beforeSceneData = readFileSync(sceneDataPath);
@@ -455,11 +456,15 @@ describe("executePlan", () => {
     });
 
     expect(result.outcome).toBe("written");
-    // exactly one new file: the plan
+    // exactly two new files: the plan + the decision record (#256)
     const afterTree = { content: treeSnapshot(contentRoot), output: treeSnapshot(outputRoot) };
     expect(Object.keys(afterTree.content)).toEqual(Object.keys(beforeTree.content)); // content tree unchanged
-    const newFiles = Object.keys(afterTree.output).filter((f) => !(f in beforeTree.output));
-    expect(newFiles).toEqual([join("dh-plan-test", PLAN_FILE_NAME)]);
+    const newFiles = Object.keys(afterTree.output)
+      .filter((f) => !(f in beforeTree.output))
+      .sort();
+    expect(newFiles).toEqual(
+      [join("dh-plan-test", PLAN_FILE_NAME), join("dh-plan-test", DECISION_FILE_NAME)].sort(),
+    );
     // scene-data byte-identical
     expect(readFileSync(sceneDataPath).equals(beforeSceneData)).toBe(true);
     // remote-task state byte-identical (file must not appear either)
@@ -474,7 +479,7 @@ describe("executePlan", () => {
     expect(written.scenes).toHaveLength(3);
   });
 
-  it("no-avatar package → no-avatar outcome and NOTHING written", async () => {
+  it("no-avatar package → no-avatar outcome, NO plan, but a skip decision record (#256)", async () => {
     const contentRoot = tmpDir("dh-content-");
     const outputRoot = tmpDir("dh-output-");
     const pkg = join(contentRoot, "plain-pkg");
@@ -485,10 +490,51 @@ describe("executePlan", () => {
       `export const scenes = [{ id: 1, voiceover: "x" }];\n`,
     );
 
-    const result = await executePlan({ contentSlug: "plain-pkg", contentRoot, outputRoot });
+    const result = await executePlan({
+      contentSlug: "plain-pkg",
+      contentRoot,
+      outputRoot,
+      decisionReason: "本包是纯快讯，黑名单（hook/突发）为主，不出镜",
+    });
     expect(result.outcome).toBe("no-avatar");
-    expect(existsSync(join(outputRoot, "plain-pkg"))).toBe(false);
+    // no plan (nothing to generate), but the decision is recorded: skip + reason
     expect(existsSync(planPathFor(outputRoot, "plain-pkg"))).toBe(false);
+    const record = JSON.parse(readFileSync(result.decisionPath, "utf8"));
+    expect(record.kind).toBe("avatar-decision");
+    expect(record.choice).toBe("skip");
+    expect(record.reason).toBe("本包是纯快讯，黑名单（hook/突发）为主，不出镜");
+    expect(result.reasonMissing).toBe(false);
+  });
+
+  it("records decision=use + reason on plan, and flags a missing reason without blocking (#256)", async () => {
+    const { contentRoot, outputRoot } = makePackage();
+
+    // 1) with a reason: recorded in BOTH the plan and its sibling record
+    const withReason = await executePlan({
+      contentSlug: "dh-plan-test",
+      contentRoot,
+      outputRoot,
+      decisionReason: "CTA 段出镜增强转化",
+      now: new Date("2026-09-07T00:00:00Z"),
+    });
+    expect(withReason.outcome).toBe("written");
+    const plan = JSON.parse(readFileSync(withReason.planPath, "utf8"));
+    expect(plan.decision).toMatchObject({
+      choice: "use",
+      reason: "CTA 段出镜增强转化",
+      decidedAt: "2026-09-07T00:00:00.000Z",
+      recorded: true,
+    });
+    const record = JSON.parse(readFileSync(withReason.decisionPath, "utf8"));
+    expect(record.choice).toBe("use");
+    expect(record.reason).toBe("CTA 段出镜增强转化");
+    expect(withReason.reasonMissing).toBe(false);
+
+    // 2) without one: still written (no gate), but surfaced for the human
+    const bare = await executePlan({ contentSlug: "dh-plan-test", contentRoot, outputRoot });
+    expect(bare.outcome).toBe("written");
+    expect(bare.decision.reason).toBeNull();
+    expect(bare.reasonMissing).toBe(true);
   });
 
   it("quality tier without authorization → refused, nothing written (scenario 8)", async () => {
@@ -592,7 +638,7 @@ describe("digital-human.mjs CLI (plan)", () => {
     expect(readFileSync(fixtureSceneData).equals(beforeSceneData)).toBe(true);
   });
 
-  it("plan on a package without avatar: prints 无需生成, writes nothing", () => {
+  it("plan on a package without avatar: prints 无需生成, no plan, but the skip decision record (#256)", () => {
     const outputRoot = tmpDir("dh-cli-");
     const res = spawnSync(
       process.execPath,
@@ -601,7 +647,11 @@ describe("digital-human.mjs CLI (plan)", () => {
     );
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("无需生成");
-    expect(existsSync(join(outputRoot, "qwen4-preview"))).toBe(false);
+    expect(res.stdout).toContain("[Digital Human] Decision: SKIP");
+    expect(existsSync(join(outputRoot, "qwen4-preview", PLAN_FILE_NAME))).toBe(false);
+    // the only file written is the decision record — and a missing reason is surfaced
+    expect(readdirSync(join(outputRoot, "qwen4-preview"))).toEqual([DECISION_FILE_NAME]);
+    expect(res.stdout).toContain("未记录决策理由");
   });
 
   it("plan --tier quality without authorization: exit 1, prints the switch, no plan file", () => {
