@@ -15,7 +15,8 @@
  */
 
 /** Han, Kana and Hangul blocks — the scripts that are written without word spaces. */
-const CJK_CHAR = /[\u1100-\u11ff\u2e80-\u303f\u3040-\u30ff\u3130-\u318f\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/;
+const CJK_CHAR =
+  /[\u1100-\u11ff\u2e80-\u303f\u3040-\u30ff\u3130-\u318f\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/;
 
 function chars(text) {
   return [...String(text ?? "")];

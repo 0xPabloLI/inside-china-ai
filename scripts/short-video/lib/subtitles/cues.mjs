@@ -111,7 +111,8 @@ function mergeTrailingOrphan(chunks) {
   // A sentence-final word belongs to the page whose sentence it ends (the same
   // rule `lastClauseSplit` follows), so it never crosses the break — a short
   // orphan page is the lesser cost.
-  if (/[.!?]["'”’)]?$/.test(carried.text) || isSentenceEnd(withoutClosingQuote(carried.text))) return chunks;
+  if (/[.!?]["'”’)]?$/.test(carried.text) || isSentenceEnd(withoutClosingQuote(carried.text)))
+    return chunks;
   const rebPrev = prev.words.slice(0, -1);
   const rebLast = [carried, ...last.words];
   if (measureWidth(joinWords(rebLast)) > HARD_PX) return chunks;
