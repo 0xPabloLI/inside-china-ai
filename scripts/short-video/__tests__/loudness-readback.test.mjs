@@ -15,6 +15,7 @@ import {
   measureLoudness,
   verifyLoudness,
   buildLoudnessRepairArgs,
+  loudnessReadbackLine,
 } from "../lib/post-process.mjs";
 
 /** Real `loudnorm=print_format=json` output shape (ffmpeg 7.x). */
@@ -91,6 +92,28 @@ describe("measureLoudness", () => {
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/could not parse/);
   });
+
+  it("marks a silent track instead of reporting a null measurement as usable", () => {
+    // loudnorm prints "-inf" for digital silence; the parser maps that to null.
+    const silentJson = JSON.stringify({
+      input_i: "-inf",
+      input_tp: "-inf",
+      input_lra: "0.00",
+      input_thresh: "-inf",
+      output_i: "-inf",
+      output_tp: "-inf",
+      output_lra: "0.00",
+      output_thresh: "-inf",
+      normalization_type: "dynamic",
+      target_offset: "0.00",
+    });
+    const r = measureLoudness("/tmp/silent.mp4", {
+      exec: () => ({ stdout: "", stderr: silentJson }),
+    });
+    expect(r.ok).toBe(true);
+    expect(r.silent).toBe(true);
+    expect(r.lufs).toBeNull();
+  });
 });
 
 describe("verifyLoudness", () => {
@@ -119,9 +142,39 @@ describe("verifyLoudness", () => {
     expect(v.reasons.join(" ")).toMatch(/not measured/);
   });
 
+  it("names a silent track as silent, not as a missing measurement", () => {
+    const v = verifyLoudness({ lufs: null, truePeakDb: null, silent: true }, { target: -16 });
+    expect(v.ok).toBe(false);
+    expect(v.reasons.join(" ")).toMatch(/silent/);
+  });
+
   it("documents the tolerance constants", () => {
     expect(LOUDNESS_LU_TOLERANCE).toBeLessThanOrEqual(1.0);
     expect(LOUDNESS_TP_CEILING_DB).toBeLessThanOrEqual(-1.0);
+  });
+});
+
+describe("loudnessReadbackLine", () => {
+  it("prints the measured numbers when the read-back is usable", () => {
+    const line = loudnessReadbackLine(
+      { lufs: -16.42, truePeakDb: -1.51, lra: 6.1 },
+      { ok: true, target: -16 },
+    );
+    expect(line).toContain("-16.42 LUFS");
+    expect(line).toContain("-1.51 dBTP");
+    expect(line).toContain("LRA 6.1");
+  });
+
+  it("does not throw on a silent track and says so in words", () => {
+    // The old print called `lufs.toFixed(2)` here, so a silent track crashed
+    // the finalize pass with a TypeError that named neither audio nor silence.
+    const line = loudnessReadbackLine(
+      { lufs: null, truePeakDb: null, lra: null, silent: true },
+      { ok: false, target: -16 },
+    );
+    expect(line).toMatch(/silent/);
+    expect(line).not.toContain("null");
+    expect(line).not.toContain("NaN");
   });
 });
 

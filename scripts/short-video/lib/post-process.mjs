@@ -146,12 +146,24 @@ export function measureLoudness(videoPath, options = {}) {
         lufs: null,
         truePeakDb: null,
         lra: null,
+        silent: false,
         error: "could not parse loudnorm JSON",
       };
     }
-    return { ok: true, ...measurement };
+    // A silent track makes loudnorm report `input_i: "-inf"`, which `num()`
+    // collapses to null. The parse still succeeded, so `ok` stays true — but
+    // there is no number to print or repair, and every consumer needs to know
+    // that explicitly instead of discovering null mid-message (#1460).
+    return { ok: true, ...measurement, silent: !Number.isFinite(measurement.lufs) };
   } catch (err) {
-    return { ok: false, lufs: null, truePeakDb: null, lra: null, error: err.message };
+    return {
+      ok: false,
+      lufs: null,
+      truePeakDb: null,
+      lra: null,
+      silent: false,
+      error: err.message,
+    };
   }
 }
 
@@ -167,6 +179,14 @@ export function verifyLoudness(measurement, options = {}) {
   const luTolerance = options.luTolerance ?? LOUDNESS_LU_TOLERANCE;
   const tpCeiling = options.tpCeiling ?? LOUDNESS_TP_CEILING_DB;
   const { lufs, truePeakDb } = measurement ?? {};
+
+  if (measurement?.silent) {
+    return {
+      ok: false,
+      deltaLu: null,
+      reasons: ["audio track is silent — loudness is unmeasurable"],
+    };
+  }
 
   if (!Number.isFinite(lufs) || !Number.isFinite(truePeakDb)) {
     return { ok: false, deltaLu: null, reasons: ["loudness not measured (no read-back value)"] };
@@ -184,6 +204,34 @@ export function verifyLoudness(measurement, options = {}) {
     reasons.push(`true peak ${truePeakDb.toFixed(2)} dBTP above ceiling ${tpCeiling} dBTP`);
   }
   return { ok: reasons.length === 0, deltaLu, reasons };
+}
+
+/**
+ * The one-line loudness read-back the finalize pass prints.
+ *
+ * Split out of `finalizeVideo` because it used to call `lufs.toFixed(2)` on
+ * whatever the measurement carried: a silent track parses to `lufs: null`,
+ * and the print — not the audio — threw a TypeError (#1460). Numbers are
+ * formatted only when finite; a silent track says so in words.
+ *
+ * @param {object} measurement - `measureLoudness` result
+ * @param {{ok?: boolean, target?: number, repaired?: boolean}} [options]
+ * @returns {string}
+ */
+export function loudnessReadbackLine(
+  measurement,
+  { ok = true, target = -16, repaired = false } = {},
+) {
+  if (measurement?.silent) {
+    return "⚠️ Loudness read-back: audio track is silent — loudness unmeasurable";
+  }
+  const num = (value) => (Number.isFinite(value) ? value.toFixed(2) : "?");
+  const { lufs, truePeakDb, lra } = measurement ?? {};
+  return (
+    `${ok ? "🔊" : "⚠️"} Loudness read-back: ${num(lufs)} LUFS / TP ${num(truePeakDb)} dBTP / ` +
+    `LRA ${Number.isFinite(lra) ? lra.toFixed(1) : "?"} (target ${target} LUFS` +
+    `${repaired ? ", repaired in 2nd pass" : ""})`
+  );
 }
 
 /**
@@ -253,7 +301,10 @@ function verifyFinalLoudness(videoPath, options = {}) {
   const first = measureLoudness(videoPath, { exec });
   const verification = verifyLoudness(first, { target });
 
-  if (verification.ok || !repair || !first.ok) {
+  // A silent track has nothing to repair: loudnorm's second pass would only
+  // amplify noise, and `buildLoudnessRepairArgs` has no measured values to
+  // seed it with. Report it through verification instead of attempting.
+  if (verification.ok || !repair || !first.ok || first.silent) {
     return { ok: verification.ok, measurement: first, verification, repaired: false };
   }
 
@@ -600,11 +651,12 @@ export function finalizeRenderedVideo({
       repair: process.env.LOUDNESS_NO_REPAIR !== "1",
     });
     if (loudness.measurement?.ok) {
-      const { lufs, truePeakDb, lra } = loudness.measurement;
       console.log(
-        `  ${loudness.ok ? "🔊" : "⚠️"} Loudness read-back: ${lufs.toFixed(2)} LUFS / TP ` +
-          `${truePeakDb.toFixed(2)} dBTP / LRA ${lra == null ? "?" : lra.toFixed(1)} ` +
-          `(target ${loudnessTarget} LUFS${loudness.repaired ? ", repaired in 2nd pass" : ""})`,
+        `  ${loudnessReadbackLine(loudness.measurement, {
+          ok: loudness.ok,
+          target: loudnessTarget,
+          repaired: loudness.repaired,
+        })}`,
       );
     } else {
       console.log(

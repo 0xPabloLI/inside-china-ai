@@ -11,13 +11,20 @@ export const scenes = [
     visualType: "hook",
     voiceover:
       "A leaked four-hour investor meeting just paused DeepSeek's 1.4 billion dollar funding round.",
+    // Text-first hook: no photo is proof here, so the scene declares its
+    // CSS-only intent instead of failing the final-media preflight (#1460).
+    media: null,
     texts: {
       badge: "BREAKING",
       subject: "DEEPSEEK",
       subjectLogo: "deepseek",
       bigNumber: "$1.4B",
-      subtitle: "FUNDING ROUND",
-      subtitleHighlight: "PAUSED",
+      // The hook renders `numberLabel` + `numberHighlight`; the old
+      // `subtitle`/`subtitleHighlight` pair was never consumed by HookScene, so
+      // "FUNDING ROUND / PAUSED" silently vanished from the hook (#1460). The
+      // highlight is the substring the label paints red.
+      numberLabel: "FUNDING ROUND PAUSED",
+      numberHighlight: "PAUSED",
       stats: [
         { num: "4", unit: "HR", label: "LEAKED MEETING" },
         { num: "JULY 25", unit: "", label: "BLOOMBERG CONFIRMED" },
@@ -48,12 +55,14 @@ export const scenes = [
       "Liang said DeepSeek was never built to maximize profit. No IPO plan, no exit strategy, no KPIs. The company runs on consensus, not hierarchy. His word for it: strategic restraint.",
     texts: {
       title: "NOT BUILT FOR PROFIT",
-      leftTitle: "✕ WHAT THEY DON'T DO",
+      // ContrastScene renders `title`, `left[]`, `right[]`, `vs`, `note` —
+      // the old `leftTitle`/`rightTitle`/`quote`/`quoteKeyword` keys were dead
+      // data the renderer never read (#1460). The quote moves to `note`, which
+      // is the scene's one supporting line.
       left: ["IPO", "Exit strategy", "KPIs", "Hierarchy"],
-      rightTitle: "✓ WHAT THEY DO",
       right: ["Consensus", "Strategic restraint", "Vision-first", "AGI above all"],
-      quote: "Vision isn't a slogan on the wall. Vision is how you actually operate.",
-      quoteKeyword: "how you actually operate",
+      note: "Vision isn't a slogan on the wall. Vision is how you actually operate.",
+      noteHighlight: "how you actually operate",
     },
   },
   {
