@@ -6,12 +6,15 @@
  *   plan    Dry-run: compute which avatar scenes need generation, how each
  *           scene's TTS audio splits under the model's per-segment cap
  *           (silence-boundary segmentation), and the per-segment/total
- *           duration+cost estimate. Writes exactly one file —
- *           output/{pipelineId}/digital-human-plan.json — and makes NO
- *           remote calls and NO scene-data / remote-task writes.
- *   approve HITL gate: flip approval.approved in the plan file after a human
- *           reviewed it. File edit only — no remote calls.
- *   run     Execute an APPROVED plan: slice TTS audio at unit boundaries,
+ *           duration+cost estimate. Writes output/{pipelineId}/
+ *           digital-human-plan.json plus the avatar-decision record
+ *           (avatar-decision.json, #256) — and makes NO remote calls and NO
+ *           scene-data / remote-task writes. --reason records the Agent's
+ *           「加/不加数字人 + 为什么」 conclusion (Step 8c).
+ *   approve LEGACY (#256): the human-approve hard gate is gone. `approve`
+ *           still stamps approval.approved as an optional record. File edit
+ *           only — no remote calls.
+ *   run     Execute the plan (`--reason` and the approve stamp are optional):
  *           push the per-run Kaggle input dataset (portrait + driver wavs),
  *           submit one EchoMimicV3 Flash v51 kernel per unit (remote-task
  *           state machine), harvest, 2x upscale, ffmpeg concat, atomic
@@ -56,17 +59,23 @@ Subcommands:
   plan      Dry-run generation plan (scene list + segment table + cost estimate).
             Writes output/{pipelineId}/digital-human-plan.json only — zero remote
             calls, zero scene-data/remote-task writes.
-  approve   HITL gate: set approval.approved=true on a reviewed plan file.
-  run       Execute an approved plan on Kaggle T4 (EchoMimicV3 Flash v51):
+  approve   LEGACY record (#256): stamp approval.approved on a plan file
+            (no longer required by run; kept for the record).
+  run       Execute the plan on Kaggle T4 (EchoMimicV3 Flash v51):
             submit one kernel per generation unit, harvest, 2x upscale, concat,
             write scene.avatar.videoPath back atomically, write the report.
-            Refuses unapproved plans and quality tier without authorization.
+            Prints the avatar decision + reason; still refuses unauthorized
+            quality tier.
             --force clears prior-generation state first (see options below).
   resume    Recover an interrupted run: re-harvest live/timeout kernels, resubmit
             only failed/never-submitted units (completed units are never re-billed).
 
 plan options:
   --content <dir>      Content directory under content/ (required)
+  --reason <text>      Why this package does / does not use the digital human
+                       (Step 8c reason obligation). Written to
+                       output/{pipelineId}/avatar-decision.json. Missing reason
+                       is surfaced as a WARN, not a block.
   --tier <name>        free (default: Kaggle T4, EchoMimicV3 Flash v51, $0) or
                        quality (Modal A100, SoulX-FlashTalk 14B, $0.20/5.2s segment;
                        requires per-package authorization)
@@ -100,8 +109,10 @@ Quality-tier authorization (per package):
   content/<dir>/avatar-quality.authorized   marker file (empty file = authorized), or
   DIGITAL_HUMAN_QUALITY_AUTHORIZED=1        single-run env override
 
-HITL flow: plan → human reviews the plan file → approve → run (→ resume on
-interruption). run/resume refuse to start without approval.approved=true.
+Decision flow (#256): the AGENT decides whether a package uses the digital
+human. plan --reason records 「加/不加 + 理由」 into avatar-decision.json; run
+echoes it as [Digital Human] Decision: … and never blocks on approval. The
+reason obligation covers BOTH outcomes — "no avatar" needs its reason too.
 `;
 
 function getArg(argv, name) {
@@ -203,6 +214,15 @@ async function main() {
   const execute = subcommand === "run" ? runPlan : resumePlan;
   console.log(`🧑‍💼 Digital-human ${subcommand}`);
   console.log(`   Plan: ${planPath}`);
+  const planForDecision = readPlanFile(resolve(planPath));
+  printDecisionLine({
+    decision: planForDecision.decision ?? {
+      choice: "unrecorded",
+      reason: null,
+      recorded: false,
+    },
+    reasonMissing: !planForDecision.decision?.reason,
+  });
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
   const result = await execute({
     planPath: resolve(planPath),
@@ -213,6 +233,22 @@ async function main() {
   printRunOutcome(result, subcommand);
 }
 
+/** #256: the Agent's avatar decision, printed where a human actually looks. */
+function printDecisionLine(result) {
+  const d = result.decision;
+  if (!d) return;
+  const label = d.choice === "unrecorded" ? "UNRECORDED" : d.choice.toUpperCase();
+  console.log(`[Digital Human] Decision: ${label}`);
+  if (d.reason) {
+    console.log(`   Reason: ${d.reason}`);
+  }
+  if (result.reasonMissing) {
+    console.log(
+      '⚠️  未记录决策理由 — Step 8c 要求「加/不加 + 理由」出现在对话中并把结论写进 avatar-decision.json（plan --reason "…"）',
+    );
+  }
+}
+
 async function runPlanSubcommand(args) {
   const contentSlug = getArg(args, "content");
   if (!contentSlug) {
@@ -221,6 +257,7 @@ async function runPlanSubcommand(args) {
   }
   const tier = getArg(args, "tier") ?? "free";
   const outputRoot = getArg(args, "output-root");
+  const decisionReason = getArg(args, "reason");
 
   console.log(`🧑‍💼 Digital-human plan (dry-run)`);
   console.log(`   Content: ${contentSlug}`);
@@ -231,11 +268,14 @@ async function runPlanSubcommand(args) {
     contentSlug,
     outputRoot: outputRoot ? resolve(outputRoot) : undefined,
     tier,
+    decisionReason,
   });
+
+  printDecisionLine(result);
 
   if (result.outcome === "no-avatar") {
     console.log("✅ 无需生成 — this package declares no scene.avatar; nothing to plan.");
-    console.log("   (No files written, no remote calls made.)");
+    console.log(`   Decision record: ${result.decisionPath} (no remote calls; no plan written)`);
     return;
   }
 

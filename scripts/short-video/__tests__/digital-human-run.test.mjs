@@ -1,7 +1,7 @@
 // Digital-human `run`/`resume`/`approve` tests (#214 ticket 04).
 //
-// Covers: approval gate (unapproved plan → refuse with ZERO remote calls and
-// ZERO fs writes), the mock transport happy path (submit per generation unit →
+// Covers: the removed approval gate (#256: an unapproved plan runs; the
+// decision + reason are echoed instead of blocking), the mock transport happy path (submit per generation unit →
 // harvest → upscale 2x → concat in strict unit order → one atomic videoPath
 // writeback per scene → report with 耗时/平台/费用), interruption recovery
 // (resume re-harvests resumable units, resubmits only failed ones, completed
@@ -301,32 +301,40 @@ describe("runPlan approval + authorization gates", () => {
     cleanup();
   });
 
-  it("unapproved plan → refused, ZERO remote calls, ZERO fs writes outside the plan read", async () => {
-    const { outputRoot, contentRoot, pkg, planPath, plan } = makePackage();
+  // #256: the human-approve hard gate is gone — an unapproved plan runs. What
+  // replaces it is visibility: the run echoes the recorded decision, and an
+  // unrecorded Step 8c shows up as `choice: "unrecorded"` + `reasonMissing`.
+  it("unapproved plan runs anyway (no approve gate) and echoes the decision state", async () => {
+    const { planPath } = makePackage(); // approval: { approved: false }
     const { transport, calls } = makeTransport();
-    const ffmpeg = makeFfmpeg();
-    const deps = makeDeps({ transport, ffmpeg, upscale: makeUpscale() });
-
-    const beforeTree = {
-      content: treeSnapshot(contentRoot),
-      output: treeSnapshot(outputRoot),
-    };
-    const beforeSceneData = readFileSync(join(pkg, "scene-data.mjs"));
+    const deps = makeDeps({ transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
 
     const res = await runPlan({ planPath, deps });
 
-    expect(res.outcome).toBe("refused");
-    expect(res.reason).toMatch(/not approved|approval/i);
-    expect(calls.submitted).toHaveLength(0);
-    expect(calls.pushedDatasets).toHaveLength(0);
-    expect(calls.harvested).toHaveLength(0);
-    expect(ffmpeg.calls.sliced).toHaveLength(0);
-    // no remote-task log created, no report, no artifacts
-    expect(existsSync(deps.tasksPath)).toBe(false);
-    expect(existsSync(join(outputRoot, plan.pipelineId, "digital-human-report.json"))).toBe(false);
-    expect(treeSnapshot(outputRoot)).toEqual(beforeTree.output);
-    expect(readFileSync(join(pkg, "scene-data.mjs")).equals(beforeSceneData)).toBe(true);
-    void contentRoot;
+    expect(res.outcome).toBe("completed");
+    expect(calls.submitted).toHaveLength(4);
+    expect(res.decision).toEqual({ choice: "unrecorded", reason: null, recorded: false });
+    expect(res.reasonMissing).toBe(true);
+  });
+
+  it("a recorded decision + reason is echoed back unchanged (choice use, reason kept)", async () => {
+    const { planPath } = makePackage();
+    const raw = JSON.parse(readFileSync(planPath, "utf8"));
+    raw.decision = {
+      choice: "use",
+      reason: "CTA 段用数字人增强转化",
+      decidedAt: "2026-09-07T00:00:00.000Z",
+      recorded: true,
+    };
+    writeFileSync(planPath, JSON.stringify(raw, null, 2) + "\n");
+    const { transport } = makeTransport();
+    const deps = makeDeps({ transport, ffmpeg: makeFfmpeg(), upscale: makeUpscale() });
+
+    const res = await runPlan({ planPath, deps });
+    expect(res.outcome).toBe("completed");
+    expect(res.decision.choice).toBe("use");
+    expect(res.decision.reason).toBe("CTA 段用数字人增强转化");
+    expect(res.reasonMissing).toBe(false);
   });
 
   it("quality tier in the plan without the package marker → refused (spec scenario 8)", async () => {
@@ -857,20 +865,23 @@ describe("digital-human.mjs CLI (run/approve/resume)", () => {
 
   afterEach(cleanup);
 
-  it("run --plan on an unapproved plan: exit 1, zero remote calls, plan untouched", () => {
+  it("run --plan on an unapproved plan no longer refuses at the gate (#256); decision is printed", () => {
     const { outputRoot, planPath } = makePackage();
     const before = readFileSync(planPath);
+    const env = { ...process.env, PATH: "/usr/bin:/bin" }; // no kaggle binary
     const res = spawnSync(
       process.execPath,
       [CLI, "run", "--plan", planPath, "--output-root", outputRoot],
-      { encoding: "utf8" },
+      { encoding: "utf8", env, timeout: 60000 },
     );
+    // it gets PAST the (removed) approval gate and only dies at the remote layer
     expect(res.status).toBe(1);
-    expect(res.stderr).toMatch(/approv/i);
+    expect(res.stderr).not.toMatch(/not approved/i);
+    expect(res.stdout).toContain("[Digital Human] Decision: UNRECORDED");
+    expect(res.stdout).toMatch(/未记录决策理由/);
     expect(readFileSync(planPath).equals(before)).toBe(true);
-    // no report written by the refused run
     expect(existsSync(join(outputRoot, "dh-run-test", "digital-human-report.json"))).toBe(false);
-  });
+  }, 90000);
 
   it("approve --plan flips approval; run --plan then passes the gate (refuses later on portrait)", () => {
     const { contentRoot, planPath } = makePackage();
