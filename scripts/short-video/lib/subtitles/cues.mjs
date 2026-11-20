@@ -22,6 +22,14 @@ import { isSentenceEnd, isClauseBreak } from "./boundaries.mjs";
 
 /** Maximum words per cue — beyond this the karaoke sweep is too fast to track. */
 export const MAX_WORDS = 6;
+/**
+ * Word budget for a rescue merge that needs two lines.
+ *
+ * A crowded pair that cannot fit one page may still fit two, but the viewer
+ * reads both lines inside the same window, so the budget grows only to 8 —
+ * enough for the measured pairs (6–8 words), not a licence for paragraphs.
+ */
+const MAX_MERGE_WORDS = 8;
 /** Hard pixel limit: a line never exceeds this (lanes stay single-line normal case). */
 const HARD_PX = SUBTITLE_LANE.maxWidth;
 /**
@@ -242,21 +250,57 @@ function displayStart(cue) {
   return Math.max(cue.speechStart - LEAD_IN, 0);
 }
 
+/** Narrowest a line may be on a two-line page — a stub line reads as a typo. */
+const MIN_LINE_PX = Math.round(HARD_PX * 0.25);
+
+/**
+ * Choose where a two-line page breaks.
+ *
+ * Returns the number of words on the first line, or null when no split keeps
+ * both lines inside the lane without leaving a stub. Among legal splits the
+ * most balanced one wins: a 5/1 page is technically legal and looks broken.
+ *
+ * @param {Array<{text: string}>} words
+ * @returns {number | null}
+ */
+function planLineBreak(words) {
+  if (SUBTITLE_LANE.maxLines < 2 || words.length < 4) return null;
+
+  let best = null;
+  for (let k = 1; k < words.length; k++) {
+    const first = measureWidth(joinWords(words.slice(0, k)));
+    const second = measureWidth(joinWords(words.slice(k)));
+    if (first > HARD_PX || second > HARD_PX) continue;
+    if (first < MIN_LINE_PX || second < MIN_LINE_PX) continue;
+    const widest = Math.max(first, second);
+    if (!best || widest < best.widest) best = { breakAt: k, widest };
+  }
+
+  return best ? best.breakAt : null;
+}
+
 function canMerge(a, b) {
   if (a.sceneId !== b.sceneId) return false;
   if ((a.words.length === 0) !== (b.words.length === 0)) return false;
-  if (a.words.length + b.words.length > MAX_WORDS) return false;
-  const text = a.words.length > 0 ? joinWords([...a.words, ...b.words]) : `${a.text} ${b.text}`;
-  return measureWidth(text) <= HARD_PX;
+  const words = [...a.words, ...b.words];
+  // Text-only segments carry no word timings: they can only share one line.
+  if (words.length === 0) return measureWidth(`${a.text} ${b.text}`) <= HARD_PX;
+  if (words.length > MAX_MERGE_WORDS) return false;
+  if (measureWidth(joinWords(words)) <= HARD_PX) return true;
+  return planLineBreak(words) !== null;
 }
 
 function mergeCues(a, b) {
   const words = [...a.words, ...b.words];
+  const text = words.length > 0 ? joinWords(words) : `${a.text} ${b.text}`;
+  const lineBreak =
+    words.length > 0 && measureWidth(text) > HARD_PX ? planLineBreak(words) : undefined;
   return {
     sceneId: a.sceneId,
     clipEnd: b.clipEnd,
     words,
-    text: words.length > 0 ? joinWords(words) : `${a.text} ${b.text}`,
+    text,
+    lineBreak: lineBreak ?? undefined,
     speechStart: a.speechStart,
     speechEnd: b.speechEnd,
   };
@@ -314,7 +358,7 @@ function layoutCues(rawCues) {
     end = Math.min(Math.max(end, start + MIN_DURATION), ceiling);
     end = Math.max(end, start + ONE_FRAME);
 
-    cues.push({ start, end, text: raw.text, words: raw.words });
+    cues.push({ start, end, text: raw.text, words: raw.words, lineBreak: raw.lineBreak });
   }
 
   return cues;

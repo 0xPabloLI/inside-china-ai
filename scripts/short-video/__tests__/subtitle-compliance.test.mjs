@@ -243,25 +243,29 @@ describe("subtitle compliance gate wiring", () => {
  * Lane overflow is a geometry failure, not a style preference.
  *
  * `SUBTITLE_LANE.maxLines` reserves the lane's height above its bottom anchor,
- * which is also how high the content band may reach. A cue that needs a second
- * line renders upward past that reservation — ASS does not clip to the lane —
- * and the burned subtitle lands on top of scene content.
+ * which is also how high the content band may reach. A cue that needs one line
+ * more than the reservation renders upward past it — ASS does not clip to the
+ * lane — and the burned subtitle lands on top of scene content.
+ *
+ * Since #230 the lane reserves two lines (rescue merges need them), so the
+ * failing shape is now a *third* line, and the legal shape is the two-line page
+ * that used to be refused.
  */
 describe("subtitle lane overflow", () => {
-  const wrapped = { start: 0, end: 4, text: "one two three\\Nfour five" };
+  const twoLines = { start: 0, end: 4, text: "one two three\\Nfour five" };
+  const threeLines = { start: 0, end: 4, text: "one two\\Nthree four\\Nfive six" };
 
   it("throws in the default warn mode — geometry is not advisory", () => {
-    expect(() => enforceSubtitleCompliance([wrapped], {})).toThrow(/Subtitle lane overflow/);
+    expect(() => enforceSubtitleCompliance([threeLines], {})).toThrow(/Subtitle lane overflow/);
   });
 
   it("measures the lane's own maxLines, not compliance.mjs's fallback", () => {
     // The bug this guards: the gate only ever passed `maxCps`, so `maxLines`
-    // fell through to MAX_LINES (2) and a two-line cue sailed through while the
-    // lane reserved one line. Both halves asserted so the mismatch stays visible.
-    expect(SUBTITLE_LANE.maxLines).toBe(1);
-    expect(MAX_LINES).not.toBe(SUBTITLE_LANE.maxLines);
-    expect(checkCueCompliance([wrapped], { maxLines: MAX_LINES }).ok).toBe(true);
-    expect(checkCueCompliance([wrapped], { maxLines: SUBTITLE_LANE.maxLines }).ok).toBe(false);
+    // fell through to MAX_LINES and a cue could sail through while the lane
+    // reserved one line. Both halves asserted so the mismatch stays visible.
+    expect(SUBTITLE_LANE.maxLines).toBe(2);
+    expect(checkCueCompliance([twoLines], { maxLines: SUBTITLE_LANE.maxLines }).ok).toBe(true);
+    expect(checkCueCompliance([threeLines], { maxLines: SUBTITLE_LANE.maxLines }).ok).toBe(false);
   });
 
   it("still only warns on reading speed", () => {
@@ -279,12 +283,12 @@ describe("subtitle lane overflow", () => {
   });
 
   it("names the limit and the cue count in the failure", () => {
-    expect(() => enforceSubtitleCompliance([wrapped, wrapped], {})).toThrow(
-      /2 cue\(s\) exceed maxLines 1/,
+    expect(() => enforceSubtitleCompliance([threeLines, threeLines], {})).toThrow(
+      /2 cue\(s\) exceed maxLines 2/,
     );
   });
 
   it("leaves off mode as the explicit escape hatch", () => {
-    expect(enforceSubtitleCompliance([wrapped], { SUBTITLE_COMPLIANCE: "off" })).toBeNull();
+    expect(enforceSubtitleCompliance([threeLines], { SUBTITLE_COMPLIANCE: "off" })).toBeNull();
   });
 });

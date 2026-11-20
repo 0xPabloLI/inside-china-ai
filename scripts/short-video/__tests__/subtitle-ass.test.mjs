@@ -38,6 +38,23 @@ describe("renderAss", () => {
     expect(ass).toContain("{\\kt0.4\\kf31.3}precise");
   });
 
+  it("writes a two-line merge's break as a raw \\N between the words", () => {
+    // lineBreak = 2: "The trick" on line 1, "is the layers" on line 2.
+    const merged = cue(0.43, 2.5, [
+      ["The", 0.5, 0.7],
+      ["trick", 0.7, 1.0],
+      ["is", 1.0, 1.2],
+      ["the", 1.2, 1.4],
+    ]);
+    merged.lineBreak = 2;
+    const ass = renderAss([merged]);
+    expect(ass).toContain("{\\kt7\\kf20}The ");
+    expect(ass).toContain("{\\kt27\\kf30}trick\\N");
+    // Exactly one break, and it never comes out escaped as a literal backslash.
+    expect(ass.match(/\\N/g)).toHaveLength(1);
+    expect(ass).not.toContain("\\\\N");
+  });
+
   it("computes \\kt against the centisecond-quantised line start, not the raw float", () => {
     // 0.4333333s is written as 0:00:00.43, so the word is 0.07s (not 0.0667s) later
     const ass = renderAss([cue(0.4333333, 1.7, [["Hello", 0.5, 0.8]])]);

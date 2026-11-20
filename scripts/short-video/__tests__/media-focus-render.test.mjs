@@ -335,7 +335,7 @@ async function bandExtent(props, x = 540) {
 }
 
 describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, () => {
-  it("default anchor centres the picture — clear of the subtitle lane", async () => {
+  it("default anchor centres the picture", async () => {
     const props = { asset: "image", source: "horizontal", fit: "contain" };
     const { top, bottom } = await bandExtent(props);
     console.log(`[evidence] contain(default) lime band y ${top}-${bottom}`);
@@ -344,8 +344,9 @@ describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, (
     expect(top).toBeLessThanOrEqual(659);
     expect(bottom).toBeGreaterThanOrEqual(1261);
     expect(bottom).toBeLessThanOrEqual(1266);
-    // The whole picture stops above the burned-subtitle lane.
-    expect(bottom).toBeLessThan(SUBTITLE_LANE_TOP);
+    // Not a lane assertion anymore: since #230 the lane reserves two lines
+    // (top 1236), so a centred full-frame picture legitimately sits under a
+    // wrapped cue — burned subtitles overlay media by design (gradient scrim).
     // The centre of the frame is picture, not letterbox.
     expect(await sampleAt(props)).toBe("lime");
   });
@@ -364,7 +365,6 @@ describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, (
     expect(top).toBeGreaterThanOrEqual(1310);
     expect(top).toBeLessThanOrEqual(1315);
     expect(bottom).toBe(1919);
-    expect(top).toBeLessThan(SUBTITLE_LANE_TOP);
     expect(bottom).toBeGreaterThan(SUBTITLE_LANE_TOP);
     // What the viewer saw before the fix: canvas where the centre of the frame
     // should be. "Nothing rendered here" is a distinct answer from "a band".

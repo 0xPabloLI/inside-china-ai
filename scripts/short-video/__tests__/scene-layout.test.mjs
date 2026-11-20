@@ -26,11 +26,12 @@ describe("SLOTS (vertical bands)", () => {
   });
 
   it("keeps the support slot fully above the subtitle lane", () => {
-    // Content bottom edge = 1920 - SAFE_ZONES.bottom = 1298 (recalibrated
+    // Content bottom edge = 1920 - SAFE_ZONES.bottom = 1206 (recalibrated
     // 2026-10-29: 770 → 710 → 611 moved the stack down; #1228 took it to 622
-    // so the 68px cue lane fits).
+    // so the 68px cue lane fits; #230 took it to 714 so the lane can reserve
+    // two lines for rescue merges).
     expect(SLOTS.support.bottom).toBe(1920 - SAFE_ZONES.bottom);
-    expect(SLOTS.support.bottom).toBe(1298);
+    expect(SLOTS.support.bottom).toBe(1206);
   });
 
   it("keeps the brand header in the top chrome corner", () => {

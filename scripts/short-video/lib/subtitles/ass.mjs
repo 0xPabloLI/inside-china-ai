@@ -85,7 +85,7 @@ function escapeText(text) {
 /**
  * Build the karaoke-tagged text for one cue.
  *
- * @param {{start: number, words: Array<{text: string, start: number, end: number}>}} cue
+ * @param {{start: number, words: Array<{text: string, start: number, end: number}>, lineBreak?: number}} cue
  * @returns {string}
  */
 function karaokeText(cue) {
@@ -97,7 +97,10 @@ function karaokeText(cue) {
     .map((word, index) => {
       const offset = formatCs(Math.max(word.start - lineStart, 0));
       const fill = formatCs(Math.max(word.end - word.start, 0));
-      const spacer = index < cue.words.length - 1 ? " " : "";
+      // A two-line rescue page breaks where the cue builder measured it.
+      // \N must stay a control sequence, so it is never escaped here.
+      const breakAfter = cue.lineBreak === index + 1;
+      const spacer = breakAfter ? "\\N" : index < cue.words.length - 1 ? " " : "";
       return `{\\kt${offset}\\kf${fill}}${escapeText(word.text)}${spacer}`;
     })
     .join("");
