@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.95.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.5...tanstack_start_ts-v1.95.0) (2026-11-20)
+
+
+### Features
+
+* **short-video:** give the avatar decision to the agent, record the reason ([#256](https://github.com/0xPabloLI/inside-china-ai/issues/256)) ([#1473](https://github.com/0xPabloLI/inside-china-ai/issues/1473)) ([ffad9ff](https://github.com/0xPabloLI/inside-china-ai/commit/ffad9ffe088bb1826737a4fb6dc1a72e392b43d7))
+
 ## [1.94.5](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.4...tanstack_start_ts-v1.94.5) (2026-11-20)
 
 
