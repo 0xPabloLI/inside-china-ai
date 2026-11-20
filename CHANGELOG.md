@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.94.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.1...tanstack_start_ts-v1.94.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **subtitles:** merge crowded cue pairs across two lines ([#230](https://github.com/0xPabloLI/inside-china-ai/issues/230)) ([#1458](https://github.com/0xPabloLI/inside-china-ai/issues/1458)) ([dd1db52](https://github.com/0xPabloLI/inside-china-ai/commit/dd1db524981564fcf2cb13964d1b5ecb341b49ac))
+
 ## [1.94.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.0...tanstack_start_ts-v1.94.1) (2026-11-19)
 
 
