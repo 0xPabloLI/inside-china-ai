@@ -9,7 +9,7 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-11-20（**Round CCXXII：`#1463` 死文案键清理交付**——按「场景实际读取字段」全键比对（`assertKnownTextFields` 每场景只报首错，票面 40 条因此偏低），10 包共 49 处模板从不读取、因而从未渲染的文案键删除，**无像素变化**；新增 `content-template-contract.test.mjs` 双向锁边界：新增违规 fail、悄悄修好也 fail，10 条结构性缺口（场景缺 rendered 字段）只留在 allowlist 内待重写。产品验证门：**无产出差异**（删的键本就不渲染）。frontier 复算：1A 空、① 空、② `#296`（`#268` 用户暂缓）、③④ 空。）
+> **Last inventory**: 2026-11-20（**Round CCXXIII：`#1466` 中文字幕 CJK 修复交付**——`joinTokens` 成为唯一拼接规则（任一侧 CJK 不插空格），句界/断句谓词补 `。！？…` 与 `，；：、`，`BRAND_FONT_STACK` 在拉丁族之后追加 CJK 族；PR #1467 squash `cf183893`。产品验证门：**无产出差异**（`qwen4-max-release` 真实对齐 70 条 cue 与改动前 0 差异；中文侧只有单测，无成片）。frontier 复算：1A 空、① 空、② `#296`（`#268` 用户暂缓）、③④ 空。）
 > **2026-11-09 HITL 裁决**：③ 段 `#738`/`#734`/`#735`/`#739`/`#747` 转 `ready-for-agent`，`#1160`/`#733` 转 `dormant`；② `#320` 已交付闭票（PR #1203，squash `5ffedbc6`）、`#434` 已核查闭票（评论 `6740307743`），② 段清空；`#734` 已于 Round CLXIV 交付闭票（PR #1207，squash `905a2a77`）、`#735` 已于 Round CLXV 交付闭票（PR #1211，squash `00d6bbd6`）、`#739` 已于 Round CLXVI 交付闭票（PR #1216，squash `b0c8a030`）、`#738` 已于 Round CLXVII 交付闭票（PR #1220，squash `cb69029e`）、`#747` 已于 Round CLXVIII 交付闭票（PR #1223，squash `023e7eaa`），③ 段 5 张全部清空；其延后的「新逐词强调手法」按同一裁决另立 **#1224**（won't fix）并换入继任票 **#1228**（2026-11-11 拍板 68px，转 `ready-for-agent`，归 ④ 段）；现行 frontier 见 Step 4。
 > **frontier（三轨制，默认跨轨单入口瀑布见 `### Execution Semantics`）**：
 >

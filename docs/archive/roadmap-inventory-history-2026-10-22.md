@@ -948,3 +948,4 @@ PR #1439 — `3dac3e2e` — `content(deepseek-api-open): salvage the rendered pa
 PR #1441 — `619d53ed` — `#1432` S1：`lib/run-history.mjs`（run 身份、`runs/<runId>/` 布局、manifest 与 `latest.json` 原子读写）+ 15 条单测 + spec `docs/specs/spec-run-history-stage3.md`，零接线。属**无产出差异（enabling fix）**。
 PR #1443 — `0c314318` — `#1432` S2/S3：写侧 `main.mjs` 全产物落 run 目录，读侧 `render-only`/`verify`/`still-frame`/`qa`/`rerender` 走 `resolveRun()`（默认 latest、`--run` 显式、legacy 回退）。属**无产出差异（enabling fix）**——用户可见成片与发布动作不变，变化在产物归属与回读。
 
+Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模板从不读取的键，新增 `content-template-contract` 双向锁边界，**无产出差异**。
