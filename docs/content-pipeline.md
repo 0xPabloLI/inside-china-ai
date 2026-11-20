@@ -318,12 +318,13 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 每次启动管线时，Agent 在 `scripts/short-video/content/{slug}/pipeline-status.json` 创建/更新该次内容的进度状态；`scripts/short-video/output/pipeline-status.json` 只保留**薄索引**，指向当前在飞内容。两层分工：
 
-| 文件 | 角色 | 字段 |
-| --- | --- | --- |
+| 文件                                  | 角色                                       | 字段                                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `content/{slug}/pipeline-status.json` | 唯一真值（本地运行态，gitignored，不入库） | `articleSlug`、`articleTitle`、`startedAt`、`currentStage`、`stages`（各 stage status + completedAt + mrl）、`videoParts`（各集 status + sceneData + mrl）、`nextAction` |
-| `output/pipeline-status.json` | 薄索引，gitignored，只用于发现 | `activeSlug`、`statusPath`（相对 `scripts/short-video/`）、`updatedAt` |
+| `output/pipeline-status.json`         | 薄索引，gitignored，只用于发现             | `activeSlug`、`statusPath`（相对 `scripts/short-video/`）、`updatedAt`                                                                                                   |
 
 **Agent 行为**：
+
 - 启动新管线：先写 `content/{slug}/pipeline-status.json`，再把索引指向它；索引不复制状态，只存指针。
 - 每个 stage 完成后只更新 per-slug 文件；MRL 通过后写入 `mrl` 状态；HITL 暂停时 `nextAction` 写明等待什么。
 - 新 session 启动：读索引 → 读 `content/{activeSlug}/pipeline-status.json`；索引缺失时 glob `content/*/pipeline-status.json`，找到未完成管线；两者都没有才算没有在飞管线。
@@ -349,20 +350,21 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
    8b-3. **hook 排版：`layout: "media-led"`（素材为主角，2026-11-15 用户裁决）** — hero-center hook 把 bigNumber（240px）压在媒体正中央——适合「合成封面镜头」，但 K 线、产品 demo 这类「素材本身即钩子」的场景会挡住焦点（zhipu 包实测：`-80%` 正好盖住 K 线的 6 月峰值）。hook 声明 `layout: "media-led"` 后层级反转：媒体带独占画面主体（contain 在 y 410-1029 的 820×619 带、cover 铺满全帧），文字全部退到图片不占的区间（顶部 badge + subject 行、底部 y 1037-1298 文字条：数字锁 110px + numberLabel + source，无圆圈标注）。几何常量在 `lib/safe-zones.mjs` → `MEDIA_LED`；slot 契约 `hook.media-led.*`（`lib/text-slots.mjs`）。约束：**只支持 number-led**（hookText/revealText/stats 未注册，写了合同报错；`color` 仍是控制字段，但在这里作用于底部数字条而不是 claim 文案，缺省 amber）；**不支持 `mode: "card"`**（证据卡跨 y 300-986，会压住 badge/subject 行，合同直接 FAIL）；**`media: null` / `mediaOptOut` 也 FAIL**（与「素材为主角」自相矛盾）——唯一例外是 `info.chart: "candle"`（原生 K 线就是主角，见 8b-5），而「暂时还没有 media」只 WARN——chart pin / assetNeed / 生成策略都在 preflight 之后才落盘，最终由 Step 1.6 的 final media gate 强制文件存在。scrim 随 fit 定：contain 0.15、cover 0.5（`lib/media-overlay.mjs` → `MEDIA_LED_DIM`；渲染层对未写 overlay 的手绑/生成素材同样兜底）。渲染组件 `remotion/src/scenes/HookMediaLed.tsx`；像素契约在 `scene-gate-render.test.mjs`（strip 角 + 媒体带下三分之一采样，证明文字条不压图、画面不被画框级压暗层盖住）。
    8b-4. **原生数据镜头：`scene.info` + `layout: "chart"`（#1398）** — 当镜头要讲的是「2–12 个已知数值之间的关系」，用原生 SVG 图表，不要去找一张近似截图。写法：`visualType: "data"`、`layout: "chart"`、`info: { relationship, chart?, data: [{ label, value, value2?, ... }], unit, highlight?, time?, baseline?, sort?, decimals?, axisLabels? }`；`texts.label` 是图表标题/claim，`texts.subtext` 是读法，`texts.source` 必填。完整示例与关系→图型表见 `docs/specs/spec-information-layout-v2.md` §1–2；设计几何与样式见 `docs/conventions/visual-design-loop.md` → 原生信息图表。
 
-      **三条路径先选对**：
+   **三条路径先选对**：
 
-      | 需求 | 写法 | 资产 |
-      | ---- | ---- | ---- |
-      | 2–12 个已知数值，关系是 magnitude / ranking / change-over-time / part-to-whole / deviation / distribution | `visualType: "data"` + `layout: "chart"` + `scene.info` | 原生 SVG，不采购 |
-      | HKEX 日线 K 线（已收盘窗口） | hook `layout: "media-led"` + `info.chart: "candle"`（或 `visualType: "data"` + `layout: "chart"`） | `npm run bake:quotes -- <pack>` 的双源烘焙数据，原生 SVG |
-      | 非港股 / 盘中 / 需要 chart-img 标注的行情 | `chart: { entity, range?, interval?, theme?, annotations? }`，配 `layout: "chart-card"` 或 hook 的 `media-led` | chart-img 真实截图，`chart-pin` 免 VLM |
-      | 散点/地图/复杂标注，或没有原始数值 | `layout: "chart-card"` + `media.path` | 真实图表 PNG |
+   | 需求                                                                                                      | 写法                                                                                                           | 资产                                                     |
+   | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+   | 2–12 个已知数值，关系是 magnitude / ranking / change-over-time / part-to-whole / deviation / distribution | `visualType: "data"` + `layout: "chart"` + `scene.info`                                                        | 原生 SVG，不采购                                         |
+   | HKEX 日线 K 线（已收盘窗口）                                                                              | hook `layout: "media-led"` + `info.chart: "candle"`（或 `visualType: "data"` + `layout: "chart"`）             | `npm run bake:quotes -- <pack>` 的双源烘焙数据，原生 SVG |
+   | 非港股 / 盘中 / 需要 chart-img 标注的行情                                                                 | `chart: { entity, range?, interval?, theme?, annotations? }`，配 `layout: "chart-card"` 或 hook 的 `media-led` | chart-img 真实截图，`chart-pin` 免 VLM                   |
+   | 散点/地图/复杂标注，或没有原始数值                                                                        | `layout: "chart-card"` + `media.path`                                                                          | 真实图表 PNG                                             |
 
-      **作者规则**：`unit` 和 `texts.source` 必填；柱状/柱形的 magnitude/ranking 从 0 起，`deviation` 必须显式 `baseline`；最多一个 `highlight`（amber），其他 mark 用品牌蓝/中性；标签直接贴在 mark 旁，不旋转；放不下就换图型（column → bar），不缩 40px 地板、不斜排。VO 至少要点名一个数据标签或数值；声明 `info.time` 时，VO 要说出对应年份/月份；K 线 pin 的 `texts.subtext` 或 `texts.source` 要写单位或窗口。`checkInfoSpec` 是 FAIL；`checkChartClaimAgreement`、`checkNarrativeArc`、`checkAttentionBudget`、`auditInfoLayoutPreference` 目前是 advisory（editorial 桶），要在 HITL 报告里逐条自评。**原生图优先不是口头约定**：2026-11-17 的 6 对单人盲评中 native chart 偏好 5:0:1、clarity 6.67 vs 5.50（n=6，descriptive）；`scripts/short-video/lib/info-layout-preference.mjs` 固化该结果，`auditInfoLayoutPreference` 会在数据镜头仍用 `chart-card` 时给具名 advisory。
+   **作者规则**：`unit` 和 `texts.source` 必填；柱状/柱形的 magnitude/ranking 从 0 起，`deviation` 必须显式 `baseline`；最多一个 `highlight`（amber），其他 mark 用品牌蓝/中性；标签直接贴在 mark 旁，不旋转；放不下就换图型（column → bar），不缩 40px 地板、不斜排。VO 至少要点名一个数据标签或数值；声明 `info.time` 时，VO 要说出对应年份/月份；K 线 pin 的 `texts.subtext` 或 `texts.source` 要写单位或窗口。`checkInfoSpec` 是 FAIL；`checkChartClaimAgreement`、`checkNarrativeArc`、`checkAttentionBudget`、`auditInfoLayoutPreference` 目前是 advisory（editorial 桶），要在 HITL 报告里逐条自评。**原生图优先不是口头约定**：2026-11-17 的 6 对单人盲评中 native chart 偏好 5:0:1、clarity 6.67 vs 5.50（n=6，descriptive）；`scripts/short-video/lib/info-layout-preference.mjs` 固化该结果，`auditInfoLayoutPreference` 会在数据镜头仍用 `chart-card` 时给具名 advisory。
    8b-5. **原生 K 线：`info.chart: "candle"`（#1405）** — 港股日线一律走这条，不再买截图。`scene-data.mjs` 里声明 `info: { relationship: "change-over-time", chart: "candle", entity: "zhipu", dataFile: "data/<symbol>-daily.json", data, unit: "HK$", time: { from, to }, highlight?, credit }`，`data` 由 `readBakedCandleSeries(...)` 从包内 JSON 读入；hook 场景同时保留 `layout: "media-led"`（原生图占据 820×619 媒体带）。**Step 1 之前**跑 `npm run bake:quotes -- <dir>`：东方财富主源 + 腾讯逐根校验，任何一根任何一字段不一致即整体失败；`time.to` 必须已收盘且等于旁白引用的收盘日（多含一天就会把下一个交易日画上去，`info.data.window` 会 FAIL）。重跑同一天数据是 no-op，文件字节不变。图内**必须**印 `credit`（来源 + 时点）——`validateInfoSpec` 对缺 `credit` 的 candle 直接 FAIL，不再只是文档约定；标的只写 `entity`，ticker 由 `config/chart-symbols.json` 解析（bake 与读取共用同一张表，不在包内手抄第二份）。`texts.source` 保持短行（长行会把 hook 文本条挤出槽位）。作者 API 与几何见 `docs/specs/spec-information-layout-v2.md` §2b。
 
    8c. **数字人声明评估（必须执行）** — scene-data 写完后，按 `docs/video-script-writing-guide.md` →「数字人（scene.avatar）使用策略」评估本包是否声明数字人：对照声明白名单（CTA / 关键论点 payoff / 程式化数据时刻）与黑名单（hook / 高情感段 / 突发新闻表述），**逐包给出显式结论**——符合白名单的 scene 写入 `scene.avatar: {}`（生成走 plan → approve → run，见 `docs/specs/spec-digital-human-pipeline.md`），不符合的在对话中说明"本包不加数字人及理由"。**完成标准**：对话中存在一次明确的加/不加结论（静默跳过 = 未完成此步）。`plan dry-run` 的机械警告（hook 声明 / 出镜段数 / 单段时长）会拦截明显违规，但语义判断在本步。
    8d. **素材缺口回流账本（必须执行）** — 本轮 sourcing 结束后运行 `node scripts/short-video/asset-gaps.mjs --record --content <dir>`。它从 scene-data + `output/<dir>/media-patch.json` + 8b 的 `stock-relevance-report.json` + Stage 4 的 `b-roll-report.json` 推导「声明了 `assetNeed` 却没有素材」的场景，把工具失败、内容判决与「落空后改走生成」分开归因（原因码与边界见 `docs/media-asset-management.md` §2「素材缺口账本」），并入 `knowledge/asset-gaps.json`。**8b 的豁免只说明「本包可以不带这张图」，不等于素材库已有**——缺口保持 open，直到 Stage 0 真正入库并 `--satisfy`；因不可满足而把 `mediaStrategy` 改成 `b-roll` 也不会抹掉记录（8b 报告仍在）。下一轮 Stage 0 的预获取优先级由本账本决定。**完成标准**：命令输出 `Recorded N gap(s)` 或 `No asset gaps recorded`（后者也必须真的跑过）。
+
 9. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
 
 ### 素材 → 视频的节奏适配
@@ -381,12 +383,22 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 **写稿目标**（Step 6 设计 voiceover 时自检）：
 
-| 语言 | 目标语速                                            | 写稿规则                                                                                                                                          |
-| ---- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| EN   | ~2.7-2.8 词/秒净内容（对齐 165 wpm 目标带，见下）   | filler/hedging 禁用清单：just / really / basically / actually / so 开场 / throat-clearers（"So, look…"） / 软限定词（somewhat / kind of）——逐句删 |
-| ZH   | 维持现状（实测 236-288 字/分已是快节奏档）          | 不追求提速；删除口头禅与重复铺垫                                                                                                                  |
+| 语言 | 目标语速                                          | 写稿规则                                                                                                                                          |
+| ---- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EN   | ~2.7-2.8 词/秒净内容（对齐 165 wpm 目标带，见下） | filler/hedging 禁用清单：just / really / basically / actually / so 开场 / throat-clearers（"So, look…"） / 软限定词（somewhat / kind of）——逐句删 |
+| ZH   | 维持现状（实测 236-288 字/分已是快节奏档）        | 不追求提速；删除口头禅与重复铺垫                                                                                                                  |
 
 **hook 前 3 秒密度**：核心价值必须在 hook 前 3 秒点出（Meta 研究：前 3 秒传达核心价值 → 完播 +47%）。hook 不堆铺垫句。能量曲线方向（#252 调研）：hook 应是全片能量峰值、语速不慢于正文，中段衰减是流失点，cta 结尾加速属正常模式。**3s 是价值交付点，不是 hook 段长度**——hook 段本身的目标时长是 4.5–5s（口径见下节）。
+
+**参考体量区间（非门禁，#263 裁决）**：2026-11-09 用户裁决「duration follows the content — no minimum, no pad-to-target」之后，管线里**没有档位**——全片时长由每个场景的 TTS 实测音频长度累加（`lib/timeline.mjs`），70s 只是 advisory 上限（`verify-video --tiktok`：≤70s PASS / 70–600s WARN 提示拆集 / >600s FAIL，后者是 TikTok 10 分钟上传限）。下表**只用于选题时估体量**，不参与 `verify-video` 判定，也不是写稿配额：写多了自然变长，写少了自然变短。
+
+| 题材形态                            | 参考体量 | 参考 VO                                   |
+| ----------------------------------- | -------- | ----------------------------------------- |
+| 单点快讯（一条发布 / 一次更新）     | ≈40s     | ≈100 词                                   |
+| 标准解读（一个事件 + 2–3 个数据点） | ≈55–65s  | ≈140–160 词                               |
+| 生态拆解（多主体 / 多环节）         | ≈75s+    | 走拆集（`pt1`/`pt2`）或显式 `--long-form` |
+
+**唯一的写稿硬门**是 `checkVoiceoverWordCount`（`lib/scene-rules.mjs:863`）：全片 VO 合计 >175 词默认 FAIL，`--long-form` 降级为 WARN。175 是 70s × 2.5 wps 的换算值，**是上限不是目标**。
 
 **词密度预算（Stage 3 拦截，#252）**：行业高 WPM 靠写稿密度而非 TTS 拉速（1.2× 上限），在写稿阶段拦截比生成后重抽省远程 GPU 耗时。EN 场景自检公式：`词数 / 预估秒数`（预估秒数按该场景画面时长）。**基线预估 > 2.9 词/秒（≈175 WPM）→ 拦截并删减冗余词后再过 MRL-2**；**目标仍为 2.4-2.5 词/秒（#786 不改）**。**速度带 ≠ 密度预算**：2.9 词/秒是「写稿上限」（超过即要求删词），165 WPM 是「成片声学目标」（由停顿裁剪 + 倍率补差实现）；写稿目标**不随**声学目标一起上移——把两者同时推高会双重挤压理解资源（Rodero 2016：速度越高、可承载的信息密度必须越低），且本票没有「快则减速」支路，写密了只能越界（详见 `docs/research/speech-density-pacing-2026-10.md` 与 #786 的实测：现有文案密度下三包已落在 172-175 WPM）。理由：场景基线密度差异大（实测 127-214 WPM）时，任何静态倍率都必然把高基线场景推出上限——预算在源头抹平基线差异，残余交给 TTS 闭环。
 
@@ -424,15 +436,15 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 **首句句子族优先级**（#1231，`docs/research/competitor-video-benchmarks-research.md` §10.2，n=35；一条可命中多族）：
 
-| 优先级 | 句子族 | 命中 | 形态 |
-| ------ | ------ | ---- | ---- |
-| 头族 | 规模 / 最高级锚点 | 11/35 | "the biggest … in human history"、"the most insane …"、"strongest year ever" |
-| 头族 | 数量锚点 | 11/35 | "one / five / N / 100%"、"nine of eleven"、具体金额或参数量 |
-| 头族 | `just` + 事件 | 9/35 | "[主体] just dropped / banned / beat …" |
-| 备选（可叠加） | 第二人称 / 祈使 | 10/35 | "Here's how you…" |
-| 备选（可叠加） | 反共识 / 否定 | 6/35 | "and nobody's talking about it" |
-| 降级 | 提问式 | 4/35 | 仅在同句带数字/规模锚点时保留（405 形状） |
-| 点缀 | 强度词 | 4/35 | insane / massive 一类，必须有具体事实兜底 |
+| 优先级         | 句子族            | 命中  | 形态                                                                         |
+| -------------- | ----------------- | ----- | ---------------------------------------------------------------------------- |
+| 头族           | 规模 / 最高级锚点 | 11/35 | "the biggest … in human history"、"the most insane …"、"strongest year ever" |
+| 头族           | 数量锚点          | 11/35 | "one / five / N / 100%"、"nine of eleven"、具体金额或参数量                  |
+| 头族           | `just` + 事件     | 9/35  | "[主体] just dropped / banned / beat …"                                      |
+| 备选（可叠加） | 第二人称 / 祈使   | 10/35 | "Here's how you…"                                                            |
+| 备选（可叠加） | 反共识 / 否定     | 6/35  | "and nobody's talking about it"                                              |
+| 降级           | 提问式            | 4/35  | 仅在同句带数字/规模锚点时保留（405 形状）                                    |
+| 点缀           | 强度词            | 4/35  | insane / massive 一类，必须有具体事实兜底                                    |
 
 **hook 时长口径**（#1231，§10.2）：
 
@@ -460,11 +472,11 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 **这是评审门，不是 CI 门。** 四轴由 Agent 在 Step 0 报告与 MRL-2 自审时**逐轴自评**，任一轴 FAIL 即改写 hook 再往下走；`scene-rules.mjs` **不新增机械阻断**（理由与依据见本节末）。hook 的机检项只报编辑建议（`checkHookCompellingElement` / `checkNoWrittenOpener` / `checkHookSentenceFamily` / `checkHookDuration`，见 🧭 Editorial Suggestions），不进退出码；机械契约仍由 `checkHookContract` / `checkHookDiffersFromText` / `checkHookMediaContract` 把门（#763）。`checkHookCompellingElement` 与 `checkHookSentenceFamily` 自 #1289 起按 hook 场景声明的 `hookFamily` 判形态是否被执行（见下「六族声明」）。
 
-| 轴 | 检查项（逐项勾选） | FAIL 签名 |
-| --- | --- | --- |
-| **1 首句冲突密度** | hook 前 1.5s（首分句，读到第一个句读 `. ! ?` 或 `,` 为止）是否已落出**冲突/反差/冲击本身**（结果先行）？ | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"） |
-| **2 可感知比较锚点** | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长）是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？hook 无度量数字时本轴记 **N/A**，不因缺数字判 FAIL | 裸报绝对量无对照（"raised $10B"、"10T tokens"） |
-| **3 三轨同频** | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（判定表与严重度见下节 `### Hook 媒体策展（#299）`；机检在 `lib/hook-media.mjs`），或显式 `media: null`？ | 3a 口播讲 A、屏幕大字写 B；3b 违反 #299 契约（项与严重度按该表判，本表不重述） |
+| 轴                              | 检查项（逐项勾选）                                                                                                                                                                                                                                                                              | FAIL 签名                                                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **1 首句冲突密度**              | hook 前 1.5s（首分句，读到第一个句读 `. ! ?` 或 `,` 为止）是否已落出**冲突/反差/冲击本身**（结果先行）？                                                                                                                                                                                        | 顺叙开场且对象是中性描述（模型名/参数/功能）——"X just released Y"；铺垫句开场（"According to…"、"In a move that…"）        |
+| **2 可感知比较锚点**            | hook 里出现的每个**度量数字**（金额/参数量/跑分/人数/时长）是否在同句或紧邻分句给出参照系（`vs 对手` / `1/N 成本` / `从 X 到 Y` / 分母如 "nine of eleven" / 量级对照如 one GPU vs 1.3 billion people）？hook 无度量数字时本轴记 **N/A**，不因缺数字判 FAIL                                      | 裸报绝对量无对照（"raised $10B"、"10T tokens"）                                                                            |
+| **3 三轨同频**                  | 3a 台词核心锚点词与 `texts.bigNumber` / `texts.subject` 是否指向**同一对象**（同一秒落点）？<br>3b hook media 是否满足 #299 契约（判定表与严重度见下节 `### Hook 媒体策展（#299）`；机检在 `lib/hook-media.mjs`），或显式 `media: null`？                                                       | 3a 口播讲 A、屏幕大字写 B；3b 违反 #299 契约（项与严重度按该表判，本表不重述）                                             |
 | **4 首句句子族与时长**（#1231） | 4a 首句是否命中头族（规模/最高级、数量锚点、`just` + 事件），或提问式同句自带数字/规模锚点，或**声明了六族中的某一族且已按该族形态写出**（#1289，见下）？4b 强度词是否有具体事实兜底？4c hook VO 是否在 **4.5–5.0s** 目标带——TTS 前按约 12 词预估，TTS 后按 `audio/scene-durations.json` 实测？ | 4a 首句无任何头族且未声明族，或提问式无锚点，或声明了族却没执行；4b 强度词单独撑句；4c 实测/预估超出 **4.1–6.6s** 可接受带 |
 
 **建议级（不计 FAIL）**：首拍可被陌生观众识别的新实体（公司/模型/产品/事件）≤2 个。triage 原把它列为轴 3 的硬项，本轮按 HITL「不新增机械阻断」降为建议级——一句话塞进 3 家公司是密度问题，owner 归 #235/#252。
@@ -494,11 +506,11 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 Hook 是开头的 4.5–5 秒（目标带，见上节「hook 时长口径」），媒体**逐包人工策展**，不走通用搜源（`asset-sourcer` 结构上跳过 hook）。HITL 阶段必须三选一：
 
-| Hook 状态  | 写法                                                                                                | 预检（`--pre`）                                               | 最终 media gate（sourcing/生成后）  |
-| ---------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------- |
+| Hook 状态  | 写法                                                                                                | 预检（`--pre`）                                                                                                                                                                            | 最终 media gate（sourcing/生成后）                                                                                                                                                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 已策展     | `scene.media = { type, path, source, fit: "cover", overlay }`                                       | 通过；`fit` 为 `fill`/`none`/拼错 FAIL；`cover`/`contain` 均合法（`contain` 自 #1021 起；hook 与正文同构见 #963，未声明正文 fit 时按 hook 自身源宽高比），`overlay` 越界或缺 `source` WARN | 文件存在且字节可用（#759：0 字节/截断/占位尺寸/声明类型与真实字节类别不符（图↔视频）即 FAIL），并过同一 fit/overlay/source 契约；声明为证据（`media.evidence: true`）时缺 `media.provenance` 亦 FAIL，且 provenance 需通过 `clip × scale` 像素对账（`composed: true` 的历史预合成图除外，记 warning） |
-| 故意纯文字 | `media: null`                                                                                       | WARN（显式豁免，不阻断）                                      | 通过 + `explicit-null-on-hook` 警告 |
-| 生成兜底   | 不写 `media`，`mediaStrategy` 为 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image` | WARN（不阻断生成）                                            | 文件未落地即 FAIL                   |
+| 故意纯文字 | `media: null`                                                                                       | WARN（显式豁免，不阻断）                                                                                                                                                                   | 通过 + `explicit-null-on-hook` 警告                                                                                                                                                                                                                                                                   |
+| 生成兜底   | 不写 `media`，`mediaStrategy` 为 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image` | WARN（不阻断生成）                                                                                                                                                                         | 文件未落地即 FAIL                                                                                                                                                                                                                                                                                     |
 
 其余情况（`mediaStrategy` 为 `asset` 或缺省、且没有 `media`）预检直接 FAIL：必须从策展库绑定 `scene.media`，或显式写 `media: null`。HITL 报告需列出 hook 媒体的来源与绑定路径。挑图标准与素材库现状见 `docs/video-script-writing-guide.md` → Hook 媒体策展；路径规则见 `docs/media-asset-management.md` → Hook 封面绑定。
 
@@ -516,12 +528,12 @@ node scripts/short-video/verify-hook-payoff.mjs --content <dir> --semantic --str
 
 `--semantic` 会起本地 Qwen3-VL（首次约 1–2 分钟，结果按视频指纹 + claim 缓存到 `output/<pack>/.vlm-cache`）。VLM 不可用、超时或没有给出判定时，报告会写 `semantic check unavailable` 而不是猜一个分数——像素判定仍然有效。
 
-| 判据 | 判定方式 | 什么算缺陷 |
-| --- | --- | --- |
-| 抽样帧 | ffmpeg 取 0.0 / 0.5 / 1.0 / 2.0s；`lib/hook-payoff.mjs` 按内容区 ink 覆盖率把帧分为 picture / card / flat / black | — |
-| Hook opens on footage | 首帧不是 picture 时看画面何时到位 | 1.0s 后仍停在文字卡（用文案占住开头）。0.5s 的黑卡是渲染器 fade-in，好坏成片都有，不判 |
-| Hook claim readable | 取 scene 1 的 `hookText`/`revealText`，number-led 取 `bigNumber`/`numberLabel`，都没有则回落 voiceover | 屏幕上和口播里都没有可对账的承诺 |
-| Hook picture matches the claim | `--semantic` 时把同一 claim 交给 VLM，取 pass / partial / absent 的**动作级**判定（不是 #294 的主体相关度） | 画面里有内容，但不是承诺的那个动作/结果（10-25 缺陷的签名） |
+| 判据                           | 判定方式                                                                                                          | 什么算缺陷                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 抽样帧                         | ffmpeg 取 0.0 / 0.5 / 1.0 / 2.0s；`lib/hook-payoff.mjs` 按内容区 ink 覆盖率把帧分为 picture / card / flat / black | —                                                                                      |
+| Hook opens on footage          | 首帧不是 picture 时看画面何时到位                                                                                 | 1.0s 后仍停在文字卡（用文案占住开头）。0.5s 的黑卡是渲染器 fade-in，好坏成片都有，不判 |
+| Hook claim readable            | 取 scene 1 的 `hookText`/`revealText`，number-led 取 `bigNumber`/`numberLabel`，都没有则回落 voiceover            | 屏幕上和口播里都没有可对账的承诺                                                       |
+| Hook picture matches the claim | `--semantic` 时把同一 claim 交给 VLM，取 pass / partial / absent 的**动作级**判定（不是 #294 的主体相关度）       | 画面里有内容，但不是承诺的那个动作/结果（10-25 缺陷的签名）                            |
 
 **默认 WARN，`--strict` 才 FAIL / exit 1。** 显式 `media: null` 的纯文字 hook 是合法选择（#299 契约只 WARN），VLM 判定也只是模型判断；默认不阻断，避免用一个假阳性杀掉合法 hook。
 
@@ -541,11 +553,11 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 
 **MRL-2 检查项**：由 `verify-video.mjs --pre`（`scene-rules.mjs` → `runAllSceneDataChecks`）机器执行，Agent 在 HITL 报告中引用其输出：FAIL/WARN 项带检查名与详情，通过项按类别计数（#763 折叠，单包输出从约 80 行降到约 20 行）。输出分三层：
 
-| 层 | 语义 | 输出位置 |
-| --- | --- | --- |
-| 机检门（Blockers） | 违反即渲染契约/产物/schema 破裂，必须修 | `❌ FAIL` / `⚠️ WARN` 行 + FIX |
+| 层                   | 语义                                                | 输出位置                        |
+| -------------------- | --------------------------------------------------- | ------------------------------- |
+| 机检门（Blockers）   | 违反即渲染契约/产物/schema 破裂，必须修             | `❌ FAIL` / `⚠️ WARN` 行 + FIX  |
 | 编辑建议（advisory） | 需要品味/上下文/世界知识，**不进退出码、不算 WARN** | `🧭 Editorial Suggestions` 区块 |
-| Agent 判断项 | 机器无法判定，Agent 自评 | HITL 报告 |
+| Agent 判断项         | 机器无法判定，Agent 自评                            | HITL 报告                       |
 
 机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
 
@@ -664,7 +676,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > **置顶评论只出 commentHook（用户决定 2026-10-13）**：`metadata.articleUrl` 留空，置顶评论与 Caption 因此不带链接。这是「网站就绪前先不引流」的落地方式。要恢复引流：在该内容的 scene-data 填回 `articleUrl`，重跑 `generate-caption.mjs`（`lib/caption-utils.mjs` → `derivePinnedComment`：无 url 时只返回 hook）。
 
-8. **BGM 与发布 — 用户确认后一条龙，不再单独问 BGM**（用户决定 2026-10-25：*"我觉得以后的pipeline是不是也可以改成：我确认之后，你直接去TikTok加上背景音乐，直接发布就好了。"*）
+8. **BGM 与发布 — 用户确认后一条龙，不再单独问 BGM**（用户决定 2026-10-25：_"我觉得以后的pipeline是不是也可以改成：我确认之后，你直接去TikTok加上背景音乐，直接发布就好了。"_）
 
    **新默认路径**：HITL 用户确认「视频 OK」后，Agent 不停下来问配乐，直接：
    a. 用 `scripts/short-video/tiktok-upload-prep.mjs` 上传，**自动挂 Breaking News (Voxie)**，音量按下面红线设好并回读校验
@@ -763,19 +775,19 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 ## 检查点总结
 
-| 检查点                   | 位置                           | 类型     | 谁操作 | 必须？               |
-| ------------------------ | ------------------------------ | -------- | ------ | -------------------- |
-| **🔄 MRL-1** 文章自审    | Stage 1（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须              |
-| 新 widget 部署           | Stage 2（文章准备时）          | 人工操作 | 用户   | 仅当有新 widget      |
-| **🔄 MRL-2** 脚本自审    | Stage 3（自审，不暂停）        | 机器循环 | Agent  | ✅ 必须              |
-| 📚 RAG reindex（多媒体） | Stage 4b（视频制作后）         | 脚本执行 | Agent  | 仅当有多媒体素材变更 |
-| **🔄 MRL-3** 视频自审    | Stage 5 → HITL 前              | 机器循环 | Agent  | ✅ 必须              |
-| **🔄 跨轨一致性回检**     | Stage 5 → HITL 前 + 每次修改后  | Agent 判断 | Agent  | ✅ 必须（#431）      |
-| **HITL** 内容包成品审阅  | Stage 5 内部（验证后、公开前） | 人工确认 | 用户   | ✅ 必须              |
-| 文章公开发布 + 附件上传  | Stage 5（HITL 确认后）         | 脚本执行 | Agent  | ✅ 必须              |
-| TikTok 发布 + URL 保存   | Stage 5 HITL 确认后            | 脚本执行 | Agent  | ✅ 必须              |
-| TikTok 手工操作          | Stage 5 之后                   | 人工操作 | 用户   | ✅ 必须              |
-| Analytics 导出           | 独立工作流                     | 人工操作 | 用户   | 按需                 |
+| 检查点                   | 位置                           | 类型       | 谁操作 | 必须？               |
+| ------------------------ | ------------------------------ | ---------- | ------ | -------------------- |
+| **🔄 MRL-1** 文章自审    | Stage 1（自审，不暂停）        | 机器循环   | Agent  | ✅ 必须              |
+| 新 widget 部署           | Stage 2（文章准备时）          | 人工操作   | 用户   | 仅当有新 widget      |
+| **🔄 MRL-2** 脚本自审    | Stage 3（自审，不暂停）        | 机器循环   | Agent  | ✅ 必须              |
+| 📚 RAG reindex（多媒体） | Stage 4b（视频制作后）         | 脚本执行   | Agent  | 仅当有多媒体素材变更 |
+| **🔄 MRL-3** 视频自审    | Stage 5 → HITL 前              | 机器循环   | Agent  | ✅ 必须              |
+| **🔄 跨轨一致性回检**    | Stage 5 → HITL 前 + 每次修改后 | Agent 判断 | Agent  | ✅ 必须（#431）      |
+| **HITL** 内容包成品审阅  | Stage 5 内部（验证后、公开前） | 人工确认   | 用户   | ✅ 必须              |
+| 文章公开发布 + 附件上传  | Stage 5（HITL 确认后）         | 脚本执行   | Agent  | ✅ 必须              |
+| TikTok 发布 + URL 保存   | Stage 5 HITL 确认后            | 脚本执行   | Agent  | ✅ 必须              |
+| TikTok 手工操作          | Stage 5 之后                   | 人工操作   | 用户   | ✅ 必须              |
+| Analytics 导出           | 独立工作流                     | 人工操作   | 用户   | 按需                 |
 
 ---
 

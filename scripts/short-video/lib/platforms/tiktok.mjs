@@ -31,7 +31,12 @@ const THRESHOLDS = {
    */
   maxDurationSec: 70,
 
-  /** Max voiceover words for the 70s ceiling (2.5 wps) */
+  /**
+   * Writing-time gate for the 70s advisory ceiling above (175 = 70s × 2.5 wps).
+   * Ceiling, not a target: `checkVoiceoverWordCount` fails above it by default and
+   * `--long-form` downgrades that to a warning. Content volume decides the length;
+   * see `docs/content-pipeline.md` → 参考体量区间（非门禁）.
+   */
   maxVoiceoverWords: 175,
 
   /** Max words per sentence for one-breath check */
