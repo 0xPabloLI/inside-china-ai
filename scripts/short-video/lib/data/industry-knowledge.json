@@ -1,0 +1,1520 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-21",
+  "source": "docs/research/industry-knowledge-layer-2026-11.md (2026-11-21, #253 research slice) + docs/industry-baselines.md; overseas-awareness and has_model facts are projected from company-relations.json by scripts/short-video/migrate-industry-knowledge.mjs.",
+  "fieldNotes": {
+    "fact": "(subject, relation, object, asOf, source, confidence, status). asOf is when the value was observed (YYYY-MM or YYYY-MM-DD). status current | superseded | disputed.",
+    "status": "current = the only value a writer may cite. superseded = retired by a newer fact on the same (subject, relation) key, kept for replay; it must carry supersededBy pointing at the replacing fact.",
+    "confidence": "official | media | inferred — mirrors the research doc evidence grades. Parameters from media sources older than 90 days without official confirmation must be demoted to 待核 in the writer-facing table.",
+    "volatileRelations": "Only these relations are subject to the freshness budget: model_scale, competitive_position, capability_marker, overseas_awareness. release_date, model_domain, has_model and listed_on are stable and are not flagged stale.",
+    "multiValuedRelations": "Relations whose facts are one-to-many: has_model can hold several current objects for the same company. Every other relation is functional — at most one current object per (subject, relation).",
+    "freshnessDays": "Per-domain re-verification budget. 90 is the default; fast-evolving domains (llm, world_model, video_generation) use 30. A stale fact may only be quoted as 'as of <month>', never in the present tense, until re-verified.",
+    "models": "Identity index for model subjects that do not exist in company-relations.json. Not a second source of truth for facts: domain, scale and position all live in facts.",
+    "relations": "v1 vocabulary, extensible. has_model and overseas_awareness are projected from company-relations.json; the others are curated from the research slice."
+  },
+  "relations": [
+    "has_model",
+    "model_domain",
+    "model_scale",
+    "release_date",
+    "capability_marker",
+    "listed_on",
+    "overseas_awareness",
+    "competitive_position"
+  ],
+  "volatileRelations": [
+    "model_scale",
+    "competitive_position",
+    "capability_marker",
+    "overseas_awareness"
+  ],
+  "multiValuedRelations": [
+    "has_model"
+  ],
+  "defaultFreshnessDays": 90,
+  "domains": {
+    "llm": {
+      "label": "LLM",
+      "edgeBand": "<= 8B",
+      "mainstreamBand": "30B-235B",
+      "frontierBand": "1.6T-2.8T total / 49B-104B active, 1M context",
+      "breakthrough": [
+        "cross-tier gain on same-generation benchmarks (MMLU-Pro, LiveCodeBench, long-horizon agent tasks)",
+        "materially lower cost at 1M context",
+        "bigger total parameters alone do not count"
+      ],
+      "freshnessDays": 30
+    },
+    "world_model": {
+      "label": "World model",
+      "edgeBand": "1-3B realtime on-device",
+      "mainstreamBand": "10-14B",
+      "frontierBand": "10-28B total / 14B-class inference, 720p realtime, minute-level memory",
+      "breakthrough": [
+        "resolution, frame rate or memory length crosses a tier (e.g. 720p@24fps to 1080p, or minute-level to ten-minute-level memory)",
+        "first support for controllable events or multi-agent worlds",
+        "higher parameter count alone does not count"
+      ],
+      "freshnessDays": 30
+    },
+    "video_generation": {
+      "label": "Video generation",
+      "edgeBand": "5B dense",
+      "mainstreamBand": "14B",
+      "frontierBand": "27B/14B MoE or 5B dense, 720p@24fps",
+      "breakthrough": [
+        "native audio, 1080p, long-shot consistency or physical plausibility moves from demo to deliverable",
+        "aesthetic improvement alone does not count"
+      ],
+      "freshnessDays": 30
+    },
+    "vlm": {
+      "label": "VLM",
+      "edgeBand": "2B-8B",
+      "mainstreamBand": "30B-32B",
+      "frontierBand": "235B total / 22B active, 256K interleaved context",
+      "breakthrough": [
+        "reproducible cross-tier gain in OCR, long-video temporal grounding or document-structure understanding",
+        "a leaderboard point increase does not count"
+      ],
+      "freshnessDays": 90
+    },
+    "tts": {
+      "label": "TTS",
+      "edgeBand": "0.5B",
+      "mainstreamBand": "1.5B",
+      "frontierBand": "0.5B-1.5B, million-hour training, 9-language zero-shot",
+      "breakthrough": [
+        "cross-lingual naturalness, emotion/dialect control and sub-250ms first packet improve together"
+      ],
+      "freshnessDays": 90
+    },
+    "omni": {
+      "label": "Omni-modal",
+      "edgeBand": "30B-A3B",
+      "mainstreamBand": "30B-A3B",
+      "frontierBand": "30B-A3B, 119 text / 10 output speech languages, 234ms first packet",
+      "breakthrough": [
+        "no regression across text, image, audio and video in one model, and streaming end-to-end usable",
+        "stacking four single-modality models does not count"
+      ],
+      "freshnessDays": 90
+    }
+  },
+  "models": [
+    {
+      "id": "deepseek_v4_pro",
+      "displayName": "DeepSeek V4-Pro",
+      "parent": "deepseek",
+      "aliases": [
+        "V4-Pro",
+        "DeepSeek V4 Pro"
+      ]
+    },
+    {
+      "id": "deepseek_v4_flash",
+      "displayName": "DeepSeek V4-Flash",
+      "parent": "deepseek",
+      "aliases": [
+        "V4-Flash",
+        "DeepSeek V4 Flash"
+      ]
+    },
+    {
+      "id": "kimi_k3",
+      "displayName": "Kimi K3",
+      "parent": "kimi",
+      "aliases": [
+        "K3"
+      ]
+    },
+    {
+      "id": "qwen3_8",
+      "displayName": "Qwen3.8",
+      "parent": "qwen",
+      "aliases": [
+        "Qwen 3.8"
+      ]
+    },
+    {
+      "id": "genie_3",
+      "displayName": "Genie 3",
+      "parent": "google",
+      "aliases": [
+        "Genie3"
+      ]
+    },
+    {
+      "id": "lingbot_world",
+      "displayName": "LingBot-World",
+      "parent": "lingbot",
+      "aliases": [
+        "LingBot World"
+      ]
+    },
+    {
+      "id": "lingbot_world_v2",
+      "displayName": "LingBot-World v2",
+      "parent": "lingbot",
+      "aliases": [
+        "LingBot World v2"
+      ]
+    },
+    {
+      "id": "wan2_2_a14b",
+      "displayName": "Wan2.2 A14B",
+      "parent": "wan",
+      "aliases": [
+        "Wan 2.2 A14B"
+      ]
+    },
+    {
+      "id": "wan2_2_ti2v_5b",
+      "displayName": "Wan2.2 TI2V-5B",
+      "parent": "wan",
+      "aliases": [
+        "Wan 2.2 TI2V-5B"
+      ]
+    },
+    {
+      "id": "qwen3_vl",
+      "displayName": "Qwen3-VL",
+      "parent": "qwen",
+      "aliases": [
+        "Qwen 3 VL"
+      ]
+    },
+    {
+      "id": "qwen3_vl_235b_a22b",
+      "displayName": "Qwen3-VL-235B-A22B",
+      "parent": "qwen",
+      "aliases": [
+        "Qwen3-VL 235B"
+      ]
+    },
+    {
+      "id": "cosyvoice_3",
+      "displayName": "CosyVoice 3",
+      "parent": "alibaba",
+      "aliases": [
+        "CosyVoice3"
+      ]
+    },
+    {
+      "id": "qwen3_omni",
+      "displayName": "Qwen3-Omni-30B-A3B",
+      "parent": "qwen",
+      "aliases": [
+        "Qwen3 Omni"
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "id": "fact-deepseek-v4-pro-model-domain",
+      "subject": "deepseek_v4_pro",
+      "relation": "model_domain",
+      "object": "llm",
+      "asOf": "2026-04-24",
+      "source": "DeepSeek V4 model card (2026-04-24) https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-v4-pro-model-scale",
+      "subject": "deepseek_v4_pro",
+      "relation": "model_scale",
+      "object": {
+        "total": "1.6T",
+        "active": "49B"
+      },
+      "asOf": "2026-04-24",
+      "source": "DeepSeek V4 model card (2026-04-24) https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-v4-pro-capability-marker",
+      "subject": "deepseek_v4_pro",
+      "relation": "capability_marker",
+      "object": [
+        "1M context"
+      ],
+      "asOf": "2026-04-24",
+      "source": "DeepSeek V4 model card (2026-04-24) https://fe-static.deepseek.com/chat/transparency/deepseek-V4-model-card-EN.pdf",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-v4-pro-release-date",
+      "subject": "deepseek_v4_pro",
+      "relation": "release_date",
+      "object": "2026-04-24",
+      "asOf": "2026-04-24",
+      "source": "DeepSeek V4 model card (2026-04-24)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-v4-flash-model-domain",
+      "subject": "deepseek_v4_flash",
+      "relation": "model_domain",
+      "object": "llm",
+      "asOf": "2026-04-24",
+      "source": "DeepSeek V4 model card (2026-04-24)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-v4-flash-model-scale",
+      "subject": "deepseek_v4_flash",
+      "relation": "model_scale",
+      "object": {
+        "total": "284B",
+        "active": "13B"
+      },
+      "asOf": "2026-04-24",
+      "source": "DeepSeek V4 model card (2026-04-24)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-kimi-k3-model-domain",
+      "subject": "kimi_k3",
+      "relation": "model_domain",
+      "object": "llm",
+      "asOf": "2026-07-17",
+      "source": "Kimi K3 release page (2026-07-17) https://www.kimi.com/news/kimi-k3; arXiv 2607.24653",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-kimi-k3-model-scale",
+      "subject": "kimi_k3",
+      "relation": "model_scale",
+      "object": {
+        "total": "2.8T",
+        "active": "104B"
+      },
+      "asOf": "2026-07-17",
+      "source": "Kimi K3 release page (2026-07-17) https://www.kimi.com/news/kimi-k3; arXiv 2607.24653",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-kimi-k3-capability-marker",
+      "subject": "kimi_k3",
+      "relation": "capability_marker",
+      "object": [
+        "1M context",
+        "native vision"
+      ],
+      "asOf": "2026-07-17",
+      "source": "Kimi K3 release page (2026-07-17) https://www.kimi.com/news/kimi-k3; arXiv 2607.24653",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-kimi-k3-release-date",
+      "subject": "kimi_k3",
+      "relation": "release_date",
+      "object": "2026-07-17",
+      "asOf": "2026-07-17",
+      "source": "Kimi K3 release page (2026-07-17)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-8-model-domain",
+      "subject": "qwen3_8",
+      "relation": "model_domain",
+      "object": "llm",
+      "asOf": "2026-11",
+      "source": "docs/research/industry-knowledge-layer-2026-11.md aggregate reading (media, pending official confirmation)",
+      "confidence": "media",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-8-model-scale",
+      "subject": "qwen3_8",
+      "relation": "model_scale",
+      "object": {
+        "total": "2.4T",
+        "active": "95B"
+      },
+      "asOf": "2026-11",
+      "source": "docs/research/industry-knowledge-layer-2026-11.md aggregate reading (media, pending official confirmation)",
+      "confidence": "media",
+      "status": "current"
+    },
+    {
+      "id": "fact-genie-3-model-domain",
+      "subject": "genie_3",
+      "relation": "model_domain",
+      "object": "world_model",
+      "asOf": "2026-11",
+      "source": "DeepMind Genie page and secondary summaries (2026) https://deepmind.google/models/genie/",
+      "confidence": "media",
+      "status": "current"
+    },
+    {
+      "id": "fact-genie-3-model-scale",
+      "subject": "genie_3",
+      "relation": "model_scale",
+      "object": {
+        "total": "11B"
+      },
+      "asOf": "2026-11",
+      "source": "DeepMind Genie page and secondary summaries (2026) https://deepmind.google/models/genie/",
+      "confidence": "media",
+      "status": "current"
+    },
+    {
+      "id": "fact-genie-3-capability-marker",
+      "subject": "genie_3",
+      "relation": "capability_marker",
+      "object": [
+        "realtime 720p@24fps",
+        "minute-level memory"
+      ],
+      "asOf": "2026-11",
+      "source": "DeepMind Genie page and secondary summaries (2026) https://deepmind.google/models/genie/",
+      "confidence": "media",
+      "status": "current"
+    },
+    {
+      "id": "fact-genie-3-competitive-position",
+      "subject": "genie_3",
+      "relation": "competitive_position",
+      "object": "frontier_band",
+      "asOf": "2026-11",
+      "source": "docs/industry-baselines.md (2026-11) world-model band",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-world-model-domain",
+      "subject": "lingbot_world",
+      "relation": "model_domain",
+      "object": "world_model",
+      "asOf": "2026-09-10",
+      "source": "LingBot-World model listing (2026-09-10)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-world-model-scale",
+      "subject": "lingbot_world",
+      "relation": "model_scale",
+      "object": {
+        "total": "28B",
+        "active": "14B"
+      },
+      "asOf": "2026-09-10",
+      "source": "LingBot-World model listing (2026-09-10)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-world-v2-model-domain",
+      "subject": "lingbot_world_v2",
+      "relation": "model_domain",
+      "object": "world_model",
+      "asOf": "2026-09-10",
+      "source": "lingbot-world-v2 model listing (2026-09-10)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-world-v2-model-scale",
+      "subject": "lingbot_world_v2",
+      "relation": "model_scale",
+      "object": {
+        "variants": [
+          {
+            "label": "14B",
+            "total": "14B"
+          },
+          {
+            "label": "1.3B edge",
+            "total": "1.3B"
+          }
+        ]
+      },
+      "asOf": "2026-09-10",
+      "source": "lingbot-world-v2 model listing (2026-09-10)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-world-v2-competitive-position",
+      "subject": "lingbot_world_v2",
+      "relation": "competitive_position",
+      "object": "edge",
+      "asOf": "2026-11",
+      "source": "docs/industry-baselines.md (2026-11) world-model bands: 1-3B is the on-device tier",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan2-2-a14b-model-domain",
+      "subject": "wan2_2_a14b",
+      "relation": "model_domain",
+      "object": "video_generation",
+      "asOf": "2025-07",
+      "source": "Wan2.2 official repository/model card (2025-07) https://github.com/Wan-Video/Wan2.2",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan2-2-a14b-model-scale",
+      "subject": "wan2_2_a14b",
+      "relation": "model_scale",
+      "object": {
+        "total": "27B",
+        "active": "14B"
+      },
+      "asOf": "2025-07",
+      "source": "Wan2.2 official repository/model card (2025-07) https://github.com/Wan-Video/Wan2.2",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan2-2-a14b-release-date",
+      "subject": "wan2_2_a14b",
+      "relation": "release_date",
+      "object": "2025-07",
+      "asOf": "2025-07",
+      "source": "Wan2.2 official repository/model card (2025-07)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan2-2-ti2v-5b-model-domain",
+      "subject": "wan2_2_ti2v_5b",
+      "relation": "model_domain",
+      "object": "video_generation",
+      "asOf": "2025-07",
+      "source": "Wan2.2 official repository/model card (2025-07) https://github.com/Wan-Video/Wan2.2",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan2-2-ti2v-5b-model-scale",
+      "subject": "wan2_2_ti2v_5b",
+      "relation": "model_scale",
+      "object": {
+        "total": "5B"
+      },
+      "asOf": "2025-07",
+      "source": "Wan2.2 official repository/model card (2025-07) https://github.com/Wan-Video/Wan2.2",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan2-2-ti2v-5b-competitive-position",
+      "subject": "wan2_2_ti2v_5b",
+      "relation": "competitive_position",
+      "object": "edge",
+      "asOf": "2026-11",
+      "source": "docs/industry-baselines.md (2026-11) video-generation bands: 5B dense is the edge tier",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-vl-model-domain",
+      "subject": "qwen3_vl",
+      "relation": "model_domain",
+      "object": "vlm",
+      "asOf": "2025-11",
+      "source": "Qwen3-VL Technical Report (arXiv 2511.21631)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-vl-model-scale",
+      "subject": "qwen3_vl",
+      "relation": "model_scale",
+      "object": {
+        "variants": [
+          {
+            "label": "2B",
+            "total": "2B"
+          },
+          {
+            "label": "4B",
+            "total": "4B"
+          },
+          {
+            "label": "8B",
+            "total": "8B"
+          },
+          {
+            "label": "32B",
+            "total": "32B"
+          },
+          {
+            "label": "30B-A3B",
+            "total": "30B",
+            "active": "3B"
+          },
+          {
+            "label": "235B-A22B",
+            "total": "235B",
+            "active": "22B"
+          }
+        ]
+      },
+      "asOf": "2025-11",
+      "source": "Qwen3-VL Technical Report (arXiv 2511.21631)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-vl-capability-marker",
+      "subject": "qwen3_vl",
+      "relation": "capability_marker",
+      "object": [
+        "256K interleaved context"
+      ],
+      "asOf": "2025-11",
+      "source": "Qwen3-VL Technical Report (arXiv 2511.21631)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-vl-235b-a22b-model-domain",
+      "subject": "qwen3_vl_235b_a22b",
+      "relation": "model_domain",
+      "object": "vlm",
+      "asOf": "2025-11",
+      "source": "Qwen3-VL Technical Report (arXiv 2511.21631)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-vl-235b-a22b-model-scale",
+      "subject": "qwen3_vl_235b_a22b",
+      "relation": "model_scale",
+      "object": {
+        "total": "235B",
+        "active": "22B"
+      },
+      "asOf": "2025-11",
+      "source": "Qwen3-VL Technical Report (arXiv 2511.21631)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-vl-235b-a22b-competitive-position",
+      "subject": "qwen3_vl_235b_a22b",
+      "relation": "competitive_position",
+      "object": "frontier_band",
+      "asOf": "2026-11",
+      "source": "docs/industry-baselines.md (2026-11) VLM bands: 235B total / 22B active is the frontier band",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-cosyvoice-3-model-domain",
+      "subject": "cosyvoice_3",
+      "relation": "model_domain",
+      "object": "tts",
+      "asOf": "2025-12",
+      "source": "CosyVoice 3 paper (arXiv 2505.17589) and Alibaba Cloud open-source announcement (2025-12)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-cosyvoice-3-model-scale",
+      "subject": "cosyvoice_3",
+      "relation": "model_scale",
+      "object": {
+        "variants": [
+          {
+            "label": "0.5B",
+            "total": "0.5B"
+          },
+          {
+            "label": "1.5B",
+            "total": "1.5B"
+          }
+        ]
+      },
+      "asOf": "2025-12",
+      "source": "CosyVoice 3 paper (arXiv 2505.17589)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-cosyvoice-3-capability-marker",
+      "subject": "cosyvoice_3",
+      "relation": "capability_marker",
+      "object": [
+        "million-hour training",
+        "9-language zero-shot"
+      ],
+      "asOf": "2025-12",
+      "source": "CosyVoice 3 paper (arXiv 2505.17589) and Alibaba Cloud open-source announcement (2025-12)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-cosyvoice-3-release-date",
+      "subject": "cosyvoice_3",
+      "relation": "release_date",
+      "object": "2025-12",
+      "asOf": "2025-12",
+      "source": "Alibaba Cloud open-source announcement (2025-12)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-omni-model-domain",
+      "subject": "qwen3_omni",
+      "relation": "model_domain",
+      "object": "omni",
+      "asOf": "2025-09",
+      "source": "Qwen3-Omni Technical Report (arXiv 2509.17765)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-omni-model-scale",
+      "subject": "qwen3_omni",
+      "relation": "model_scale",
+      "object": {
+        "total": "30B",
+        "active": "3B"
+      },
+      "asOf": "2025-09",
+      "source": "Qwen3-Omni Technical Report (arXiv 2509.17765)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen3-omni-capability-marker",
+      "subject": "qwen3_omni",
+      "relation": "capability_marker",
+      "object": [
+        "119 input text languages",
+        "10 output speech languages",
+        "234ms first packet"
+      ],
+      "asOf": "2025-09",
+      "source": "Qwen3-Omni Technical Report (arXiv 2509.17765)",
+      "confidence": "official",
+      "status": "current"
+    },
+    {
+      "id": "fact-alibaba-overseas-awareness",
+      "subject": "alibaba",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen-overseas-awareness",
+      "subject": "qwen",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-tongyi-overseas-awareness",
+      "subject": "tongyi",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan-overseas-awareness",
+      "subject": "wan",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-z-image-overseas-awareness",
+      "subject": "z-image",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-dingtalk-overseas-awareness",
+      "subject": "dingtalk",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-quark-overseas-awareness",
+      "subject": "quark",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-ant-group-overseas-awareness",
+      "subject": "ant-group",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-bytedance-overseas-awareness",
+      "subject": "bytedance",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-doubao-overseas-awareness",
+      "subject": "doubao",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-seedance-overseas-awareness",
+      "subject": "seedance",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-dreamina-overseas-awareness",
+      "subject": "dreamina",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-seedream-overseas-awareness",
+      "subject": "seedream",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-feishu-overseas-awareness",
+      "subject": "feishu",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-capcut-overseas-awareness",
+      "subject": "capcut",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-volcano-engine-overseas-awareness",
+      "subject": "volcano-engine",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-baidu-overseas-awareness",
+      "subject": "baidu",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-ernie-overseas-awareness",
+      "subject": "ernie",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-apollo-overseas-awareness",
+      "subject": "apollo",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-tencent-overseas-awareness",
+      "subject": "tencent",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-hunyuan-overseas-awareness",
+      "subject": "hunyuan",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-yuanbao-overseas-awareness",
+      "subject": "yuanbao",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-huawei-overseas-awareness",
+      "subject": "huawei",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-pangu-overseas-awareness",
+      "subject": "pangu",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-ascend-overseas-awareness",
+      "subject": "ascend",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-xiaomi-overseas-awareness",
+      "subject": "xiaomi",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-mimo-overseas-awareness",
+      "subject": "mimo",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-kuaishou-overseas-awareness",
+      "subject": "kuaishou",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-kling-overseas-awareness",
+      "subject": "kling",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-iflytek-overseas-awareness",
+      "subject": "iflytek",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-spark-overseas-awareness",
+      "subject": "spark",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-overseas-awareness",
+      "subject": "deepseek",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-zhipu-overseas-awareness",
+      "subject": "zhipu",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-glm-overseas-awareness",
+      "subject": "glm",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-moonshot-overseas-awareness",
+      "subject": "moonshot",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-kimi-overseas-awareness",
+      "subject": "kimi",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-minimax-overseas-awareness",
+      "subject": "minimax",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-hailuo-overseas-awareness",
+      "subject": "hailuo",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-talkie-overseas-awareness",
+      "subject": "talkie",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-baichuan-overseas-awareness",
+      "subject": "baichuan",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-stepfun-overseas-awareness",
+      "subject": "stepfun",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-01-ai-overseas-awareness",
+      "subject": "01-ai",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-cambricon-overseas-awareness",
+      "subject": "cambricon",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-horizon-robotics-overseas-awareness",
+      "subject": "horizon-robotics",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-amd-overseas-awareness",
+      "subject": "amd",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-unitree-overseas-awareness",
+      "subject": "unitree",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-ubtech-overseas-awareness",
+      "subject": "ubtech",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-agibot-overseas-awareness",
+      "subject": "agibot",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-fourier-overseas-awareness",
+      "subject": "fourier",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-overseas-awareness",
+      "subject": "lingbot",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-pony-ai-overseas-awareness",
+      "subject": "pony-ai",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-weride-overseas-awareness",
+      "subject": "weride",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-momenta-overseas-awareness",
+      "subject": "momenta",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-openai-overseas-awareness",
+      "subject": "openai",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-sora-overseas-awareness",
+      "subject": "sora",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-google-overseas-awareness",
+      "subject": "google",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-gemini-overseas-awareness",
+      "subject": "gemini",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-veo-overseas-awareness",
+      "subject": "veo",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-meta-overseas-awareness",
+      "subject": "meta",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-llama-overseas-awareness",
+      "subject": "llama",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-anthropic-overseas-awareness",
+      "subject": "anthropic",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-claude-overseas-awareness",
+      "subject": "claude",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-mistral-overseas-awareness",
+      "subject": "mistral",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-nvidia-overseas-awareness",
+      "subject": "nvidia",
+      "relation": "overseas_awareness",
+      "object": "high",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-meituan-overseas-awareness",
+      "subject": "meituan",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-longcat-overseas-awareness",
+      "subject": "longcat",
+      "relation": "overseas_awareness",
+      "object": "low",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-bilibili-overseas-awareness",
+      "subject": "bilibili",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-xiaohongshu-overseas-awareness",
+      "subject": "xiaohongshu",
+      "relation": "overseas_awareness",
+      "object": "mid",
+      "asOf": "2026-09-12",
+      "source": "company-relations.json (updatedAt 2026-09-12)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-has-model-deepseek-v4-pro",
+      "subject": "deepseek",
+      "relation": "has_model",
+      "object": "deepseek_v4_pro",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-deepseek-has-model-deepseek-v4-flash",
+      "subject": "deepseek",
+      "relation": "has_model",
+      "object": "deepseek_v4_flash",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-kimi-has-model-kimi-k3",
+      "subject": "kimi",
+      "relation": "has_model",
+      "object": "kimi_k3",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen-has-model-qwen3-8",
+      "subject": "qwen",
+      "relation": "has_model",
+      "object": "qwen3_8",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-google-has-model-genie-3",
+      "subject": "google",
+      "relation": "has_model",
+      "object": "genie_3",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-has-model-lingbot-world",
+      "subject": "lingbot",
+      "relation": "has_model",
+      "object": "lingbot_world",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-lingbot-has-model-lingbot-world-v2",
+      "subject": "lingbot",
+      "relation": "has_model",
+      "object": "lingbot_world_v2",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan-has-model-wan2-2-a14b",
+      "subject": "wan",
+      "relation": "has_model",
+      "object": "wan2_2_a14b",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-wan-has-model-wan2-2-ti2v-5b",
+      "subject": "wan",
+      "relation": "has_model",
+      "object": "wan2_2_ti2v_5b",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen-has-model-qwen3-vl",
+      "subject": "qwen",
+      "relation": "has_model",
+      "object": "qwen3_vl",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen-has-model-qwen3-vl-235b-a22b",
+      "subject": "qwen",
+      "relation": "has_model",
+      "object": "qwen3_vl_235b_a22b",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-alibaba-has-model-cosyvoice-3",
+      "subject": "alibaba",
+      "relation": "has_model",
+      "object": "cosyvoice_3",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    },
+    {
+      "id": "fact-qwen-has-model-qwen3-omni",
+      "subject": "qwen",
+      "relation": "has_model",
+      "object": "qwen3_omni",
+      "asOf": "2026-11-21",
+      "source": "industry-knowledge model index (projected from company-relations.json)",
+      "confidence": "inferred",
+      "status": "current"
+    }
+  ]
+}
