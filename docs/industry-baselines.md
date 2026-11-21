@@ -30,8 +30,9 @@
 - **触发点**：新 Pack 首次报道某实体时只校验该实体；每月抽样复核 `high` 认知度实体与旗舰档模型；每季度全量复核本表 `asOf`。
 - **更新方式**：新值入账、旧值标 `superseded` 并记录来源，不直接改写；表中只显示 `current`。
 - **降级**：只有媒体来源的参数超过 90 天无官方确认，降为「待核」并从旗舰带剔除。
+- **机器可读账本**（S1 已落地）：事实存 `scripts/short-video/lib/data/industry-knowledge.json`（键控事实 + 双时态 `superseded`，字段 `(subject, relation, object, asOf, source, confidence, status)`）；本表是速查视图，数值冲突以账本为准。改数据后跑 `npm run migrate:industry-knowledge -- --check`（公司图投影幂等）与 `npx vitest run industry-knowledge`（schema + 68 实体解析 + 取代回放 + 30/90 天预算）。写稿侧消费尚未接入，属 S2。
 
 ## Design Decisions & References
 
 - 基线推导、样本口径、失效证据与机制取舍：`docs/research/industry-knowledge-layer-2026-11.md`（#253 研究切片）。
-- 实体收录与首次报道背景规则：`docs/research/company-relations.md`；机器可读 SSOT：`scripts/short-video/lib/data/company-relations.json`。
+- 实体收录与首次报道背景规则：`docs/research/company-relations.md`；机器可读 SSOT：`scripts/short-video/lib/data/company-relations.json`（公司图）与 `scripts/short-video/lib/data/industry-knowledge.json`（行业事实账本，S1）。
