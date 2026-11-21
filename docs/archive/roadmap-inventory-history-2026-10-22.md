@@ -955,3 +955,7 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 ## Round CCXXVI 下沉：`#256` 数字人决策权变更（2026-11-21）
 
 （**Round CCXXVI（2026-11-20）：`#256` 数字人决策权变更交付闭票（代码 + 文档 + 理由义务）**——拿掉 `run` 的 human-approve 硬门（`approval.approved=false` 不再拒绝），改为 Agent 自主判定 + 双向理由义务：`plan --reason` 写 `output/<pipelineId>/avatar-decision.json`（choice `use`/`skip` + reason，两个方向都写），`run` 打 `[Digital Human] Decision: …`、缺理由给 WARN 不阻断。白/黑名单维持现状并写明维持理由，重审另立 `#1472`（解冻：数字人上线包 ≥10 或发布 ≥4 周且有 Analytics）。产品验证门：**有产出差异**（新包会多出 avatar-decision.json 与 Decision 行；无 avatar 包由「零写入」变为「只写 decision 记录」）。frontier 复算：Track 2 无激活 map；1A 仅 `#1398`；① 空、② 空；③ 队首 `#253` → `#469`；④ 空。）
+
+## Round CCXXVII 下沉：台账对齐（2026-11-21）
+
+（2026-11-21（**Round CCXXVII：台账对齐（无代码）**——9 条 ledger 候选全部消账（PR #1475 `#253` 研究切片、#1473 `#256`、#1471 `#263`、#1464 `#1463`、#1461 `#1460`、#1458 `#230`、#1450 `#322`、#1445 `#1398`）；闭票行删净；表内 11 张分发链票改标 `P4·deferred` 对齐 `#### 4`，`#1472` 入 Tier 3（A′），`#322` 重开触发改写。产品验证门：**无产出差异**（纯台账）。frontier：Track 2 无激活 map；1A 仅 `#1398`（assigned，非 AFK）；① 空、② 空；③ 队首 `#253`（等 S1–S3 拆票确认）→ `#469`/`#1472`；④ 空。）
