@@ -317,6 +317,8 @@
 
 ## 近轮一句话档案（Round CCIX → J）
 
+**Round CCXX**（`#230` 两行救援交付——相邻对合并的宽度闸从「单行 720px」放开到「双行各自 ≤720px、每行 ≥180px 且取最平衡断点」，`SUBTITLE_LANE.maxLines` 1→2、lane 1328–1420 → 1236–1420、内容带 1298 → 1206（`SAFE_ZONES.bottom` 622 → 714）；ASS 在断点插 `\N`，`enforceSubtitleCompliance` 改为拒绝第三行；qwen4-max-release 重渲：短 cue 12→3、verify PASS（3 warn）；六包实测短 cue 17/23/15/15/19 → 0/2/2/2/0，两行 cue 9–17 条；**有产出差异**（版面 + 两行字幕）；frontier 1A `#1398`（assigned）、① 空、② `#296`（`#268` 用户暂缓）、③④ 空）
+
 **Round CCIX**（`#462` Stage 1：PR #1421（squash `e16cc5c1`）；状态迁 `content/{slug}/` + `output/` 薄索引，`pipeline-status.mjs show|migrate`（dry-run 默认）、legacy 读取兼容、per-slug 状态 gitignored；**无产出差异（enabling fix）**；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
 
 **Round CCVIII**（`#1415` 交付闭票——币种双标注扩中文写法（只认阿拉伯数字），汇率每个生成音频的 run 取一次 `open.er-api.com`（8s 超时，失败回退常量），报告落盘供音频复用；PR #1418 `65f3c68e`；**有产出差异（有限）**：zhipu live `$59→$58`；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
@@ -949,3 +951,7 @@ PR #1441 — `619d53ed` — `#1432` S1：`lib/run-history.mjs`（run 身份、`r
 PR #1443 — `0c314318` — `#1432` S2/S3：写侧 `main.mjs` 全产物落 run 目录，读侧 `render-only`/`verify`/`still-frame`/`qa`/`rerender` 走 `resolveRun()`（默认 latest、`--run` 显式、legacy 回退）。属**无产出差异（enabling fix）**——用户可见成片与发布动作不变，变化在产物归属与回读。
 
 Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模板从不读取的键，新增 `content-template-contract` 双向锁边界，**无产出差异**。
+
+## Round CCXXVI 下沉：`#256` 数字人决策权变更（2026-11-21）
+
+（**Round CCXXVI（2026-11-20）：`#256` 数字人决策权变更交付闭票（代码 + 文档 + 理由义务）**——拿掉 `run` 的 human-approve 硬门（`approval.approved=false` 不再拒绝），改为 Agent 自主判定 + 双向理由义务：`plan --reason` 写 `output/<pipelineId>/avatar-decision.json`（choice `use`/`skip` + reason，两个方向都写），`run` 打 `[Digital Human] Decision: …`、缺理由给 WARN 不阻断。白/黑名单维持现状并写明维持理由，重审另立 `#1472`（解冻：数字人上线包 ≥10 或发布 ≥4 周且有 Analytics）。产品验证门：**有产出差异**（新包会多出 avatar-decision.json 与 Decision 行；无 avatar 包由「零写入」变为「只写 decision 记录」）。frontier 复算：Track 2 无激活 map；1A 仅 `#1398`；① 空、② 空；③ 队首 `#253` → `#469`；④ 空。）
