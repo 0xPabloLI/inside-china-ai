@@ -85,6 +85,20 @@ try {
 } catch {}
 const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
 
+// #253 S2: the pack's industry-context.json (written by industry-context.mjs)
+// rides along so the MRL-2 fact gate reuses the same entity list the writer saw.
+// The ledger itself is re-read live by the gate — this file is never trusted as
+// the fact source.
+const INDUSTRY_CONTEXT_PATH = join(__dirname, "content", contentDir, "industry-context.json");
+let industryContext = null;
+if (existsSync(INDUSTRY_CONTEXT_PATH)) {
+  try {
+    industryContext = JSON.parse(readFileSync(INDUSTRY_CONTEXT_PATH, "utf8"));
+  } catch {
+    // unreadable copy: the gate still runs off the live ledger
+  }
+}
+
 const run = preMode
   ? // --pre judges the authored state; no run has written anything yet, and a
     // leftover run must not stand in for it (#1305).
@@ -411,6 +425,7 @@ const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, {
   longForm,
   meta,
   sceneDurations,
+  industryContext,
 });
 
 // Passing checks collapse to one line per category: the gate is read for what

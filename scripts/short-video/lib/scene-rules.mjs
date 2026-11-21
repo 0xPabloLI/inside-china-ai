@@ -76,6 +76,7 @@ import {
 } from "./focus-light.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
+import { runIndustryFactChecks } from "./industry-facts.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
 import { mediaRoleOf, MEDIA_ROLE, MEDIA_ROLES } from "./media-role.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
@@ -3470,6 +3471,11 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkFocusLight(scenes),
     ...checkBrollPromptDimensions(scenes),
     ...checkCurrencyDualAnnotation(scenes),
+    ...runIndustryFactChecks(scenes, {
+      meta,
+      today: opts.today,
+      context: opts.industryContext,
+    }),
     ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];
 
