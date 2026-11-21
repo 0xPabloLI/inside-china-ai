@@ -21,8 +21,15 @@
  */
 
 import { existsSync, readFileSync } from "fs";
-import { join, relative, resolve } from "path";
+import { relative } from "path";
 import { skipsMediaSourcing } from "./claim-keywords.mjs";
+import { containedPath } from "./path-safety.mjs";
+import {
+  evaluateSourcingShortCircuit,
+  readSourcingState,
+  SOURCING_STATE_FILE,
+  writeSourcingState,
+} from "./sourcing-run-state.mjs";
 
 /**
  * Run the media track stages.
@@ -30,7 +37,9 @@ import { skipsMediaSourcing } from "./claim-keywords.mjs";
  * @param {object} ctx
  * @param {Array} ctx.scenes - shared scene array (media fields mutated in memory)
  * @param {string} ctx.contentDir - content slug (e.g. "dh-pilot-qwen4")
- * @param {string} ctx.baseDir - scripts/short-video absolute dir (main.mjs __dirname)
+ * @param {string} ctx.baseDir - absolute scripts/short-video dir (main.mjs __dirname);
+ *   output/content paths are built through `containedPath`, so a relative or
+ *   escaping baseDir fails closed instead of writing outside the repo
  * @param {object|null} ctx.broll - loaded b-roll orchestrator module, or null
  * @param {object} [ctx.deps] - test seams overriding dynamic imports
  * @param {object} [ctx.prof] - optional profiler ({mark, end}) from main.mjs
@@ -46,7 +55,7 @@ export async function runMediaTrack({
   prof = {},
   mediaChain = {},
 }) {
-  const contentDirAbs = resolve(baseDir, "content", contentDir);
+  const contentDirAbs = containedPath(baseDir, "content", contentDir);
 
   // ── Stage 1.5a: Evidence captures (re-capture missing screenshots) ──
   // Runs before stock sourcing: an evidence scene's file is a capture of the
@@ -88,26 +97,64 @@ export async function runMediaTrack({
     // A scene that chose pure b-roll must not spend the sourcing budget.
     if (broll && !broll.shouldSourceStock(s)) return false;
     if (!s.media?.path) return true; // No media field at all → needs sourcing
-    const mediaPath = resolve(contentDirAbs, s.media.path);
+    const mediaPath = containedPath(contentDirAbs, s.media.path);
     return !existsSync(mediaPath); // Media path set but file missing → needs sourcing
   });
+  const outputDirAbs = containedPath(baseDir, "output", contentDir);
+  const sourcingStateFile = containedPath(outputDirAbs, SOURCING_STATE_FILE);
+  const mediaPatchFile = containedPath(outputDirAbs, "media-patch.json");
+
   if (scenesNeedingMedia.length > 0) {
-    console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
-    prof.mark?.("step-1.5-sourcing", { track: "media" });
-    try {
-      const sourcerMain = deps.sourcerMain ?? (await import("./asset-sourcer.mjs")).main;
-      await sourcerMain(["--content", contentDir]);
-      console.log();
-    } catch (e) {
-      console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
+    let previousPatch = null;
+    if (existsSync(mediaPatchFile)) {
+      try {
+        previousPatch = JSON.parse(readFileSync(mediaPatchFile, "utf-8"));
+      } catch {
+        previousPatch = null;
+      }
     }
-    prof.end?.("step-1.5-sourcing");
+    const decision = evaluateSourcingShortCircuit({
+      scenes,
+      state: readSourcingState(sourcingStateFile),
+      patch: previousPatch,
+      contentDirAbs,
+    });
+    // #228: a cache, not a gate. `SHORT_VIDEO_FORCE_SOURCING=1` re-sources
+    // without clearing the state, so the next unchanged run can skip again.
+    const forced = process.env.SHORT_VIDEO_FORCE_SOURCING === "1";
+
+    if (!forced && decision.skip) {
+      console.log(
+        `⏭  Step 1.5: sourcing skipped — ${decision.reason}; applying media-patch instead\n`,
+      );
+    } else {
+      console.log("🔍 Step 1.5: Auto-sourcing missing media assets...\n");
+      if (forced) console.log("   (forced by SHORT_VIDEO_FORCE_SOURCING=1)\n");
+      prof.mark?.("step-1.5-sourcing", { track: "media" });
+      try {
+        const sourcerMain = deps.sourcerMain ?? (await import("./asset-sourcer.mjs")).main;
+        await sourcerMain(["--content", contentDir]);
+        try {
+          writeSourcingState(sourcingStateFile, {
+            digest: decision.digest,
+            scenes,
+            pack: contentDir,
+          });
+        } catch (e) {
+          console.warn(`⚠️  Could not persist sourcing state: ${e.message}\n`);
+        }
+        console.log();
+      } catch (e) {
+        console.warn(`⚠️  Asset sourcing skipped: ${e.message}\n`);
+      }
+      prof.end?.("step-1.5-sourcing");
+    }
   }
 
   // ── Stage 1.5c: Apply media-patch.json to scenes (auto-assign sourced assets) ──
   // Memory-only mutation — does NOT write back to scene-data.mjs.
   {
-    const patchPath = resolve(contentDirAbs, "..", "..", "output", contentDir, "media-patch.json");
+    const patchPath = mediaPatchFile;
     prof.mark?.("step-1.5c-media-patch", { track: "media" });
     if (existsSync(patchPath)) {
       try {
@@ -167,7 +214,7 @@ export async function runMediaTrack({
         // kernel (charts/screenshots: glyphs must not be rewritten by the SR
         // model, #1399).
         if (scene.media.upscale === false) continue;
-        const mediaPath = resolve(contentDirAbs, scene.media.path);
+        const mediaPath = containedPath(contentDirAbs, scene.media.path);
         const strategy = scene.media.upscale === "resample" ? "resample" : undefined;
         const result = autoUpscaleIfNeeded(mediaPath, undefined, strategy ? { strategy } : {});
         if (result.upscaled) {
@@ -231,7 +278,7 @@ export async function runMediaTrack({
             contentDir: contentDirAbs,
             // Report lives beside media-patch.json, keyed by content dir (same
             // convention the standalone generate-broll.mjs entrypoint uses).
-            outputDir: join(baseDir, "output", contentDir),
+            outputDir: containedPath(baseDir, "output", contentDir),
             ...mediaChain,
             onProgress: (line) => console.log(line),
           });
