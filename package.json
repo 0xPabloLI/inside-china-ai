@@ -25,6 +25,7 @@
     "lint:asr-ctx": "node scripts/lint-asr-ctx-off.mjs",
     "lint:duplicates": "jscpd src scripts skills --silent",
     "lint:catalog": "node scripts/short-video/lib/catalog-validate.mjs",
+    "migrate:industry-knowledge": "node scripts/short-video/migrate-industry-knowledge.mjs",
     "docs:api": "node scripts/generate-api-docs.mjs",
     "check:dead": "knip",
     "check:size": "size-limit",
