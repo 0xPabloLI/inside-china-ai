@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.98.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.97.0...tanstack_start_ts-v1.98.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** hook 版式选版判据 + 跨期反重复 ([#1480](https://github.com/0xPabloLI/inside-china-ai/issues/1480)) ([#1485](https://github.com/0xPabloLI/inside-china-ai/issues/1485)) ([796cd8f](https://github.com/0xPabloLI/inside-china-ai/commit/796cd8fc161a0301c968d3390ead84edfbf2f6f3))
+
 ## [1.97.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.96.0...tanstack_start_ts-v1.97.0) (2026-11-21)
 
 
