@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.96.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.95.0...tanstack_start_ts-v1.96.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** land the industry knowledge data layer ([#1478](https://github.com/0xPabloLI/inside-china-ai/issues/1478)) ([#1481](https://github.com/0xPabloLI/inside-china-ai/issues/1481)) ([48da850](https://github.com/0xPabloLI/inside-china-ai/commit/48da85060ff41cd9f90e4bc3014c3f2d709bc13b))
+
 ## [1.95.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.5...tanstack_start_ts-v1.95.0) (2026-11-20)
 
 
