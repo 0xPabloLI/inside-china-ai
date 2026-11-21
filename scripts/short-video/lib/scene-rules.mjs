@@ -412,7 +412,7 @@ export function checkHookCompellingElement(scenes) {
  * (scripts/short-video/hook-layout.mjs, where the cross-pack run is also
  * judged), not a CI block.
  */
-export function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
+function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
   const evaluated = evaluateHookLayout(scenes?.[0], {
     scenes,
     meta,

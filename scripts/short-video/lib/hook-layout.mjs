@@ -56,7 +56,7 @@ export const HOOK_LAYOUTS = {
   },
 };
 
-export const HOOK_LAYOUT_IDS = Object.keys(HOOK_LAYOUTS);
+const HOOK_LAYOUT_IDS = Object.keys(HOOK_LAYOUTS);
 
 // ─── Classification ───
 
@@ -87,7 +87,7 @@ export function classifyHookLayout(scene) {
 // ─── Per-layout criteria ───
 
 /** Hedged magnitudes: the ticket's 「数字只是大约/数十倍」 disallowed bucket. */
-export const HEDGED_MAGNITUDE_PATTERN =
+const HEDGED_MAGNITUDE_PATTERN =
   /~|≈|\b(?:about|around|roughly|nearly|almost|approximately|some|dozens|tens of|several times)\b|大约|约|近|数十|几十|上十倍/i;
 
 /**
@@ -98,11 +98,11 @@ export const HEDGED_MAGNITUDE_PATTERN =
  * names — a nameplate is not a cross-tier number (the same ruling the hook
  * family tests record for `V4.1 / GLM-6.0 / H100`).
  */
-export const MAGNITUDE_PATTERN =
+const MAGNITUDE_PATTERN =
   /[$¥€£]\s*\d|\d[\d.,]*\s*(?:%|×|x(?:[^a-z]|$)|B(?:[^a-z]|$)|T(?:[^a-z]|$)|M(?:[^a-z]|$)|K(?:[^a-z]|$)|bn|million|billion|trillion|thousand|ms|sec|s|min|h|day|dollar|yuan|user|people|param|token)|\d+\s*\/\s*\d+/i;
 
 /** A leading letter glued to a number (`H100`, `V4`, `GPT-5`) = nameplate. */
-export const NAMEPLATE_PATTERN = /^(?:\p{Lu}[\p{L}]*[-\s]?)\d/iu;
+const NAMEPLATE_PATTERN = /^(?:\p{Lu}[\p{L}]*[-\s]?)\d/iu;
 
 /**
  * Is `text` a cross-tier magnitude rather than a nameplate or a bare digit?
@@ -201,7 +201,7 @@ const STOPWORDS = new Set([
 ]);
 
 /** Content words of a claim: lowercase, punctuation stripped, stopwords out. */
-export function claimTokens(text) {
+function claimTokens(text) {
   return String(text ?? "")
     .toLowerCase()
     .replace(/[^\p{L}\p{N}%$.\s-]/gu, " ")
@@ -211,7 +211,7 @@ export function claimTokens(text) {
 }
 
 /** Scene text corpus: every string field under `texts` plus the voiceover. */
-export function sceneTextCorpus(scene) {
+function sceneTextCorpus(scene) {
   const texts = scene?.texts ?? {};
   const values = Object.values(texts).flatMap((value) =>
     typeof value === "string" ? [value] : Array.isArray(value) ? value : [],
@@ -225,7 +225,7 @@ export function sceneTextCorpus(scene) {
  * before TTS it projects from the voiceover word count at the #252 budget rate
  * (2.5 words/second), the same rate the hook duration forecast uses.
  */
-export function sceneTimeline(scenes, opts = {}) {
+function sceneTimeline(scenes, opts = {}) {
   const measured = Array.isArray(opts.sceneDurations) ? opts.sceneDurations : null;
   let cursor = 0;
   return scenes.map((scene, index) => {
