@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.99.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.99.0...tanstack_start_ts-v1.99.1) (2026-11-21)
+
+
+### Performance Improvements
+
+* **short-video:** skip sourcing when the search plan is unchanged ([#228](https://github.com/0xPabloLI/inside-china-ai/issues/228)) ([#1491](https://github.com/0xPabloLI/inside-china-ai/issues/1491)) ([00b1fb4](https://github.com/0xPabloLI/inside-china-ai/commit/00b1fb475ac9c7c6b2a8a36b53fc99a0e739f310))
+
 ## [1.99.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.98.0...tanstack_start_ts-v1.99.0) (2026-11-21)
 
 
