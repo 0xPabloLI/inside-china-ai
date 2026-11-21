@@ -319,6 +319,8 @@
 
 **Round CCXX**（`#230` 两行救援交付——相邻对合并的宽度闸从「单行 720px」放开到「双行各自 ≤720px、每行 ≥180px 且取最平衡断点」，`SUBTITLE_LANE.maxLines` 1→2、lane 1328–1420 → 1236–1420、内容带 1298 → 1206（`SAFE_ZONES.bottom` 622 → 714）；ASS 在断点插 `\N`，`enforceSubtitleCompliance` 改为拒绝第三行；qwen4-max-release 重渲：短 cue 12→3、verify PASS（3 warn）；六包实测短 cue 17/23/15/15/19 → 0/2/2/2/0，两行 cue 9–17 条；**有产出差异**（版面 + 两行字幕）；frontier 1A `#1398`（assigned）、① 空、② `#296`（`#268` 用户暂缓）、③④ 空）
 
+**Round CCXXI**（`#1460` 渲染健壮性——静音轨 loudness 读回由 TypeError 改为 `silent` 标记 + 跳过修复 + 具名错误；`deepseek` 场景 1/3 的死文案键迁到 `numberLabel`/`note` 等现行槽位，补 `media:null`；**有产出差异**（包恢复可渲染）；frontier 1A `#1398`（assigned）、① 空、② `#296`（`#268` 暂缓）、③④ 空）
+
 **Round CCIX**（`#462` Stage 1：PR #1421（squash `e16cc5c1`）；状态迁 `content/{slug}/` + `output/` 薄索引，`pipeline-status.mjs show|migrate`（dry-run 默认）、legacy 读取兼容、per-slug 状态 gitignored；**无产出差异（enabling fix）**；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
 
 **Round CCVIII**（`#1415` 交付闭票——币种双标注扩中文写法（只认阿拉伯数字），汇率每个生成音频的 run 取一次 `open.er-api.com`（8s 超时，失败回退常量），报告落盘供音频复用；PR #1418 `65f3c68e`；**有产出差异（有限）**：zhipu live `$59→$58`；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
