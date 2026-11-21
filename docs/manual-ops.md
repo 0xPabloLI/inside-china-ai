@@ -27,7 +27,7 @@
 ## 每次发布视频时
 
 > **前置条件**：HITL 已通过（用户确认「视频 OK」）。Agent 发布流程详见 `docs/content-pipeline.md` Stage 5。
-> 第 1–2 项由 Agent 在 `tiktok-upload-prep.mjs` 里自动完成（该脚本驱动 Studio 网页版，AIGC 标记失败即中止；上传前用浏览器出口国家做探测，默认 `SG`，降级后为警告）。**公开点击（第 9 步）由用户完成**（#1181）。第 3 项可选——历史成功的手动发布也没有填（用户 2026-11-01 确认），网页路径没有该控件；第 4–6 项仍需人工。
+> 第 1–2 项由 Agent 在 `tiktok-upload-prep.mjs` 里自动完成（该脚本驱动 Studio 网页版，AIGC 标记失败即中止；上传前用浏览器出口国家做探测，默认 `HK`，不匹配即中止）。**公开点击（第 9 步）由用户完成**（#1181）。第 3 项可选——历史成功的手动发布也没有填（用户 2026-11-01 确认），网页路径没有该控件；第 4–6 项仍需人工。
 
 | #   | 操作               | 说明                                                                                                                                                 | 为什么                                                    |
 | --- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -52,7 +52,7 @@ node scripts/short-video/tiktok-upload-prep.mjs \
   --sound "Breaking News" --sound-owner Voxie --volume-db -15 --save-draft
 ```
 
-**出口地理探测（#964，降级后为警告）**：上传前脚本在自动化浏览器里读取 Cloudflare trace 的出口国家，与 `--expect-region`（默认 `SG`）比对；不一致、探测超时或 `loc=XX` 会警告但不阻断（因为不再自动公开；2026-10-25 那条 0 播的 CDP 发布出口在东京 Zouter/AS205548）。改 VPN 节点后重跑；只有确实要从别的地区公开时才改 `--expect-region`。结束时脚本按 profile 的 `manualGuide.steps` 打印覆盖差：`publish` 固定为「未覆盖——公开由人工完成」，草稿丢 music 记为 `draft-lost`，Location 记为「两条路都没做」，in-app editing 是 App 专有，置顶评论与首小时互动是发布后手机补做。
+**出口地理探测（#964；2026-11-19 起为硬门禁）**：上传前脚本在自动化浏览器里读取 Cloudflare trace 的出口国家，与 `--expect-region`（默认 `HK`）比对；不一致、探测超时或 `loc=XX` 会直接中止，不再上传。2026-10-25 那条 0 播的 CDP 发布出口在东京 Zouter/AS205548；现在的默认 HK 是自动化 profile 的实测落地（SG 入口、HK 落地），不是节点标签。只有确实要从别的地区公开时才改 `--expect-region`。结束时脚本按 profile 的 `manualGuide.steps` 打印覆盖差：`publish` 固定为「未覆盖——公开由人工完成」，草稿丢 music 记为 `draft-lost`，Location 记为「两条路都没做」，in-app editing 是 App 专有，置顶评论与首小时互动是发布后手机补做。
 
 **音量红线**：滑杆读数与「相对播报的 dB」不是同一个量（实测滑杆 −20 dB = 音乐比播报低 22.2 dB，听感偏轻），所以用默认的 −15 dB，脚本会回读滑杆值并在偏差超过 1 dB 时中止。推导与测量方法见 `docs/research/music-under-voice-calibration-2026-10.md`。
 
@@ -64,19 +64,20 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 
 首条 CDP 发布的视频 72 小时后仍 0 播放，而之前四条 App 手动发布的读数是 210 / 285 / 419 / 372。根因未定，但当时这条路径的**输入形态**是可测量的「机器人」：每一下点击只有 press/release（零 `mousemove`），整条 Caption 是一次合成 paste，所有等待都是固定毫秒。现在脚本默认按人类形态走：
 
-| 行为       | 现在的做法                                                                                               | 显式退出          |
-| ---------- | -------------------------------------------------------------------------------------------------------- | ----------------- |
-| 鼠标轨迹   | 每次点击沿带侧向弯曲的 Bézier 移动，末段减速，冲过目标 0.4–2px 再回正                                    | —                 |
-| 逐字输入   | 可信 `insertText`，一次一个字符（含 emoji），间隔 30–120ms，句读处偶发 300–900ms 停顿；换行按真 Enter 键 | `--paste-caption` |
-| 等待抖动   | 全部走 `PUBLISH_PACING` / 具名常量带（`[base, spread]`，spread ≥ base 的 20%）；#1288 起带内取对数正态而非均匀，无裸毫秒 | —                 |
-| 发布前审阅 | 存草稿/交给操作者之前先播预览 5–15s、暂停、确认时钟走过再停，判定写进日志                              | `--skip-review`   |
-| 会话预热   | 先在 For You 浏览 3–8 条 feed item、每条停留 5–20s；指针沿 Bézier 到位并悬停，滚动步长按 Gamma 采样、偶发回看，之后才进上传页 | `--no-warmup`     |
-| 运行节奏   | 同一 profile 每日 ≤3 次、间隔 ≥90min（135min 基线 ±45min 抖动），状态落 `~/chrome-tiktok-profile/publish-throttle.json` 跨进程生效 | `--no-throttle`   |
+| 行为       | 现在的做法                                                                                               | 显式退出                           |
+| ---------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 鼠标轨迹   | 每次点击沿带侧向弯曲的 Bézier 移动，末段减速，冲过目标 0.4–2px 再回正                                    | —                                  |
+| 文件选择   | 点击页面的可见触发元素，打开真实 macOS NSOpenPanel；在 Go to folder 里写入绝对路径并点 Open，页面回读文件名/字节数/SHA-256，任一不一致即 abort | —                                  |
+| 文案粘贴   | 默认真实系统剪贴板 + 可信 `Cmd+V`；页面必须收到 `isTrusted:true` 的 paste；失败重试一次，再失败直接 abort | `--type-caption`（仅 smoke/debug） |
+| 等待抖动   | 全部走 `PUBLISH_PACING` / 具名常量带（`[base, spread]`，spread ≥ base 的 20%）；#1288 起带内取对数正态而非均匀，无裸毫秒 | —                                  |
+| 发布前审阅 | 存草稿/交给操作者之前先播预览 5–15s、暂停、确认时钟走过再停，判定写进日志；`reviewed:false` 直接中止   | —                                  |
+| 会话预热   | 先在 For You 浏览 3–8 条 feed item、每条停留 5–20s；指针沿 Bézier 到位并悬停，滚动步长按 Gamma 采样、偶发回看，之后才进上传页 | `--no-warmup`                      |
+| 运行节奏   | 同一 profile 每日 ≤3 次、间隔 5–10min（7.5min 基线 ±2.5min 抖动），状态落 `~/chrome-tiktok-profile/publish-throttle.json` 跨进程生效 | `--no-throttle` 已移除            |
 
-结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted、零 paste）。
+结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted，且粘贴事件为 trusted）。
 
 **反检测姿态（#1181 追加，2026-11-13）**：原则是让**真实 Chrome** 保持真实，而不是往页面里打补丁。
-- **已加**：固定自动化 profile（`~/chrome-tiktok-profile`、端口 9229）+ 真实 Chrome（UA/语言/platform/时区天然一致）；human-like 输入（Bézier 移动、可信按下、逐字输入、抖动等待）；发布 session 不发 `Runtime.enable`/`Page.enable`；每步 1.5–4.5s 抖动；运行开始后用 `FINGERPRINT_PROBE` 读取 `navigator.webdriver`、UA/platform/语言/时区并写入 `publish-log.jsonl` 的 `fingerprint` 行。**#1288 追加**：停留/滚动/打字的带内分布、进入路径预热、profile 级节奏节流（见下）。
+- **已加**：固定自动化 profile（`~/chrome-tiktok-profile`、端口 9229）+ 真实 Chrome（UA/语言/platform/时区天然一致）；human-like 输入（Bézier 移动、可信按下、真实剪贴板粘贴、原生文件面板、抖动等待）；发布 session 不发 `Runtime.enable`/`Page.enable`；每步 1.5–4.5s 抖动；运行开始后用 `FINGERPRINT_PROBE` 读取 `navigator.webdriver`、UA/platform/语言/时区并写入 `publish-log.jsonl` 的 `fingerprint` 行。**#1288 追加**：停留/滚动/输入的带内分布、进入路径预热、profile 级节奏节流（见下）。
 - **未加（原因）**：`navigator.webdriver` 的脚本抹除（无 `--enable-automation` 时本就是 `false`；注入 getter 本身是可检测补丁）；UA/时区覆盖（`Emulation.*` 是更明显的 CDP 痕迹，还会与 WebGL/platform 矛盾）；WebGL/canvas 伪造（重度且更容易露馅）。
 - **复验**：`grep '"step":"fingerprint"' output/*/publish/tiktok/publish-log.jsonl`，或按 `scripts/short-video/lib/cdp-fingerprint.mjs` 顶部的 curl 命令在页面内直接读。
 

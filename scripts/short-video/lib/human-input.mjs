@@ -23,6 +23,7 @@
  * @module human-input
  */
 
+import { spawnSync } from "node:child_process";
 import { automationPort } from "./cdp-profile-guard.mjs";
 import {
   BEHAVIOR_BANDS,
@@ -40,6 +41,10 @@ export const TYPING_PAUSE_MS = Object.freeze([300, 900]);
 export const LEAD_IN_MS = Object.freeze([250, 700]);
 /** Newline cadence: people pause at the end of a line. */
 export const NEWLINE_PAUSE_MS = Object.freeze([350, 1100]);
+/** Clipboard lead-in: a person selects the field, then reaches for Cmd+V. */
+export const PASTE_LEAD_IN_MS = Object.freeze([140, 60]);
+/** Time for the paste to render before the field is read back. */
+export const PASTE_SETTLE_MS = Object.freeze([500, 180]);
 
 /** Fraction of boundary positions that get a full pause instead of a gap. */
 const PAUSE_CHANCE = 0.22;
@@ -342,14 +347,14 @@ export function scriptedScrollBy(delta) {
  * call as well as the working one.
  *
  * Order matters more than that, though: after a SUSTAINED burst of trusted text
- * input (a typed caption — ~20+ insertText events), wheel dispatch stops being
- * acknowledged entirely, and a settle delay does not recover it (measured
- * 2026-10-30: 0ms, 800ms and 2500ms all failed; "abc" and a single emoji
- * still worked, so it is the burst, not any one key). Scroll BEFORE filling a
- * text field, which is the order the driver already uses — warm up on the feed,
- * then type the caption. When a wheel still goes unacknowledged, this falls
- * back to a scripted scroll and reports `mode: "js-fallback"` so the caller can
- * log it instead of losing 15 seconds to a hang.
+ * input (the typed-caption fallback — 20+ insertText events), wheel dispatch
+ * stops being acknowledged entirely, and a settle delay does not recover it
+ * (measured 2026-10-30: 0ms, 800ms and 2500ms all failed; "abc" and a single
+ * emoji still worked, so it is the burst, not any one key). Scroll BEFORE
+ * filling a text field, which is the order the driver already uses — warm up
+ * on the feed, then paste the caption. When a wheel still goes unacknowledged,
+ * this falls back to a scripted scroll and reports `mode: "js-fallback"` so
+ * the caller can log it instead of losing 15 seconds to a hang.
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
  * @param {{ x: number, y: number, totalDeltaY: number, rand?: () => number, sleepFn?: (ms:number)=>Promise<void>, fallback?: boolean }} opts
@@ -549,6 +554,89 @@ export function planTyping(text, opts = {}) {
   return { leadInMs, segments, estimateMs };
 }
 
+/** macOS clipboard bridge, used only by the trusted-paste path. */
+function macClipboardRead() {
+  const r = spawnSync("pbpaste", [], { encoding: "utf8" });
+  if (r.error || r.status !== 0) return null;
+  return r.stdout;
+}
+
+function macClipboardWrite(text) {
+  const r = spawnSync("pbcopy", [], { input: text });
+  if (r.error || r.status !== 0) {
+    throw new Error(`pbcopy failed: ${r.error?.message || `exit ${r.status}`}`);
+  }
+}
+
+/**
+ * Paste text through the real OS clipboard and a trusted Cmd+V key event.
+ *
+ * The old path was worse than not pasting: it dispatched a synthetic
+ * `ClipboardEvent("paste")` with `isTrusted:false`, which is a single
+ * machine-shaped event carrying the whole 700-character caption. A person
+ * does the same thing every day: copy, click the field, Cmd+V. This function
+ * reproduces that at the input layer.
+ *
+ * The clipboard is a shared user resource, so it is snapshotted and restored
+ * after the paste settles. `readClipboard`/`writeClipboard` are injectable for
+ * tests; the defaults are macOS `pbpaste`/`pbcopy`.
+ *
+ * @param {{ send: (method: string, params?: object, opts?: object) => Promise<object> }} session
+ * @param {string} text
+ * @param {{
+ *   readClipboard?: () => string|null,
+ *   writeClipboard?: (text: string) => void,
+ *   rand?: () => number,
+ *   sleepFn?: (ms: number) => Promise<void>,
+ *   modifiers?: number,
+ * }} [opts]
+ * @returns {Promise<{mode: "trusted-paste", chars: number, clipboardRestored: boolean, keyMs: number}>}
+ */
+export async function pasteText(session, text, opts = {}) {
+  const {
+    readClipboard = macClipboardRead,
+    writeClipboard = macClipboardWrite,
+    rand = Math.random,
+    sleepFn = defaultSleep,
+    modifiers = process.platform === "darwin" ? 4 : 2,
+  } = opts;
+  if (typeof text !== "string" || !text) throw new Error("pasteText needs non-empty text");
+  if (!session?.send) throw new Error("pasteText needs a CDP session");
+
+  const previous = readClipboard();
+  let clipboardRestored = false;
+  let result = null;
+  const started = Date.now();
+  try {
+    writeClipboard(text);
+    await sleepJitter(...PASTE_LEAD_IN_MS, { rand, sleepFn });
+
+    // Meta+V on macOS / Ctrl+V elsewhere, as a real key pair. The page sees a
+    // trusted keydown/keyup and, because the clipboard has content, a trusted
+    // paste event.
+    await pressKey(session, {
+      key: "v",
+      code: "KeyV",
+      windowsVirtualKeyCode: 86,
+      modifiers,
+      commands: ["paste"],
+    });
+    const keyMs = Date.now() - started;
+    await sleepJitter(...PASTE_SETTLE_MS, { rand, sleepFn });
+    result = { mode: "trusted-paste", chars: text.length, keyMs };
+  } finally {
+    if (previous !== null) {
+      try {
+        writeClipboard(previous);
+        clipboardRestored = true;
+      } catch {
+        // A failed restore must not hide the paste result; the caller logs it.
+      }
+    }
+  }
+  return { ...result, clipboardRestored };
+}
+
 /**
  * Press Enter through the real key pipeline.
  *
@@ -573,7 +661,7 @@ export async function pressEnter(session) {
  * Press a non-text key (Enter, Backspace, arrows) through CDP.
  *
  * @param {{ send: (method: string, params?: object) => Promise<object> }} session
- * @param {{ key: string, code: string, windowsVirtualKeyCode: number, text?: string }} key
+ * @param {{ key: string, code: string, windowsVirtualKeyCode: number, text?: string, modifiers?: number, commands?: string[] }} key
  */
 export async function pressKey(session, key) {
   const base = {
@@ -581,8 +669,13 @@ export async function pressKey(session, key) {
     code: key.code,
     windowsVirtualKeyCode: key.windowsVirtualKeyCode,
     nativeVirtualKeyCode: key.windowsVirtualKeyCode,
+    ...(key.modifiers ? { modifiers: key.modifiers } : {}),
   };
-  const down = key.text ? { ...base, text: key.text, unmodifiedText: key.text } : base;
+  const down = {
+    ...base,
+    ...(key.text ? { text: key.text, unmodifiedText: key.text } : {}),
+    ...(key.commands ? { commands: key.commands } : {}),
+  };
   await session.send("Input.dispatchKeyEvent", { type: "keyDown", ...down });
   await session.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
 }

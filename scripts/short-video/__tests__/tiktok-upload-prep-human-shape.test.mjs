@@ -216,34 +216,55 @@ describe("the driver's input shape", () => {
     expect(source).toContain("reviewed");
   });
 
-  it("types the caption instead of only pasting it", () => {
-    const typed = source.indexOf('"typed"');
-    const pasteFallback = source.indexOf('"paste-fallback"');
-    expect(typed).toBeGreaterThan(-1);
-    expect(pasteFallback).toBeGreaterThan(typed);
+  it("uses the real clipboard paste as the normal caption path", () => {
+    expect(source).toContain("pasteText(");
+    expect(source).toContain('mode: "trusted-paste"');
+    // The old synthetic ClipboardEvent is the defect this path exists to stop.
+    expect(source).not.toContain('new ClipboardEvent("paste"');
+    expect(source).not.toContain("CAPTION_PASTE");
   });
 
-  it("keeps every paste-fallback stage name reachable in principle", () => {
-    // `after-poke` is not a fall-through to delete: the DOM text and the probe's
-    // own measurement can both look right while Draft rebuilds its block and
-    // drops the text — the 708-of-1223 failure `pokeEditorState` exists for.
-    // A reviewer read it as dead code once; this pins the intent.
-    //
-    // Matching the `return` statements, not the bare strings: `"paste"` also
-    // appears in `mode: typed ? "typed" : "paste"`, so a bare `toContain` would
-    // stay green with `classifyLossStage` deleted.
-    expect(source).toContain("function classifyLossStage(");
-    for (const stage of ["paste", "typing", "poke", "after-poke"]) {
-      expect(source, `loss stage ${stage} missing`).toContain(`return "${stage}";`);
-    }
+  it("selects the video through the native macOS panel, not CDP setFiles", () => {
+    expect(source).toContain("selectVideoWithNativePicker");
+    expect(source).toContain("pickFileNative");
+    expect(source).toContain("verifyFileSelection");
+    expect(source).toContain("TAG_FILE_TRIGGER");
+    expect(source).toContain("ARM_PICKER_PROBE");
+    expect(source).toContain("FILE_SELECTION_STATE");
+    expect(source).toContain("__filePick");
+    expect(source).toContain("SHA-256");
+    expect(source).not.toContain("/setFiles?target=");
+    expect(source).not.toContain("setFiles failed");
+    expect(source).toContain('picker: picked.mode');
+    expect(source).toContain("openMode: picked.openMode");
+    expect(source).toContain("hashVerified: picked.hashVerified");
+  });
+
+  it("retries the trusted paste once, then aborts instead of typing 700 chars", () => {
+    expect(source).toContain("attempt <= 2");
+    expect(source).toContain('mode: "trusted-paste"');
+    expect(source).toContain("trusted paste did not verify after 2 attempts");
+    expect(source).toContain('mode: "typed-explicit"');
+    expect(source).not.toContain('mode: "typed-fallback"');
+  });
+
+  it("turns a failed review into a terminal abort", () => {
+    expect(source).toContain("pre-terminal review failed:");
+    expect(source).toContain("The draft was NOT saved");
+    expect(source).toContain("if (!review.reviewed)");
+  });
+
+  it("does not expose a pacing bypass", () => {
+    expect(source).not.toMatch(/throttleEnabled\s*=\s*!dryRun\s*&&\s*!hasFlag\("no-throttle"\)/);
+    expect(source).toContain('hasFlag("no-throttle")');
+    expect(source).toContain("has been removed");
   });
 
   it("does not trust DOM text when the re-render probe never landed", () => {
-    // Without a landed probe, Draft never rendered from its ContentState, so a
-    // matching `innerText` is not evidence the caption will save. The only safe
-    // move is the verified paste.
-    expect(source).toContain("draftRendered");
-    const guard = source.indexOf("draftRendered && normalizeCaption(read.text) === want");
+    // Explicit typing still has to prove Draft rendered from its ContentState,
+    // not just that `innerText` happens to match.
+    expect(source).toContain("typed.poke?.spaced !== true");
+    const guard = source.indexOf("typed.poke?.spaced !== true");
     expect(guard).toBeGreaterThan(-1);
   });
 });

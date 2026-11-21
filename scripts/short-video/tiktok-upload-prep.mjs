@@ -38,13 +38,12 @@
  *      ease-out deceleration, a 0.4-2px overshoot, then a short correction.
  *   2. Caption input. It used to be one synthetic `ClipboardEvent("paste")`
  *      (measured `paste:synthetic`) carrying the whole 1000+ character caption
- *      in a single frame. It is now typed through trusted insertText events,
- *      one grapheme at a time, 30-120ms apart, with occasional 300-900ms
- *      beats at boundaries and real Enter keys for newlines. The paste path
- *      survives as an automatic fallback: typed text is verified against the
- *      requested caption, and a mismatch re-selects and pastes (the only path
- *      Draft.js is known to handle cleanly). `--paste-caption` skips typing
- *      deliberately.
+ *      in a single frame. Trusted per-character insertText fixed the synthetic
+ *      event but turned a normal one-second paste into an 80-second,
+ *      perfectly regular typing burst. The normal path is now the real OS
+ *      clipboard plus a trusted Cmd+V, retried once and then aborted. Typing
+ *      is explicit (`--type-caption`) for a smoke run only. There is no
+ *      synthetic paste path left.
  *   3. Delay jitter. Every wait is `sleepJitter(...PUBLISH_PACING.<name>)`, in
  *      the same `[base, spread]` convention as the cadence bands in
  *      `lib/human-input.mjs`; no fixed literal remains. A test pins each pacing
@@ -54,8 +53,8 @@
  *      editor), the script presses play on the preview, watches it for a random
  *      5-15s, pauses it, and confirms the clock moved and then stopped — then
  *      records the verdict in the publish log. The preview is a canvas with no
- *      <video> element, so the evidence is the player's own clock.
- *      `--skip-review` opts out.
+ *      <video> element, so the evidence is the player's own clock. A failed
+ *      review is now a hard abort: no draft is saved from an unreviewed video.
  *   5. Session warm-up. Unless `--no-warmup`, the session opens on the For You
  *      feed, dwells on 3-8 feed items (5-20s each, log-normal), travels to the
  *      scroll point on a Bézier path, and only then navigates to /upload.
@@ -68,10 +67,10 @@
  * `lib/behavior-sampling.mjs`: log-normal dwells, gamma scroll steps and beta
  * keystroke gaps. Every sampled value is written to the publish log as a
  * `behavior.sample` line, so "the values vary" is measurable rather than
- * asserted. `lib/publish-throttle.mjs` keeps a profile-level daily cap, a
- * 90min floor and a ±45min sampled interval; the deadline is stored as an
- * absolute time so two shells cannot disagree. Only a successful terminal
- * action commits a slot, and `--no-throttle` is the explicit escape hatch.
+ * asserted. `lib/publish-throttle.mjs` keeps a profile-level daily cap and a
+ * 5–10min sampled interval; the deadline is stored as an absolute time so two
+ * shells cannot disagree. Only a successful terminal action commits a slot.
+ * There is no `--no-throttle` escape hatch; a run that is too early waits.
  *
  * The technical enabler: Chrome accepts a second flattened CDP session on the
  * same target, so the driver opens its own browser-level session on the tab
@@ -129,12 +128,12 @@
  * ------------------
  * The browser's exit country is what TikTok sees. Before the upload page the
  * driver reads Cloudflare's `/cdn-cgi/trace` through the automation browser and
- * compares it with `--expect-region` (default SG). A mismatch or an
- * undeterminable country warns: since #1181 (ruled 2026-11-13) the automated
- * path saves a draft only and never publishes, so the probe is advisory rather
- * than a block. The 2026-10-25 post that sat at 0 plays exited from Tokyo while
- * the account's target route was Singapore — the warning still names that risk
- * because the operator is one click from publishing the draft.
+ * compares it with `--expect-region` (default HK — the profile's measured
+ * route). A mismatch, an undeterminable country, or `loc=XX` aborts the run
+ * before upload. The gate is not advisory: the draft is one click from
+ * publication, so a mismatched session is not a safe hand-off. The 2026-10-25
+ * post that sat at 0 plays exited from Tokyo while the intended route was
+ * Singapore; the gate exists to catch exactly that drift.
  *
  * Coverage diff (#964)
  * --------------------
@@ -204,14 +203,13 @@
  *                         opens and points at --save-draft.
  *   --no-warmup           Skip the For You warm-up before the upload page.
  *                         The straight-to-/upload navigation is still logged.
- *   --no-throttle         Skip the profile-level pacing gate (#1288). The
- *                         bypass is recorded in the publish log; meant for a
- *                         deliberate immediate re-run, not as the default.
- *   --paste-caption       Paste the caption in one event instead of typing it.
- *                         The run does this automatically when typed text does
- *                         not verify; this flag just skips the attempt.
- *   --skip-review         Skip the pre-terminal playback review (the publish
- *                         log then says `reviewed: false`).
+ *   --type-caption        Type the caption through trusted insertText instead
+ *                         of the normal OS-clipboard Cmd+V. For a smoke run or
+ *                         when the paste path is being debugged.
+ *   --paste-caption       Deprecated compatibility flag. Trusted paste is the
+ *                         default; passing this changes nothing.
+ *   --skip-review         REMOVED. A failed review now aborts the run; review
+ *                         is no longer optional on a non-dry run.
  *   --close-tab           Close the tab when done (dry runs / testing). The
  *                         tab is kept by default, so the operator can review
  *                         and publish by hand.
@@ -227,13 +225,13 @@
  *                         The attached sound does NOT survive a draft
  *                         save/reopen; the caption does.
  *   --expect-region <CC>  Expected browser exit country (ISO 3166-1 alpha-2,
- *                         default SG; XX is Cloudflare's unknown sentinel and
+ *                         default HK — the automation profile's measured
+ *                         route; XX is Cloudflare's unknown sentinel and
  *                         is not accepted). Before the upload page the driver
  *                         reads Chrome's egress through Cloudflare's trace
- *                         endpoint; a mismatch, a timeout, or loc=XX warns
- *                         rather than blocks (draft-only since #1181). Set this
- *                         when the account is meant to publish from another
- *                         region.
+ *                         endpoint; a mismatch, a timeout, or loc=XX aborts
+ *                         the run before upload. Set this when the account is
+ *                         meant to publish from another region.
  *   --dry-run             Egress probe + page reachability; never uploads or publishes
  */
 
@@ -241,6 +239,12 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } fro
 import { join, dirname, resolve, basename } from "path";
 import { fileURLToPath } from "url";
 import { CDP_BASE, cdpNewTab, cdpEval, cdpCloseTab, waitForPageLoad } from "./lib/cdp-client.mjs";
+import {
+  NATIVE_PICKER_TIMEOUT_MS,
+  fingerprintFile,
+  pickFileNative,
+  verifyFileSelection,
+} from "./lib/native-file-picker.mjs";
 import { ensureCdpProfileGuard } from "./lib/cdp-preflight.mjs";
 import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
@@ -254,6 +258,7 @@ import {
   emulateFocus,
   hoverAtPoint,
   openVisibleSession,
+  pasteText,
   planTyping,
   pokeEditorState,
   pressEnter,
@@ -485,35 +490,36 @@ const CAPTION_SELECT = `
 })()`;
 
 /**
- * Paste the caption as one synthetic ClipboardEvent.
+ * Page-side probe for the trusted-paste path.
  *
- * This is the FALLBACK path, and it is kept because it is the only path
- * Draft.js has been proven to handle cleanly: typing is the normal route, but
- * if the typed text does not verify (autocomplete, an emoji Draft refuses to
- * compose, a page re-render mid-typing), re-selecting and pasting replaces the
- * whole body in one step. Insert the paste after `CAPTION_SELECT`, never after
- * a delete.
+ * The driver writes the real clipboard and sends Cmd+V. This probe only
+ * observes the resulting `paste` event: it must be `isTrusted:true` and carry
+ * the caption. It never mutates the editor.
  */
-const CAPTION_PASTE = (caption) => `
+const PASTE_PROBE_ARM = `
 (() => {
-  const want = ${JSON.stringify(caption)};
-  const el = ${CAPTION_LOOKUP};
-  if (!el) return JSON.stringify({ ok: false, reason: "no caption field" });
-
-  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
-    const setter = Object.getOwnPropertyDescriptor(
-      el.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype,
-      "value",
-    ).set;
-    setter.call(el, want);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    return JSON.stringify({ ok: true, mode: "value", len: el.value.length });
+  window.__pasteProbe = { events: [] };
+  if (window.__pasteProbeHandler) {
+    document.removeEventListener("paste", window.__pasteProbeHandler, true);
   }
+  window.__pasteProbeHandler = (e) => {
+    const text = e.clipboardData ? (e.clipboardData.getData("text/plain") || "") : "";
+    window.__pasteProbe.events.push({
+      trusted: e.isTrusted === true,
+      len: text.length,
+    });
+  };
+  document.addEventListener("paste", window.__pasteProbeHandler, true);
+  return JSON.stringify({ ok: true });
+})()`;
 
-  const dt = new DataTransfer();
-  dt.setData("text/plain", want);
-  el.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
-  return JSON.stringify({ ok: true, mode: "paste" });
+const PASTE_PROBE_READ = `
+(() => {
+  if (window.__pasteProbeHandler) {
+    document.removeEventListener("paste", window.__pasteProbeHandler, true);
+    delete window.__pasteProbeHandler;
+  }
+  return JSON.stringify(window.__pasteProbe || { events: [] });
 })()`;
 
 /** Read the caption back and whether the editor is still alive. */
@@ -571,6 +577,141 @@ const OVERLAY_CLOSED = `
 /** True once the upload page's file input is mounted. */
 const FILE_INPUT_READY = `
 (() => JSON.stringify({ ready: !!document.querySelector('input[type="file"]') }))()`;
+
+/**
+ * Tag a visible element that opens the native file panel.
+ *
+ * The input itself is usually `display:none`; a person clicks the visible
+ * label/drop-zone/button around it. The driver only uses the tag for a trusted
+ * pointer click; if none is visible it falls back to `input.click()` and logs
+ * that fact instead of pretending the open was human.
+ */
+const TAG_FILE_TRIGGER = `
+(() => {
+  const visible = (el) => {
+    if (!el || !el.getBoundingClientRect) return false;
+    const r = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    return r.width >= 60 && r.height >= 24 && s.display !== "none" &&
+      s.visibility !== "hidden" && Number(s.opacity) > 0;
+  };
+  const tag = (el, mode) => {
+    el.id = "__filePick";
+    el.scrollIntoView({ block: "center", inline: "nearest" });
+    const r = el.getBoundingClientRect();
+    return {
+      ok: true,
+      mode,
+      text: (el.innerText || el.getAttribute("aria-label") || "").trim().slice(0, 60),
+      rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+    };
+  };
+  const input = document.querySelector('input[type="file"]');
+  if (!input) return JSON.stringify({ ok: false, reason: "no file input" });
+  if (visible(input)) return JSON.stringify(tag(input, "input"));
+  const labels = [...(input.labels || [])];
+  const label = labels.find(visible) || (input.closest("label") && visible(input.closest("label"))
+    ? input.closest("label")
+    : null);
+  if (label) return JSON.stringify(tag(label, "label"));
+  const siblings = [input.previousElementSibling, input.nextElementSibling].filter(visible);
+  if (siblings.length) return JSON.stringify(tag(siblings[0], "sibling"));
+  let ancestor = input.parentElement;
+  for (let i = 0; ancestor && i < 8; i += 1, ancestor = ancestor.parentElement) {
+    if (ancestor === document.body || ancestor === document.documentElement) break;
+    const text = (ancestor.innerText || "").trim();
+    const cls = String(ancestor.className || "");
+    if (
+      visible(ancestor) &&
+      text.length <= 200 &&
+      (/(video|file|upload|drop|选择|选取|上传|视频|文件)/i.test(text) ||
+        /(video|file|upload|drop)/i.test(cls))
+    ) {
+      return JSON.stringify(tag(ancestor, "ancestor"));
+    }
+  }
+  const textRe = /(选择|选取|上传|添加|拖拽|拖放).{0,12}(视频|文件)|(视频|文件).{0,12}(选择|选取|上传)|select.{0,12}(video|file)|choose.{0,12}(video|file)|upload.{0,12}(video|file)/i;
+  for (const el of document.querySelectorAll('button,[role="button"],label,a')) {
+    const text = (el.innerText || el.getAttribute("aria-label") || "").trim();
+    if (text && text.length <= 80 && textRe.test(text) && visible(el)) {
+      return JSON.stringify(tag(el, "text"));
+    }
+  }
+  return JSON.stringify({ ok: false, reason: "no visible file trigger" });
+})()`;
+
+/**
+ * Arm a document-level `change` listener before the panel opens.
+ *
+ * The selected File object is kept on `window`, not only in the input, because
+ * TikTok can replace the input after upload starts. The object is then read
+ * back and hashed by `FILE_SELECTION_STATE`.
+ */
+const ARM_PICKER_PROBE = `
+(() => {
+  window.__nativePickerProbe = null;
+  if (!window.__nativePickerProbeArmed) {
+    window.__nativePickerProbeArmed = true;
+    document.addEventListener("change", (e) => {
+      const f = e.target && e.target.files && e.target.files[0];
+      if (f) {
+        window.__nativePickerProbe = {
+          file: f,
+          name: f.name,
+          size: f.size,
+          lastModified: f.lastModified,
+        };
+      }
+    }, true);
+  }
+  return JSON.stringify({ ok: true, inputs: document.querySelectorAll('input[type="file"]').length });
+})()`;
+
+/**
+ * Read back the selected file and prove it is the local file we meant to send.
+ *
+ * SHA-256 is computed from the File object the page actually received; a name
+ * or size alone can collide with a stale/duplicate export.
+ */
+const FILE_SELECTION_STATE = `
+(async () => {
+  const probe = window.__nativePickerProbe;
+  let file = probe && probe.file;
+  if (!file) {
+    for (const input of document.querySelectorAll('input[type="file"]')) {
+      if (input.files && input.files[0]) { file = input.files[0]; break; }
+    }
+  }
+  if (!file) return JSON.stringify({ ready: false, reason: "no file selected" });
+  let hash = null;
+  let hashError = null;
+  try {
+    const bytes = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    hash = [...new Uint8Array(digest)]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch (err) {
+    hashError = String((err && err.message) || err);
+  }
+  return JSON.stringify({
+    ready: true,
+    name: file.name,
+    size: file.size,
+    lastModified: file.lastModified,
+    hash,
+    hashError,
+  });
+})()`;
+
+/** Last-resort open when no visible trigger exists. Logged, never silent. */
+const OPEN_FILE_INPUT = `
+(() => {
+  const input = document.querySelector('input[type="file"]');
+  if (!input) return JSON.stringify({ ok: false, reason: "no file input" });
+  input.click();
+  return JSON.stringify({ ok: true });
+})()`;
 
 /**
  *
@@ -1073,6 +1214,98 @@ async function waitFor(tabId, script, opts = {}) {
   return result.last;
 }
 
+/**
+ * Select the video through the real macOS open panel and verify the bytes.
+ *
+ * The old path POSTed the absolute path to the CDP proxy's `/setFiles`, which
+ * fills `input.files` without ever opening the OS dialog. This path clicks the
+ * visible trigger with a trusted pointer, waits for NSOpenPanel, and lets the
+ * panel choose the path. If no visible trigger exists, it falls back to
+ * `input.click()` and records that in the log — the file selection itself is
+ * still native, but the open click is not, so the caller must be able to see it.
+ *
+ * A failed first panel-open (no visible trigger) is retried once after the
+ * programmatic open. A panel that opened but failed to select is a hard abort:
+ * pressing keys into an ambiguous modal is worse than stopping.
+ *
+ * @param {string} tabId
+ * @param {object} cdp
+ * @param {string} videoPath
+ * @returns {Promise<object>}
+ */
+async function selectVideoWithNativePicker(tabId, cdp, videoPath) {
+  const expected = fingerprintFile(videoPath);
+  const armed = await evalJson(tabId, ARM_PICKER_PROBE);
+  if (!armed.ok) throw new Error(`could not arm the native file probe: ${JSON.stringify(armed)}`);
+
+  const trigger = await evalJson(tabId, TAG_FILE_TRIGGER);
+  let triggerMode = trigger.ok ? trigger.mode : "none";
+  let openMode = "programmatic-input-click";
+  if (trigger.ok) {
+    try {
+      await humanClickElement(tabId, cdp, "#__filePick");
+      openMode = trigger.mode;
+    } catch (err) {
+      console.log(
+        `      ⚠️ native picker: visible trigger click failed (${err.message}) — using input.click()`,
+      );
+    }
+  }
+
+  if (openMode === "programmatic-input-click") {
+    const opened = await evalJson(tabId, OPEN_FILE_INPUT);
+    if (!opened.ok)
+      throw new Error(`could not open the native file picker: ${JSON.stringify(opened)}`);
+  }
+
+  const pick = () =>
+    pickFileNative({
+      filePath: videoPath,
+      port: automationPort(),
+      timeoutMs: NATIVE_PICKER_TIMEOUT_MS,
+    });
+
+  let picked;
+  try {
+    picked = pick();
+  } catch (err) {
+    if (!/did not open/.test(err.message) || openMode === "programmatic-input-click") throw err;
+    // A visible label may not be wired to the input; open it directly and retry
+    // once. This is logged as a fallback, not hidden as a successful human click.
+    const opened = await evalJson(tabId, OPEN_FILE_INPUT);
+    if (!opened.ok)
+      throw new Error(`could not open the native file picker: ${JSON.stringify(opened)}`);
+    openMode = "programmatic-input-click-retry";
+    picked = pick();
+  }
+
+  const selected = await pollFor(tabId, FILE_SELECTION_STATE, {
+    timeoutMs: 30_000,
+    label: "selected file",
+  });
+  if (!selected.ready) {
+    throw new Error(
+      `native picker did not expose a selected file — last state: ${JSON.stringify(selected.last)}`,
+    );
+  }
+  const verdict = verifyFileSelection(expected, selected.last);
+  if (!verdict.ok) throw new Error(`native picker selected the wrong file: ${verdict.reason}`);
+
+  return {
+    ...picked,
+    openMode,
+    trigger: triggerMode,
+    expected,
+    selected: {
+      name: selected.last.name,
+      size: selected.last.size,
+      lastModified: selected.last.lastModified,
+      hash: selected.last.hash,
+    },
+    hashVerified: true,
+  };
+}
+
 const readyOnOk = (s) => !!s?.ok;
 
 /**
@@ -1179,144 +1412,144 @@ async function applyClipEdit(tabId, cdp, { log = () => {}, notFound, required = 
  * ContentState — a DOM-only insertion looks identical in `innerText` but saves
  * empty later. The final text is compared with whitespace normalized: Draft.js
  * renders block boundaries as extra newlines in `innerText`, so an exact
- * string compare would fail on formatting alone. If the text diverged — an
- * autocomplete swallowed a keystroke, an emoji did not compose, a re-render
- * ate a chunk — re-select the editor and paste once.
+ * string compare would fail on formatting alone. This is only the explicit
+ * `--type-caption` debug path; the normal caption path is `fillCaption`'s
+ * trusted paste. A text mismatch here throws — the driver does not silently
+ * replace a failed debug run with a publish-shaped fallback.
  */
-async function fillCaption(tabId, cdp, caption, { pasteOnly = false } = {}) {
-  const selected = await evalJson(tabId, CAPTION_SELECT);
-  if (!selected.ok) throw new Error(`caption field not found: ${JSON.stringify(selected)}`);
-  await sleepJitter(...PUBLISH_PACING.captionFieldSelect);
-
-  const want = normalizeCaption(caption);
-  const typed =
-    !pasteOnly && selected.kind === "editor"
-      ? await (async () => {
-          const plan = planTyping(caption);
-          const started = Date.now();
-          let printed = 0;
-          console.log(
-            `      typing ${caption.length} chars (~${Math.round(plan.estimateMs / 1000)}s)…`,
-          );
-          await typePlan(cdp, plan, {
-            onSegment: (_seg, index) => {
-              const pct = Math.floor((index / plan.segments.length) * 100);
-              if (pct >= printed + 10) {
-                printed = pct;
-                process.stdout.write(`\r      typing… ${pct}%`);
-              }
-            },
-          });
-          process.stdout.write("\r");
-          // Read before the poke so a failure can name its stage: one dropped
-          // `insertText` during the run and a `Backspace` that ate a real
-          // character look identical afterwards (both are "one char short"),
-          // but only the first means the typing loop lost a keystroke.
-          const beforePoke = await evalJson(tabId, CAPTION_READ);
-          // Make Draft render from its state before we trust the DOM text. The
-          // probe reads back through `measure` so a swallowed space cannot
-          // become a deleted character (see `pokeEditorState`).
-          const poke = await pokeEditorState(cdp, {
-            measure: async () => {
-              const probe = await evalJson(tabId, CAPTION_READ);
-              // `CAPTION_READ` reports the field as missing rather than throwing;
-              // letting `undefined` through would compare "undefined" lengths and
-              // silently decide the space landed.
-              if (!probe.ok) {
-                throw new Error(`caption field vanished while poking: ${JSON.stringify(probe)}`);
-              }
-              return probe.text;
-            },
-            // The probe forces Draft to rebuild the block, which can shift the
-            // block-boundary newlines `innerText` renders. Compare the way the
-            // final verification does, or a successful poke reports a loss.
-            sameText: (a, b) => normalizeCaption(a) === normalizeCaption(b),
-          });
-          await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
-          return { plan, typedMs: Date.now() - started, beforePoke, poke };
-        })()
-      : null;
-
-  const read = await evalJson(tabId, CAPTION_READ);
-  if (!read.ok) throw new Error(`caption vanished after typing: ${JSON.stringify(read)}`);
-  if (!read.healthy) throw new Error("editor died after typing — check the open tab");
-
-  // A probe that never landed means Draft was never made to render from its own
-  // ContentState, so the DOM text is the only evidence — and this module's
-  // premise is that the DOM can hold text Draft does not. Matching here would
-  // publish a caption that silently saves short, so refuse to trust it and take
-  // the verified paste instead.
-  const draftRendered = typed ? typed.poke?.spaced === true : true;
-  if (draftRendered && normalizeCaption(read.text) === want) {
-    return {
-      mode: typed ? "typed" : "paste",
-      len: read.len,
-      typedMs: typed?.typedMs,
-      segments: typed?.plan.segments.length,
-      poke: pokeHealth(typed),
-    };
-  }
-  if (typed && !draftRendered) {
-    console.log(
-      "      ⚠️ the re-render probe never landed, so the DOM text alone cannot be " +
-        "trusted — replacing the typed caption with one verified paste",
-    );
-  }
-
-  // Fallback: the typed text did not survive. Re-select, paste once, verify.
-  const reselected = await evalJson(tabId, CAPTION_SELECT);
-  if (!reselected.ok) throw new Error(`caption re-select failed: ${JSON.stringify(reselected)}`);
-  await sleepJitter(...PUBLISH_PACING.captionFieldSelect);
-  const pasted = await evalJson(tabId, CAPTION_PASTE(caption));
-  if (!pasted.ok) throw new Error(`caption paste failed: ${JSON.stringify(pasted)}`);
+async function typeCaption(tabId, cdp, caption) {
+  const plan = planTyping(caption);
+  const started = Date.now();
+  let printed = 0;
+  console.log(`      typing ${caption.length} chars (~${Math.round(plan.estimateMs / 1000)}s)…`);
+  await typePlan(cdp, plan, {
+    onSegment: (_seg, index) => {
+      const pct = Math.floor((index / plan.segments.length) * 100);
+      if (pct >= printed + 10) {
+        printed = pct;
+        process.stdout.write(`\r      typing… ${pct}%`);
+      }
+    },
+  });
+  process.stdout.write("\r");
+  // Read before the poke so a failure can name its stage: one dropped
+  // `insertText` during the run and a `Backspace` that ate a real
+  // character look identical afterwards (both are "one char short"),
+  // but only the first means the typing loop lost a keystroke.
+  const beforePoke = await evalJson(tabId, CAPTION_READ);
+  // Make Draft render from its state before we trust the DOM text. The
+  // probe reads back through `measure` so a swallowed space cannot
+  // become a deleted character (see `pokeEditorState`).
+  const poke = await pokeEditorState(cdp, {
+    measure: async () => {
+      const probe = await evalJson(tabId, CAPTION_READ);
+      // `CAPTION_READ` reports the field as missing rather than throwing;
+      // letting `undefined` through would compare "undefined" lengths and
+      // silently decide the space landed.
+      if (!probe.ok) {
+        throw new Error(`caption field vanished while poking: ${JSON.stringify(probe)}`);
+      }
+      return probe.text;
+    },
+    // The probe forces Draft to rebuild the block, which can shift the
+    // block-boundary newlines `innerText` renders. Compare the way the
+    // final verification does, or a successful poke reports a loss.
+    sameText: (a, b) => normalizeCaption(a) === normalizeCaption(b),
+  });
   await sleepJitter(...PUBLISH_PACING.captionSettleAfterTyping);
-
-  const after = await evalJson(tabId, CAPTION_READ);
-  if (!after.ok || !after.healthy) {
-    throw new Error(`editor died after the paste fallback: ${JSON.stringify(after)}`);
-  }
-  if (normalizeCaption(after.text) !== want) {
-    throw new Error(
-      `caption did not verify after typing and pasting — got ${after.len} chars, ` +
-        `want ${caption.length}: ${JSON.stringify(after.text.slice(0, 80))}`,
-    );
-  }
-  // Name the stage that actually lost the text, so the next failure says where
-  // to look instead of only that something went wrong. `poke` health rides
-  // along: "poke" alone cannot tell a swallowed space from a delete that took
-  // more than the probe sent.
-  const stage = classifyLossStage(typed, want);
-  console.log(
-    `      ⚠️ typed caption did not verify (${read.len} chars, lost at: ${stage}) — ` +
-      "replaced it with one paste",
-  );
-  return {
-    mode: "paste-fallback",
-    len: after.len,
-    typedMs: typed?.typedMs,
-    lostAt: stage,
-    poke: pokeHealth(typed),
-  };
+  return { plan, typedMs: Date.now() - started, beforePoke, poke };
 }
 
 /**
- * Which step lost the caption: the typing loop, the re-render probe, or the
- * moment after it.
+ * Fill the caption the way a person does: real clipboard + trusted Cmd+V.
  *
- * `after-poke` is the interesting one and not a fall-through: the DOM text and
- * the probe's own measurement both looked right, and the caption still came out
- * wrong once Draft rebuilt its block — precisely the failure the probe exists to
- * surface (the 2026-10-24 draft lost 708 of 1223 characters this way).
+ * The normal path is trusted paste, retried once if the first paste does not
+ * land, then abort. There is deliberately no automatic typing fallback: typing
+ * a 700-character caption one grapheme at a time takes 80+ seconds and is a
+ * longer, more regular input burst than the paste it replaces. `--type-caption`
+ * is the explicit smoke/debug path only.
  *
- * @param {{ beforePoke?: { ok: boolean, text: string }, poke?: { spaced: boolean, restored: boolean|null } } | null} typed
- * @param {string} want
- * @returns {"paste"|"typing"|"poke"|"after-poke"}
+ * Verification is two-part: the page must have seen a trusted `paste` event,
+ * and the editor must read back the requested text after Draft's state probe.
+ * A synthetic `ClipboardEvent` is never dispatched.
  */
-function classifyLossStage(typed, want) {
-  if (!typed) return "paste"; // --paste-caption: no typing happened
-  if (!typed.beforePoke?.ok || normalizeCaption(typed.beforePoke.text) !== want) return "typing";
-  if (typed.poke?.spaced === false || typed.poke?.restored === false) return "poke";
-  return "after-poke";
+async function fillCaption(tabId, cdp, caption, { typeOnly = false } = {}) {
+  const want = normalizeCaption(caption);
+  const selectField = async () => {
+    const selected = await evalJson(tabId, CAPTION_SELECT);
+    if (!selected.ok) throw new Error(`caption field not found: ${JSON.stringify(selected)}`);
+    await sleepJitter(...PUBLISH_PACING.captionFieldSelect);
+    return selected;
+  };
+
+  if (typeOnly) {
+    await selectField();
+    const typed = await typeCaption(tabId, cdp, caption);
+    const read = await evalJson(tabId, CAPTION_READ);
+    if (!read.ok) throw new Error(`caption vanished after typing: ${JSON.stringify(read)}`);
+    if (!read.healthy) throw new Error("editor died after typing — check the open tab");
+    if (typed.poke?.spaced !== true || normalizeCaption(read.text) !== want) {
+      throw new Error(
+        `explicit typing did not verify — got ${read.len} chars, want ${caption.length}: ` +
+          JSON.stringify(read.text.slice(0, 80)),
+      );
+    }
+    return {
+      mode: "typed-explicit",
+      len: read.len,
+      typedMs: typed.typedMs,
+      segments: typed.plan.segments.length,
+      poke: pokeHealth(typed),
+    };
+  }
+
+  let lastEvidence = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await selectField();
+    const armed = await evalJson(tabId, PASTE_PROBE_ARM);
+    if (!armed.ok) throw new Error(`paste probe could not be armed: ${JSON.stringify(armed)}`);
+    let paste = null;
+    let pasteError = null;
+    try {
+      paste = await pasteText(cdp, caption);
+    } catch (err) {
+      pasteError = err.message;
+    }
+    const probe = await evalJson(tabId, PASTE_PROBE_READ);
+    const events = Array.isArray(probe?.events) ? probe.events : [];
+    const trustedPaste = events.length > 0 && events.every((e) => e.trusted === true);
+    const read = await evalJson(tabId, CAPTION_READ);
+    lastEvidence = {
+      attempt,
+      pasteError,
+      events: events.length,
+      trustedPaste,
+      read: read.ok ? read.len : "missing",
+      healthy: read.healthy === true,
+    };
+    if (paste && trustedPaste && read.ok && read.healthy && normalizeCaption(read.text) === want) {
+      return {
+        mode: "trusted-paste",
+        len: read.len,
+        pasteAttempts: attempt,
+        pasteEvents: events.length,
+        pasteTrusted: true,
+        clipboardRestored: paste.clipboardRestored,
+        keyMs: paste.keyMs,
+      };
+    }
+    console.log(
+      `      ⚠️ trusted paste attempt ${attempt}/2 did not verify ` +
+        `(events=${events.length}, trusted=${trustedPaste}, read=${lastEvidence.read}, ` +
+        `error=${pasteError ?? "none"})`,
+    );
+  }
+
+  throw new Error(
+    `trusted paste did not verify after 2 attempts (${JSON.stringify(lastEvidence)}). ` +
+      "The draft was NOT saved. Check the clipboard permission, then retry; " +
+      "use --type-caption only for a deliberate debug run.",
+  );
 }
 
 /**
@@ -1721,7 +1954,7 @@ async function main() {
   // silently fall back to the default region (the gate must not become a
   // no-op because the value was swallowed by the next flag).
   if (args.includes("--expect-region") && getArg("expect-region") === null) {
-    console.error("❌ --expect-region needs a value, e.g. --expect-region SG");
+    console.error("❌ --expect-region needs a value, e.g. --expect-region HK");
     process.exit(1);
   }
   const expectRegionRaw = getArg("expect-region");
@@ -1757,7 +1990,18 @@ async function main() {
   // the automation profile, so a second shell sees the same last-run time.
   // Only a successful terminal action is committed at the end of the try, so
   // a run that failed mid-upload can be retried without burning a daily slot.
-  const throttleEnabled = !dryRun && !hasFlag("no-throttle");
+  // There is no bypass flag: a run that is too early waits.
+  if (hasFlag("no-throttle")) {
+    console.error("❌ --no-throttle has been removed. The pacing gate is not optional.");
+    console.error("   Wait for the logged nextAllowedAt, or inspect the profile state by hand.");
+    process.exit(1);
+  }
+  if (hasFlag("skip-review")) {
+    console.error("❌ --skip-review has been removed. An unreviewed draft must not be saved.");
+    console.error("   Run the review, or prepare the draft by hand without the automation.");
+    process.exit(1);
+  }
+  const throttleEnabled = !dryRun;
   const statePath = throttleStatePath();
   if (throttleEnabled) {
     let verdict;
@@ -1783,9 +2027,7 @@ async function main() {
         runsToday: verdict.runsToday,
       });
       console.error(`❌ publish pacing: ${describeThrottleBlock(verdict)}`);
-      console.error(
-        "   Explicit escape hatch: --no-throttle (the bypass is recorded in the publish log).",
-      );
+      console.error("   The pacing gate is not optional; wait for the logged deadline.");
       process.exit(1);
     }
     console.log(
@@ -1795,14 +2037,13 @@ async function main() {
           : "first run in this profile"),
     );
   } else {
-    log("throttle", { bypassed: true, reason: dryRun ? "dry-run" : "--no-throttle" });
+    log("throttle", { skipped: true, reason: "dry-run" });
   }
 
   // Egress-region probe (#964). The probe runs in Chrome, not the shell: the
   // browser's exit is what TikTok sees. It opens one trace tab and closes it.
-  // Draft-only since #1181, so a mismatch warns instead of blocking: the run
-  // cannot publish, but the operator is one click from doing so and the
-  // 2026-10-25 Tokyo exit is still the standing explanation for 0 plays.
+  // The verdict is fail-closed even on the draft-only path: the draft is one
+  // click from publication, so a mismatched session is not a safe hand-off.
   const runEgressCheck = async ({ label = "egress" } = {}) => {
     const probe = await probeEgressRegion({
       newTab: cdpNewTab,
@@ -1816,7 +2057,7 @@ async function main() {
     const verdict = evaluateEgress({
       expectedRegion,
       trace: probe.trace,
-      publish: false,
+      publish: true,
       reachable: probe.reachable,
       reason: probe.reason,
     });
@@ -1825,7 +2066,12 @@ async function main() {
     return verdict;
   };
 
-  await runEgressCheck();
+  const egressVerdict = await runEgressCheck();
+  if (egressVerdict.level === "block") {
+    console.error("❌ egress gate blocked this run before upload — nothing was changed.");
+    console.error("   Fix the route, or pass --expect-region <CC> if the route really changed.");
+    process.exit(1);
+  }
 
   console.log("");
   console.log("=".repeat(60));
@@ -1837,7 +2083,7 @@ async function main() {
   console.log(`  Caption: ${caption ? `${caption.length} chars` : "(none — will skip)"}`);
   console.log(`  Warm-up: ${hasFlag("no-warmup") ? "skipped" : `${WARMUP_URL} (scroll + dwell)`}`);
   console.log(
-    `  Input:   ${hasFlag("paste-caption") ? "paste caption (explicit)" : "typed caption"} · human pointer paths · jittered waits`,
+    `  Input:   ${hasFlag("type-caption") ? "typed caption (explicit fallback)" : "trusted clipboard paste (Cmd+V)"} · human pointer paths · jittered waits`,
   );
   console.log(
     `  Gate:    method "${publishMethod}" (profile enables: ${tiktokProfile.enabledPublishMethods.join(", ")}) · ` +
@@ -1898,7 +2144,7 @@ async function main() {
     captionChars: caption ? caption.length : 0,
     terminalAction: terminalAction.action,
     warmup: !hasFlag("no-warmup"),
-    captionMode: hasFlag("paste-caption") ? "paste" : "typed",
+    captionMode: hasFlag("type-caption") ? "typed" : "trusted-paste",
   });
 
   let tab = null;
@@ -2002,14 +2248,22 @@ async function main() {
     console.log("  1/6 upload page open — waiting for the editor…");
     await waitFor(tab, FILE_INPUT_READY, { timeoutMs: 90_000, label: "upload page" });
 
-    console.log("  2/6 selecting the video file…");
-    const setFiles = await fetch(`${CDP_BASE}/setFiles?target=${tab}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ selector: 'input[type="file"]', files: [videoPath] }),
-    }).then((r) => r.json());
-    if (!setFiles?.success) throw new Error(`setFiles failed: ${JSON.stringify(setFiles)}`);
-    log("upload", { file: basename(videoPath), set: true });
+    console.log("  2/6 selecting the video file through the native macOS picker…");
+    const picked = await selectVideoWithNativePicker(tab, cdp, videoPath);
+    console.log(
+      `      selected: ${picked.selected.name} (${picked.selected.size} bytes, ` +
+        `sha256 ${picked.selected.hash.slice(0, 12)}…, openMode=${picked.openMode})`,
+    );
+    log("upload", {
+      file: basename(videoPath),
+      selected: true,
+      picker: picked.mode,
+      openMode: picked.openMode,
+      trigger: picked.trigger,
+      size: picked.selected.size,
+      hash: picked.selected.hash,
+      hashVerified: picked.hashVerified,
+    });
 
     console.log("  3/6 waiting for the upload to finish…");
     await waitFor(tab, EDITOR_STATE, { timeoutMs: 300_000, label: "editor ready" });
@@ -2023,7 +2277,7 @@ async function main() {
       await sleepJitter(...PUBLISH_PACING.captionFieldSelect);
       await humanClickElement(tab, cdp, "#__caption");
       const filled = await fillCaption(tab, cdp, caption, {
-        pasteOnly: hasFlag("paste-caption"),
+        typeOnly: hasFlag("type-caption"),
       });
       console.log(
         `  4/6 caption ${filled.mode} (${filled.len} chars` +
@@ -2203,13 +2457,15 @@ async function main() {
 
     const runReview = async () => {
       if (hasFlag("skip-review")) {
-        console.log("👀 Pre-terminal review skipped (--skip-review)");
-        log("review", { reviewed: false, reason: "skipped by --skip-review" });
-        return;
+        throw new Error(
+          "--skip-review has been removed: an unreviewed draft must not be saved. " +
+            "Run the review, or do the draft by hand without the automation.",
+        );
       }
       console.log("👀 Watching the prepared video before the terminal action…");
-      // A review is a behaviour signal, never a gate: a preview that will not
-      // play is recorded as NOT reviewed and the run continues.
+      // A failed review is a terminal abort, not a note. The old soft gate
+      // recorded `reviewed:false` and still saved the draft; that is exactly
+      // how an unreviewed video reached the hand-off.
       let review;
       try {
         review = await reviewBeforePublish(tab, cdp);
@@ -2225,6 +2481,12 @@ async function main() {
       // operator sees (`verdict`) — a reader of the log should not have to
       // re-derive what "reviewed: false" meant.
       log("review", { reviewed: review.reviewed, verdict, ...review });
+      if (!review.reviewed) {
+        throw new Error(
+          `pre-terminal review failed: ${review.reason ?? "playback did not advance"}. ` +
+            "The draft was NOT saved. Check the open tab, then run again.",
+        );
+      }
     };
 
     // Draft-only (#1181, ruled 2026-11-13): the automated run never clicks 发布.
