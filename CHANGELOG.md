@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.100.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.99.1...tanstack_start_ts-v1.100.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** semantic beat schema + validation for [#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2 ([#1496](https://github.com/0xPabloLI/inside-china-ai/issues/1496)) ([2c3b0da](https://github.com/0xPabloLI/inside-china-ai/commit/2c3b0da128190d61ce757705265a02a69c13d405))
+
+
+### Performance Improvements
+
+* **remotion:** use &lt;Img&gt; for the primary image, 73s→55s on a real pack ([#1495](https://github.com/0xPabloLI/inside-china-ai/issues/1495)) ([bc65ca0](https://github.com/0xPabloLI/inside-china-ai/commit/bc65ca055225dc69b890e571ad68a986889d43d6))
+
 ## [1.99.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.99.0...tanstack_start_ts-v1.99.1) (2026-11-21)
 
 
