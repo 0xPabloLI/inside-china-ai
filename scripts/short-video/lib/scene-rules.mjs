@@ -2784,7 +2784,7 @@ export function checkMediaOptOutDeprecation(scenes) {
  * before the layout dispatch, so the picture fills the frame with only the
  * source label on top — evidence stays readable there, whatever the layout.
  */
-function isTextFirstLayoutScene(scene) {
+export function isTextFirstLayoutScene(scene) {
   if (scene.media?.mode === "fullscreen") return false;
   return resolveRenderLayout(scene) === "stacked-cards" || scene.visualType === "contrast";
 }
