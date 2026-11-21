@@ -74,7 +74,9 @@ describe("checkAvatarContract — zero impact (no avatar)", () => {
     // report one pack-level pass when the pack has no native chart / no pin.
     // 2026-11-18: pass 42 → 43 — the currency gate moved out of the editorial
     // bucket into the gate bucket, so a clean pack reports one pass line.
-    expect(before.pass).toHaveLength(43);
+    // #1479: pass 43 → 44 — the industry fact gate (MRL-2) reports one pass
+    // ("Industry claims traceable") when the pack quotes no untraceable claim.
+    expect(before.pass).toHaveLength(44);
     expect(before.warn).toHaveLength(0);
     expect(before.pass.map((r) => r.check)).toContain("Template contract (REMOTION_SLOT_MAP)");
   });
