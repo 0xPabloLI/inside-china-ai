@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.99.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.98.0...tanstack_start_ts-v1.99.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** shot recipe cards derived from the render contract ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S1) ([#1488](https://github.com/0xPabloLI/inside-china-ai/issues/1488)) ([b66e561](https://github.com/0xPabloLI/inside-china-ai/commit/b66e5618096161845df8d6929d7a5eee1b402feb))
+
 ## [1.98.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.97.0...tanstack_start_ts-v1.98.0) (2026-11-21)
 
 
