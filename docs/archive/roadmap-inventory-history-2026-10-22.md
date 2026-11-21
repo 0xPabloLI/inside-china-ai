@@ -968,3 +968,11 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 ## Round CCXXXII 下沉：`#469` 站点经验收口 + `#253` 父票收口（2026-11-21）
 
 （2026-11-21（**Round CCXXXII：`#469` site-patterns 收口（B 方案）+ `#253` 父票与 `#247`/`#288`/`#301` 三张覆盖票闭票**——站点经验改住本机 `~/.cache/web-access/site-patterns/`：`match-site`/`--doctor` 走新目录、旧仓内目录只做只读回退，新增 `migrate-site-patterns.mjs` 与 `site-patterns-dir.mjs`，SKILL.md 的「必须读取」改「本机有就读」，仓库不再跟踪运行时产物（子模块 `327770d`，父仓 PR #1487）。`#253` 三张子票全交付后父票收口，`#247` 随覆盖关闭，`#288`/`#301` 随 `#310` 收口闭票。产品验证门：**无产出差异**（仓库与文档层，不动产线）。frontier：Track 2 无激活 map；1A 空、① 空、② 空；③ 仅 `#1472`（冻结票，不进施工队列）；④ 空。）
+
+## Round CCXXXIII 下沉：`#733` S1 镜头配方卡层（2026-11-21）
+
+> **Last inventory**: 2026-11-21（**Round CCXXXIII：`#733` 交付 S1 镜头配方卡层**——21 张卡面 / 21 个可渲染组合从 `REMOTION_SLOT_MAP` 与 `resolveRenderLayout` 派生，文本优先与 contain 带复用 #761/#1075 判据，`--check` 在 37 个真实包上全绿（18 个包样张 + 3 条渲染基线）；PR #1488，squash `b66e5618`。产品验证门：**无产出差异**（enabling，可见变化待 S2）。frontier：Track 2 无激活 map；1A 空、① 空、② 空；③ `#733` 余 S2/S3（需用户圈范围）、`#1472` 冻结；④ 空。）
+
+**下沉的一句话档案（Round CCXXVII，原文）**：
+
+**Round CCXXVII**（台账对齐：9 条 ledger 候选消账、11 张分发链票 `P4·deferred`、`#1472` 入表、`#322` 触发改写；**无产出差异**；1A 仅 `#1398`、① 空、③ `#253` 待拆票、④ 空）
