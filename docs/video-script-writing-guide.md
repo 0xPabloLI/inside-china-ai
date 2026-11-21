@@ -391,6 +391,22 @@ CTA 公式：`[Action Verb] + [What They Get]`
 2. **跨 scene 逐字复用**：多条 scene 用同一句 prompt（复用等于放弃适配层）。每条 prompt 必须围绕**本 scene 自己的主体**重写。
 3. **手写 negative / brand**：`no text`、`no watermark`、品牌底色等由代码注入，手写属重复或覆盖。
 
+### 可选：语义拍（`scene.beats`）
+
+需要机器可读的“这一句在语义上是什么”时，给 scene 加 `beats`（契约见 `docs/specs/spec-semantic-beats.md`）：
+
+```js
+beats: [
+  { id: "cost-drop", at: "cut task cost 62%", role: "delta", weight: "main" },
+  { id: "baseline", at: "$4.43", role: "baseline", weight: "sub" },
+],
+```
+
+- `at` 必须是 `voiceover` 里**只出现一次**的精确子串；重复短语补上下文。
+- `role` 用 26 词新闻词表（CLI `semantic-beats --roles` 可列）；一个 scene 最多一个 `main`。
+- 不写 `beats` 的包不受影响；写了就进 pre-render gate，非法即 fail-closed。
+- 选版式仍走 `shot-recipes.mjs`，`beats` 不携带 layout / recipeId。
+
 ---
 
 ## Step 7: 运行 MRL-2 自审
