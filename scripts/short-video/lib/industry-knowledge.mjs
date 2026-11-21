@@ -96,7 +96,8 @@ export function validateIndustryKnowledge(data) {
     }
     if (modelIds.has(m.id)) push(`duplicate model ${m.id}`);
     modelIds.add(m.id);
-    if (typeof m.displayName !== "string" || !m.displayName) push(`model ${m.id} lacks displayName`);
+    if (typeof m.displayName !== "string" || !m.displayName)
+      push(`model ${m.id} lacks displayName`);
     if (!companyIds.has(m.parent)) push(`model ${m.id} parent ${m.parent} is not a known entity`);
     const domain = data.facts.find(
       (f) => f.subject === m.id && f.relation === "model_domain" && f.status === "current",
@@ -116,8 +117,10 @@ export function validateIndustryKnowledge(data) {
     ids.add(f.id);
     if (!index.byId.has(f.subject)) push(`${f.id}: unknown subject ${f.subject}`);
     if (!relations.has(f.relation)) push(`${f.id}: unknown relation ${f.relation}`);
-    if (typeof f.source !== "string" || f.source.trim().length === 0) push(`${f.id}: missing source`);
-    if (typeof f.asOf !== "string" || !DATE_RE.test(f.asOf)) push(`${f.id}: malformed asOf ${f.asOf}`);
+    if (typeof f.source !== "string" || f.source.trim().length === 0)
+      push(`${f.id}: missing source`);
+    if (typeof f.asOf !== "string" || !DATE_RE.test(f.asOf))
+      push(`${f.id}: malformed asOf ${f.asOf}`);
     if (!CONFIDENCE.has(f.confidence)) push(`${f.id}: unknown confidence ${f.confidence}`);
     if (!STATUS.has(f.status)) push(`${f.id}: unknown status ${f.status}`);
     validateObject(f.relation, f.object, data, modelIds, (m) => push(`${f.id}: ${m}`));
@@ -193,7 +196,8 @@ function validateObject(relation, object, data, modelIds, push) {
       }
       break;
     case "competitive_position":
-      if (!POSITIONS.has(object)) push(`competitive_position ${object} is not edge|mainstream|frontier_band`);
+      if (!POSITIONS.has(object))
+        push(`competitive_position ${object} is not edge|mainstream|frontier_band`);
       break;
     case "overseas_awareness":
       if (!AWARENESS.has(object)) push(`overseas_awareness ${object} is not high|mid|low`);
@@ -204,10 +208,12 @@ function validateObject(relation, object, data, modelIds, push) {
       }
       break;
     case "release_date":
-      if (typeof object !== "string" || !DATE_RE.test(object)) push(`release_date ${object} is malformed`);
+      if (typeof object !== "string" || !DATE_RE.test(object))
+        push(`release_date ${object} is malformed`);
       break;
     case "listed_on":
-      if (typeof object !== "string" || !object.trim()) push("listed_on must be a non-empty string");
+      if (typeof object !== "string" || !object.trim())
+        push("listed_on must be a non-empty string");
       break;
     default:
       break;
@@ -358,7 +364,8 @@ export function applyFact(data, fact) {
 }
 
 function validateSingleFact(fact, data, errors) {
-  if (typeof fact?.id !== "string" || !FACT_ID_RE.test(fact.id)) errors.push(`fact id ${fact?.id} malformed`);
+  if (typeof fact?.id !== "string" || !FACT_ID_RE.test(fact.id))
+    errors.push(`fact id ${fact?.id} malformed`);
   if (!Array.isArray(data.facts)) errors.push("facts[] missing");
   const { byId } = buildEntityIndex(data);
   if (!byId.has(fact.subject)) errors.push(`unknown subject ${fact.subject}`);
@@ -366,12 +373,15 @@ function validateSingleFact(fact, data, errors) {
   if (typeof fact.source !== "string" || fact.source.trim().length === 0) {
     errors.push(`fact ${fact.id} missing source`);
   }
-  if (typeof fact.asOf !== "string" || !DATE_RE.test(fact.asOf)) errors.push(`fact ${fact.id} malformed asOf`);
+  if (typeof fact.asOf !== "string" || !DATE_RE.test(fact.asOf))
+    errors.push(`fact ${fact.id} malformed asOf`);
   if (!CONFIDENCE.has(fact.confidence)) errors.push(`fact ${fact.id} unknown confidence`);
   if (!STATUS.has(fact.status)) errors.push(`fact ${fact.id} unknown status`);
   if (fact.status !== "current") errors.push(`fact ${fact.id} must be written as current`);
   const modelIds = new Set((data.models ?? []).map((m) => m.id));
-  validateObject(fact.relation, fact.object, data, modelIds, (m) => errors.push(`fact ${fact.id}: ${m}`));
+  validateObject(fact.relation, fact.object, data, modelIds, (m) =>
+    errors.push(`fact ${fact.id}: ${m}`),
+  );
 }
 
 /**

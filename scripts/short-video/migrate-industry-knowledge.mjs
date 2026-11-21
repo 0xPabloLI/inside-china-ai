@@ -120,16 +120,15 @@ function main() {
     return;
   }
   if (check) {
-    console.error("[migrate] drift detected — run node scripts/short-video/migrate-industry-knowledge.mjs");
+    console.error(
+      "[migrate] drift detected — run node scripts/short-video/migrate-industry-knowledge.mjs",
+    );
     process.exit(1);
   }
   writeFileSync(DATA_PATH, after);
   console.log(`[migrate] wrote ${migrated.facts.length} facts`);
 }
 
-if (
-  process.argv[1] &&
-  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main();
 }

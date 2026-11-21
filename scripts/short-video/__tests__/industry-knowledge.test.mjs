@@ -28,9 +28,7 @@ import {
 } from "../lib/industry-knowledge.mjs";
 import { buildMigratedKnowledge, serializeKnowledge } from "../migrate-industry-knowledge.mjs";
 
-const DATA_PATH = fileURLToPath(
-  new URL("../lib/data/industry-knowledge.json", import.meta.url),
-);
+const DATA_PATH = fileURLToPath(new URL("../lib/data/industry-knowledge.json", import.meta.url));
 const raw = JSON.parse(readFileSync(DATA_PATH, "utf8"));
 const company = loadCompanyRelations();
 
@@ -54,14 +52,7 @@ describe("industry-knowledge.json schema", () => {
       "overseas_awareness",
       "competitive_position",
     ]);
-    for (const domain of [
-      "llm",
-      "world_model",
-      "video_generation",
-      "vlm",
-      "tts",
-      "omni",
-    ]) {
+    for (const domain of ["llm", "world_model", "video_generation", "vlm", "tts", "omni"]) {
       const b = raw.domains[domain];
       expect(b, `domain ${domain}`).toBeTruthy();
       expect(b.frontierBand).toBeTypeOf("string");
@@ -119,8 +110,7 @@ describe("industry-knowledge.json schema", () => {
       expect(m.displayName).toBeTypeOf("string");
       expect(companyIds, `${m.id} parent ${m.parent}`).toContain(m.parent);
       const domain = raw.facts.find(
-        (f) =>
-          f.subject === m.id && f.relation === "model_domain" && f.status === "current",
+        (f) => f.subject === m.id && f.relation === "model_domain" && f.status === "current",
       );
       expect(domain, `${m.id} has no current model_domain`).toBeTruthy();
       expect(Object.keys(raw.domains)).toContain(domain.object);
@@ -197,7 +187,7 @@ describe("applyFact", () => {
     models: raw.models,
   });
 
-    it("adds a fact to an empty key", () => {
+  it("adds a fact to an empty key", () => {
     const fact = {
       id: "fact-test-new",
       subject: "deepseek_v4_pro",
@@ -285,13 +275,11 @@ describe("applyFact", () => {
       /unknown subject/i,
     );
     expect(() => applyFact(base, { ...ok, source: "" })).toThrow(/source/i);
-    expect(() => applyFact(base, { ...ok, relation: "made_up_relation" })).toThrow(
-      /relation/i,
-    );
+    expect(() => applyFact(base, { ...ok, relation: "made_up_relation" })).toThrow(/relation/i);
     const a = applyFact(base, ok);
-    expect(() =>
-      applyFact(a.data, { ...ok, object: ["different"], source: "changed" }),
-    ).toThrow(/duplicate fact id/i);
+    expect(() => applyFact(a.data, { ...ok, object: ["different"], source: "changed" })).toThrow(
+      /duplicate fact id/i,
+    );
   });
 });
 
