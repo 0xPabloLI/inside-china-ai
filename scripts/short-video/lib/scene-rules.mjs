@@ -44,6 +44,9 @@ import {
   TARGET_KEYWORDS,
   KNOWN_COMPANIES,
 } from "./tiktok-rules.mjs";
+// Hook layout selection (#1480): the criteria live in their own leaf module so
+// the Stage 3 CLI and this advisory share one implementation.
+import { evaluateHookLayout } from "./hook-layout.mjs";
 
 // Numeric thresholds: profile is the single source (tiktok-rules.mjs no
 // longer re-exports them — #219 T02 Middle-Man removal).
@@ -398,6 +401,41 @@ export function checkHookCompellingElement(scenes) {
       fix: `Write one of the six families and declare it as hookFamily (${HOOK_FAMILY_IDS.join(", ")}), or use a number or strong word`,
     },
   ];
+}
+
+/**
+ * Hook layout selection (#1480): does the pack's opening layout fit what the
+ * opening fact can carry? Research §6 (industry-knowledge-layer-2026-11.md)
+ * rules for number-led / claim-led / media-led, judged by lib/hook-layout.mjs.
+ *
+ * Advisory on purpose: taste-adjacent selection is a Stage 3 editorial gate
+ * (scripts/short-video/hook-layout.mjs, where the cross-pack run is also
+ * judged), not a CI block.
+ */
+function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
+  const evaluated = evaluateHookLayout(scenes?.[0], {
+    scenes,
+    meta,
+    industryContext: opts.industryContext ?? null,
+    sceneDurations: opts.sceneDurations,
+  });
+  if (evaluated.findings.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Hook layout selection",
+        detail: `版式 ${evaluated.layout}，其硬前提成立`,
+      },
+    ];
+  }
+  return evaluated.findings.map((finding) => ({
+    level: finding.level === "fail" ? "fail" : "warn",
+    category: "Hook",
+    check: "Hook layout selection",
+    detail: `[${finding.code}] ${finding.detail}`,
+    fix: finding.fix,
+  }));
 }
 
 /**
@@ -3484,6 +3522,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   // reach pass/warn/fail, so they can't block a render or inflate the gate.
   const EDITORIAL_RUNNERS = [
     () => checkHookCompellingElement(scenes),
+    () => checkHookLayoutSelection(scenes, opts, meta),
     () => checkHookSentenceFamily(scenes),
     () => checkHookDuration(scenes, opts),
     () => checkShareWorthyData(scenes),
