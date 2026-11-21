@@ -48,7 +48,7 @@ let registryCache = null;
  * "has this entity been through the pipeline before?".
  * @returns {Set<string>}
  */
-export function loadEntityRegistryKeys() {
+function loadEntityRegistryKeys() {
   if (registryCache) return registryCache;
   const parsed = loadYaml(readFileSync(REGISTRY_PATH, "utf8"));
   const keys = new Set();
@@ -99,7 +99,7 @@ export function expandEntityKey(key) {
 }
 
 /** Flat text of a pack, for entity mention scanning. */
-export function packText(meta, scenes) {
+function packText(meta, scenes) {
   const metaText = meta ? JSON.stringify(meta) : "";
   const sceneText = (scenes ?? [])
     .map((scene) => [scene.voiceover, scene.name, JSON.stringify(scene.texts ?? {})].join(" "))

@@ -64,7 +64,7 @@ function toBillions(token, unit) {
 }
 
 /** Parse "1.6T" / "49B" / "1.3B edge" style ledger values. */
-export function parseScaleValue(value) {
+function parseScaleValue(value) {
   if (typeof value !== "string") return null;
   SCALE_RE.lastIndex = 0;
   const match = SCALE_RE.exec(value);
@@ -78,7 +78,7 @@ export function parseScaleValue(value) {
  * @param {string} text
  * @returns {{ raw: string, billions: number, index: number }[]}
  */
-export function extractScaleClaims(text) {
+function extractScaleClaims(text) {
   const out = [];
   for (const re of [SCALE_RE, CN_SCALE_RE]) {
     re.lastIndex = 0;
