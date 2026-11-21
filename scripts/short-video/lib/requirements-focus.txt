@@ -10,5 +10,5 @@
 # `opencv-python` is enough — do not swap in opencv-contrib-python, which
 # pins a different module set and re-splits the runtime from production.
 opencv-python==5.0.0.93
-numpy==2.5.3
+numpy==2.5.4
 Pillow==12.3.0
