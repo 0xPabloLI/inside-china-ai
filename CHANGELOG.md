@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.97.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.96.0...tanstack_start_ts-v1.97.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** industry context injection + MRL-2 fact gate ([#1479](https://github.com/0xPabloLI/inside-china-ai/issues/1479)) ([#1483](https://github.com/0xPabloLI/inside-china-ai/issues/1483)) ([7933168](https://github.com/0xPabloLI/inside-china-ai/commit/7933168401bce779bbfa4a08737e537e71d4e5e4))
+
 ## [1.96.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.95.0...tanstack_start_ts-v1.96.0) (2026-11-21)
 
 
