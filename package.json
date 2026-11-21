@@ -58,7 +58,7 @@
   "dependencies": {
     "@cf-wasm/resvg": "^0.4.0",
     "@lovable.dev/cloud-auth-js": "^1.1.2",
-    "@lovable.dev/email-js": "0.6.0",
+    "@lovable.dev/email-js": "0.8.0",
     "@lovable.dev/mcp-js": "^3.0.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -120,7 +120,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
-    "@lovable.dev/vite-tanstack-config": "2.27.0",
+    "@lovable.dev/vite-tanstack-config": "2.27.2",
     "@playwright/test": "^1.62.0",
     "@size-limit/file": "^14.0.0",
     "@types/node": "^24.0.0",
@@ -139,7 +139,7 @@
     "jsdom": "^30.0.0",
     "knip": "^6.35.1",
     "nitro": "3.0.260603-beta",
-    "prettier": "3.9.10",
+    "prettier": "3.10.1",
     "size-limit": "^14.0.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
@@ -161,9 +161,9 @@
     "@hono/node-server": "2.1.8",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@modelcontextprotocol/server": "2.4.0",
-    "hono": "4.13.16",
+    "hono": "4.13.18",
     "launch-editor": "2.14.2",
-    "minimatch": "11.0.3"
+    "minimatch": "11.0.8"
   },
   "version": "1.100.0"
 }
