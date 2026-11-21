@@ -976,3 +976,11 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 **下沉的一句话档案（Round CCXXVII，原文）**：
 
 **Round CCXXVII**（台账对齐：9 条 ledger 候选消账、11 张分发链票 `P4·deferred`、`#1472` 入表、`#322` 触发改写；**无产出差异**；1A 仅 `#1398`、① 空、③ `#253` 待拆票、④ 空）
+
+## Round CCXXXIV 下沉：`#228` sourcing 短路切片 + `#1160` 闭票（2026-11-21）
+
+> **Last inventory**: 2026-11-21（**Round CCXXXIV：`#228` 交付 sourcing run 级短路切片、`#1160` 契约设计闭票**——`output/<slug>/sourcing-state.json` 以 `buildQueryGroups` 查询面为 digest，素材未变即跳过 37 分钟 sourcing；任一 assigned 缺文件回落全量，`SHORT_VIDEO_FORCE_SOURCING=1` 强制重搜；PR #1491，squash `00b1fb47`。`#1160` 只出 `spec-sfx-cue-contract.md`、不铺产线代码，PR #1492，squash `eb91e71a`。产品验证门：**无产出差异**（前者省等待、后者纯设计）。frontier：Track 2 无激活 map；1A 空、① 空、② 空；③ `#733` 余 S2/S3（需用户圈范围）、`#1472` 冻结；④ 空；`#228` 余 ②③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXI，原文）**：
+
+**Round CCXXXI**（`#1480` 行业知识层 S3 编辑层——hook 版式选版判据 + 跨期反重复
