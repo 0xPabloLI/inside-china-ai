@@ -39,14 +39,16 @@ describe("T2: MediaBackground uses @remotion/media", () => {
     expect(content).toMatch(/from\s+["']@remotion\/media["']/);
   });
 
-  it("MediaBackground uses CanvasImage for image type", () => {
+  it("MediaBackground renders the primary image via <Img> on both paths", () => {
     const content = readFile("components/MediaBackground.tsx");
-    // #156 backdrop layering (bd8fa2c): when a backdrop layer exists the
-    // primary image renders via <Img> (CanvasImage canvas compositing always
-    // paints below <Video>, regardless of DOM order); via CanvasImage otherwise.
-    // Both paths must exist.
-    expect(content).toMatch(/CanvasImage/);
-    expect(content).toMatch(/<Img\s/);
+    // #156 backdrop layering (bd8fa2c): CanvasImage's canvas compositing
+    // always paints below <Video>, regardless of DOM order. The no-backdrop
+    // path has no <Video>, and CanvasImage repaints the full-frame canvas
+    // every frame; a real 57.5s pack measured 73s → 55s after using <Img>
+    // there too (SSIM 0.999). Keep both paths on <Img> so this perf fix is
+    // not silently reverted.
+    expect(content).not.toMatch(/<CanvasImage\s/);
+    expect((content.match(/<Img\s/g) ?? []).length).toBeGreaterThanOrEqual(1);
   });
 
   it("MediaBackground accepts optional effects prop", () => {

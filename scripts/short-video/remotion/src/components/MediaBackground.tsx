@@ -21,14 +21,7 @@
  *   - ken-burns / zoom + video → auto-degrade to fade (see resolvePreset)
  *   - File not found → render nothing (pre-validated by render-remotion.mjs)
  */
-import {
-  AbsoluteFill,
-  useCurrentFrame,
-  staticFile,
-  CanvasImage,
-  Img,
-  useVideoConfig,
-} from "remotion";
+import { AbsoluteFill, useCurrentFrame, staticFile, Img, useVideoConfig } from "remotion";
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
@@ -379,12 +372,12 @@ export const MediaBackground: React.FC<Props> = ({
         // #156: with a backdrop present, the primary image must render as a
         // regular <img> — CanvasImage's canvas compositing always paints
         // beneath <Video> elements regardless of DOM order/z-index, which
-        // would hide the primary media behind the backdrop.
-        backdropPath ? (
-          <Img src={src} style={{ ...mediaStyle, objectFit: fit }} />
-        ) : (
-          <CanvasImage src={src} style={{ ...mediaStyle, objectFit: fit }} />
-        )
+        // would hide the primary media behind the backdrop. Without a
+        // backdrop the same <Img> is also the faster path: CanvasImage
+        // repaints the full-frame canvas every frame, while <Img> is
+        // composited by the browser. Measured on a real 57.5s pack
+        // (1725 frames): 73s → 55s, SSIM 0.999 vs the CanvasImage render.
+        <Img src={src} style={{ ...mediaStyle, objectFit: fit }} />
       ) : (
         // Background video is a texture, not a clip to be watched once: a
         // source shorter than the scene must keep moving (matches the `loop`
