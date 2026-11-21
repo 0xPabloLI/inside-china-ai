@@ -77,6 +77,9 @@ function escapeRegExp(value) {
 export function entityKeyPattern(key) {
   const escaped = escapeRegExp(String(key));
   const asciiToken = /^[a-z0-9][a-z0-9 ._+-]*$/i.test(String(key));
+  // Keys come from the checked-in entity registry and are regex-escaped above;
+  // the dynamic RegExp is intentional (one pattern per registry key).
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   return asciiToken
     ? new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "i")
     : new RegExp(escaped, "i");
