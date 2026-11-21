@@ -21,6 +21,7 @@ import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs"
 // the inverse direction so a spelled CTA number and a digit dataPoints entry
 // compare equal without a second lexicon.
 import { numericAnchors } from "./normalize-tts-text.mjs";
+import { validateSceneBeats } from "./semantic-beats.mjs";
 // One spelling list for Step 0.5 and this advisory: whatever the auto-fix
 // annotates is exactly what the verify-time net stops flagging.
 import { findCurrencySpellings, hasNearbyUsd } from "./normalize-currency.mjs";
@@ -1874,6 +1875,38 @@ const VALID_LAYOUTS = [
   "stacked-cards",
   "cta",
 ];
+/**
+ * Semantic beats contract (#733 S2) — opt-in. Scenes without `beats` are
+ * skipped, so the existing corpus is unaffected; a pack that adopts the
+ * schema gets the same fail-closed checks as the standalone CLI.
+ */
+function checkSemanticBeats(scenes) {
+  const results = [];
+  for (const scene of scenes) {
+    if (scene?.beats === undefined || scene?.beats === null) continue;
+    const { ok, errors } = validateSceneBeats(scene);
+    if (ok) {
+      results.push({
+        level: "pass",
+        category: "Structure",
+        check: `Scene ${scene.id} semantic beats`,
+        detail: `${scene.beats.length} beat(s) anchored and in-vocabulary`,
+      });
+      continue;
+    }
+    for (const error of errors) {
+      results.push({
+        level: "fail",
+        category: "Structure",
+        check: `Scene ${scene.id} semantic beats`,
+        detail: `${error.code}: ${error.message}`,
+        fix: "Fix scene.beats to match the #733 S2 contract (see docs/specs/spec-semantic-beats.md)",
+      });
+    }
+  }
+  return results;
+}
+
 function checkLayoutField(scenes) {
   const results = [];
   for (const scene of scenes) {
@@ -3492,6 +3525,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaDensityPreflight(scenes, { meta }),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
+    ...checkSemanticBeats(scenes),
     ...checkTemplateContract(scenes),
     ...checkInfoSpec(scenes),
     ...checkChartPinContract(scenes),
