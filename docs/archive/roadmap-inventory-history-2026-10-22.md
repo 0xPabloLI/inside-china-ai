@@ -992,3 +992,11 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 **下沉的一句话档案（Round CCXXXVIII，原文）**：
 
 **Round CCXXXVIII**（`#733` 闭票——amber 4px underline + 六类题材档 + 真实 pack 写回；**有产出 diff（下划线）**；③ 清空，1A/①②④ 空）
+
+## Round CCXXXIX 下沉：`#1512` 立项（TTS 冷批四段取证，2026-11-22）
+
+> **Last inventory**: 2026-11-22（**Round CCXXXIX：`#1512` 立项——TTS 冷批四段取证**——近 9 天 25 次冷跑合计 539 min（中位 16.1 min、最长 106 min），同期 55 次重跑渲染合计 34.3 min（中位 48 s）；3 个 kernel 日志：setup（依赖导入 + `Loaded in`）占 82–94%、合成 4–7%，主候选为常驻 kernel / 预热镜像，结论另开实施票。PR #1513。产品验证门：**无产出差异**（取证票，无代码）。frontier：1A 空；① `#1512`（ready-for-agent）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXIX，原文）**：
+
+**Round CCXXXIX**（`#1512` 立项：TTS 冷批四段取证——9 天 25 次冷跑 539 min vs 55 次重跑渲染 34.3 min；3 个 kernel setup 占 82–94%；**无产出差异**；① `#1512`，1A/②③④ 空）
