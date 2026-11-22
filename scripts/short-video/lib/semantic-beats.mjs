@@ -29,6 +29,8 @@
 
 export const BEAT_SCHEMA_VERSION = 1;
 
+import { REMOTION_SLOT_MAP, resolveRenderLayout } from "./text-slots.mjs";
+
 /**
  * 26 news roles. `id` is stable; `label` is the author-facing name; `use` is
  * the one-line selection rule shown by the CLI.
@@ -193,4 +195,77 @@ export function validatePackBeats(scenes) {
     }
   }
   return { ok: errors.length === 0, scenesWithBeats, beatCount, errors };
+}
+
+/**
+ * Fields a beat may annotate: every string slot the resolved layout can render,
+ * minus attribution (`source`) and the highlight control itself. Arrays
+ * (stats/left/right) are not annotatable, matching T8's `assertKnownTextFields`.
+ */
+function annotatableFields(scene) {
+  const visualType = scene?.visualType;
+  const layout = resolveRenderLayout(scene);
+  const slot = REMOTION_SLOT_MAP?.[visualType]?.[layout];
+  if (!slot) return [];
+  // Only these slots are wired to SplitHighlight in the renderer today:
+  // NarrativeScene annotates result/action, HookScene annotates hookText.
+  // A `highlight` on company/context/quote/badge passes T8 validation but
+  // renders nothing (measured: 13/59 shipped highlights are dead data).
+  const wired = new Set(
+    visualType === "narrative" ? ["result", "action"] : visualType === "hook" ? ["hookText"] : [],
+  );
+  return [...(slot.rendered ?? []), ...(slot.optional ?? [])]
+    .filter((field, index, all) => all.indexOf(field) === index)
+    .filter((field) => wired.has(field))
+    .filter((field) => typeof scene?.texts?.[field] === "string");
+}
+
+/**
+ * Derive the T8 highlight for a scene's single main beat. Write-side only:
+ * returns a decision, never mutates the scene and never guesses.
+ *
+ * Statuses:
+ * - `derived` — one main beat, its `at` occurs exactly once in exactly one
+ *   annotatable string field; safe to write as `texts.highlight`.
+ * - `already-set` — `texts.highlight` exists; `same` says whether it already
+ *   matches the derived target.
+ * - `no-main` / `invalid-beats` — nothing to derive or the beats are broken.
+ * - `missing` / `ambiguous-field` / `ambiguous-occurrence` — no unique target;
+ *   report only, do not write.
+ *
+ * @param {{visualType?: string, layout?: string, texts?: Record<string, unknown>,
+ *   beats?: Array<{at?: string, weight?: string}>}} scene
+ */
+export function deriveHighlight(scene) {
+  const validation = validateSceneBeats(scene);
+  if (!validation.ok) return { status: "invalid-beats", errors: validation.errors };
+  const beats = Array.isArray(scene?.beats) ? scene.beats : [];
+  const mains = beats.filter((beat) => beat?.weight === "main");
+  if (mains.length === 0) return { status: "no-main" };
+  if (mains.length > 1) {
+    return {
+      status: "invalid-beats",
+      errors: [{ code: "beat-main-duplicate", message: "a scene may carry at most one main beat" }],
+    };
+  }
+  const at = mains[0].at;
+  const existing = scene?.texts?.highlight;
+  if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+    const same =
+      existing.field != null && existing.text === at
+        ? annotatableFields(scene).includes(existing.field) &&
+          scene.texts[existing.field]?.includes(at)
+        : false;
+    return { status: "already-set", same, field: existing.field, text: existing.text };
+  }
+  const fields = annotatableFields(scene);
+  const matches = fields.filter((field) => scene.texts[field].includes(at));
+  if (matches.length === 0) return { status: "missing", text: at, fields };
+  if (matches.length > 1) return { status: "ambiguous-field", text: at, fields: matches };
+  const field = matches[0];
+  const occurrences = countOccurrences(scene.texts[field], at);
+  if (occurrences > 1) {
+    return { status: "ambiguous-occurrence", text: at, field, occurrences };
+  }
+  return { status: "derived", field, text: at };
 }

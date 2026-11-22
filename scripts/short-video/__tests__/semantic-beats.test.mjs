@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runAllSceneDataChecks } from "../lib/scene-rules.mjs";
 import {
   NEWS_BEAT_ROLE_IDS,
+  deriveHighlight,
   validatePackBeats,
   validateSceneBeats,
 } from "../lib/semantic-beats.mjs";
@@ -101,5 +102,102 @@ describe("semantic beats contract (#733 S2)", () => {
     ]);
     expect(result.ok).toBe(false);
     expect(result.errors[0].sceneId).toBe(7);
+  });
+});
+
+describe("deriveHighlight (#733 S2 emphasis bridge)", () => {
+  const narrative = (texts, mainAt = "GENERATED") => ({
+    id: 2,
+    visualType: "narrative",
+    layout: "media-overlay",
+    voiceover: "The result was GENERATED, not sourced.",
+    texts: {
+      company: "T2I FIXTURE",
+      action: "AI IMAGE PATH",
+      result: "GENERATED, NOT SOURCED",
+      source: "PACK",
+      ...texts,
+    },
+    beats: [
+      { id: "main", at: mainAt, role: "claim", weight: "main" },
+      { id: "sub", at: "not sourced", role: "caveat", weight: "sub" },
+    ],
+  });
+
+  it("derives the unique rendered field for the main beat", () => {
+    expect(deriveHighlight(narrative())).toEqual({
+      status: "derived",
+      field: "result",
+      text: "GENERATED",
+    });
+  });
+
+  it("derives a hookText underline target", () => {
+    const hook = {
+      visualType: "hook",
+      layout: "hero-center",
+      voiceover: "AI that OPERATES your computer.",
+      texts: { subject: "DOUBAO WORK", hookText: "AI THAT OPERATES YOUR COMPUTER", source: "PACK" },
+      beats: [{ id: "main", at: "OPERATES", role: "claim", weight: "main" }],
+    };
+    expect(deriveHighlight(hook)).toEqual({
+      status: "derived",
+      field: "hookText",
+      text: "OPERATES",
+    });
+  });
+
+  it("reports missing when no rendered field contains the anchor", () => {
+    expect(deriveHighlight(narrative({}, "sourced")).status).toBe("missing");
+  });
+
+  it("refuses to guess when the anchor is in two annotatable fields", () => {
+    const scene = narrative(
+      { result: "GENERATED, NOT SOURCED", action: "GENERATED PREVIEW" },
+      "GENERATED",
+    );
+    expect(deriveHighlight(scene)).toMatchObject({
+      status: "ambiguous-field",
+      fields: ["action", "result"],
+    });
+  });
+
+  it("ignores fields the renderer never annotates", () => {
+    const scene = narrative({ company: "GENERATED", result: "SOURCED ONLY" }, "GENERATED");
+    expect(deriveHighlight(scene).status).toBe("missing");
+  });
+
+  it("refuses a repeated anchor inside one field", () => {
+    const scene = narrative({ result: "GENERATED THEN GENERATED" }, "GENERATED");
+    expect(deriveHighlight(scene)).toMatchObject({
+      status: "ambiguous-occurrence",
+      occurrences: 2,
+    });
+  });
+
+  it("never annotates source attribution", () => {
+    const scene = narrative({ source: "GENERATED", result: "SOURCED ONLY" }, "GENERATED");
+    expect(deriveHighlight(scene).status).toBe("missing");
+  });
+
+  it("reports already-set and whether it matches the main beat", () => {
+    expect(
+      deriveHighlight(narrative({ highlight: { field: "result", text: "GENERATED" } })),
+    ).toMatchObject({
+      status: "already-set",
+      same: true,
+    });
+    expect(
+      deriveHighlight(narrative({ highlight: { field: "company", text: "T2I" } })),
+    ).toMatchObject({
+      status: "already-set",
+      same: false,
+    });
+  });
+
+  it("has no target when there is no main beat", () => {
+    const scene = narrative();
+    scene.beats = [{ id: "sub", at: "GENERATED", role: "claim", weight: "sub" }];
+    expect(deriveHighlight(scene)).toEqual({ status: "no-main" });
   });
 });

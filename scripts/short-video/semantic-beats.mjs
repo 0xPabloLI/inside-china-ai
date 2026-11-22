@@ -21,6 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   BEAT_SCHEMA_VERSION,
   NEWS_BEAT_ROLES,
+  deriveHighlight,
   NEWS_BEAT_ROLE_IDS,
   validatePackBeats,
 } from "./lib/semantic-beats.mjs";
@@ -37,6 +38,7 @@ function parseArgs(args) {
   return {
     content: value("content"),
     check: args.includes("--check"),
+    highlight: args.includes("--highlight"),
     roles: args.includes("--roles"),
     root: value("root") ?? SCRIPT_DIR,
     json: args.includes("--json"),
@@ -86,6 +88,75 @@ async function main() {
     }
     return;
   }
+  if (args.highlight) {
+    if (!args.content && !args.check) {
+      console.error(
+        "usage: semantic-beats --highlight --content <slug> | --highlight --check [--json]",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const targets = args.content ? [args.content] : shippedSlugs(args.root);
+    const reports = [];
+    for (const slug of targets) {
+      let scenes;
+      try {
+        scenes = await loadScenes(args.root, slug);
+      } catch (error) {
+        reports.push({ slug, error: error.message });
+        continue;
+      }
+      const scenesReport = scenes.map((scene) => ({
+        sceneId: scene?.id ?? null,
+        ...deriveHighlight(scene),
+      }));
+      reports.push({ slug, scenes: scenesReport });
+    }
+    if (args.json) {
+      console.log(JSON.stringify({ schemaVersion: BEAT_SCHEMA_VERSION, reports }, null, 2));
+    } else {
+      for (const report of reports) {
+        if (report.error) {
+          console.log(`✗ ${report.slug}: ${report.error}`);
+          continue;
+        }
+        const lines = [];
+        for (const scene of report.scenes) {
+          if (scene.status === "no-main") continue;
+          const where = `  scene ${scene.sceneId}`;
+          if (scene.status === "derived")
+            lines.push(`${where}: derived ${scene.field} ← ${JSON.stringify(scene.text)}`);
+          else if (scene.status === "already-set")
+            lines.push(`${where}: already-set ${scene.field ?? "?"} same=${scene.same}`);
+          else if (scene.status === "missing")
+            lines.push(
+              `${where}: missing (no rendered field contains ${JSON.stringify(scene.text)})`,
+            );
+          else if (scene.status === "ambiguous-field")
+            lines.push(`${where}: ambiguous-field (${scene.fields.join(", ")})`);
+          else if (scene.status === "ambiguous-occurrence")
+            lines.push(`${where}: ambiguous-occurrence in ${scene.field} (${scene.occurrences}×)`);
+          else if (scene.status === "unsupported-field")
+            lines.push(`${where}: unsupported-field ${scene.field} (renderer never annotates it)`);
+          else if (scene.status === "invalid-beats")
+            lines.push(`${where}: invalid-beats (${scene.errors.map((e) => e.code).join(", ")})`);
+        }
+        if (lines.length === 0) continue;
+        console.log(`${report.slug}:`);
+        for (const line of lines) console.log(line);
+      }
+    }
+    if (
+      reports.some(
+        (report) =>
+          report.error || report.scenes?.some((scene) => scene.status === "invalid-beats"),
+      )
+    ) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   if (!args.content && !args.check) {
     console.error("usage: semantic-beats --content <slug> | --check | --roles [--json]");
     process.exitCode = 1;
