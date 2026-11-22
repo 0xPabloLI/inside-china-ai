@@ -23,6 +23,8 @@ import time
 import subprocess
 import unicodedata
 
+import numpy as np
+
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
@@ -135,6 +137,32 @@ def ref_duration_seconds(path, cache=None):
     return dur
 
 
+def install_peak_ceiling(ceiling=0.92):
+    """Keep F5's float waveform below the PCM16 ceiling before soundfile writes.
+
+    F5-TTS-MLX can return samples above ±1.0. `sf.write` silently clips them to
+    PCM16 full scale, which is audible as a crackle on loud vowels (2026-11-22:
+    several scene WAVs had 1–29 clipped samples at 0.000265 dBFS). Scaling the
+    whole take before the write avoids introducing flat-topped samples.
+    """
+    from f5_tts_mlx import generate as f5_generate_module
+
+    sf = f5_generate_module.sf
+    if getattr(sf.write, "_peak_ceiling_installed", False):
+        return
+    original_write = sf.write
+
+    def safe_write(path, data, samplerate, *args, **kwargs):
+        arr = np.asarray(data, dtype=np.float32)
+        peak = float(np.max(np.abs(arr))) if arr.size else 0.0
+        if peak > ceiling:
+            arr = arr * (ceiling / peak)
+        return original_write(path, arr, samplerate, *args, **kwargs)
+
+    safe_write._peak_ceiling_installed = True
+    sf.write = safe_write
+
+
 def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
     from f5_tts_mlx.generate import generate as f5_generate
 
@@ -221,6 +249,7 @@ def main():
         print("Error: --ref-audio and --ref-text (or F5_REF_AUDIO/F5_REF_TEXT env vars) are required", file=sys.stderr)
         sys.exit(1)
 
+    install_peak_ceiling(float(os.environ.get("F5_PEAK_CEILING", "0.92")))
     generate_batch(args.manifest, args.output_dir, ref_audio, ref_text, speed)
 
 
