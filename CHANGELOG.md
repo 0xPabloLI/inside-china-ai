@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.103.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.102.0...tanstack_start_ts-v1.103.0) (2026-11-22)
+
+
+### Features
+
+* **short-video:** explicit write-back for beat highlight ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2) ([#1503](https://github.com/0xPabloLI/inside-china-ai/issues/1503)) ([267503d](https://github.com/0xPabloLI/inside-china-ai/commit/267503ddaf75518434c823cc037ae02c711598f6))
+
 ## [1.102.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.101.0...tanstack_start_ts-v1.102.0) (2026-11-22)
 
 
