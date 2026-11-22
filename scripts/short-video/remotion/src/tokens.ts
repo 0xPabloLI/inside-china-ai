@@ -63,6 +63,34 @@ export function accentColorFor(value: unknown, fallback: string): string {
     : fallback;
 }
 
+/**
+ * Annotation parameters — single source of truth for rough-notation components.
+ *
+ * Lives here (not in `components/shared.ts`) so the values are testable in
+ * plain Node without importing Remotion. `shared.ts` re-exports this object.
+ *
+ * The underline is the claim pay-off marker: 4px clears the 0.2%-of-canvas
+ * legibility floor (3.84px at 1080p) and amber separates it from body text.
+ * Evidence: `docs/research/hook-underline-legibility-2026-11.md`.
+ */
+export const ANNOTATION = {
+  highlight: {
+    color: "rgba(245,158,11,0.15)",
+    padding: { top: 2, bottom: 2, left: 6, right: 6 },
+    progressRange: [20, 40] as const,
+  },
+  underline: {
+    strokeWidth: 4,
+    padding: { top: 4 },
+    progressRange: [20, 40] as const,
+  },
+  circle: {
+    strokeWidth: 3,
+    padding: { top: 20, bottom: 20, left: 24, right: 24 },
+    progressRange: [15, 30] as const,
+  },
+} as const;
+
 /** Typography tokens. Sizes stay contract-driven (TextGate Fit owns them). */
 export const TYPE = {
   /** Brand serif stack — the only family on the video surface. */

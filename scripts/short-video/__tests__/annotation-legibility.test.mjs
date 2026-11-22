@@ -9,6 +9,7 @@ import {
   relativeLuminance,
   strokeShare,
 } from "../lib/annotation-legibility.mjs";
+import { ANNOTATION, COLOR } from "../remotion/src/tokens.ts";
 
 describe("parseColor", () => {
   it("parses #rgb, #rrggbb, rgb() and rgba()", () => {
@@ -66,7 +67,7 @@ describe("strokeShare", () => {
 });
 
 describe("evaluateUnderline", () => {
-  it("fails the shipped 3px underline on stroke only", () => {
+  it("marks a 3px underline as stroke-only", () => {
     const result = evaluateUnderline({ color: "#4d8bff", strokePx: 3 });
     expect(result.passContrast).toBe(true);
     expect(result.passStroke).toBe(false);
@@ -95,5 +96,19 @@ describe("evaluateUnderline", () => {
   it("fails both floors when nothing is legible", () => {
     const result = evaluateUnderline({ color: "#0f0f18", strokePx: 2 });
     expect(result.verdict).toBe("contrast+stroke");
+  });
+});
+
+describe("shipped underline token", () => {
+  it("uses amber at 4px, clearing both legibility floors", () => {
+    expect(ANNOTATION.underline.strokeWidth).toBe(4);
+    expect(COLOR.amber).toBe("#f59e0b");
+    const result = evaluateUnderline({
+      color: COLOR.amber,
+      strokePx: ANNOTATION.underline.strokeWidth,
+    });
+    expect(result.verdict).toBe("pass");
+    expect(result.strokeShare).toBeGreaterThan(ANNOTATION_LEGIBILITY.minStrokeShare);
+    expect(result.contrastRatio).toBeGreaterThan(ANNOTATION_LEGIBILITY.minContrast);
   });
 });
