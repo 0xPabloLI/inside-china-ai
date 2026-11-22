@@ -1,3 +1,8 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { runAllSceneDataChecks } from "../lib/scene-rules.mjs";
 import {
@@ -5,6 +10,7 @@ import {
   deriveHighlight,
   validatePackBeats,
   validateSceneBeats,
+  writeHighlightToSource,
 } from "../lib/semantic-beats.mjs";
 
 const scene = (overrides = {}) => ({
@@ -299,5 +305,107 @@ describe("deriveHighlight (#733 S2 emphasis bridge)", () => {
     const scene = narrative();
     scene.beats = [{ id: "sub", at: "GENERATED", role: "claim", weight: "sub" }];
     expect(deriveHighlight(scene)).toEqual({ status: "no-main" });
+  });
+});
+
+describe("writeHighlightToSource (#733 S2 --write)", () => {
+  const source = `export const scenes = [
+  // leading comment stays put
+  {
+    id: 1,
+    visualType: "fullscreen",
+    texts: {
+      source: "PACK",
+    },
+  },
+  {
+    id: 2,
+    visualType: "narrative",
+    layout: "media-overlay",
+    texts: {
+      company: "FIXTURE",
+      action: "AI IMAGE PATH",
+      result: "GENERATED, NOT SOURCED",
+      source: "PACK",
+    },
+  },
+];
+`;
+
+  it("inserts one highlight line with the existing indentation", async () => {
+    const updated = writeHighlightToSource(source, 2, { field: "result", text: "GENERATED" });
+    expect(updated.line).toBe('highlight: { field: "result", text: "GENERATED" },');
+    expect(updated.source).toContain(
+      '      highlight: { field: "result", text: "GENERATED" },\n      company: "FIXTURE",',
+    );
+    const mod = await import(`data:text/javascript,${encodeURIComponent(updated.source)}`);
+    expect(mod.scenes[0].texts.highlight).toBeUndefined();
+    expect(mod.scenes[1].texts.highlight).toEqual({ field: "result", text: "GENERATED" });
+  });
+
+  it("refuses to write twice or into a scene that already has a highlight", () => {
+    expect(() =>
+      writeHighlightToSource(
+        source.replace(
+          '      company: "FIXTURE",',
+          '      company: "FIXTURE",\n      highlight: { field: "result", text: "OLD" },',
+        ),
+        2,
+        {
+          field: "result",
+          text: "GENERATED",
+        },
+      ),
+    ).toThrow(/already has texts\.highlight/);
+    expect(() =>
+      writeHighlightToSource("export const scenes = [];", 2, {
+        field: "result",
+        text: "GENERATED",
+      }),
+    ).toThrow(/scene 2 not found/);
+  });
+
+  it("preserves CRLF files", () => {
+    const crlf = source.replaceAll("\n", "\r\n");
+    const updated = writeHighlightToSource(crlf, 2, { field: "result", text: "GENERATED" });
+    expect(updated.source).toContain(
+      '\r\n      highlight: { field: "result", text: "GENERATED" },\r\n',
+    );
+  });
+});
+
+describe("semantic-beats --write CLI (#733 S2)", () => {
+  it("does not write without --write, then inserts exactly one line", () => {
+    const root = mkdtempSync(join(tmpdir(), "sb-write-"));
+    mkdirSync(join(root, "content", "demo"), { recursive: true });
+    const file = join(root, "content", "demo", "scene-data.mjs");
+    writeFileSync(
+      file,
+      `export const scenes = [
+  {
+    id: 1,
+    visualType: "hook",
+    layout: "hero-center",
+    voiceover: "An agent operating your computer.",
+    texts: { subject: "DOUBAO WORK", hookText: "AI THAT OPERATES", source: "PACK" },
+    beats: [{ id: "main", at: "operating", role: "claim", weight: "main", screenAt: { field: "hookText", text: "OPERATES" } }],
+  },
+];
+`,
+    );
+    const cli = fileURLToPath(new URL("../semantic-beats.mjs", import.meta.url));
+    const run = (args) =>
+      execFileSync(process.execPath, [cli, ...args, "--content", "demo", "--root", root], {
+        encoding: "utf8",
+      });
+    const dry = run(["--highlight"]);
+    expect(dry).toContain('derived hookText ← "OPERATES" (screenAt)');
+    expect(readFileSync(file, "utf8")).not.toContain("highlight:");
+    const written = run(["--highlight", "--write"]);
+    expect(written).toContain("wrote 1 highlight(s)");
+    expect(readFileSync(file, "utf8")).toContain(
+      'highlight: { field: "hookText", text: "OPERATES" },',
+    );
+    expect(run(["--highlight", "--write"])).toContain("already-set hookText same=true");
   });
 });
