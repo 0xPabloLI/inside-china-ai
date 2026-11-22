@@ -6,18 +6,20 @@
  *   node scripts/short-video/semantic-beats.mjs --content <slug> [--json]
  *   node scripts/short-video/semantic-beats.mjs --check [--root <short-video dir>] [--json]
  *   node scripts/short-video/semantic-beats.mjs --highlight --content <slug> | --check [--json]
+ *   node scripts/short-video/semantic-beats.mjs --highlight --write --content <slug>
  *   node scripts/short-video/semantic-beats.mjs --roles
  *
  * `--content` validates one pack and prints its beats; `--check` walks every
  * shipped pack (packs without beats are skipped, not failed); `--highlight`
- * reports the dry-run main-beat → texts.highlight decision (never writes);
+ * reports the dry-run main-beat → texts.highlight decision; `--write` (with
+ * `--content`) inserts the derived line into scene-data.mjs;
  * `--roles` prints the closed 26-role vocabulary.
  *
  * Exit codes: 0 valid; 1 a pack violates the contract or cannot be imported.
  * This is an authoring gate — it is not wired into render or preflight yet.
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -26,6 +28,7 @@ import {
   deriveHighlight,
   NEWS_BEAT_ROLE_IDS,
   validatePackBeats,
+  writeHighlightToSource,
 } from "./lib/semantic-beats.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -41,14 +44,19 @@ function parseArgs(args) {
     content: value("content"),
     check: args.includes("--check"),
     highlight: args.includes("--highlight"),
+    write: args.includes("--write"),
     roles: args.includes("--roles"),
     root: value("root") ?? SCRIPT_DIR,
     json: args.includes("--json"),
   };
 }
 
+function sceneFileFor(root, slug) {
+  return join(root, "content", slug, "scene-data.mjs");
+}
+
 async function loadScenes(root, slug) {
-  const sceneFile = join(root, "content", slug, "scene-data.mjs");
+  const sceneFile = sceneFileFor(root, slug);
   if (!existsSync(sceneFile)) throw new Error(`no scene-data.mjs for content "${slug}"`);
   const mod = await import(pathToFileURL(sceneFile).href);
   if (!Array.isArray(mod.scenes)) throw new Error(`content "${slug}" exports no scenes array`);
@@ -90,10 +98,22 @@ async function main() {
     }
     return;
   }
+  if (args.write && !args.highlight) {
+    console.error("--write requires --highlight --content <slug>");
+    process.exitCode = 1;
+    return;
+  }
   if (args.highlight) {
     if (!args.content && !args.check) {
       console.error(
         "usage: semantic-beats --highlight --content <slug> | --highlight --check [--json]",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (args.write && (!args.content || args.check)) {
+      console.error(
+        "--write requires --highlight --content <slug> and cannot be combined with --check",
       );
       process.exitCode = 1;
       return;
@@ -113,6 +133,36 @@ async function main() {
         ...deriveHighlight(scene),
       }));
       reports.push({ slug, scenes: scenesReport });
+    }
+    if (args.write) {
+      const report = reports.find((item) => item.scenes);
+      if (report) {
+        try {
+          if (report.scenes.some((scene) => scene.status === "invalid-beats")) {
+            throw Object.assign(new Error("invalid beats present; refusing to write"), {
+              code: "highlight-write-refused",
+            });
+          }
+          const file = sceneFileFor(args.root, report.slug);
+          let source = readFileSync(file, "utf8");
+          const pending = [];
+          for (const scene of report.scenes) {
+            if (scene.status !== "derived") continue;
+            const updated = writeHighlightToSource(source, scene.sceneId, {
+              field: scene.field,
+              text: scene.text,
+            });
+            source = updated.source;
+            pending.push(scene);
+          }
+          if (pending.length > 0) writeFileSync(file, source);
+          for (const scene of pending) scene.written = true;
+          report.written = pending.length;
+        } catch (error) {
+          report.writeError = error.message;
+          process.exitCode = 1;
+        }
+      }
     }
     if (args.json) {
       console.log(JSON.stringify({ schemaVersion: BEAT_SCHEMA_VERSION, reports }, null, 2));
@@ -146,15 +196,19 @@ async function main() {
           else if (scene.status === "invalid-beats")
             lines.push(`${where}: invalid-beats (${scene.errors.map((e) => e.code).join(", ")})`);
         }
-        if (lines.length === 0) continue;
+        if (lines.length === 0 && !report.writeError && !(report.written > 0)) continue;
         console.log(`${report.slug}:`);
         for (const line of lines) console.log(line);
+        if (report.writeError) console.log(`  write failed: ${report.writeError}`);
+        else if (report.written > 0) console.log(`  wrote ${report.written} highlight(s)`);
       }
     }
     if (
       reports.some(
         (report) =>
-          report.error || report.scenes?.some((scene) => scene.status === "invalid-beats"),
+          report.error ||
+          report.writeError ||
+          report.scenes?.some((scene) => scene.status === "invalid-beats"),
       )
     ) {
       process.exitCode = 1;

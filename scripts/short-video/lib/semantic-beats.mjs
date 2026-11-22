@@ -335,3 +335,142 @@ export function deriveHighlight(scene) {
     ...(via === "screenAt" ? { via } : {}),
   };
 }
+
+/**
+ * Write-side helper for `--write` (#733 S2). Inserts one `texts.highlight`
+ * line into the scene's existing `texts` object without reformatting the rest
+ * of the file. Textual insertion (not a full re-print) keeps comments, quote
+ * style, and hand line-breaks reviewable in the diff.
+ *
+ * Refuses when the scene/texts/highlight already exists or the source shape
+ * does not match the expected `export const scenes = [ { ... } ]` form. The
+ * caller is responsible for only passing a `derived` decision.
+ *
+ * @param {string} source
+ * @param {number|string} sceneId
+ * @param {{field: string, text: string}} highlight
+ * @returns {{source: string, line: string}}
+ */
+export function writeHighlightToSource(source, sceneId, highlight) {
+  const code = (message) => Object.assign(new Error(message), { code: "highlight-write-refused" });
+  const arrayMatch = /export\s+const\s+scenes\s*=\s*\[/.exec(source);
+  if (!arrayMatch) throw code("scene-data must export `const scenes = [...]`");
+  const arrayOpen = source.indexOf("[", arrayMatch.index);
+  let cursor = arrayOpen + 1;
+  let sceneSpan = null;
+  while (cursor < source.length) {
+    cursor = skipTrivia(source, cursor);
+    if (source[cursor] === "]") break;
+    if (source[cursor] === ",") {
+      cursor += 1;
+      continue;
+    }
+    if (source[cursor] !== "{") {
+      throw code(`unexpected token ${JSON.stringify(source[cursor])} in scenes[]`);
+    }
+    const end = findMatching(source, cursor, "{", "}");
+    if (end === -1) throw code("unclosed scene object");
+    const head = source.slice(cursor, Math.min(end, cursor + 300));
+    const idMatch = /\bid\s*:\s*(\d+|"[^"]*"|'[^']*')/.exec(head);
+    if (idMatch) {
+      const raw = idMatch[1];
+      const value = raw.startsWith('"') || raw.startsWith("'") ? raw.slice(1, -1) : Number(raw);
+      if (String(value) === String(sceneId)) {
+        sceneSpan = { start: cursor, end };
+        break;
+      }
+    }
+    cursor = end + 1;
+  }
+  if (!sceneSpan) throw code(`scene ${sceneId} not found`);
+
+  const sceneBody = source.slice(sceneSpan.start, sceneSpan.end);
+  const textsMatch = /\btexts\s*:\s*\{/.exec(sceneBody);
+  if (!textsMatch) throw code(`scene ${sceneId} has no texts object`);
+  const textsOpen = sceneSpan.start + textsMatch.index + textsMatch[0].lastIndexOf("{");
+  const textsClose = findMatching(source, textsOpen, "{", "}");
+  if (textsClose === -1) throw code(`scene ${sceneId} texts object is unclosed`);
+  const textsBody = source.slice(textsOpen + 1, textsClose);
+  if (/\bhighlight\s*:/.test(textsBody)) {
+    throw code(`scene ${sceneId} already has texts.highlight`);
+  }
+
+  const line = `highlight: { field: ${JSON.stringify(highlight.field)}, text: ${JSON.stringify(highlight.text)} },`;
+  const newline = source.includes("\r\n") ? "\r\n" : "\n";
+  const lineEnd = source.indexOf("\n", textsOpen + 1);
+  if (lineEnd === -1 || source.slice(textsOpen + 1, lineEnd).trim() !== "") {
+    const baseIndent = /^[ \t]*/.exec(source.slice(source.lastIndexOf("\n", textsOpen) + 1))[0];
+    const indent = `${baseIndent}  `;
+    const next = `${source.slice(0, textsOpen + 1)}${newline}${indent}${line}${source.slice(textsOpen + 1)}`;
+    return { source: next, line };
+  }
+  const firstLine = source.slice(lineEnd + 1, source.indexOf("\n", lineEnd + 1) + 1);
+  const indent = /^[ \t]*/.exec(firstLine)[0];
+  const next = `${source.slice(0, lineEnd + 1)}${indent}${line}${newline}${source.slice(lineEnd + 1)}`;
+  return { source: next, line };
+}
+
+/** Skip whitespace and JS comments. */
+function skipTrivia(source, index) {
+  let i = index;
+  while (i < source.length) {
+    if (/\s/.test(source[i])) {
+      i += 1;
+      continue;
+    }
+    if (source[i] === "/" && source[i + 1] === "/") {
+      const end = source.indexOf("\n", i + 2);
+      i = end === -1 ? source.length : end + 1;
+      continue;
+    }
+    if (source[i] === "/" && source[i + 1] === "*") {
+      const end = source.indexOf("*/", i + 2);
+      i = end === -1 ? source.length : end + 2;
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+/** Index of the matching close token, skipping strings and comments. */
+function findMatching(source, open, openChar, closeChar) {
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      i = skipString(source, i);
+      if (i === -1) return -1;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      const end = source.indexOf("\n", i + 2);
+      i = end === -1 ? source.length : end;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      const end = source.indexOf("*/", i + 2);
+      i = end === -1 ? source.length : end + 1;
+      continue;
+    }
+    if (ch === openChar) depth += 1;
+    if (ch === closeChar) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/** Skip a quoted string; returns the index of its closing quote. */
+function skipString(source, open) {
+  const quote = source[open];
+  for (let i = open + 1; i < source.length; i += 1) {
+    if (source[i] === "\\") {
+      i += 1;
+      continue;
+    }
+    if (source[i] === quote) return i;
+  }
+  return -1;
+}

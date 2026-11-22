@@ -1,6 +1,6 @@
 # Spec — News SHOTBOOK 语义拍契约（#733 S2）
 
-> **状态**：Active spec（S2 tracer：词表 + Scene Data 契约 + 校验器 + 主拍派生 dry-run；渲染消费层未开工）。
+> **状态**：Active spec（S2 tracer：词表 + Scene Data 契约 + 校验器 + 主拍派生/显式写回；渲染消费层未开工）。
 > **上游**：`#733` S1 镜头配方卡（PR #1488）；来源 `#302` D 段 talkcraft SHOTBOOK。
 > **下游**：S2 强调层（待开票）；S3 新闻题材封闭词表（本 spec 已先定义 26 词，S3 只做题材特化，不再改结构）。
 
@@ -52,9 +52,9 @@
 
 覆盖：开场（hook）、断言（claim）、证据（evidence）、数字（stat/metric）、对照（comparison/baseline/delta）、机制（mechanism/cause/consequence）、背景（context/timeline）、引语（quote/attribution）、限制（caveat/counterpoint）、定义（definition/example）、预测（forecast/implication/stake）、收束（cta/transition/recap/payoff）。
 
-### 2.4 主拍 → 屏幕片段派生（dry-run）
+### 2.4 主拍 → 屏幕片段派生与显式写回
 
-`semantic-beats --highlight` 只做**读**，不写回 Scene Data。它把每个 scene 的 `main` beat 映射到 T8 的 `texts.highlight`：
+`semantic-beats --highlight` 默认只做**读**，不写回 Scene Data。它把每个 scene 的 `main` beat 映射到 T8 的 `texts.highlight`；只有显式加 `--highlight --write --content <slug>` 才写入。
 
 - 只有渲染器真正会标注的字段才算候选：`narrative` 的 `result` / `action`，`hook` 的 `hookText`；`company` / `context` / `quote` / `badge` 不在候选内。
 - `at` 必须在候选字段里**精确匹配**，且只命中一个字段、在该字段只出现一次；0 命中 / 多字段 / 多次出现都只报告，不猜。
@@ -81,7 +81,14 @@
   screenAt: { field: "hookText", text: "OPERATES" } }
 ```
 
-T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertKnownTextFields` 直接拒绝。落地前实测的 13 条死高亮（company 9 / context 2 / quote 1 / badge 1）已从 shipped packs 移除；画面无变化（B 场景三变体 SSIM 1.0），只是不再让死数据通过门禁。`--highlight` 仍只审计/提案，默认不写盘。
+T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertKnownTextFields` 直接拒绝。落地前实测的 13 条死高亮（company 9 / context 2 / quote 1 / badge 1）已从 shipped packs 移除；画面无变化（B 场景三变体 SSIM 1.0），只是不再让死数据通过门禁。
+
+写回规则：
+
+- `--write` 必须同时给 `--content <slug>`，不能与 `--check` 连用；默认仍是 dry-run。
+- 只为 `status=derived` 的 scene 插入一行 `highlight: { field, text }`，放在 `texts` 对象首行；不重排、不改引号、不格式化整份文件，diff 只多一行。
+- 存在 `invalid-beats` 时整份文件拒绝写入；已有 `highlight` / 找不到 scene / 找不到 `texts` / 源文件形状不符都 fail-closed。
+- 写入后仍是普通文本改动，由 git diff 与 pre-render gate 复核；CLI 不会自动 commit。
 
 ### 2.5 为什么锚文本而不是时间码
 
@@ -133,6 +140,7 @@ T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertK
 - `runAllSceneDataChecks` 对非法 beats 产生 `fail`，对无 beats 的包不产生新结果。
 - 单测覆盖上表每个分支（`semantic-beats.test.mjs` + `text-slots.test.mjs`）。
 - 真实数据 smoke：`--check` 跑过 37 个包；启用 beats 的样例用单测 fixture（当前无已发布包采用）。
+- `writeHighlightToSource` 单测覆盖：插入后仍可 import、保留注释/缩进、CRLF、重复写入拒绝、scene 不存在拒绝。
 
 ## 7. 后续
 
