@@ -69,7 +69,7 @@ analytics"，但实际上 analytics 需要等数据沉淀。
 
 路径选择原则（web-access SKILL.md ⑤）：官方批量导出能覆盖数据需求时优先于逐页抓取；**完播率类指标导出不覆盖**（Content.csv 实为按日聚合、无完播率/收藏/观看时长；`analytics.tiktok.com` 老门户已 404），唯一来源是 per-video 详情页 CDP 抓取。旧周期视频低频复检，每周期只对新增视频跑 `--fetch`。
 
-站点级怪癖与登录策略见 `skills/web-access/references/site-patterns/tiktok.com.md`。
+站点级怪癖与登录策略见 `~/.cache/web-access/site-patterns/tiktok.com.md`（运行时缓存，不入库）。
 
 ### per-video 详情抓取的已知陷阱（2026-09-11 实测）
 
@@ -112,7 +112,7 @@ Agent 通过 `tiktok-csi.mjs` 抓取 TikTok Creator Search Insights 数据：
 > 2. 用户在该窗口登录（登录态留在该 profile，后续复用）；
 > 3. 重置 proxy 并指向 9229：`pkill -f cdp-proxy.mjs` 后重启代理。
 >
-> 注意：`/csi` 页在新 profile 实例上 `body.innerText` 为空，需从 `#app` 容器提取（`tiktok-csi.mjs` 可能因此抓 0，手动 eval 提取 `tr/td` 即可）。见 `~/.agents/skills/web-access/references/site-patterns/tiktok.com.md`。
+> 注意：`/csi` 页在新 profile 实例上 `body.innerText` 为空，需从 `#app` 容器提取（`tiktok-csi.mjs` 可能因此抓 0，手动 eval 提取 `tr/td` 即可）。见 `~/.cache/web-access/site-patterns/tiktok.com.md`。
 
 ---
 
