@@ -485,50 +485,79 @@ async function collectFromApi(source, keyword) {
 
   console.log(`  🔌 Trying API direct-connect for ${source.label}...`);
 
-  try {
-    const fetchOptions = {
-      method: "GET",
-      headers: api.headers || {},
-      // api.timeoutMs lets a source opt into a longer budget (searxng_search:
-      // self-hosted metasearch aggregates 200+ engines, ~10-20s per query —
-      // the 15s default aborts it mid-flight and reads as network-error).
-      signal: AbortSignal.timeout(api.timeoutMs ?? 15000),
-    };
+  const maxAttempts =
+    1 +
+    Math.max(
+      api.retriesOnTimeout ?? 0,
+      api.retriesOnNetworkError ?? 1,
+    );
 
-    const resp = await fetch(url, fetchOptions);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const fetchOptions = {
+        method: "GET",
+        headers: api.headers || {},
+        // api.timeoutMs lets a source opt into a longer budget (searxng_search:
+        // self-hosted metasearch aggregates 200+ engines, ~10-20s per query —
+        // the 15s default aborts it mid-flight and reads as network-error).
+        signal: AbortSignal.timeout(api.timeoutMs ?? 15000),
+      };
 
-    if (!resp.ok) {
-      // #89 P1: 429/503 mean "slow down" — back off an order of magnitude
-      // longer than normal retries and try once more before giving up.
-      if (resp.status === 429 || resp.status === 503) {
-        const delayMs = rateLimitBackoffDelayMs();
-        console.warn(
-          `  ⏳ API HTTP ${resp.status} for ${source.label} — backing off ${(delayMs / 1000).toFixed(0)}s, retrying once (#89 P1)`,
-        );
-        await new Promise((r) => setTimeout(r, delayMs));
-        const retryResp = await fetch(url, fetchOptions);
-        if (retryResp.ok) {
-          const text = await retryResp.text();
-          const articles = api.parser(text);
-          console.log(`  📊 API extracted ${articles.length} articles (after backoff)`);
-          return articles;
+      const resp = await fetch(url, fetchOptions);
+
+      if (!resp.ok) {
+        // #89 P1: 429/503 mean "slow down" — back off an order of magnitude
+        // longer than normal retries and try once more before giving up.
+        if (resp.status === 429 || resp.status === 503) {
+          const delayMs = rateLimitBackoffDelayMs();
+          console.warn(
+            `  ⏳ API HTTP ${resp.status} for ${source.label} — backing off ${(delayMs / 1000).toFixed(0)}s, retrying once (#89 P1)`,
+          );
+          await new Promise((r) => setTimeout(r, delayMs));
+          const retryResp = await fetch(url, fetchOptions);
+          if (retryResp.ok) {
+            const text = await retryResp.text();
+            const articles = api.parser(text);
+            console.log(`  📊 API extracted ${articles.length} articles (after backoff)`);
+            return articles;
+          }
+          console.warn(`  ⚠️  API still HTTP ${retryResp.status} for ${source.label} — giving up`);
+          return [];
         }
-        console.warn(`  ⚠️  API still HTTP ${retryResp.status} for ${source.label} — giving up`);
+        console.warn(`  ⚠️  API returned HTTP ${resp.status} for ${source.label}`);
         return [];
       }
-      console.warn(`  ⚠️  API returned HTTP ${resp.status} for ${source.label}`);
+
+      const text = await resp.text();
+      const articles = api.parser(text);
+      console.log(`  📊 API extracted ${articles.length} articles`);
+
+      return articles;
+    } catch (e) {
+      const isTimeout =
+        e?.name === "TimeoutError" ||
+        e?.name === "AbortError" ||
+        /timeout|timed out|aborted/i.test(e?.message || "");
+      // Cloudflare edges occasionally reset a healthy large-body read
+      // (`TypeError: fetch failed`) before the timeout. That is a transport
+      // failure, not a dead source; retry it under the same budget.
+      const isTransport =
+        /fetch failed|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|socket hang up|network/i.test(
+          e?.message || "",
+        );
+      console.warn(`  ⚠️  API direct-connect failed for ${source.label}: ${e.message}`);
+      if ((isTimeout || isTransport) && attempt < maxAttempts) {
+        console.warn(
+          `  🔁 Retrying ${source.label} after ${isTimeout ? "timeout" : "network error"} (${attempt + 1}/${maxAttempts})...`,
+        );
+        await new Promise((r) => setTimeout(r, 3000));
+        continue;
+      }
       return [];
     }
-
-    const text = await resp.text();
-    const articles = api.parser(text);
-    console.log(`  📊 API extracted ${articles.length} articles`);
-
-    return articles;
-  } catch (e) {
-    console.warn(`  ⚠️  API direct-connect failed for ${source.label}: ${e.message}`);
-    return [];
   }
+
+  return [];
 }
 
 async function collectFromMcp(source, keyword) {

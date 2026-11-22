@@ -520,6 +520,22 @@ if (scenesWithMedia.length > 0) {
   pass("Media", "No media backgrounds (all CSS)", "");
 }
 
+// ─── Video-fit inventory gate (shared: pre-render + post-render) ───
+// videoFit is no longer an editorial label. It is measured from the curated
+// assets/ package: motion clip count and counted seconds buy the score, and a
+// declared score above the measurement fails. The 2026-11-20 baseline: Phai
+// declared video-fit with 3 stills / 0 clips; DeepSeek with 2 stills / 0 clips.
+{
+  const { checkVideoFit } = await import("./lib/video-fit.mjs");
+  const report = checkVideoFit({ scenes, meta, contentDirAbs: CONTENT_DIR_ABS });
+  console.log("\n🎯 Video-Fit Inventory");
+  console.log("─".repeat(50));
+  for (const row of report.rows) {
+    if (row.level === "pass") pass("VideoFit", row.check, row.detail);
+    else fail("VideoFit", row.check, row.detail, row.fix);
+  }
+}
+
 // ─── B-roll stage summary (shared: pre-render + post-render) ───
 // The report is keyed by content dir — the same path generate-broll.mjs and
 // main.mjs Step 1.5d write to, unlike the pipelineId output dir above. B-roll

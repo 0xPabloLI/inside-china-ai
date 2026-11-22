@@ -192,6 +192,7 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 
 > 数据来源：tiktokhashtags.com（TikTok API 缓存数据）、TikTok Creative Center（trending 标签）、TikTok 搜索（竞品成功案例分析）、竞品情报库（`docs/research/tiktok-competitor-intelligence.md`）。
 > 实体→hashtag 映射库（60+ 实体，7 层级）：`docs/research/china-ai-hashtag-mapping.md`。代码实现：`scripts/short-video/lib/caption-utils.mjs` → `ENTITY_HASHTAG_MAP`。
+> 机器可读的流量数据以标签池 JSON 为唯一事实源（SSOT）；本节下方的人工策展表格是参考视图，数值、状态与新鲜度以标签池为准。
 
 #### 核心原则
 
@@ -199,14 +200,137 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 2. **错误标签 → 错误受众 → 快速划走 → 完播率下降 → 算法降权** — 比不打标签还差
 3. **宁可少打，不可打错** — 不相关的 trending 标签有害无益
 
+#### SSOT 标签池
+
+机器可读的标签数据统一收在标签池 JSON 中（一条标签一条记录），不再散落在散文表格、硬编码数组和记忆里：
+
+```text
+scripts/short-video/config/hashtag-pool.json
+```
+
+每条记录字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `tag` | 标签本体（含 `#`） |
+| `kind` | `traffic` / `niche` / `entity` / `brand` / `trending` / `meta` |
+| `views` / `posts` | 浏览量 / 帖子数（整数或 `null`） |
+| `avgViewsPerPost` | 均帖浏览；仅 views 与 posts 都存在时按 `views/posts` 推导，不估算 |
+| `status` | `ok` / `low-volume` / `saturated` / `unverified` / `deprecated` / `blacklisted` |
+| `grade` | `A`：views+posts 已采样且新鲜；`B`：部分数据或偏旧；`C`：无数值，仅存在性验证 |
+| `sampledAt` | 本条数据采样日期 |
+| `source` | 数据来源（对应池内 `sources` 条目 id） |
+
+辅助字段：`viewsText` / `postsText` 保留来源原始人类可读字符串；`url`、`notes` 记录出处与备注。池内另有 `blacklist`（黑名单标签，门禁直接 FAIL）与 `evergreen`（常驻标签）。
+
+阈值不写死在代码里：新鲜度阈值集中在池 JSON 的 `thresholds` 段，改阈值改 JSON，不改代码（见下「数据新鲜度阈值」）。
+
+#### 写 Tag 前门禁
+
+任何标签写进 `meta.mjs.hashtags`、或交给 `deriveHashtags()` 之前，必须先跑门禁（content-pipeline.md Stage 3 Step 9a）：
+
+```bash
+node scripts/short-video/tag-preflight.mjs --content <slug>
+```
+
+发布前强校验：
+
+```bash
+node scripts/short-video/tag-preflight.mjs --content <slug> --strict
+```
+
+可选参数（契约原样）：`--platform tiktok`、`--json`、`--pool <path>`、`--snapshot <path>`、`--out <path>`。
+
+门禁读取：① 标签池 JSON；② 最新的 trending 快照（`scripts/short-video/output/trending-snapshots/trending-YYYY-MM-DD.json`，可用 `--snapshot` 指定）；③ `meta.mjs` + `scene-data.mjs`，经 `deriveHashtags()` 得到基线集（遵守平台 profile 上限，TikTok 3–5 个）。
+
+输出：先打印基线集，再给出排序后的 3–5 候选列表：`tag | kind | views/posts/avg | grade | verdict (keep/add/drop)` + 理由。
+
+**退出码语义**：
+
+| 退出码 | 含义 |
+| --- | --- |
+| 0 | 默认模式通过（可带 WARN，管线继续） |
+| 1 | `--strict` 下有阻断项失败；未加 `--strict` 也直接 FAIL：出现黑名单标签、标签数超出平台 profile 上下限 |
+| 2 | 硬错误：标签池缺失/损坏、内容 slug 缺失、scene-data 无法加载 |
+
+**逐项检查与严重度**：
+
+| 检查项 | 默认模式 | `--strict` |
+| --- | --- | --- |
+| 标签池年龄 > poolWarnDays / > poolFailDays | WARN / WARN | WARN / FAIL |
+| trending 快照缺失 | WARN | WARN（降级，不失败） |
+| 快照年龄 > snapshotWarnDays / > snapshotFailDays | WARN / WARN | WARN / FAIL |
+| 单标签数据年龄 > tagWarnDays / > tagFailDays | WARN / WARN | WARN / FAIL |
+| traffic / niche 标签 grade C（无数值） | WARN | FAIL |
+| entity / brand 标签 grade C（仅存在性） | WARN（允许） | WARN（允许） |
+| 标签不在池中 | WARN「unverified, add via research」 | FAIL |
+| 快照有匹配标签但不在候选内 | WARN「consider metadata.trendingHashtags」 | WARN |
+
+每条 WARN 必须在本轮记录处理结论：刷新标签池 / 补调研 / 接受 entity-brand 无聚合数据。静默跳过门禁 = 未完成。
+
+#### 数据新鲜度阈值
+
+阈值与池 JSON `thresholds` 段一一对应；调整阈值只改 JSON，不改代码：
+
+| 维度 | WARN 阈值 | FAIL 阈值（`--strict`） | JSON 字段 |
+| --- | --- | --- | --- |
+| 标签池整体年龄 | > 45 天 | > 90 天 | `poolWarnDays` / `poolFailDays` |
+| trending 快照年龄 | > 7 天 | > 30 天 | `snapshotWarnDays` / `snapshotFailDays` |
+| 单标签数据年龄 | > 60 天 | > 120 天 | `tagWarnDays` / `tagFailDays` |
+
+快照缺失不按年龄判：见上表「trending 快照缺失」行，降级为 pool-only 继续。
+
+#### 刷新与降级
+
+**标签池维护 CLI**：
+
+```bash
+node scripts/short-video/tag-pool.mjs validate [--pool <path>] [--json]
+# exit 0 = valid（允许带 warning）| exit 1 = invalid | exit 2 = 文件缺失/无法解析
+
+node scripts/short-video/tag-pool.mjs show --tag "#ainews" [--pool <path>] [--json]
+# 打印 kind, views, posts, avgViewsPerPost, status, grade, sampledAt, ageDays；exit 1 = 标签不在池中
+
+node scripts/short-video/tag-pool.mjs ingest --from <research.json> [--dry-run] [--pool <path>]
+```
+
+`ingest` 合并调研结果到池中：绝不把非空值覆盖成 `null`，绝不编造数字；写入时更新 `pool.updatedAt` 与 `sources`，逐条打印 `old → new` 差异。先用 `--dry-run` 预览差异，确认后再落盘。
+
+**调研渠道**：
+
+- `node scripts/short-video/research-hashtags.mjs --tags deepseek,qwen --live` 走 Apify 远端批量查询，属**付费渠道**（免费额度 $5/月）；`--live` 启用远端请求前需用户批准，默认 dry-run。
+- 免费渠道：TikTok `/tag/{hashtag}` 页面、HashtagRadar（tiktokhashtags.com），经 web-access CDP 打开（见下方「Hashtag 数据获取渠道」表）。
+
+**降级策略**：
+
+- trending 快照拿不到 → 降级为 pool-only，WARN，继续；不阻断本轮。
+- 标签池缺失/损坏 → 硬停（退出码 2），按上面的维护命令先修复/刷新池子；不允许静默跳过门禁。
+
+#### 2026-11-22 大盘标签二次复核
+
+用同一个 TikTok 官方 `/api/challenge/detail` 口径，在已登录的自动化 profile 里二次采样，对照 2026-11-21 首次采样与仓库 2026-08 旧值：
+
+| 标签 | 2026-11-21 官方 | 2026-11-22 官方 | 变化 | 仓库 2026-08 旧值 | 结论 |
+| --- | --- | --- | --- | --- | --- |
+| `#ainews` | 666,161,468 / 85,811 | 666,340,183 / 85,933 | +0.03% / +0.14% | 68.7M / 8.9K | 10 倍差来自旧缓存，不是一夜增长 |
+| `#technews` | 6,580,695,052 / 366,742 | 6,584,489,354 / 367,092 | +0.06% / +0.10% | 1B / 78.4K | 同上；官方口径稳定 |
+
+判据：两次官方采样相隔约 12 小时，`#ainews` 和 `#technews` 的 views/posts 都只变动 0.1% 量级。HashtagRadar 的 2026-08 缓存值明显落后，不能当增长曲线；对外只用官方 API 的当前计数，不把 10 倍差写成“涨了 10 倍”。
+
+#### 平台扩展边界（暂不启用）
+
+当前标签池只服务 TikTok（`platform: "tiktok"`，3–5 个标签）。抖音、小红书、YouTube Shorts 暂不扩池，避免把不同平台的计数口径混进同一张表。
+
+以后扩展时，沿用同一套边界：每个平台一份独立 pool 或在记录上加 `platform` 维度；平台专属 profile 负责标签数量上限和禁止标签；`tag-preflight.mjs --platform <name>` 只在对应 profile 存在时才接受该平台。没有平台 profile 时不得用 TikTok 的 pool 代跑其他平台。
+
 #### 标签池
 
 **核心流量标签**（每次必选 1-2 个）：
 
 | 标签        | 浏览量 | 帖子数 | 均帖浏览 | 说明                                       |
 | ----------- | ------ | ------ | -------- | ------------------------------------------ |
-| `#ainews`   | 68.7M  | 8.9K   | 7,754    | **最佳 ROI**：低竞争、高精准、内容完全吻合 |
-| `#technews` | 1B     | 78.4K  | 13,070   | 科技新闻专用，受众精准                     |
+| `#ainews`   | 666M   | 85.9K  | 7,754    | **最佳 ROI**：低竞争、高精准、内容完全吻合；2026-11-22 官方二次复核 |
+| `#technews` | 6.6B   | 367K   | 17,937   | 科技新闻专用，受众精准；2026-11-22 官方二次复核 |
 | `#news`     | —      | —      | —        | 2026-08-25 新增：竞品情报 3/16 使用        |
 
 **品牌标签**（每次必选 1 个）：
@@ -268,7 +392,7 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 
 Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行）和**调研期**（定期更新标签池时执行）两个层面：
 
-**运行时渠道**（每次做视频，content-pipeline.md Stage 3 Step 7 已整合）：
+**运行时渠道**（每次做视频，content-pipeline.md Stage 3 Step 9 已整合）：
 
 | 渠道                   | 方式                              | 费用 | 用途                                   |
 | ---------------------- | --------------------------------- | ---- | -------------------------------------- |
@@ -301,6 +425,8 @@ Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行�
 
 #### 代码实现
 
+- SSOT 标签池：配置文件在 `scripts/short-video/config/` 下的 `hashtag-pool.json`；加载/校验/查询/新鲜度/ingest 由 `lib/hashtag-pool.mjs` 承担；池维护 CLI（validate / show / ingest）为 `tag-pool.mjs`。
+- 写标签前门禁：`tag-preflight.mjs`（命令、退出码与检查项见上「写 Tag 前门禁」）。
 - 标签池定义：`scripts/short-video/lib/caption-utils.mjs` → `CORE_TRAFFIC_HASHTAGS` + `ENTITY_HASHTAG_MAP` + `PAD_CANDIDATES` + `BLACKLISTED_HASHTAGS`
 - 自动推导：`deriveHashtags()` 函数 — 总是包含 `#ainews` + `#chinaai`，根据内容匹配实体标签（`keyEntities.companies` + 归一到 SSOT 品牌白名单的 `keyEntities.models`，公司+模型双锚），不足时用 `PAD_CANDIDATES`（#ai → #artificialintelligence → #news）补位，黑名单标签自动过滤；未收录的模型品牌不输出，避免版本号垃圾标签
 - 分类输出：`classifyHashtags()` 函数 — 将最终标签分类为 traffic/brand/vertical/trending，返回 `selectionMode`（auto/manual）
