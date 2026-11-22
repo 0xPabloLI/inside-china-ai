@@ -1,6 +1,6 @@
 # Spec — News SHOTBOOK 语义拍契约（#733 S2）
 
-> **状态**：Active spec（S2 tracer：词表 + Scene Data 契约 + 校验器；渲染消费层未开工）。
+> **状态**：Active spec（S2 tracer：词表 + Scene Data 契约 + 校验器 + 主拍派生 dry-run；渲染消费层未开工）。
 > **上游**：`#733` S1 镜头配方卡（PR #1488）；来源 `#302` D 段 talkcraft SHOTBOOK。
 > **下游**：S2 强调层（待开票）；S3 新闻题材封闭词表（本 spec 已先定义 26 词，S3 只做题材特化，不再改结构）。
 
@@ -42,8 +42,9 @@
 | `at`     | string   | `voiceover` 的精确子串，且**只出现一次**；重复短语需补上下文        |
 | `role`   | string   | `NEWS_BEAT_ROLES` 26 词之一                                          |
 | `weight` | string   | `main` / `sub`；同一 scene 最多一个 `main`                           |
+| `screenAt` | object? | 仅 `main` 可用；`{ field, text }`，屏幕文案与口播不同词时显式指定要标注的屏幕片段 |
 
-不允许额外字段：schema 不能靠“先塞进去再说”悄悄长出来。
+不允许额外字段：schema 不能靠“先塞进去再说”悄悄长出来；`screenAt` 是显式扩展，字段名与嵌套键都封闭。
 
 ### 2.3 26 词新闻词表
 
@@ -59,7 +60,7 @@
 - `at` 必须在候选字段里**精确匹配**，且只命中一个字段、在该字段只出现一次；0 命中 / 多字段 / 多次出现都只报告，不猜。
 - 已有 `texts.highlight` 时不覆盖；若其字段不在上述候选内，报告 `unsupported-field`。
 
-真实语料覆盖（2026-11-22，37 个 shipped pack）：
+落地前真实语料覆盖（2026-11-22，37 个 shipped pack；随后 13 条死高亮已移除）：
 
 | 指标 | 数量 |
 | --- | --- |
@@ -69,7 +70,18 @@
 | `highlight.text` 在 `voiceover` 里逐字出现（可派生） | 8 |
 | 大小写不敏感后出现 | 26 |
 
-结论：口播与屏幕文案本来就经常不同词，**逐字派生只能覆盖少数场景**。所以 `--highlight` 只作为审计/提案工具，默认不写盘；是否允许 beat 增加 `screenAt` 别名，留到 still 盲评后裁决。
+结论：口播与屏幕文案本来就经常不同词，**逐字派生只能覆盖少数场景**。因此主拍可加 `screenAt: { field, text }`：
+
+- `field` 必须是渲染器真正接线的字段（`narrative.result/action`、`hook.hookText`），且必须是当前 scene 的有值字符串；
+- `text` 必须在该字段里精确出现一次；0 次 / 多次都 fail-closed；
+- `screenAt` 只允许挂在 `main` 拍；没有 `screenAt` 时仍回退到 `at` 的逐字匹配。
+
+```js
+{ id: "screen-claim", at: "operating", role: "claim", weight: "main",
+  screenAt: { field: "hookText", text: "OPERATES" } }
+```
+
+T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertKnownTextFields` 直接拒绝。落地前实测的 13 条死高亮（company 9 / context 2 / quote 1 / badge 1）已从 shipped packs 移除；画面无变化（B 场景三变体 SSIM 1.0），只是不再让死数据通过门禁。`--highlight` 仍只审计/提案，默认不写盘。
 
 ### 2.5 为什么锚文本而不是时间码
 
@@ -91,9 +103,15 @@
 | `role` 不在 26 词                      | fail `beat-role-invalid`                                    |
 | `weight` 非 main/sub                   | fail `beat-weight-invalid`                                  |
 | 一个 scene 多个 main                   | fail `beat-main-duplicate`                                  |
+| `screenAt` 挂在 sub 拍                 | fail `beat-screen-at-sub`                                   |
+| `screenAt` 不是 `{ field, text }`      | fail `beat-screen-at-invalid`                               |
+| `screenAt.field` 不是接线字段          | fail `beat-screen-field-unsupported`                        |
+| `screenAt.field` 无字符串文案          | fail `beat-screen-field-missing`                            |
+| `screenAt.text` 为空 / 不在字段 / 多次 | fail `beat-screen-at-empty` / `missing` / `ambiguous`       |
 | scene 无 `voiceover` 却声明 beats      | fail `voiceover-missing`                                    |
 | `beats` 缺省                           | pass（opt-in）                                              |
 | 合法 beats                             | pass，每个 scene 一条 `Scene N semantic beats`               |
+| `texts.highlight` 指向未接线字段        | fail `assertKnownTextFields`（“not annotated by the renderer”） |
 
 ## 4. 边界
 
@@ -113,7 +131,7 @@
 
 - `semantic-beats --check` 在全部 shipped pack 上退出 0（无 beats 的包显示 skipped）。
 - `runAllSceneDataChecks` 对非法 beats 产生 `fail`，对无 beats 的包不产生新结果。
-- 12 例单测覆盖上表每个分支。
+- 单测覆盖上表每个分支（`semantic-beats.test.mjs` + `text-slots.test.mjs`）。
 - 真实数据 smoke：`--check` 跑过 37 个包；启用 beats 的样例用单测 fixture（当前无已发布包采用）。
 
 ## 7. 后续

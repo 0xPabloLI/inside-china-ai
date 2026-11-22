@@ -361,6 +361,17 @@ describe("assertKnownTextFields (T5 render-layer validation)", () => {
     ).not.toThrow();
   });
 
+  it("rejects a highlight on a field the renderer never annotates (#733 S2)", () => {
+    expect(() =>
+      assertKnownTextFields("narrative", "media-overlay", {
+        company: "C",
+        action: "A",
+        result: "R",
+        highlight: { field: "company", text: "C" },
+      }),
+    ).toThrow(/not annotated by the renderer/);
+  });
+
   it("rejects a typo'd field with its name and a registration pointer (#32)", () => {
     // Rendered fields must be present first, or the rendered-missing check
     // (T9) fires before the typo check.

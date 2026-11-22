@@ -89,6 +89,82 @@ describe("semantic beats contract (#733 S2)", () => {
     );
   });
 
+  it("accepts screenAt only on the main beat and only on a wired field", () => {
+    const ok = scene({
+      visualType: "hook",
+      layout: "hero-center",
+      voiceover: "AI that operates your computer.",
+      texts: { hookText: "AI THAT OPERATES YOUR COMPUTER" },
+      beats: [
+        beat({
+          at: "operates",
+          role: "claim",
+          screenAt: { field: "hookText", text: "OPERATES" },
+        }),
+      ],
+    });
+    expect(validateSceneBeats(ok)).toEqual({ ok: true, errors: [] });
+
+    const unsupported = validateSceneBeats({
+      ...ok,
+      beats: [
+        beat({
+          at: "operates",
+          role: "claim",
+          screenAt: { field: "company", text: "OPERATES" },
+        }),
+      ],
+    });
+    expect(unsupported.errors.map((e) => e.code)).toContain("beat-screen-field-unsupported");
+
+    const sub = validateSceneBeats({
+      ...ok,
+      beats: [
+        beat({
+          id: "sub",
+          at: "operates",
+          weight: "sub",
+          screenAt: { field: "hookText", text: "OPERATES" },
+        }),
+      ],
+    });
+    expect(sub.errors.map((e) => e.code)).toContain("beat-screen-at-sub");
+  });
+
+  it("fails closed when screenAt is not an exact unique substring", () => {
+    const base = {
+      visualType: "hook",
+      layout: "hero-center",
+      voiceover: "AI that operates your computer.",
+      texts: { hookText: "AI THAT OPERATES YOUR COMPUTER" },
+    };
+    const missing = validateSceneBeats({
+      ...base,
+      beats: [
+        beat({
+          at: "operates",
+          role: "claim",
+          screenAt: { field: "hookText", text: "DOES NOT EXIST" },
+        }),
+      ],
+    });
+    expect(missing.errors.map((e) => e.code)).toContain("beat-screen-at-missing");
+
+    const ambiguous = validateSceneBeats({
+      ...base,
+      texts: { hookText: "OPERATES AND OPERATES" },
+      voiceover: "AI that operates your computer.",
+      beats: [
+        beat({
+          at: "operates",
+          role: "claim",
+          screenAt: { field: "hookText", text: "OPERATES" },
+        }),
+      ],
+    });
+    expect(ambiguous.errors.map((e) => e.code)).toContain("beat-screen-at-ambiguous");
+  });
+
   it("is wired into the pre-render gate (fail-closed, opt-in)", () => {
     const bad = runAllSceneDataChecks([scene({ beats: [beat({ at: "missing anchor" })] })], {});
     expect(bad.fail.some((result) => result.check.includes("semantic beats"))).toBe(true);
@@ -147,6 +223,30 @@ describe("deriveHighlight (#733 S2 emphasis bridge)", () => {
     });
   });
 
+  it("derives from screenAt when the voiceover wording differs", () => {
+    const hook = {
+      visualType: "hook",
+      layout: "hero-center",
+      voiceover: "AI that operates your computer.",
+      texts: { subject: "DOUBAO WORK", hookText: "AI THAT OPERATES YOUR COMPUTER", source: "PACK" },
+      beats: [
+        {
+          id: "main",
+          at: "operates",
+          role: "claim",
+          weight: "main",
+          screenAt: { field: "hookText", text: "OPERATES" },
+        },
+      ],
+    };
+    expect(deriveHighlight(hook)).toEqual({
+      status: "derived",
+      field: "hookText",
+      text: "OPERATES",
+      via: "screenAt",
+    });
+  });
+
   it("reports missing when no rendered field contains the anchor", () => {
     expect(deriveHighlight(narrative({}, "sourced")).status).toBe("missing");
   });
@@ -158,7 +258,7 @@ describe("deriveHighlight (#733 S2 emphasis bridge)", () => {
     );
     expect(deriveHighlight(scene)).toMatchObject({
       status: "ambiguous-field",
-      fields: ["action", "result"],
+      fields: ["result", "action"],
     });
   });
 
@@ -190,8 +290,8 @@ describe("deriveHighlight (#733 S2 emphasis bridge)", () => {
     expect(
       deriveHighlight(narrative({ highlight: { field: "company", text: "T2I" } })),
     ).toMatchObject({
-      status: "already-set",
-      same: false,
+      status: "unsupported-field",
+      field: "company",
     });
   });
 
