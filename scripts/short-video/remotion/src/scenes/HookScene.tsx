@@ -414,7 +414,7 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                       field="hookText"
                       progress={underlineProgress}
                       variant="underline"
-                      color={color}
+                      color={COLOR.amber}
                     />
                   </Interactive.Div>
                 )}

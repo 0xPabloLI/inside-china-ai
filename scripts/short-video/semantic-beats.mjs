@@ -7,13 +7,16 @@
  *   node scripts/short-video/semantic-beats.mjs --check [--root <short-video dir>] [--json]
  *   node scripts/short-video/semantic-beats.mjs --highlight --content <slug> | --check [--json]
  *   node scripts/short-video/semantic-beats.mjs --highlight --write --content <slug>
- *   node scripts/short-video/semantic-beats.mjs --roles
+ *   node scripts/short-video/semantic-beats.mjs --roles [--topic <id>]
+ *   node scripts/short-video/semantic-beats.mjs --topics
  *
  * `--content` validates one pack and prints its beats; `--check` walks every
  * shipped pack (packs without beats are skipped, not failed); `--highlight`
  * reports the dry-run main-beat → texts.highlight decision; `--write` (with
  * `--content`) inserts the derived line into scene-data.mjs;
- * `--roles` prints the closed 26-role vocabulary.
+ * `--roles` prints the closed 26-role vocabulary; `--topic <id>` adds the
+ * six news-topic profiles (#733 S3) as an authoring recommendation, never as
+ * a validation failure.
  *
  * Exit codes: 0 valid; 1 a pack violates the contract or cannot be imported.
  * This is an authoring gate — it is not wired into render or preflight yet.
@@ -25,8 +28,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   BEAT_SCHEMA_VERSION,
   NEWS_BEAT_ROLES,
+  NEWS_BEAT_TOPIC_IDS,
+  NEWS_BEAT_TOPIC_PROFILES,
+  beatTopicProfile,
   deriveHighlight,
   NEWS_BEAT_ROLE_IDS,
+  roleFitForTopic,
   validatePackBeats,
   writeHighlightToSource,
 } from "./lib/semantic-beats.mjs";
@@ -46,6 +53,8 @@ function parseArgs(args) {
     highlight: args.includes("--highlight"),
     write: args.includes("--write"),
     roles: args.includes("--roles"),
+    topics: args.includes("--topics"),
+    topic: value("topic"),
     root: value("root") ?? SCRIPT_DIR,
     json: args.includes("--json"),
   };
@@ -79,13 +88,143 @@ function formatErrors(slug, result) {
   );
 }
 
+function offProfileRoles(profile) {
+  const selected = new Set([...profile.main, ...profile.support]);
+  return NEWS_BEAT_ROLE_IDS.filter((role) => !selected.has(role));
+}
+
+function printTopicProfile(topic, profile) {
+  console.log(`${topic} — ${profile.label}`);
+  console.log(`  main:    ${profile.main.join(", ")}`);
+  console.log(`  support: ${profile.support.join(", ")}`);
+  const other = offProfileRoles(profile);
+  if (other.length > 0) console.log(`  other (legal, not a default): ${other.join(", ")}`);
+}
+
+/**
+ * Advisory only: a beat role outside the topic's expected main/support set.
+ * Returns `{sceneId, beatId, role, weight, fit, message}`.
+ */
+function topicAdvisories(scenes, topic) {
+  const out = [];
+  for (const scene of scenes) {
+    for (const beat of scene?.beats ?? []) {
+      const fit = roleFitForTopic(topic, beat.role);
+      const mainMismatch = beat.weight === "main" && fit !== "main";
+      const offProfile = fit === "off-profile";
+      if (!mainMismatch && !offProfile) continue;
+      out.push({
+        sceneId: scene.id ?? null,
+        beatId: beat.id,
+        role: beat.role,
+        weight: beat.weight,
+        fit,
+        message: mainMismatch
+          ? `main beat "${beat.id}" uses "${beat.role}", not a main role for ${topic}`
+          : `beat "${beat.id}" uses "${beat.role}", off-profile for ${topic}`,
+      });
+    }
+  }
+  return out;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (args.roles) {
+  if (
+    args.topic &&
+    !args.topics &&
+    !args.roles &&
+    !args.content &&
+    !args.check &&
+    !args.highlight
+  ) {
+    const profile = beatTopicProfile(args.topic);
+    if (!profile) {
+      console.error(`unknown topic "${args.topic}" (allowed: ${NEWS_BEAT_TOPIC_IDS.join(", ")})`);
+      process.exitCode = 1;
+      return;
+    }
     if (args.json) {
       console.log(
-        JSON.stringify({ schemaVersion: BEAT_SCHEMA_VERSION, roles: NEWS_BEAT_ROLES }, null, 2),
+        JSON.stringify({ schemaVersion: BEAT_SCHEMA_VERSION, topic: args.topic, profile }, null, 2),
       );
+    } else {
+      printTopicProfile(args.topic, profile);
+    }
+    return;
+  }
+  if (args.topics) {
+    if (args.topic) {
+      const profile = beatTopicProfile(args.topic);
+      if (!profile) {
+        console.error(`unknown topic "${args.topic}" (allowed: ${NEWS_BEAT_TOPIC_IDS.join(", ")})`);
+        process.exitCode = 1;
+        return;
+      }
+      if (args.json) {
+        console.log(
+          JSON.stringify(
+            { schemaVersion: BEAT_SCHEMA_VERSION, topic: args.topic, profile },
+            null,
+            2,
+          ),
+        );
+      } else {
+        printTopicProfile(args.topic, profile);
+      }
+      return;
+    }
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          { schemaVersion: BEAT_SCHEMA_VERSION, topics: NEWS_BEAT_TOPIC_PROFILES },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log(
+        `News SHOTBOOK topic profiles (${NEWS_BEAT_TOPIC_IDS.length}, schema v${BEAT_SCHEMA_VERSION}):`,
+      );
+      for (const id of NEWS_BEAT_TOPIC_IDS) printTopicProfile(id, NEWS_BEAT_TOPIC_PROFILES[id]);
+    }
+    return;
+  }
+  if (args.roles) {
+    const profile = args.topic ? beatTopicProfile(args.topic) : null;
+    if (args.topic && !profile) {
+      console.error(`unknown topic "${args.topic}" (allowed: ${NEWS_BEAT_TOPIC_IDS.join(", ")})`);
+      process.exitCode = 1;
+      return;
+    }
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          {
+            schemaVersion: BEAT_SCHEMA_VERSION,
+            roles: NEWS_BEAT_ROLES,
+            ...(args.topic ? { topic: args.topic, profile } : {}),
+          },
+          null,
+          2,
+        ),
+      );
+    } else if (profile) {
+      console.log(
+        `News SHOTBOOK roles for ${args.topic} (${profile.label}, schema v${BEAT_SCHEMA_VERSION}):`,
+      );
+      for (const weight of ["main", "support"]) {
+        console.log(`  ${weight}:`);
+        for (const id of profile[weight]) {
+          console.log(
+            `    ${id.padEnd(12)} ${NEWS_BEAT_ROLES[id].label.padEnd(12)} ${NEWS_BEAT_ROLES[id].use}`,
+          );
+        }
+      }
+      const other = offProfileRoles(profile);
+      if (other.length > 0) {
+        console.log(`  other roles (legal, not a default): ${other.join(", ")}`);
+      }
     } else {
       console.log(
         `News SHOTBOOK roles (${NEWS_BEAT_ROLE_IDS.length}, schema v${BEAT_SCHEMA_VERSION}):`,
@@ -95,7 +234,13 @@ async function main() {
           `  ${id.padEnd(12)} ${NEWS_BEAT_ROLES[id].label.padEnd(12)} ${NEWS_BEAT_ROLES[id].use}`,
         );
       }
+      console.log(`\nTopic profiles: ${NEWS_BEAT_TOPIC_IDS.join(", ")}; see --topics.`);
     }
+    return;
+  }
+  if (args.topic && !beatTopicProfile(args.topic)) {
+    console.error(`unknown topic "${args.topic}" (allowed: ${NEWS_BEAT_TOPIC_IDS.join(", ")})`);
+    process.exitCode = 1;
     return;
   }
   if (args.write && !args.highlight) {
@@ -132,7 +277,13 @@ async function main() {
         sceneId: scene?.id ?? null,
         ...deriveHighlight(scene),
       }));
-      reports.push({ slug, scenes: scenesReport });
+      reports.push({
+        slug,
+        scenes: scenesReport,
+        ...(args.topic
+          ? { topic: args.topic, advisories: topicAdvisories(scenes, args.topic) }
+          : {}),
+      });
     }
     if (args.write) {
       const report = reports.find((item) => item.scenes);
@@ -196,6 +347,11 @@ async function main() {
           else if (scene.status === "invalid-beats")
             lines.push(`${where}: invalid-beats (${scene.errors.map((e) => e.code).join(", ")})`);
         }
+        for (const advisory of report.advisories ?? []) {
+          lines.push(
+            `  scene ${advisory.sceneId} beat ${advisory.beatId}: ${advisory.message} (advisory)`,
+          );
+        }
         if (lines.length === 0 && !report.writeError && !(report.written > 0)) continue;
         console.log(`${report.slug}:`);
         for (const line of lines) console.log(line);
@@ -233,7 +389,11 @@ async function main() {
       continue;
     }
     const result = validatePackBeats(scenes);
-    reports.push({ slug, ...result });
+    reports.push({
+      slug,
+      ...result,
+      ...(args.topic ? { topic: args.topic, advisories: topicAdvisories(scenes, args.topic) } : {}),
+    });
   }
 
   const failed = reports.filter((report) => !report.ok);
@@ -253,6 +413,11 @@ async function main() {
       console.log(`${status} ${report.slug}: ${scope}`);
       if (!report.ok) {
         for (const line of formatErrors(report.slug, report)) console.log(`    ${line}`);
+      }
+      for (const advisory of report.advisories ?? []) {
+        console.log(
+          `    advisory: scene ${advisory.sceneId} beat ${advisory.beatId}: ${advisory.message}`,
+        );
       }
     }
     if (failed.length > 0) console.log(`\n${failed.length}/${reports.length} pack(s) invalid`);

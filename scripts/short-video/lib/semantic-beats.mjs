@@ -69,6 +69,130 @@ export const NEWS_BEAT_ROLES = Object.freeze({
 
 export const NEWS_BEAT_ROLE_IDS = Object.freeze(Object.keys(NEWS_BEAT_ROLES));
 
+/**
+ * 六个新闻题材的推荐角色档（#733 S3）。
+ *
+ * The 26-role vocabulary stays closed and unchanged; a profile only *orders*
+ * the roles an author should reach for first in a given story shape. It is an
+ * authoring aid, not a validator: a beat using a role outside the profile is
+ * legal, it just is not the recommended default. `main` is the expected
+ * weight-`main` candidate set for that topic; `support` is the expected
+ * `sub` set. Do not add roles here without a spec change.
+ */
+export const NEWS_BEAT_TOPIC_PROFILES = Object.freeze({
+  "model-release": {
+    label: "模型发布 / 新版本",
+    main: ["hook", "claim", "delta", "comparison", "mechanism"],
+    support: [
+      "baseline",
+      "metric",
+      "stat",
+      "timeline",
+      "caveat",
+      "evidence",
+      "cause",
+      "implication",
+      "payoff",
+    ],
+  },
+  "funding-ma": {
+    label: "融资 / 并购 / 上市",
+    main: ["hook", "claim", "delta", "consequence", "stake"],
+    support: [
+      "stat",
+      "metric",
+      "baseline",
+      "timeline",
+      "attribution",
+      "forecast",
+      "implication",
+      "caveat",
+    ],
+  },
+  "policy-regulation": {
+    label: "政策 / 监管 / 合规",
+    main: ["hook", "claim", "consequence", "timeline", "implication"],
+    support: [
+      "context",
+      "quote",
+      "attribution",
+      "definition",
+      "caveat",
+      "counterpoint",
+      "stake",
+      "transition",
+    ],
+  },
+  "benchmark-research": {
+    label: "跑分 / 论文 / 评测",
+    main: ["hook", "claim", "metric", "comparison", "delta", "mechanism"],
+    support: [
+      "baseline",
+      "evidence",
+      "definition",
+      "caveat",
+      "counterpoint",
+      "implication",
+      "stat",
+    ],
+  },
+  "product-launch": {
+    label: "产品 / 功能上线",
+    main: ["hook", "claim", "comparison", "mechanism", "consequence", "payoff"],
+    support: [
+      "evidence",
+      "example",
+      "caveat",
+      "context",
+      "timeline",
+      "implication",
+      "cta",
+      "transition",
+      "recap",
+    ],
+  },
+  "hardware-chips": {
+    label: "芯片 / 硬件 / 算力",
+    main: ["hook", "claim", "stat", "delta", "mechanism", "consequence"],
+    support: [
+      "metric",
+      "baseline",
+      "comparison",
+      "timeline",
+      "stake",
+      "forecast",
+      "caveat",
+      "cause",
+    ],
+  },
+});
+
+export const NEWS_BEAT_TOPIC_IDS = Object.freeze(Object.keys(NEWS_BEAT_TOPIC_PROFILES));
+
+/**
+ * Return a topic profile, or `null` when the id is unknown. Callers that
+ * accept author input should surface the allowed ids from the CLI rather than
+ * guessing a fallback.
+ * @param {string} topic
+ */
+export function beatTopicProfile(topic) {
+  return Object.hasOwn(NEWS_BEAT_TOPIC_PROFILES, topic) ? NEWS_BEAT_TOPIC_PROFILES[topic] : null;
+}
+
+/**
+ * Classify a role against a topic profile.
+ * @param {string} topic
+ * @param {string} role
+ * @returns {"main"|"support"|"off-profile"|"unknown-topic"}
+ */
+export function roleFitForTopic(topic, role) {
+  const profile = beatTopicProfile(topic);
+  if (!profile) return "unknown-topic";
+  if (profile.main.includes(role)) return "main";
+  if (profile.support.includes(role)) return "support";
+  return "off-profile";
+}
+
 const WEIGHTS = new Set(["main", "sub"]);
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

@@ -1,6 +1,6 @@
 # Hook underline legibility on the dark canvas（#733 S2，2026-11-22）
 
-> **下游票**：`#733`（S2 强调层 underline token 调色/加粗；3 人盲评通过后落地；本文件只交证据与候选，不改生产 token）。
+> **下游票**：`#733`（S2 强调层 underline token）。**2026-11-22 收口**：用户取消 3 人盲评，按本文首选落地 **amber 4px**；证据与备选保留，供后续复核。
 > **配套**：`docs/specs/spec-semantic-beats.md` §2.4 / §7；CLI `scripts/short-video/annotation-legibility.mjs`。
 > **证据分级**：`[实测]` 由 `doubao-work` scene 1 的真实 Remotion still 量得；`[标准]` WCAG 2.2 SC 1.4.11；`[推断]` 本文的归纳。
 
@@ -10,8 +10,8 @@
 
 1. **对比度不是失败点。** 现行 Dispatch Blue 3px 下划线在 `#0a0a14` 画布上，token 理论对比度 **6.05:1**，渲染后实测 **5.77:1**，均高于 WCAG 非文本 3:1 的下限。它客观可见，不属于“看不见”的问题。
 2. **真正的弱点是同色相邻 + 余量不足。** 下划线与下一行 `YOUR COMPUTER` 同为 Dispatch Blue，紧贴在一起，线容易被读成 pay-off 文字的一部分，而不是对 claim 的独立标注；同时声明线宽 3px 只有画布高度的 **0.156%**，低于手机端 **0.2%**（1080×1920 下 3.84px）的余量线。rough-notation 的墨迹实测平均 **4.42px（0.23%）**，刚好擦线通过，没有余量。
-3. **盲评首选 amber 4px，保守备选 brand 5px。** amber 把对比度拉到 **8.42:1**，并与蓝字 pay-off 形成色相分离；brand 5px 只增加线宽、不换色，风险最小；white 4px 对比最高（17.2:1）但会与白色 claim 文字混在一起；cyan 仍留在蓝色家族。
-4. **本轮不改生产 token。** 3 人盲评未做，按 `#733` 既有裁决，underline 的颜色/线宽调整必须由盲评决定。本文把盲评候选、量化和判据一次备齐。
+3. **首选 amber 4px，保守备选 brand 5px。** amber 把对比度拉到 **9.17:1**（渲染后 **8.42:1**），并与蓝字 pay-off 形成色相分离；brand 5px 只增加线宽、不换色，风险最小；white 4px 对比最高（18.06:1）但会与白色 claim 文字混在一起；cyan 仍留在蓝色家族。
+4. **已按首选落地。** `ANNOTATION.underline` 改为 `strokeWidth: 4`，hook 下划线颜色固定为 `COLOR.amber`；`ANNOTATION` 从 `components/shared.ts` 移入 remotion-free 的 `remotion/src/tokens.ts`，token 契约现在可直接单测。落地后仍以 `doubao-work` scene 1 frame 75 复验：amber 4px 在原 `OPERATES` 包围盒内，文字/卡片/来源行无位移。
 
 ---
 
@@ -30,13 +30,13 @@
 
 ## 3. 实测结果
 
-| 变体 | 颜色 | 声明线宽 | token 对比度 `[标准]` | 渲染后对比度 `[实测]` | 渲染墨迹厚度 `[实测]` | 与 current 的差异 bbox `[实测]` |
-| --- | --- | --- | --- | --- | --- | --- |
-| current | `#4d8bff` | 3px | 6.05:1 | 5.77:1 | 4.42px（0.23%） | — |
-| brand-thick | `#4d8bff` | 5px | 6.05:1 | 5.79:1 | 7.95px（0.41%） | x 433–822 / y 604–616 |
-| amber | `#f59e0b` | 4px | 9.17:1 | 8.42:1 | 7.12px（0.37%） | x 433–822 / y 605–615 |
-| white | `#f5f5f5` | 4px | 18.06:1 | 17.2:1 | 6.43px（0.33%） | x 433–822 / y 604–616 |
-| cyan | `#22d3ee` | 4px | 10.90:1 | 10.42:1 | 6.37px（0.33%） | x 433–822 / y 604–616 |
+| 变体        | 颜色      | 声明线宽 | token 对比度 `[标准]` | 渲染后对比度 `[实测]` | 渲染墨迹厚度 `[实测]` | 与 current 的差异 bbox `[实测]` |
+| ----------- | --------- | -------- | --------------------- | --------------------- | --------------------- | ------------------------------- |
+| current     | `#4d8bff` | 3px      | 6.05:1                | 5.77:1                | 4.42px（0.23%）       | —                               |
+| brand-thick | `#4d8bff` | 5px      | 6.05:1                | 5.79:1                | 7.95px（0.41%）       | x 433–822 / y 604–616           |
+| amber       | `#f59e0b` | 4px      | 9.17:1                | 8.42:1                | 7.12px（0.37%）       | x 433–822 / y 605–615           |
+| white       | `#f5f5f5` | 4px      | 18.06:1               | 17.2:1                | 6.43px（0.33%）       | x 433–822 / y 604–616           |
+| cyan        | `#22d3ee` | 4px      | 10.90:1               | 10.42:1               | 6.37px（0.33%）       | x 433–822 / y 604–616           |
 
 变化 bbox 宽度 388px，正是 `OPERATES` 在 78px 字号下的墨迹宽度；所有变体都只动这条线，没有碰文字、卡片或来源行。
 
@@ -59,13 +59,15 @@
 
 ---
 
-## 5. 建议的盲评协议
+## 5. 盲评协议（未执行，保留备选）
+
+- **状态**：2026-11-22 用户明确取消 3 人盲评，按 §4.2 的首选直接落地 amber 4px。本节保留协议与答案键，供以后出现“amber 是否太跳”的分歧时复评；当前不作为 gate。
 
 - 受试：3 人，独立看 `blind-sheet.png`（A–E 随机顺序，不含变体名），在手机高度（约 720px）观看，距离 30cm，每个变体 5 秒。
 - 三维度各 1–5 分：**可读性**（线是否一眼可见）、**主次层级**（claim 是否比 pay-off 更先被注意到）、**不廉价**（是否像设计的一部分，而不是 default underline）。
 - 判据：若 amber 的“可读性”均分 ≥ brand-thick，且“不廉价”均分 ≥ 3.0，则选 amber 4px；否则选 brand-thick 5px。white/cyan 只作为对照，不进入默认。
 - 盲评答案键（**不要发给评审人**）：A = white 4px，B = current 3px，C = brand-thick 5px，D = amber 4px，E = cyan 4px。
-- 盲评通过后只改 `scripts/short-video/remotion/src/components/shared.ts` 的 `ANNOTATION.underline`（必要时加 `HookScene` 的 underline 颜色），跑 still 复验与 affected tests。
+- 落地改动：`remotion/src/tokens.ts` 的 `ANNOTATION.underline.strokeWidth = 4`，`HookScene` 的 underline 颜色固定为 `COLOR.amber`；`ANNOTATION` 移入 tokens 后由 `components/shared.ts` re-export，调用方无需改 import。
 
 ---
 
@@ -75,12 +77,12 @@
 - claim 区放大对照：`scripts/short-video/output/underline-contrast/zoom-stack.png`
 - 盲评随机表：`scripts/short-video/output/underline-contrast/blind-sheet.png`（答案键见 §5 与 §3 的顺序，不在表内）
 - 数值复算：`node scripts/short-video/annotation-legibility.mjs`（token 理论值）；渲染像素值由本文档记录的 still 量得。
-- 渲染变体时临时改过 `ANNOTATION.underline.strokeWidth` 与 hook 的 underline 颜色，渲染后已逐字节还原（当前工作树 `shared.ts` / `HookScene.tsx` 无 diff）。
+- 落地前的 5 个变体是在临时副本上渲染的；最终仍以同一 props 在当前 token 上重出 frame 75，确认 amber 4px 的实际像素与候选一致。
 
 ---
 
 ## 7. 未做 / 边界
 
-- 未改生产 token、未接入 pre-render gate；本轮不产生任何成片 diff。
+- 已改生产 token（amber 4px）；未接入 pre-render gate，`evaluateUnderline` 仍是离线校验，不阻断渲染。
 - 未做中文 hook 样张、未覆盖 `NarrativeScene` 的 amber marker（那是另一条标注，不在本票的 underline 范围）。
-- 3 人盲评需真人执行；Agent 不得代填分数。
+- 3 人盲评未执行；用户已取消，协议保留为将来的可选复核，不作为发布 gate。

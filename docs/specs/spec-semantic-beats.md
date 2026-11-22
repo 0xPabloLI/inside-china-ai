@@ -36,12 +36,12 @@
 
 ### 2.2 字段
 
-| 字段     | 类型     | 规则                                                                 |
-| -------- | -------- | -------------------------------------------------------------------- |
-| `id`     | string   | kebab-case；同一 scene 内唯一                                       |
-| `at`     | string   | `voiceover` 的精确子串，且**只出现一次**；重复短语需补上下文        |
-| `role`   | string   | `NEWS_BEAT_ROLES` 26 词之一                                          |
-| `weight` | string   | `main` / `sub`；同一 scene 最多一个 `main`                           |
+| 字段       | 类型    | 规则                                                                              |
+| ---------- | ------- | --------------------------------------------------------------------------------- |
+| `id`       | string  | kebab-case；同一 scene 内唯一                                                     |
+| `at`       | string  | `voiceover` 的精确子串，且**只出现一次**；重复短语需补上下文                      |
+| `role`     | string  | `NEWS_BEAT_ROLES` 26 词之一                                                       |
+| `weight`   | string  | `main` / `sub`；同一 scene 最多一个 `main`                                        |
 | `screenAt` | object? | 仅 `main` 可用；`{ field, text }`，屏幕文案与口播不同词时显式指定要标注的屏幕片段 |
 
 不允许额外字段：schema 不能靠“先塞进去再说”悄悄长出来；`screenAt` 是显式扩展，字段名与嵌套键都封闭。
@@ -51,6 +51,26 @@
 `talkcraft` 的营销词表**不复制**，只重写结构。词表与选词规则在 `scripts/short-video/lib/semantic-beats.mjs` 的 `NEWS_BEAT_ROLES` 单一真值，CLI `--roles` 直接打印。
 
 覆盖：开场（hook）、断言（claim）、证据（evidence）、数字（stat/metric）、对照（comparison/baseline/delta）、机制（mechanism/cause/consequence）、背景（context/timeline）、引语（quote/attribution）、限制（caveat/counterpoint）、定义（definition/example）、预测（forecast/implication/stake）、收束（cta/transition/recap/payoff）。
+
+#### 2.3.1 六类新闻题材档（S3）
+
+`#733` 要求 26 词语表按我方新闻题材重定，不能照搬产品营销词表。S3 的落地方式是**只重排、不扩词**：六个题材各给一组首选 `main` 角色与 `sub` 支撑角色，仍使用同一套 26 词与同一 beat schema。真值在 `NEWS_BEAT_TOPIC_PROFILES`，CLI 用 `--topics` / `--roles --topic <id>` 打印。
+
+| 题材                                    | `main` 首选                                             | `support` 支撑                                                                    |
+| --------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `model-release` 模型发布 / 新版本       | hook, claim, delta, comparison, mechanism               | baseline, metric, stat, timeline, caveat, evidence, cause, implication, payoff    |
+| `funding-ma` 融资 / 并购 / 上市         | hook, claim, delta, consequence, stake                  | stat, metric, baseline, timeline, attribution, forecast, implication, caveat      |
+| `policy-regulation` 政策 / 监管 / 合规  | hook, claim, consequence, timeline, implication         | context, quote, attribution, definition, caveat, counterpoint, stake, transition  |
+| `benchmark-research` 跑分 / 论文 / 评测 | hook, claim, metric, comparison, delta, mechanism       | baseline, evidence, definition, caveat, counterpoint, implication, stat           |
+| `product-launch` 产品 / 功能上线        | hook, claim, comparison, mechanism, consequence, payoff | evidence, example, caveat, context, timeline, implication, cta, transition, recap |
+| `hardware-chips` 芯片 / 硬件 / 算力     | hook, claim, stat, delta, mechanism, consequence        | metric, baseline, comparison, timeline, stake, forecast, caveat, cause            |
+
+规则：
+
+- 题材档是**作者建议**，不是校验器。用了档外角色仍然合法，`--check` 不会因此失败；`--content <slug> --topic <id>` 只打印 `advisory` 行。
+- `main` 档是“这个题材通常该有一个 main 拍”的候选集，不是“必须从里面选”；一个 scene 仍然最多一个 `main`。
+- 新增题材或角色属于 spec 变更，不能在 pack 里就地扩词。
+- 没有 beat 的 shipped pack 不因题材档产生新输出；S3 不迁移存量包。
 
 ### 2.4 主拍 → 屏幕片段派生与显式写回
 
@@ -62,13 +82,13 @@
 
 落地前真实语料覆盖（2026-11-22，37 个 shipped pack；随后 13 条死高亮已移除）：
 
-| 指标 | 数量 |
-| --- | --- |
-| 现有 `texts.highlight` | 59 |
-| 渲染器真正会标注（result/action/hookText） | 46 |
-| 指向未接线字段（company/context/quote/badge） | 13 |
-| `highlight.text` 在 `voiceover` 里逐字出现（可派生） | 8 |
-| 大小写不敏感后出现 | 26 |
+| 指标                                                 | 数量 |
+| ---------------------------------------------------- | ---- |
+| 现有 `texts.highlight`                               | 59   |
+| 渲染器真正会标注（result/action/hookText）           | 46   |
+| 指向未接线字段（company/context/quote/badge）        | 13   |
+| `highlight.text` 在 `voiceover` 里逐字出现（可派生） | 8    |
+| 大小写不敏感后出现                                   | 26   |
 
 结论：口播与屏幕文案本来就经常不同词，**逐字派生只能覆盖少数场景**。因此主拍可加 `screenAt: { field, text }`：
 
@@ -99,26 +119,26 @@ T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertK
 
 `validateSceneBeats()` / `runAllSceneDataChecks()`（pre-render）与 `semantic-beats --check` 共用同一实现：
 
-| 条件                                   | 结果                                                        |
-| -------------------------------------- | ----------------------------------------------------------- |
-| `beats` 非数组                         | fail `beats-not-array`                                      |
-| 出现未知字段                           | fail `beat-unknown-field`                                   |
-| `id` 非 kebab-case / 重复              | fail `beat-id-invalid` / `beat-id-duplicate`                |
-| `at` 为空                              | fail `beat-at-empty`                                        |
-| `at` 不在 `voiceover`                  | fail `beat-at-missing`                                      |
-| `at` 出现多次                          | fail `beat-at-ambiguous`                                    |
-| `role` 不在 26 词                      | fail `beat-role-invalid`                                    |
-| `weight` 非 main/sub                   | fail `beat-weight-invalid`                                  |
-| 一个 scene 多个 main                   | fail `beat-main-duplicate`                                  |
-| `screenAt` 挂在 sub 拍                 | fail `beat-screen-at-sub`                                   |
-| `screenAt` 不是 `{ field, text }`      | fail `beat-screen-at-invalid`                               |
-| `screenAt.field` 不是接线字段          | fail `beat-screen-field-unsupported`                        |
-| `screenAt.field` 无字符串文案          | fail `beat-screen-field-missing`                            |
-| `screenAt.text` 为空 / 不在字段 / 多次 | fail `beat-screen-at-empty` / `missing` / `ambiguous`       |
-| scene 无 `voiceover` 却声明 beats      | fail `voiceover-missing`                                    |
-| `beats` 缺省                           | pass（opt-in）                                              |
-| 合法 beats                             | pass，每个 scene 一条 `Scene N semantic beats`               |
-| `texts.highlight` 指向未接线字段        | fail `assertKnownTextFields`（“not annotated by the renderer”） |
+| 条件                                   | 结果                                                            |
+| -------------------------------------- | --------------------------------------------------------------- |
+| `beats` 非数组                         | fail `beats-not-array`                                          |
+| 出现未知字段                           | fail `beat-unknown-field`                                       |
+| `id` 非 kebab-case / 重复              | fail `beat-id-invalid` / `beat-id-duplicate`                    |
+| `at` 为空                              | fail `beat-at-empty`                                            |
+| `at` 不在 `voiceover`                  | fail `beat-at-missing`                                          |
+| `at` 出现多次                          | fail `beat-at-ambiguous`                                        |
+| `role` 不在 26 词                      | fail `beat-role-invalid`                                        |
+| `weight` 非 main/sub                   | fail `beat-weight-invalid`                                      |
+| 一个 scene 多个 main                   | fail `beat-main-duplicate`                                      |
+| `screenAt` 挂在 sub 拍                 | fail `beat-screen-at-sub`                                       |
+| `screenAt` 不是 `{ field, text }`      | fail `beat-screen-at-invalid`                                   |
+| `screenAt.field` 不是接线字段          | fail `beat-screen-field-unsupported`                            |
+| `screenAt.field` 无字符串文案          | fail `beat-screen-field-missing`                                |
+| `screenAt.text` 为空 / 不在字段 / 多次 | fail `beat-screen-at-empty` / `missing` / `ambiguous`           |
+| scene 无 `voiceover` 却声明 beats      | fail `voiceover-missing`                                        |
+| `beats` 缺省                           | pass（opt-in）                                                  |
+| 合法 beats                             | pass，每个 scene 一条 `Scene N semantic beats`                  |
+| `texts.highlight` 指向未接线字段       | fail `assertKnownTextFields`（“not annotated by the renderer”） |
 
 ## 4. 边界
 
@@ -131,7 +151,7 @@ T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertK
 
 - 不实现强调层（字体、下划线、逐词动画、层矩阵）。
 - 不做 beat 与配方卡的自动配对；不做跨 scene 的叙事弧分析。
-- 不做 26 词之外的题材扩展（S3 另议）。
+- 不扩 26 词之外的题材词；S3 六类题材档只重排现有词表（§2.3.1）。
 - 不迁移现有 37 个内容包。
 
 ## 6. 验收
@@ -139,11 +159,12 @@ T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertK
 - `semantic-beats --check` 在全部 shipped pack 上退出 0（无 beats 的包显示 skipped）。
 - `runAllSceneDataChecks` 对非法 beats 产生 `fail`，对无 beats 的包不产生新结果。
 - 单测覆盖上表每个分支（`semantic-beats.test.mjs` + `text-slots.test.mjs`）。
+- S3 单测：六类题材的 `main`/`support` 必须取自 26 词、两档不重叠、`hook`/`claim` 均在档内、六档并集覆盖全部 26 词；`--topics` 与 `--roles --topic` 输出稳定。
 - 真实数据 smoke：`--check` 跑过 37 个包；启用 beats 的样例用单测 fixture（当前无已发布包采用）。
 - `writeHighlightToSource` 单测覆盖：插入后仍可 import、保留注释/缩进、CRLF、重复写入拒绝、scene 不存在拒绝。
 
 ## 7. 后续
 
-S2 强调层：消费 `beats`，把 `main` 映射到已有 recipe/文本槽的强调能力；必须先做 still 对比与 `#735` QA 的帧级证据。S3：新闻题材词表特化，不改本 spec 的结构。
+S2 强调层：消费 `beats`，把 `main` 映射到已有 recipe/文本槽的强调能力；必须先做 still 对比与 `#735` QA 的帧级证据。S3 已按 §2.3.1 落地六类题材档，不改 beat schema、不扩词；`#733` 收口后若真实 pack 开始声明 beats，再按 `--topic` advisory 校准档位。
 
-underline 的暗底可读性证据与 3 人盲评协议见 `docs/research/hook-underline-legibility-2026-11.md`；盲评通过后只改 `ANNOTATION.underline`。
+underline 的暗底可读性证据见 `docs/research/hook-underline-legibility-2026-11.md`；2026-11-22 起生产 token 为 **amber 4px**（`ANNOTATION.underline.strokeWidth = 4` + `COLOR.amber`），盲评协议保留为可选复核。

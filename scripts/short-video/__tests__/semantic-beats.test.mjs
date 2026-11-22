@@ -7,7 +7,11 @@ import { describe, expect, it } from "vitest";
 import { runAllSceneDataChecks } from "../lib/scene-rules.mjs";
 import {
   NEWS_BEAT_ROLE_IDS,
+  NEWS_BEAT_TOPIC_IDS,
+  NEWS_BEAT_TOPIC_PROFILES,
+  beatTopicProfile,
   deriveHighlight,
+  roleFitForTopic,
   validatePackBeats,
   validateSceneBeats,
   writeHighlightToSource,
@@ -407,5 +411,89 @@ describe("semantic-beats --write CLI (#733 S2)", () => {
       'highlight: { field: "hookText", text: "OPERATES" },',
     );
     expect(run(["--highlight", "--write"])).toContain("already-set hookText same=true");
+  });
+});
+
+describe("news topic profiles (#733 S3)", () => {
+  const profiles = Object.entries(NEWS_BEAT_TOPIC_PROFILES);
+
+  it("only reorders the closed 26-role vocabulary", () => {
+    expect(profiles).toHaveLength(6);
+    for (const [topic, profile] of profiles) {
+      for (const weight of ["main", "support"]) {
+        expect(profile[weight].length).toBeGreaterThan(0);
+        for (const role of profile[weight]) {
+          expect(NEWS_BEAT_ROLE_IDS, `${topic}/${weight}`).toContain(role);
+        }
+      }
+      expect(profile.main.filter((role) => profile.support.includes(role))).toEqual([]);
+      expect([...profile.main, ...profile.support]).toEqual(
+        expect.arrayContaining(["hook", "claim"]),
+      );
+    }
+  });
+
+  it("covers every role across the six profiles", () => {
+    const covered = new Set(
+      profiles.flatMap(([, profile]) => [...profile.main, ...profile.support]),
+    );
+    expect([...covered].sort()).toEqual([...NEWS_BEAT_ROLE_IDS].sort());
+  });
+
+  it("classifies a role against a topic without failing off-profile beats", () => {
+    expect(roleFitForTopic("model-release", "delta")).toBe("main");
+    expect(roleFitForTopic("model-release", "baseline")).toBe("support");
+    expect(roleFitForTopic("model-release", "quote")).toBe("off-profile");
+    expect(roleFitForTopic("nope", "claim")).toBe("unknown-topic");
+    expect(beatTopicProfile("funding-ma")?.label).toBe("融资 / 并购 / 上市");
+    expect(beatTopicProfile("nope")).toBeNull();
+    expect(NEWS_BEAT_TOPIC_IDS).toEqual([
+      "model-release",
+      "funding-ma",
+      "policy-regulation",
+      "benchmark-research",
+      "product-launch",
+      "hardware-chips",
+    ]);
+  });
+
+  it("prints --topics and a topic-scoped --roles view", () => {
+    const cli = fileURLToPath(new URL("../semantic-beats.mjs", import.meta.url));
+    const topics = execFileSync(process.execPath, [cli, "--topics"], { encoding: "utf8" });
+    for (const id of NEWS_BEAT_TOPIC_IDS) expect(topics).toContain(`${id} —`);
+    const roles = execFileSync(process.execPath, [cli, "--roles", "--topic", "policy-regulation"], {
+      encoding: "utf8",
+    });
+    expect(roles).toContain("roles for policy-regulation");
+    expect(roles).toContain("政策 / 监管 / 合规");
+    expect(roles).toContain("main:");
+    expect(roles).toContain("support:");
+  });
+
+  it("keeps pack validation when --topic is present", () => {
+    const root = mkdtempSync(join(tmpdir(), "sb-topic-"));
+    mkdirSync(join(root, "content", "demo"), { recursive: true });
+    writeFileSync(
+      join(root, "content", "demo", "scene-data.mjs"),
+      `export const scenes = [
+  {
+    id: 1,
+    visualType: "narrative",
+    layout: "media-bottom-bar",
+    voiceover: "The rule bans exports of the chip.",
+    texts: { result: "EXPORT BAN" },
+    beats: [{ id: "ban", at: "bans exports", role: "stat", weight: "main", screenAt: { field: "result", text: "EXPORT BAN" } }],
+  },
+];
+`,
+    );
+    const cli = fileURLToPath(new URL("../semantic-beats.mjs", import.meta.url));
+    const out = execFileSync(
+      process.execPath,
+      [cli, "--content", "demo", "--root", root, "--topic", "policy-regulation"],
+      { encoding: "utf8" },
+    );
+    expect(out).toContain("✓ demo: 1 beats across 1 scenes");
+    expect(out).toContain('advisory: scene 1 beat ban: main beat "ban" uses "stat"');
   });
 });
