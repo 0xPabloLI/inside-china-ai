@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.104.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.103.0...tanstack_start_ts-v1.104.0) (2026-11-22)
+
+
+### Features
+
+* **short-video:** add underline legibility evidence and blind-review kit ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2) ([#1506](https://github.com/0xPabloLI/inside-china-ai/issues/1506)) ([e893794](https://github.com/0xPabloLI/inside-china-ai/commit/e89379417bf38a748c44b64f81765d3cb672a523))
+
 ## [1.103.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.102.0...tanstack_start_ts-v1.103.0) (2026-11-22)
 
 
