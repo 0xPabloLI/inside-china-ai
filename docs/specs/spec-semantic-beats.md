@@ -145,3 +145,5 @@ T8 同步收紧：`texts.highlight.field` 只要不在接线白名单，`assertK
 ## 7. 后续
 
 S2 强调层：消费 `beats`，把 `main` 映射到已有 recipe/文本槽的强调能力；必须先做 still 对比与 `#735` QA 的帧级证据。S3：新闻题材词表特化，不改本 spec 的结构。
+
+underline 的暗底可读性证据与 3 人盲评协议见 `docs/research/hook-underline-legibility-2026-11.md`；盲评通过后只改 `ANNOTATION.underline`。
