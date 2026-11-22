@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.101.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.100.0...tanstack_start_ts-v1.101.0) (2026-11-22)
+
+
+### Features
+
+* **short-video:** dry-run beat to highlight derivation ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2) ([#1499](https://github.com/0xPabloLI/inside-china-ai/issues/1499)) ([136de4e](https://github.com/0xPabloLI/inside-china-ai/commit/136de4ed50b244488583ff614a744976f8ad6e99))
+
 ## [1.100.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.99.1...tanstack_start_ts-v1.100.0) (2026-11-21)
 
 
