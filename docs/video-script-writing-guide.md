@@ -404,6 +404,7 @@ beats: [
 
 - `at` 必须是 `voiceover` 里**只出现一次**的精确子串；重复短语补上下文。
 - `role` 用 26 词新闻词表（CLI `semantic-beats --roles` 可列）；一个 scene 最多一个 `main`。
+- 口播与屏幕不同词时，给 `main` 加 `screenAt: { field, text }`，显式声明要标注的屏幕片段；`field` 只能是 `narrative.result/action` 或 `hook.hookText`。
 - 不写 `beats` 的包不受影响；写了就进 pre-render gate，非法即 fail-closed。
 - 选版式仍走 `shot-recipes.mjs`，`beats` 不携带 layout / recipeId。
 

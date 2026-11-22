@@ -742,6 +742,36 @@ export const REMOTION_SLOT_MAP = {
 };
 
 /**
+ * Fields the renderer actually wires to `SplitHighlight` (#733 S2).
+ *
+ * This is the single authority for both T8 and the beat→highlight bridge:
+ * `NarrativeScene` annotates result/action, `HookScene` annotates hookText.
+ * A `texts.highlight` pointing anywhere else passes the shape/substring check
+ * but renders no annotation (13/59 shipped highlights were dead data).
+ */
+export const HIGHLIGHT_TARGET_FIELDS = Object.freeze({
+  narrative: Object.freeze(["result", "action"]),
+  hook: Object.freeze(["hookText"]),
+});
+
+/**
+ * Annotatable string fields for a resolved visualType + layout. Filters the
+ * wired list through the layout's rendered/optional slots so a hook layout
+ * without `hookText` cannot accept a dead target.
+ *
+ * @param {string} visualType
+ * @param {string} layout
+ * @returns {string[]}
+ */
+export function annotatableTextFields(visualType, layout) {
+  const wired = HIGHLIGHT_TARGET_FIELDS[visualType] ?? [];
+  if (wired.length === 0) return [];
+  const groups = remotionSlotsFor(visualType, layout);
+  const available = new Set([...groups.rendered, ...groups.optional]);
+  return wired.filter((field) => available.has(field));
+}
+
+/**
  * scene-data text keys that map to a differently spelled contract field.
  * DataScene's `statLabel` renders through the `label` slot (the large label
  * under a focus number), same typography family as stat-reveal's label.
@@ -863,6 +893,15 @@ export function assertKnownTextFields(visualType, layout, texts) {
         `highlight.text ${JSON.stringify(h.text)} is not a substring of texts.${h.field} ` +
           `${JSON.stringify(target)} (visualType "${visualType}", layout "${layout}") — ` +
           "the fragment must appear in the field verbatim",
+      );
+    }
+    const annotatable = annotatableTextFields(visualType, layout);
+    if (!annotatable.includes(h.field)) {
+      throw new Error(
+        `highlight.field "${h.field}" is not annotated by the renderer for visualType ` +
+          `"${visualType}" (layout "${layout}") — it accepts only ` +
+          `${annotatable.length > 0 ? annotatable.map((f) => `"${f}"`).join(", ") : "nothing"}; ` +
+          "a highlight on any other field renders no annotation, so remove it or move the copy",
       );
     }
   }

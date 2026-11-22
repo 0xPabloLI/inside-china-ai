@@ -15,7 +15,10 @@
  *
  * Contract: `scene.beats` is optional. Packs without it stay valid (opt-in),
  * so the 37 existing packs do not need a migration. If present:
- * - each beat has `{ id, at, role, weight }`;
+ * - each beat has `{ id, at, role, weight }` and may add `screenAt`;
+ * - `screenAt` is `{ field, text }`: the exact on-screen fragment to annotate
+ *   when the screen copy differs from the voiceover wording. Optional; without
+ *   it the bridge falls back to matching `at` verbatim in screen copy;
  * - `id` is unique within the scene, kebab-case;
  * - `at` is a non-empty exact substring occurring exactly once in
  *   `scene.voiceover` (add surrounding words when a phrase repeats);
@@ -27,9 +30,9 @@
  * and the layer matrix stops being reviewable. Extending it is a spec change.
  */
 
-export const BEAT_SCHEMA_VERSION = 1;
+export const BEAT_SCHEMA_VERSION = 2;
 
-import { REMOTION_SLOT_MAP, resolveRenderLayout } from "./text-slots.mjs";
+import { annotatableTextFields, resolveRenderLayout } from "./text-slots.mjs";
 
 /**
  * 26 news roles. `id` is stable; `label` is the author-facing name; `use` is
@@ -115,11 +118,12 @@ export function validateSceneBeats(scene) {
       return;
     }
     const keys = Object.keys(beat).sort();
-    const expected = ["at", "id", "role", "weight"];
-    if (keys.join(",") !== expected.join(",")) {
+    const allowed = ["at", "id", "role", "weight", "screenAt"];
+    const unknown = keys.filter((key) => !allowed.includes(key));
+    if (unknown.length > 0) {
       errors.push({
         code: "beat-unknown-field",
-        message: `${where} must have exactly ${expected.join(", ")}; got ${keys.join(", ") || "(none)"}`,
+        message: `${where} has unknown field(s) ${unknown.join(", ")}; allowed: ${allowed.join(", ")}`,
       });
     }
     if (typeof beat.id !== "string" || !ID_PATTERN.test(beat.id)) {
@@ -162,6 +166,56 @@ export function validateSceneBeats(scene) {
     } else if (beat.weight === "main") {
       mainCount += 1;
     }
+    if (beat.screenAt !== undefined) {
+      if (beat.weight !== "main") {
+        errors.push({
+          code: "beat-screen-at-sub",
+          message: `${where}.screenAt is only meaningful on the main beat`,
+        });
+      } else if (
+        !beat.screenAt ||
+        typeof beat.screenAt !== "object" ||
+        Array.isArray(beat.screenAt) ||
+        Object.keys(beat.screenAt).sort().join(",") !== "field,text"
+      ) {
+        errors.push({
+          code: "beat-screen-at-invalid",
+          message: `${where}.screenAt must be { field, text }`,
+        });
+      } else {
+        const { field, text } = beat.screenAt;
+        const wired = annotatableTextFields(scene.visualType, resolveRenderLayout(scene));
+        if (typeof field !== "string" || !wired.includes(field)) {
+          errors.push({
+            code: "beat-screen-field-unsupported",
+            message: `${where}.screenAt.field ${JSON.stringify(field)} is not annotated by the renderer; use ${wired.map((f) => `"${f}"`).join(", ") || "no field"}`,
+          });
+        } else if (typeof scene.texts?.[field] !== "string") {
+          errors.push({
+            code: "beat-screen-field-missing",
+            message: `${where}.screenAt.field "${field}" has no string text in this scene`,
+          });
+        } else if (typeof text !== "string" || text.trim() === "") {
+          errors.push({
+            code: "beat-screen-at-empty",
+            message: `${where}.screenAt.text must be a non-empty string`,
+          });
+        } else {
+          const occurrences = countOccurrences(scene.texts[field], text);
+          if (occurrences === 0) {
+            errors.push({
+              code: "beat-screen-at-missing",
+              message: `${where}.screenAt.text ${JSON.stringify(text)} is not an exact substring of texts.${field}`,
+            });
+          } else if (occurrences > 1) {
+            errors.push({
+              code: "beat-screen-at-ambiguous",
+              message: `${where}.screenAt.text ${JSON.stringify(text)} occurs ${occurrences} times in texts.${field}; include surrounding words`,
+            });
+          }
+        }
+      }
+    }
   });
 
   if (mainCount > 1) {
@@ -198,26 +252,15 @@ export function validatePackBeats(scenes) {
 }
 
 /**
- * Fields a beat may annotate: every string slot the resolved layout can render,
- * minus attribution (`source`) and the highlight control itself. Arrays
- * (stats/left/right) are not annotatable, matching T8's `assertKnownTextFields`.
+ * Fields a beat may annotate: the renderer-wired list filtered through the
+ * resolved layout's slots and the scene's actual string copy. T8 uses the
+ * same `annotatableTextFields` authority, so validation and derivation cannot
+ * disagree about which fields are live.
  */
-function annotatableFields(scene) {
-  const visualType = scene?.visualType;
-  const layout = resolveRenderLayout(scene);
-  const slot = REMOTION_SLOT_MAP?.[visualType]?.[layout];
-  if (!slot) return [];
-  // Only these slots are wired to SplitHighlight in the renderer today:
-  // NarrativeScene annotates result/action, HookScene annotates hookText.
-  // A `highlight` on company/context/quote/badge passes T8 validation but
-  // renders nothing (measured: 13/59 shipped highlights are dead data).
-  const wired = new Set(
-    visualType === "narrative" ? ["result", "action"] : visualType === "hook" ? ["hookText"] : [],
+function renderableAnnotatableFields(scene) {
+  return annotatableTextFields(scene?.visualType, resolveRenderLayout(scene)).filter(
+    (field) => typeof scene?.texts?.[field] === "string",
   );
-  return [...(slot.rendered ?? []), ...(slot.optional ?? [])]
-    .filter((field, index, all) => all.indexOf(field) === index)
-    .filter((field) => wired.has(field))
-    .filter((field) => typeof scene?.texts?.[field] === "string");
 }
 
 /**
@@ -248,24 +291,47 @@ export function deriveHighlight(scene) {
       errors: [{ code: "beat-main-duplicate", message: "a scene may carry at most one main beat" }],
     };
   }
-  const at = mains[0].at;
+  const main = mains[0];
+  const screenAt = main.screenAt;
+  const text = screenAt ? screenAt.text : main.at;
+  const via = screenAt ? "screenAt" : "voiceover";
+  const wired = annotatableTextFields(scene?.visualType, resolveRenderLayout(scene));
+  const fields = renderableAnnotatableFields(scene);
+
+  let field = screenAt ? screenAt.field : null;
+  if (!screenAt) {
+    const matches = fields.filter((candidate) => scene.texts[candidate].includes(text));
+    if (matches.length > 1) return { status: "ambiguous-field", text, fields: matches };
+    if (matches.length === 1) field = matches[0];
+  }
+
   const existing = scene?.texts?.highlight;
   if (existing && typeof existing === "object" && !Array.isArray(existing)) {
-    const same =
-      existing.field != null && existing.text === at
-        ? annotatableFields(scene).includes(existing.field) &&
-          scene.texts[existing.field]?.includes(at)
-        : false;
-    return { status: "already-set", same, field: existing.field, text: existing.text };
+    if (!wired.includes(existing.field)) {
+      return {
+        status: "unsupported-field",
+        field: existing.field,
+        text: existing.text,
+        fields: wired,
+      };
+    }
+    return {
+      status: "already-set",
+      same: field !== null && existing.field === field && existing.text === text,
+      field: existing.field,
+      text: existing.text,
+    };
   }
-  const fields = annotatableFields(scene);
-  const matches = fields.filter((field) => scene.texts[field].includes(at));
-  if (matches.length === 0) return { status: "missing", text: at, fields };
-  if (matches.length > 1) return { status: "ambiguous-field", text: at, fields: matches };
-  const field = matches[0];
-  const occurrences = countOccurrences(scene.texts[field], at);
+
+  if (field === null) return { status: "missing", text, fields };
+  const occurrences = countOccurrences(scene.texts[field], text);
   if (occurrences > 1) {
-    return { status: "ambiguous-occurrence", text: at, field, occurrences };
+    return { status: "ambiguous-occurrence", text, field, occurrences };
   }
-  return { status: "derived", field, text: at };
+  return {
+    status: "derived",
+    field,
+    text,
+    ...(via === "screenAt" ? { via } : {}),
+  };
 }

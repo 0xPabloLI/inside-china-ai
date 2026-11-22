@@ -5,11 +5,13 @@
  * Usage:
  *   node scripts/short-video/semantic-beats.mjs --content <slug> [--json]
  *   node scripts/short-video/semantic-beats.mjs --check [--root <short-video dir>] [--json]
+ *   node scripts/short-video/semantic-beats.mjs --highlight --content <slug> | --check [--json]
  *   node scripts/short-video/semantic-beats.mjs --roles
  *
  * `--content` validates one pack and prints its beats; `--check` walks every
- * shipped pack (packs without beats are skipped, not failed); `--roles` prints
- * the closed 26-role vocabulary.
+ * shipped pack (packs without beats are skipped, not failed); `--highlight`
+ * reports the dry-run main-beat → texts.highlight decision (never writes);
+ * `--roles` prints the closed 26-role vocabulary.
  *
  * Exit codes: 0 valid; 1 a pack violates the contract or cannot be imported.
  * This is an authoring gate — it is not wired into render or preflight yet.
@@ -125,7 +127,10 @@ async function main() {
           if (scene.status === "no-main") continue;
           const where = `  scene ${scene.sceneId}`;
           if (scene.status === "derived")
-            lines.push(`${where}: derived ${scene.field} ← ${JSON.stringify(scene.text)}`);
+            lines.push(
+              `${where}: derived ${scene.field} ← ${JSON.stringify(scene.text)}` +
+                `${scene.via === "screenAt" ? " (screenAt)" : ""}`,
+            );
           else if (scene.status === "already-set")
             lines.push(`${where}: already-set ${scene.field ?? "?"} same=${scene.same}`);
           else if (scene.status === "missing")
