@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.105.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.104.0...tanstack_start_ts-v1.105.0) (2026-11-22)
+
+
+### Features
+
+* **video:** close [#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) with amber underline and topic profiles ([#1509](https://github.com/0xPabloLI/inside-china-ai/issues/1509)) ([1177d19](https://github.com/0xPabloLI/inside-china-ai/commit/1177d19b0e2c44d08ec636e199cb9c7b4c5c1a7c))
+
 ## [1.104.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.103.0...tanstack_start_ts-v1.104.0) (2026-11-22)
 
 
