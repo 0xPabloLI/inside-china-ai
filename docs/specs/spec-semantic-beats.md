@@ -51,7 +51,27 @@
 
 覆盖：开场（hook）、断言（claim）、证据（evidence）、数字（stat/metric）、对照（comparison/baseline/delta）、机制（mechanism/cause/consequence）、背景（context/timeline）、引语（quote/attribution）、限制（caveat/counterpoint）、定义（definition/example）、预测（forecast/implication/stake）、收束（cta/transition/recap/payoff）。
 
-### 2.4 为什么锚文本而不是时间码
+### 2.4 主拍 → 屏幕片段派生（dry-run）
+
+`semantic-beats --highlight` 只做**读**，不写回 Scene Data。它把每个 scene 的 `main` beat 映射到 T8 的 `texts.highlight`：
+
+- 只有渲染器真正会标注的字段才算候选：`narrative` 的 `result` / `action`，`hook` 的 `hookText`；`company` / `context` / `quote` / `badge` 不在候选内。
+- `at` 必须在候选字段里**精确匹配**，且只命中一个字段、在该字段只出现一次；0 命中 / 多字段 / 多次出现都只报告，不猜。
+- 已有 `texts.highlight` 时不覆盖；若其字段不在上述候选内，报告 `unsupported-field`。
+
+真实语料覆盖（2026-11-22，37 个 shipped pack）：
+
+| 指标 | 数量 |
+| --- | --- |
+| 现有 `texts.highlight` | 59 |
+| 渲染器真正会标注（result/action/hookText） | 46 |
+| 指向未接线字段（company/context/quote/badge） | 13 |
+| `highlight.text` 在 `voiceover` 里逐字出现（可派生） | 8 |
+| 大小写不敏感后出现 | 26 |
+
+结论：口播与屏幕文案本来就经常不同词，**逐字派生只能覆盖少数场景**。所以 `--highlight` 只作为审计/提案工具，默认不写盘；是否允许 beat 增加 `screenAt` 别名，留到 still 盲评后裁决。
+
+### 2.5 为什么锚文本而不是时间码
 
 - 时间码在改句后静默漂移；精确子串在**校验期**就红，渲染不会带着错位强调出片。
 - 语义拍是“这句话是什么”，不是“这句话在第几秒”；中文/英文重写后仍可复用同一 `role`。
