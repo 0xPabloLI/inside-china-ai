@@ -984,3 +984,11 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 **下沉的一句话档案（Round CCXXXI，原文）**：
 
 **Round CCXXXI**（`#1480` 行业知识层 S3 编辑层——hook 版式选版判据 + 跨期反重复
+
+## Round CCXXXVIII 下沉：`#733` 收口（2026-11-22）
+
+> **Last inventory**: 2026-11-22（**Round CCXXXVIII：`#733` 收口闭票**——underline 落 amber 4px（`ANNOTATION` 移入 tokens，14 tests）；S3 六类题材档（`NEWS_BEAT_TOPIC_PROFILES`、`--topics`/`--roles --topic`，33 tests，只重排 26 词）；`qwen4-max-release` 副本 `--highlight --write` 单行写回 `action/3 LAYERS COMPRESS` + T8 通过（PR #1509，squash `1177d19b`）。产品验证门：**有产出 diff（hook 下划线）**；无 shipped pack 新增 beats。frontier：③ 清空（仅 `#1472` 冻结）；1A/①②④ 空；`#228` 余 ②③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXVIII，原文）**：
+
+**Round CCXXXVIII**（`#733` 闭票——amber 4px underline + 六类题材档 + 真实 pack 写回；**有产出 diff（下划线）**；③ 清空，1A/①②④ 空）
