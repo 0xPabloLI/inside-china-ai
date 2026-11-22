@@ -22,6 +22,7 @@ import os
 import time
 import subprocess
 import unicodedata
+import wave
 
 import numpy as np
 
@@ -163,6 +164,14 @@ def install_peak_ceiling(ceiling=0.92):
     sf.write = safe_write
 
 
+def wav_peak_abs(path):
+    """Return the absolute peak of a PCM WAV as a linear 0..1 float."""
+    with wave.open(path, "rb") as w:
+        frames = w.readframes(w.getnframes())
+    data = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    return float(np.max(np.abs(data))) if data.size else 0.0
+
+
 def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
     from f5_tts_mlx.generate import generate as f5_generate
 
@@ -220,10 +229,18 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
 
         print(f"    Duration: {duration:.2f}s, RTF: {(t3 - t2) / max(duration, 0.01):.2f}x", file=sys.stderr)
 
+        peak = wav_peak_abs(output_path)
+        if peak > 0.98:
+            raise RuntimeError(
+                f"Scene {scene_id} clipped at PCM16 full scale (peak={peak:.4f}); "
+                "the F5 peak ceiling is missing or was bypassed"
+            )
+
         results.append({
             "sceneId": scene_id,
             "audioPath": os.path.abspath(output_path),
             "duration": duration,
+            "peak": round(peak, 4),
         })
 
     print(f"\nAll {len(scenes)} scenes processed!", file=sys.stderr)
