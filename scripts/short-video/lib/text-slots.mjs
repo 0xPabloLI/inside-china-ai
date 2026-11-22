@@ -749,7 +749,7 @@ export const REMOTION_SLOT_MAP = {
  * A `texts.highlight` pointing anywhere else passes the shape/substring check
  * but renders no annotation (13/59 shipped highlights were dead data).
  */
-export const HIGHLIGHT_TARGET_FIELDS = Object.freeze({
+const HIGHLIGHT_TARGET_FIELDS = Object.freeze({
   narrative: Object.freeze(["result", "action"]),
   hook: Object.freeze(["hookText"]),
 });
