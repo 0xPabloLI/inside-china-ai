@@ -35,6 +35,17 @@ CONTROL_URL = r'''__CONTROL_URL__'''
 LIVE_IDLE_TIMEOUT_SEC = int(r'''__LIVE_IDLE_TIMEOUT_SEC__''')
 LIVE_CONTROL_POLL_SEC = int(r'''__LIVE_CONTROL_POLL_SEC__''')
 EXPECTED_WHEELHOUSE = json.loads(r'''__EXPECTED_WHEELHOUSE__''')
+# #1520: preinstalled site-packages dataset. Empty manifest means the repo has
+# not published one yet — the kernel then stays on the wheelhouse install.
+EXPECTED_SITE_PACKAGES = json.loads(r'''__EXPECTED_SITE_PACKAGES__''')
+# Build mode: install into this directory and exit before model load. The
+# dataset builder sets it; production never does.
+BUILD_SITE_PACKAGES_TARGET = os.environ.get("COSYVOICE3_SITE_PACKAGES_TARGET", "").strip()
+# Build mode installs through the builder's venv pip, not the kernel
+# interpreter: a venv is the only way pip sees the packages it has already
+# installed and can downgrade a conflicting transitive pin (numba 0.61.2 vs the
+# 0.68 that librosa pulled). `--target` silently skips those replacements.
+BUILD_SITE_PACKAGES_PYTHON = os.environ.get("COSYVOICE3_BUILD_PYTHON", "").strip()
 
 # ── Whole-kernel wall-clock self-termination (#1354) ──────────────────────
 # The inference child already has load/synthesis budgets, but a hang *before*
@@ -97,8 +108,187 @@ log(
     f"(heartbeat every {KERNEL_HEARTBEAT_SEC}s)"
 )
 
+# ── #1520: mounted site-packages fast path ────────────────────────────────
+# The wheelhouse install re-extracts ~3.7GB of torch + nvidia wheels into the
+# container on every cold run (211–309s of the kernel's 405s). The dataset
+# carries one preinstalled tree instead; this block mounts it before the first
+# `import torch`, so the install is skipped entirely. A missing mount, a
+# manifest that does not match git, or an import that resolves outside the
+# mount all fall back to the historical wheelhouse install — the fast path
+# must never be able to break a run.
+SITE_PACKAGES_ACTIVE = False
+
+
+def _find_dataset_mount(slug):
+    """Kaggle mount layout differs by image; mirror the kernel's other lookups."""
+    import glob
+
+    for c in (f"/kaggle/input/{slug}", f"/kaggle/input/datasets/xpabloli/{slug}"):
+        if os.path.isdir(c):
+            return c
+    hits = glob.glob(f"/kaggle/input/**/{slug}", recursive=True)
+    return hits[0] if hits else None
+
+
+def _site_packages_problems(mount, expected):
+    """Reasons the mounted tree is not the set this repo froze (#1520).
+
+    The dataset version cannot be pinned (#521), so `site-packages-manifest.json`
+    is the record git keeps: exact distribution names/versions plus the archive
+    size. Names and versions catch a rebuilt environment; the size catches the
+    common re-upload where every dist-info string survives but the bytes change.
+    """
+    problems = []
+    if not expected.get("dists"):
+        return ["the committed site-packages manifest lists no distributions"]
+    manifest_path = os.path.join(mount, "manifest.json")
+    if not os.path.exists(manifest_path):
+        return ["manifest.json missing from the mount"]
+    try:
+        with open(manifest_path) as f:
+            mounted = json.load(f)
+    except Exception as exc:
+        return [f"manifest.json unreadable: {exc}"]
+
+    want = expected.get("dists") or {}
+    have = mounted.get("dists") or {}
+    missing = sorted(set(want) - set(have))
+    extra = sorted(set(have) - set(want))
+    changed = sorted(n for n in set(want) & set(have) if want[n] != have[n])
+    if missing:
+        problems.append(f"missing distributions: {missing[:5]}")
+    if extra:
+        problems.append(f"unexpected distributions: {extra[:5]}")
+    if changed:
+        problems.append(f"different versions: {[(n, have[n], want[n]) for n in changed[:5]]}")
+
+    unpacked = os.path.join(mount, "site-packages")
+    archives = [
+        ("site-packages.tar.zst", os.path.join(mount, "site-packages.tar.zst")),
+        ("site-packages.tar", os.path.join(mount, "site-packages.tar")),
+    ]
+    # Kaggle expands plain archives on upload: a flat tar lands its contents
+    # directly in the mount, so the mount itself is the tree.
+    flattened = os.path.isdir(os.path.join(mount, "torch"))
+    if os.path.isdir(unpacked) or flattened:
+        # Kaggle unpacked the archive on mount; the manifest still guards the set.
+        pass
+    else:
+        archive = next((entry for entry in archives if os.path.exists(entry[1])), None)
+        if not archive:
+            problems.append(
+                "neither site-packages/ nor site-packages.tar(.zst) is mounted"
+            )
+        else:
+            name, path = archive
+            want_bytes = expected.get("tarBytes")
+            if want_bytes and os.path.getsize(path) != want_bytes:
+                problems.append(
+                    f"{name} is {os.path.getsize(path)} bytes, "
+                    f"the manifest records {want_bytes}"
+                )
+    return problems
+
+
+def _activate_site_packages():
+    """Return a verified site-packages path, or None to keep the install path."""
+    mount = _find_dataset_mount("cosyvoice3-site-packages")
+    if not mount:
+        log("site-packages mount missing — falling back to wheelhouse install")
+        return None
+    problems = _site_packages_problems(mount, EXPECTED_SITE_PACKAGES)
+    if problems:
+        log("site-packages mount rejected:")
+        for p in problems[:6]:
+            log(f"  {p}")
+        return None
+
+    unpacked = os.path.join(mount, "site-packages")
+    if os.path.isdir(unpacked):
+        target = unpacked
+        log(f"site-packages mount found (unpacked): {mount}")
+    elif os.path.isdir(os.path.join(mount, "torch")):
+        target = mount
+        log(f"site-packages mount found (flattened): {mount}")
+    else:
+        target = "/tmp/cosyvoice3-site-packages"
+        if not (os.path.isdir(target) and os.listdir(target)):
+            os.makedirs(target, exist_ok=True)
+            t0 = time.time()
+            zst = os.path.join(mount, "site-packages.tar.zst")
+            tar_path = os.path.join(mount, "site-packages.tar")
+            try:
+                if os.path.exists(zst):
+                    # The dataset keeps one .tar.zst file so Kaggle never
+                    # expands 112 dists into tens of thousands of files. The
+                    # image ships `zstandard` (probed 2026-11-23); a plain tar
+                    # stays supported for an older dataset version.
+                    import tarfile, zstandard
+
+                    with open(zst, "rb") as raw:
+                        with zstandard.ZstdDecompressor().stream_reader(raw) as reader:
+                            with tarfile.open(fileobj=reader, mode="r|") as archive:
+                                archive.extractall(target, filter="data")
+                else:
+                    subprocess.run(
+                        ["tar", "-xf", tar_path, "-C", target],
+                        check=True,
+                        timeout=900,
+                    )
+            except Exception as exc:
+                log(f"site-packages archive unpack failed: {exc}")
+                return None
+            # The archive carries one top-level `site-packages/` directory so
+            # the dataset stays tidy; unwrap it before probing.
+            wrapped = os.path.join(target, "site-packages")
+            if os.path.isdir(wrapped):
+                target = wrapped
+            log(f"site-packages archive unpacked in {time.time() - t0:.1f}s -> {target}")
+        else:
+            log("site-packages already unpacked in this container")
+
+    # Prove the tree is self-sufficient before touching the main process. The
+    # main interpreter already has the Kaggle image's site-packages on
+    # sys.path, so only a `-S` child can tell a working mount from a partial
+    # import that merely borrowed the image's torch.
+    probe = (
+        "import sys; "
+        f"sys.path.insert(0, {target!r}); "
+        "import torch; print(torch.__file__)"
+    )
+    try:
+        r = subprocess.run(
+            [sys.executable, "-S", "-c", probe],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except Exception as exc:
+        log(f"site-packages probe failed: {exc}")
+        return None
+    if r.returncode != 0:
+        log("site-packages probe failed — the mount cannot import torch on its own:")
+        log((r.stderr or r.stdout or "")[-500:])
+        return None
+    resolved = (r.stdout or "").strip().splitlines()[-1] if r.stdout.strip() else ""
+    if not os.path.realpath(resolved).startswith(os.path.realpath(target) + os.sep):
+        log(f"site-packages probe resolved torch outside the mount: {resolved}")
+        return None
+
+    sys.path.insert(0, target)
+    log(f"site-packages fast path active: torch from {resolved}")
+    return target
+
+
+_SITE_PACKAGES_TARGET = None if BUILD_SITE_PACKAGES_TARGET else _activate_site_packages()
+
 try:
     import torch
+    if _SITE_PACKAGES_TARGET and not os.path.realpath(torch.__file__).startswith(
+        os.path.realpath(_SITE_PACKAGES_TARGET) + os.sep
+    ):
+        raise RuntimeError(f"torch resolved outside the site-packages mount: {torch.__file__}")
+    SITE_PACKAGES_ACTIVE = _SITE_PACKAGES_TARGET is not None
     log(f"torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}")
     if torch.cuda.is_available():
         log(f"GPU: {torch.cuda.get_device_name(0)}, CUDA: {torch.version.cuda}")
@@ -106,7 +296,8 @@ except Exception as e:
     log(f"ERROR torch: {e}"); traceback.print_exc(); sys.exit(1)
 
 _set_phase("deps")
-log("\n=== Installing deps ===")
+if not SITE_PACKAGES_ACTIVE:
+    log("\n=== Installing deps ===")
 
 # #231: pre-frozen wheels dataset (xpabloli/cosyvoice3-wheels) makes the
 # dependency install offline and drift-immune — pip resolves strictly from
@@ -253,18 +444,31 @@ def _pip_install(args, online_extra=None):
     sdist-only packages (pyworld, wget, antlr4-python3-runtime, openai-whisper)
     into wheels first, because Kaggle unpacks archives inside a dataset and a
     mounted sdist would arrive as a directory that --find-links cannot see.
+
+    Three modes:
+      - site-packages mount active: every install is already in the tree, so
+        this is a no-op and the subsequent import checks do the verification;
+      - build mode: install into BUILD_SITE_PACKAGES_TARGET (#1520 dataset build);
+      - default: install into the container (historical path).
     """
+    if SITE_PACKAGES_ACTIVE:
+        return
+    exe = BUILD_SITE_PACKAGES_PYTHON or sys.executable
     if _WHEELS_DIR:
         cmd = [
-            sys.executable, "-m", "pip", "install", "-q",
+            exe, "-m", "pip", "install", "-q",
             "--no-index", "--find-links", _WHEELS_DIR,
         ] + list(args)
     else:
-        cmd = [sys.executable, "-m", "pip", "install", "-q"] + list(online_extra or []) + list(args)
+        cmd = [exe, "-m", "pip", "install", "-q"] + list(online_extra or []) + list(args)
     subprocess.run(cmd, check=True)
 
 
-if _WHEELS_DIR:
+if SITE_PACKAGES_ACTIVE:
+    log("site-packages mount active — skipping pip install entirely")
+elif BUILD_SITE_PACKAGES_TARGET:
+    log(f"site-packages build mode — installing into {BUILD_SITE_PACKAGES_TARGET}")
+elif _WHEELS_DIR:
     log(f"wheels dataset mount found: {_WHEELS_MOUNT} — offline install mode")
 else:
     log("no cosyvoice3-wheels mount — online install (build the wheels dataset to freeze the deps)")
@@ -299,6 +503,10 @@ try:
         ]
     )
     log("Core deps OK")
+    # Build mode installs into a target directory, so the verification imports
+    # below must resolve from there instead of the image's site-packages.
+    if BUILD_SITE_PACKAGES_TARGET:
+        sys.path.insert(0, BUILD_SITE_PACKAGES_TARGET)
     # 2026-11-09: the plain pin above did not change the active version on the
     # current image (pip reported success, `diffusers` still imported a 1.x
     # huggingface_hub without `resolve_revision`). Force the wheel from the
@@ -317,10 +525,13 @@ try:
     # (Matcha -> decoder -> diffusers). diffusers is not in the frozen
     # wheelhouse, so install a same-era release from PyPI without touching its
     # deps (all of which are present already).
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-q", "--no-deps", "diffusers==0.32.2"],
-        check=True,
-    )
+    if not SITE_PACKAGES_ACTIVE:
+        diffusers_cmd = [
+            BUILD_SITE_PACKAGES_PYTHON or sys.executable,
+            "-m", "pip", "install", "-q", "--no-deps",
+        ]
+        diffusers_cmd += ["diffusers==0.32.2"]
+        subprocess.run(diffusers_cmd, check=True)
     import diffusers as _diff
     log(f"diffusers {_diff.__version__}")
     # pyworld has no Linux wheel on PyPI; the released cosyvoice3.yaml imports
@@ -339,7 +550,7 @@ try:
     import onnxruntime as ort
     providers = ort.get_available_providers()
     log(f"onnxruntime-gpu 1.20.0 OK (providers: {providers})")
-    if "CUDAExecutionProvider" not in providers:
+    if "CUDAExecutionProvider" not in providers and not BUILD_SITE_PACKAGES_TARGET:
         raise RuntimeError(f"FATAL: CUDAExecutionProvider not available in onnxruntime! Found: {providers}")
 except Exception as e:
     log(f"FATAL deps onnxruntime-gpu: {e}")
@@ -352,6 +563,33 @@ try:
     log("whisper (no-deps) + tiktoken + numba OK")
 except Exception as e:
     log(f"ERROR whisper: {e}")
+
+if BUILD_SITE_PACKAGES_TARGET:
+    # #1520 build mode: the dataset builder needs the exact environment the
+    # kernel would have installed, not a model. Record every distribution so
+    # the committed manifest can pin the mounted set, then stop before the
+    # CosyVoice clone and model load.
+    import importlib.metadata as _metadata
+
+    dists = {}
+    for dist in _metadata.distributions(path=[BUILD_SITE_PACKAGES_TARGET]):
+        name = (dist.metadata or {}).get("Name")
+        if not name:
+            continue
+        # pip is the venv's installer, not a runtime dependency of CosyVoice;
+        # its version would otherwise churn every rebuild for no benefit.
+        if name.strip().lower() == "pip":
+            continue
+        dists[name.strip().lower().replace("_", "-")] = dist.version
+    payload = {
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "platform": f"{sys.platform}_{platform.machine()}",
+        "dists": {name: dists[name] for name in sorted(dists)},
+    }
+    with open("/kaggle/working/site-packages-dists.json", "w") as f:
+        json.dump(payload, f, indent=2)
+    log(f"SITE_PACKAGES_BUILD_OK distributions={len(dists)}")
+    sys.exit(0)
 
 _set_phase("cosyvoice-source")
 log("\n=== Setting up CosyVoice source ===")
@@ -807,12 +1045,24 @@ SYNTH_PER_SEGMENT_SEC = 60
 deadline = [time.time() + LOAD_BUDGET_SEC]
 loaded = [False]
 
+# The inference worker is a fresh interpreter: sys.path changes in this
+# process do not cross the exec boundary. On the fast path the packages were
+# never installed into the image, so PYTHONPATH must carry the mounted tree or
+# the child dies at `from hyperpyyaml import ...` (2026-11-23 P100 run).
+_child_env = os.environ.copy()
+if _SITE_PACKAGES_TARGET:
+    prior = _child_env.get("PYTHONPATH")
+    _child_env["PYTHONPATH"] = (
+        _SITE_PACKAGES_TARGET + (":" + prior if prior else "")
+    )
+
 # capture_output=True discarded everything the child had already printed when
 # the timeout fired, so a 30-minute GPU run left one exception and no evidence
 # of which phase died (2026-10-20, twice). Stream it instead.
 proc = subprocess.Popen(
     [sys.executable, "/tmp/run_inference.py"],
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+    env=_child_env,
 )
 def _pump_output():
     for line in proc.stdout:

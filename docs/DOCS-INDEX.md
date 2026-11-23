@@ -312,6 +312,7 @@ Deep research reports with citations.
 | `tts-cold-run-trace-2026-11-22.md`                 | TTS 冷批四段取证（#1512）— 8 次冷跑/8 包对账：墙钟中位 1023 s 中内核 405 s（42%）、下载后本地尾巴 573 s（56%）、下载 13 s、排队 0；内核内部依赖导入占 78%、模型加载 12%、合成 6%；本地尾巴无子步计时且跨包 2.4× 波动 → 「常驻 kernel/预热镜像」上限仅 ~25%；另记 anthropic-ipo 30.4 min / tencent-hy4 40.4 min 卡排队未跑 |
 | `tts-step1-substep-timing-2026-11-23.md`             | `step-1-tts` 八子步实测（#1514）— 4 包/9 次冷内核 + 1 次热跑，子步和误差 ≤0.2%：本地机械合计 ~60 s（门 41.5 s、对齐 10.8–16.4 s、响度 3.4–4.2 s、plan+write <50 ms），尾巴大头是门内重试重付完整冷启（agnes 406.3+333.5 s = 58%）；setup 摊薄在内核尺度上失效、在对齐尺度上是噪声 → 下一步 #1515 常驻内核复用重试（每次省 300–400 s） |
 | `tts-live-kernel-reuse-2026-11-23.md`                | 常驻内核复用实测（#1515）— 2 包/3 次真实重试 63.9/67.6/71.5 s（中位 67.6 s，较 406.3/333.5 s 省 82–84%）；冷启仍 351 s（4 scene，一次 push，排队 0）；gist 传播 26.6 s + 10 s 轮询是 60 s 下限；含协议、FLAC/PCM 双哈希取证、队列/空闲/secret gist 边界与复现命令 |
+| `tts-site-packages-2026-11-23.md`                    | 预装 site-packages 数据集实测（#1520）— 112 个 dist 装进 venv 后打成单文件 `.tar.zst`（2.88 GB，构建 258 s）；内核在 `import torch` 前校验 manifest、用 `zstandard` 流式解压、`python -S` 探针确认自足后跳过全部 pip；挂载缺失/manifest 漂移/解包失败均回落 wheelhouse；含构建、协议、真实冷启数据与复现 |
 
 ## Spec/Ticket/Review Lifecycle
 
