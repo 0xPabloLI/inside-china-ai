@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.106.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.105.0...tanstack_start_ts-v1.106.0) (2026-11-23)
+
+
+### Features
+
+* **tts:** step-1-tts 八子步计时，实测重试冷启占尾巴 58%（[#1514](https://github.com/0xPabloLI/inside-china-ai/issues/1514)） ([#1516](https://github.com/0xPabloLI/inside-china-ai/issues/1516)) ([ece93a4](https://github.com/0xPabloLI/inside-china-ai/commit/ece93a4c4c52b4110b262c3bb7675d9b99a46d80))
+
 ## [1.105.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.104.0...tanstack_start_ts-v1.105.0) (2026-11-22)
 
 
