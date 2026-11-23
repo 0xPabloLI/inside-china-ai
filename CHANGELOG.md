@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.107.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.106.0...tanstack_start_ts-v1.107.0) (2026-11-23)
+
+
+### Features
+
+* **tts:** reuse a warm Kaggle kernel for gate retries ([#1515](https://github.com/0xPabloLI/inside-china-ai/issues/1515)) ([#1518](https://github.com/0xPabloLI/inside-china-ai/issues/1518)) ([f21aa64](https://github.com/0xPabloLI/inside-china-ai/commit/f21aa64382166d6495e1d893557188f57bee14a5))
+
 ## [1.106.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.105.0...tanstack_start_ts-v1.106.0) (2026-11-23)
 
 
