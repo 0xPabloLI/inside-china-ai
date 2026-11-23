@@ -33,6 +33,7 @@
  */
 
 import { join } from "path";
+import { containedPath } from "../path-safety.mjs";
 import { createRegenStaging, acceptRegenTake, cleanupRegenStaging } from "./staging.mjs";
 import { hasAudioBytes } from "./audio-file.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
@@ -74,6 +75,51 @@ import {
   resolveSceneSpeed,
 } from "./pacing.mjs";
 import { DEFAULT_SILENCE_FLOOR_MS } from "./silence-trim.mjs";
+import { existsSync, readFileSync } from "fs";
+
+/**
+ * #1514: substep metering for `step-1-tts`.
+ *
+ * The outer span (main.mjs → prof) says a cold run's TTS took ~1000 s; this
+ * registry splits that span into plan / engine / post-process / verify /
+ * align / write so the next optimization has evidence instead of a residual.
+ * Everything here is inert without a profiler (tests, `--tts-plan`, direct
+ * API callers): no new I/O, no new artifacts, no behaviour change.
+ *
+ * The spans are non-overlapping by construction so their sum can be compared
+ * with the outer span (acceptance ≤5%). Two of them are derived, and their
+ * `meta` says so rather than pretending they were measured directly:
+ *   - `tts-engine` = wall around `engine.generate` MINUS the post-process
+ *     segment the engine reports back (`tts-loudness`);
+ *   - `tts-verify` = wall of the gate/pacing block MINUS the cache settle it
+ *     contains (`tts-write`).
+ */
+function nowMs() {
+  return performance.now();
+}
+
+/** `#1514` profiler seam: `record(name, durationMs, meta)` (see pipeline-profile). */
+function recordSpan(prof, name, durationMs, meta = {}) {
+  if (!prof || typeof prof.record !== "function") return;
+  prof.record(name, Math.max(0, Math.round(durationMs)), meta);
+}
+
+/**
+ * Read the Kaggle poll meter (`audio/.kaggle-kernel/poll-status.json`), the
+ * same file `#1512` used for the queue/kernel split. Absent for local engines
+ * and for cache hits — a null answer is not an error.
+ */
+function readKagglePollMeter(outputDir) {
+  try {
+    const statusPath = containedPath(outputDir, ".kaggle-kernel", "poll-status.json");
+    if (!existsSync(statusPath)) return null;
+    const status = JSON.parse(readFileSync(statusPath, "utf8"));
+    const num = (v) => (Number.isFinite(v) ? v : null);
+    return { queuedMs: num(status.queuedMs), kernelMs: num(status.runningMs) };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Engine factory map. Keys are both the canonical name and TTS_ENGINE aliases.
@@ -158,7 +204,17 @@ export async function selectEngine() {
  * @returns {Promise<TTSResult[]>}
  */
 export async function generateTTS(scenes, outputDir, options = {}) {
-  const engine = await selectEngine();
+  // #1514: engine selection probes local CLIs and can cost seconds on a warm
+  // cache hit (where nothing else is left to blame). Metered so the substep
+  // sum can reconcile with the outer span on replay runs too.
+  const tprof = options.prof ?? null;
+  const selectStartMs = nowMs();
+  let engine;
+  try {
+    engine = await selectEngine();
+  } finally {
+    recordSpan(tprof, "tts-select", nowMs() - selectStartMs, { track: "voice" });
+  }
   return generateTTSWithEngine(scenes, outputDir, engine, options);
 }
 
@@ -492,7 +548,7 @@ async function finalizeTtsResults(
   cachedResults,
   verifiedResults,
   outputDir,
-  { runAlignment, useCache, keyEntities = null },
+  { runAlignment, useCache, keyEntities = null, prof = null },
 ) {
   // Reassemble in scene order; drop scenes the engine skipped.
   const byId = new Map(verifiedResults.map((r) => [r.sceneId, r]));
@@ -505,41 +561,53 @@ async function finalizeTtsResults(
 
   // Run subtitle alignment for accurate timing
   if (runAlignment) {
-    const alignment = await runForcedAlignment(scenes, merged, outputDir, { keyEntities });
-    // #423: the tail-cut guard trims approved audio in place — re-bind those
-    // entries to the bytes actually on disk, or every later run would demote
-    // the scene to a candidate over the pipeline's own cut. Unverified takes
-    // (skip-gate runs) get the same treatment on their sidecar so the next
-    // run measures WPM against the bytes it will re-verify.
-    const cuts = alignment?.guards?.cuts ?? [];
-    if (useCache && cuts.length > 0) {
-      const cutIds = new Set(cuts.map((c) => c.sceneId));
-      for (const r of merged) {
-        if (!cutIds.has(r.sceneId)) continue;
-        if (!refreshApprovedSceneMeta(outputDir, r.sceneId, { duration: r.duration })) {
-          refreshCandidateSceneMeta(outputDir, r.sceneId, { duration: r.duration });
+    // #1514: the alignment tail is one python process for the whole batch, so
+    // its model load amortizes across scenes — `tts-align` is that span, and
+    // post-process also reports the script/guards split underneath it.
+    const alignStartMs = nowMs();
+    try {
+      const alignment = await runForcedAlignment(scenes, merged, outputDir, { keyEntities, prof });
+      // #423: the tail-cut guard trims approved audio in place — re-bind those
+      // entries to the bytes actually on disk, or every later run would demote
+      // the scene to a candidate over the pipeline's own cut. Unverified takes
+      // (skip-gate runs) get the same treatment on their sidecar so the next
+      // run measures WPM against the bytes it will re-verify.
+      const cuts = alignment?.guards?.cuts ?? [];
+      if (useCache && cuts.length > 0) {
+        const cutIds = new Set(cuts.map((c) => c.sceneId));
+        for (const r of merged) {
+          if (!cutIds.has(r.sceneId)) continue;
+          if (!refreshApprovedSceneMeta(outputDir, r.sceneId, { duration: r.duration })) {
+            refreshCandidateSceneMeta(outputDir, r.sceneId, { duration: r.duration });
+          }
         }
       }
-    }
-    // #232: guards log per-scene detail during alignment; aggregate one line
-    // at generation end so the HITL listening pass knows which scenes to
-    // spot-check (crushed words) and that tail cuts were applied.
-    const guards = alignment?.guards;
-    if (
-      guards &&
-      (guards.cuts.length > 0 ||
-        guards.crushedWords.length > 0 ||
-        (guards.refusedCuts?.length ?? 0) > 0)
-    ) {
-      const crushedScenes = [...new Set(guards.crushedWords.map((w) => w.sceneId))];
-      console.log(
-        `  🛡️ Alignment guards (#232): ${guards.cuts.length} tail cut(s), ` +
-          `${guards.crushedWords.length} crushed word(s)` +
-          (guards.refusedCuts?.length
-            ? `, ${guards.refusedCuts.length} cut(s) refused by read-back`
-            : "") +
-          (crushedScenes.length ? ` — spot-check scene(s) ${crushedScenes.join(", ")}` : ""),
-      );
+      // #232: guards log per-scene detail during alignment; aggregate one line
+      // at generation end so the HITL listening pass knows which scenes to
+      // spot-check (crushed words) and that tail cuts were applied.
+      const guards = alignment?.guards;
+      if (
+        guards &&
+        (guards.cuts.length > 0 ||
+          guards.crushedWords.length > 0 ||
+          (guards.refusedCuts?.length ?? 0) > 0)
+      ) {
+        const crushedScenes = [...new Set(guards.crushedWords.map((w) => w.sceneId))];
+        console.log(
+          `  🛡️ Alignment guards (#232): ${guards.cuts.length} tail cut(s), ` +
+            `${guards.crushedWords.length} crushed word(s)` +
+            (guards.refusedCuts?.length
+              ? `, ${guards.refusedCuts.length} cut(s) refused by read-back`
+              : "") +
+            (crushedScenes.length ? ` — spot-check scene(s) ${crushedScenes.join(", ")}` : ""),
+        );
+      }
+    } finally {
+      recordSpan(prof, "tts-align", nowMs() - alignStartMs, {
+        track: "voice",
+        scenes: merged.length,
+        note: "alignment tail incl. guards; script/guards split recorded underneath",
+      });
     }
   }
 
@@ -569,6 +637,17 @@ export function isFakeEngine(engine) {
  */
 export async function generateTTSWithEngine(scenes, outputDir, engine, options = {}) {
   const { useCache = ttsCacheEnabled(), runAlignment = true } = options;
+  // #1514: opt-in substep metering. Absent for every caller that does not
+  // bring a profiler (tests, --tts-plan, direct API use) — no new overhead.
+  const tprof = options.prof ?? null;
+  const voice = { track: "voice" };
+  /** Wall around the cache plan, closed before the full-cache-hit early return. */
+  const planStartMs = nowMs();
+  /** Wall around the primary batch, and the post-process segment it reports. */
+  let engineWallMs = 0;
+  let loudnessMs = 0;
+  /** Wall of the gate's regeneration rounds (self-heal + pacing), not verify. */
+  let retryEngineMs = 0;
 
   const atempo = getAtempo();
   // #270: hand the Quality Gate the SELECTED engine's instruct resolver so it
@@ -659,6 +738,13 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   const cachedPacing = skipQualityGate ? null : await planCachedPacing(scenes, cachedResults);
   const cachedNeedsRepair =
     !!cachedPacing && (cachedPacing.compensations.length > 0 || cachedPacing.rerolls.length > 0);
+  recordSpan(tprof, "tts-plan", nowMs() - planStartMs, {
+    ...voice,
+    scenes: scenes.length,
+    cacheHits: cachedResults.length,
+    candidates: candidateResults.length,
+    pending: toGenerate.length,
+  });
 
   if (verifyScenes.length === 0 && !cachedNeedsRepair) {
     // #421: full cache hit — skip generation AND re-verification, but route
@@ -669,6 +755,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       runAlignment,
       useCache,
       keyEntities: qualityGateOptions.keyEntities,
+      prof: tprof,
     });
   }
 
@@ -685,8 +772,30 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     const spendReport = buildTtsPlan({ engine, scenes, plan, useCache });
     for (const line of formatPendingGenerationLog(spendReport)) console.log(line);
   }
-  const generatedResults =
-    toGenerate.length > 0 ? await engine.generate(toGenerate, outputDir) : [];
+  let generatedResults = [];
+  if (toGenerate.length > 0) {
+    const engineStartMs = nowMs();
+    generatedResults = await engine.generate(toGenerate, outputDir, {
+      // #1514: the engine reports its own local post-process segment back, so
+      // the remainder (push / queue / kernel / download) can be stated as its
+      // own span instead of being folded into "engine returned".
+      onSpan: (name, durationMs) => {
+        if (name === "tts-loudness") loudnessMs += durationMs;
+      },
+    });
+    engineWallMs = nowMs() - engineStartMs;
+    const meter = readKagglePollMeter(outputDir);
+    const engineExclusiveMs = engineWallMs - loudnessMs;
+    recordSpan(tprof, "tts-engine", engineExclusiveMs, {
+      ...voice,
+      scenes: toGenerate.length,
+      derivation: "engine wall − post-process",
+      engineWallMs: Math.round(engineWallMs),
+      queueMs: meter?.queuedMs ?? null,
+      kernelMs: meter?.kernelMs ?? null,
+    });
+    recordSpan(tprof, "tts-loudness", loudnessMs, { ...voice, scenes: toGenerate.length });
+  }
 
   // ── Step: TTS Quality Gate & Self-Healing Loop (#225, #230) ──
   // Candidates join the same verification path as fresh takes: their audio
@@ -793,6 +902,27 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   // audio after paying to regenerate it.
   const dropCachedHit = (sceneId) => {
     cachedResults = cachedResults.filter((r) => r.sceneId !== sceneId);
+  };
+
+  /**
+   * #1514: regenerate a scene batch inside the gate loop (self-heal / pacing)
+   * with the same metering as the primary round. `tts-engine-retry` is
+   * subtracted from `tts-verify`, or a run whose gate bought a second cold
+   * kernel would report that kernel's minutes as verification cost.
+   */
+  const runRetryBatch = async (batch) => {
+    const startMs = nowMs();
+    try {
+      return await batch;
+    } finally {
+      const wallMs = nowMs() - startMs;
+      retryEngineMs += wallMs;
+      recordSpan(tprof, "tts-engine-retry", wallMs, {
+        ...voice,
+        engineWallMs: Math.round(wallMs),
+        note: "gate-loop regeneration batch (wall incl. engine post-process)",
+      });
+    }
   };
 
   /**
@@ -932,7 +1062,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       const pacingStaging = createRegenStaging(outputDir);
       try {
         try {
-          regenResults = await engine.generate(regenScenes, pacingStaging);
+          regenResults = await runRetryBatch(engine.generate(regenScenes, pacingStaging));
         } catch (err) {
           console.warn(`  ⚠️ [Pacing Loop] Regeneration error: ${err.message}`);
         }
@@ -1331,6 +1461,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   };
 
   if (!skipQualityGate) {
+    // #1514: `tts-verify` = this block minus the cache settle it owns; the
+    // settle is recorded as `tts-write`. Both close in the block's finally so
+    // an aborted run (hard block / gate error) still shows where time went.
+    const verifyStartMs = nowMs();
+    let cacheWriteMs = 0;
     try {
       const { runTtsQualityGate } = await import("./quality-gate.mjs");
       gateReport = await runTtsQualityGate(verifyScenes, validatedResults, qualityGateOptions);
@@ -1368,7 +1503,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         const retryStaging = createRegenStaging(outputDir);
         try {
           try {
-            retryResults = await engine.generate(retryScenes, retryStaging);
+            retryResults = await runRetryBatch(engine.generate(retryScenes, retryStaging));
           } catch (err) {
             console.warn(`  ⚠️ Retry generation error: ${err.message}`);
           }
@@ -1491,11 +1626,29 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // success path and on every abort path (hard block, unexpected error).
       // A run that dies after paying for GPU takes must leave them
       // re-verifiable, never invisible.
+      // #1514: the settle is the `tts-write` substep, not part of verify.
+      const settleStartMs = nowMs();
       try {
         settleTakes();
       } catch (err) {
         console.warn(`  ⚠️ TTS cache settle failed: ${err.message}`);
+      } finally {
+        cacheWriteMs = nowMs() - settleStartMs;
       }
+      recordSpan(tprof, "tts-verify", nowMs() - verifyStartMs - cacheWriteMs - retryEngineMs, {
+        ...voice,
+        scenes: verifyScenes.length,
+        attempts: attempt,
+        cachedCandidates: candidateResults.length,
+        retryEngineMs: Math.round(retryEngineMs),
+        derivation: "gate block wall − cache settle − regeneration batches",
+      });
+      recordSpan(tprof, "tts-write", cacheWriteMs, {
+        ...voice,
+        scenes: validatedResults.length,
+        writes: validatedResults.length,
+        note: "cache sidecar settle only; audio materialization happens after step-1-tts",
+      });
     }
   }
 
@@ -1509,10 +1662,20 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   // on an incomplete run, and a skip-gate run that aborts there must still
   // leave the takes it paid for re-verifiable, not meta-less.
   if (skipQualityGate) {
+    const settleStartMs = nowMs();
     try {
       settleTakesAsCandidates("gate-skipped");
     } catch (err) {
       console.warn(`  ⚠️ TTS cache settle failed: ${err.message}`);
+    } finally {
+      // #1514: a skip-gate run has no verify substep; its whole local tail is
+      // the candidate settle, recorded here so the sum still reconciles.
+      recordSpan(tprof, "tts-write", nowMs() - settleStartMs, {
+        ...voice,
+        scenes: validatedResults.length,
+        writes: validatedResults.length,
+        note: "skip-gate candidate settle",
+      });
     }
   }
 
@@ -1542,5 +1705,6 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     runAlignment,
     useCache,
     keyEntities: qualityGateOptions.keyEntities,
+    prof: tprof,
   });
 }
