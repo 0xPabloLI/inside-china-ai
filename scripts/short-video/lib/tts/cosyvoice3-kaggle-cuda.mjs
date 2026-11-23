@@ -2205,8 +2205,10 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       const postStartMs = performance.now();
       try {
         for (const s of promotable) {
-          const srcPath = join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output);
-          const destPath = join(outputDir, s.output);
+          // containedPath (#758): kernel output names are external data; the
+          // taint rule cannot see that a bare join stays inside its root.
+          const srcPath = containedPath(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output);
+          const destPath = containedPath(outputDir, s.output);
           copyFileSync(srcPath, destPath);
 
           // Rubberband prosody OFF by default: the user-approved P100 samples

@@ -33,6 +33,7 @@
  */
 
 import { join } from "path";
+import { containedPath } from "../path-safety.mjs";
 import { createRegenStaging, acceptRegenTake, cleanupRegenStaging } from "./staging.mjs";
 import { hasAudioBytes } from "./audio-file.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
@@ -110,9 +111,9 @@ function recordSpan(prof, name, durationMs, meta = {}) {
  */
 function readKagglePollMeter(outputDir) {
   try {
-    const path = join(outputDir, ".kaggle-kernel", "poll-status.json");
-    if (!existsSync(path)) return null;
-    const status = JSON.parse(readFileSync(path, "utf8"));
+    const statusPath = containedPath(outputDir, ".kaggle-kernel", "poll-status.json");
+    if (!existsSync(statusPath)) return null;
+    const status = JSON.parse(readFileSync(statusPath, "utf8"));
     const num = (v) => (Number.isFinite(v) ? v : null);
     return { queuedMs: num(status.queuedMs), kernelMs: num(status.runningMs) };
   } catch {
