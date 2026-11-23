@@ -1996,7 +1996,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
     // not replay them. Also the seam the Quality Gate re-validates through.
     instructForScene: resolveInstructForScene,
 
-    async generate(scenes, outputDir) {
+    async generate(scenes, outputDir, hooks = {}) {
       // Kernel slug resolved per call (#267): env override > content-id
       // derivation (output/<pipelineId>/audio) > fail-fast. Never a shared
       // default — same slug overwrite, not queue (#250).
@@ -2199,29 +2199,37 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       process.env.TTS_DENOISE = "0";
 
       const finalResults = [];
-      for (const s of promotable) {
-        const srcPath = join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output);
-        const destPath = join(outputDir, s.output);
-        copyFileSync(srcPath, destPath);
+      // #1514: the local post-process segment is reported back to the registry
+      // so the `step-1-tts` split can name it (`tts-loudness`) instead of
+      // folding it into "engine returned". Inert when no hook is passed.
+      const postStartMs = performance.now();
+      try {
+        for (const s of promotable) {
+          const srcPath = join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output);
+          const destPath = join(outputDir, s.output);
+          copyFileSync(srcPath, destPath);
 
-        // Rubberband prosody OFF by default: the user-approved P100 samples
-        // were plain instruct2 output. Pitch/tempo shifting audibly changes
-        // timbre (hook accent drift, CTA mismatch vs approved baseline).
-        // Opt back in with TTS_PROSODY=1; global pace stays available via
-        // TTS_ATEMPO (post-process.mjs) without touching pitch.
-        const scene = scenes.find((sc) => sc.id === s.sceneId);
-        const prosody =
-          process.env.TTS_PROSODY === "1" && scene
-            ? getProsodyProfile(scene.refStyle || scene.visualType)
-            : null;
-        const { duration } = await postProcess(destPath, {
-          useSilenceFilter: true,
-          silenceFloorMs,
-          resample: true,
-          prosody,
-        });
-        finalResults.push({ sceneId: s.sceneId, audioPath: destPath, duration });
-        console.log(`  Scene ${s.sceneId}: ${duration.toFixed(2)}s`);
+          // Rubberband prosody OFF by default: the user-approved P100 samples
+          // were plain instruct2 output. Pitch/tempo shifting audibly changes
+          // timbre (hook accent drift, CTA mismatch vs approved baseline).
+          // Opt back in with TTS_PROSODY=1; global pace stays available via
+          // TTS_ATEMPO (post-process.mjs) without touching pitch.
+          const scene = scenes.find((sc) => sc.id === s.sceneId);
+          const prosody =
+            process.env.TTS_PROSODY === "1" && scene
+              ? getProsodyProfile(scene.refStyle || scene.visualType)
+              : null;
+          const { duration } = await postProcess(destPath, {
+            useSilenceFilter: true,
+            silenceFloorMs,
+            resample: true,
+            prosody,
+          });
+          finalResults.push({ sceneId: s.sceneId, audioPath: destPath, duration });
+          console.log(`  Scene ${s.sceneId}: ${duration.toFixed(2)}s`);
+        }
+      } finally {
+        hooks?.onSpan?.("tts-loudness", performance.now() - postStartMs);
       }
 
       if (finalResults.length === 0) {

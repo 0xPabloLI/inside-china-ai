@@ -310,6 +310,7 @@ Deep research reports with citations.
 | `short-monetization-path-research.md`              | 视频号/微信生态「变现路径短」赛道深研（2026-11-12，web deep research 6 相）— 收益/分成数字为方向性参考，非审计级 |
 | `xhs-product-selection.md`                         | 小红书买手带货选品清单与打分表（2026-11-13）— 0 粉起步 CPS 路径的类目画像与打分维度，单品需实时核佣金 |
 | `tts-cold-run-trace-2026-11-22.md`                 | TTS 冷批四段取证（#1512）— 8 次冷跑/8 包对账：墙钟中位 1023 s 中内核 405 s（42%）、下载后本地尾巴 573 s（56%）、下载 13 s、排队 0；内核内部依赖导入占 78%、模型加载 12%、合成 6%；本地尾巴无子步计时且跨包 2.4× 波动 → 「常驻 kernel/预热镜像」上限仅 ~25%；另记 anthropic-ipo 30.4 min / tencent-hy4 40.4 min 卡排队未跑 |
+| `tts-step1-substep-timing-2026-11-23.md`             | `step-1-tts` 八子步实测（#1514）— 4 包/9 次冷内核 + 1 次热跑，子步和误差 ≤0.2%：本地机械合计 ~60 s（门 41.5 s、对齐 10.8–16.4 s、响度 3.4–4.2 s、plan+write <50 ms），尾巴大头是门内重试重付完整冷启（agnes 406.3+333.5 s = 58%）；setup 摊薄在内核尺度上失效、在对齐尺度上是噪声 → 下一步 #1515 常驻内核复用重试（每次省 300–400 s） |
 
 ## Spec/Ticket/Review Lifecycle
 

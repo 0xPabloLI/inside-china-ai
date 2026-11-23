@@ -413,8 +413,13 @@ async function main() {
     {
       name: "step-1-tts",
       // #689: the gate may only near-miss-rescue names the author declared.
+      // #1514: the profiler rides along so the span carries its own substeps
+      // (plan / engine / post-process / verify / align / write) in profile-*.json.
       fn: () =>
-        generateTTS(scenes, ttsCacheDir, { qualityGateOptions: { keyEntities: meta.keyEntities } }),
+        generateTTS(scenes, ttsCacheDir, {
+          qualityGateOptions: { keyEntities: meta.keyEntities },
+          prof,
+        }),
       meta: { track: "voice" },
     },
   ]);

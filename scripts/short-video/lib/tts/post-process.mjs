@@ -30,6 +30,13 @@ import {
   verifySilenceFloor,
 } from "./silence-trim.mjs";
 import { runAlignmentGuards } from "./alignment-guards.mjs";
+
+/** #1514: optional substep metering (a no-op without the pipeline profiler). */
+function recordSpan(prof, name, durationMs, meta = {}) {
+  if (!prof || typeof prof.record !== "function") return;
+  prof.record(name, Math.max(0, Math.round(durationMs)), meta);
+}
+
 import { splitDigitUnits } from "../normalize-tts-text.mjs";
 import { computeAlignmentSignature, alignmentCacheState, writeAlignmentMeta } from "./cache.mjs";
 import { offlineEnvPrefix } from "./offline-env.mjs";
@@ -400,7 +407,7 @@ export async function postProcessBatch(audioPath, opts = {}) {
  * @returns {Promise<{skipped: boolean, reason?: string}>}
  */
 export async function runForcedAlignment(scenes, ttsResults, outputDir, options = {}) {
-  const { force = false, keyEntities = null } = options;
+  const { force = false, keyEntities = null, prof = null } = options;
   const alignScript = join(ROOT_DIR, "text-align.py");
 
   if (!force) {
@@ -435,10 +442,21 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
   writeFileSync(manifestPath, JSON.stringify(manifest));
 
   try {
-    await execAsync(
-      `${offlineEnvPrefix({ transformers: true })} ~/.video-tts-env/bin/python3 "${alignScript}" ` +
-        `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
-    );
+    // #1514: one python process serves every scene, so the wav2vec2 model
+    // load is paid once per batch — this span is the amortizable part.
+    const scriptStartMs = performance.now();
+    try {
+      await execAsync(
+        `${offlineEnvPrefix({ transformers: true })} ~/.video-tts-env/bin/python3 "${alignScript}" ` +
+          `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
+      );
+    } finally {
+      recordSpan(prof, "tts-align-script", performance.now() - scriptStartMs, {
+        track: "voice",
+        scenes: ttsResults.length,
+        note: "text-align.py batch (model load amortized across scenes)",
+      });
+    }
     // Map spoken-form words back to display tokens (V four point one → V4.1)
     // BEFORE persisting, so every downstream consumer (buildCues, verify,
     // repair paths) reads display-correct timing.
@@ -454,7 +472,19 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
     // back before it is committed (#232 verified-cut); `keyEntities` rides
     // along so that read-back recognises the same declared names the gate
     // does — it is the only option that changes a verdict (#827).
-    const guards = await runAlignmentGuards(ttsResults, timingData, scenes, { keyEntities });
+    // #1514: measured separately — the read-back re-runs the gate per scene and
+    // is the part that scales with scene count instead of amortizing.
+    const guardsStartMs = performance.now();
+    let guards;
+    try {
+      guards = await runAlignmentGuards(ttsResults, timingData, scenes, { keyEntities });
+    } finally {
+      recordSpan(prof, "tts-align-guards", performance.now() - guardsStartMs, {
+        track: "voice",
+        scenes: ttsResults.length,
+        note: "verified tail cut read-back (re-runs the gate)",
+      });
+    }
     writeFileSync(timingPath, JSON.stringify(restoreTimingTokens(timingData, scenes), null, 2));
     writeAlignmentMeta(outputDir, computeAlignmentSignature(scenes, ttsResults));
     console.log("  ✅ Subtitle timing saved (wav2vec2-large-960h-lv60-self aligned)");

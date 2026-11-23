@@ -83,14 +83,30 @@ export function createProfiler({
     open.set(name, { start: now(), meta });
   }
 
-  /** Stop timing a named step. Returns the duration, or null if unknown. */
-  function end(name) {
+  /**
+   * Stop timing a named step. Returns the duration, or null if unknown.
+   * `meta` (optional) merges into the record — used when the split of the span
+   * is only known at its end (e.g. the engine's queue/kernel breakdown read
+   * from poll-status.json after the batch returns, #1514).
+   */
+  function end(name, meta = {}) {
     const o = open.get(name);
     if (!o) return null;
     open.delete(name);
     const durationMs = now() - o.start;
-    steps.push({ name, startedAt: o.start, durationMs, ...o.meta });
+    steps.push({ name, startedAt: o.start, durationMs, ...o.meta, ...meta });
     return durationMs;
+  }
+
+  /**
+   * Record a span whose duration was measured elsewhere (e.g. a segment inside
+   * a callee that reports it back through a hook, or a derived remainder such
+   * as `engine wall − post-process`, #1514). Same `steps[]` shape, so a reader
+   * cannot tell a derived span from a `mark`/`end` one: put the derivation in
+   * `meta` (`derivation`, `engineWallMs`) instead of inventing a new file.
+   */
+  function record(name, durationMs, meta = {}) {
+    steps.push({ name, startedAt: now(), durationMs, ...meta });
   }
 
   /** Time an async fn: `const r = await prof.wrap("name", fn, meta?)`. */
@@ -202,5 +218,5 @@ export function createProfiler({
     console.log(`   TOTAL: ${(totalMs() / 1000).toFixed(1)}s\n`);
   }
 
-  return { mark, end, wrap, runParallel, steps, write, summary, totalMs };
+  return { mark, end, wrap, record, runParallel, steps, write, summary, totalMs };
 }
