@@ -984,3 +984,27 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 **下沉的一句话档案（Round CCXXXI，原文）**：
 
 **Round CCXXXI**（`#1480` 行业知识层 S3 编辑层——hook 版式选版判据 + 跨期反重复
+
+## Round CCXXXVIII 下沉：`#733` 收口（2026-11-22）
+
+> **Last inventory**: 2026-11-22（**Round CCXXXVIII：`#733` 收口闭票**——underline 落 amber 4px（`ANNOTATION` 移入 tokens，14 tests）；S3 六类题材档（`NEWS_BEAT_TOPIC_PROFILES`、`--topics`/`--roles --topic`，33 tests，只重排 26 词）；`qwen4-max-release` 副本 `--highlight --write` 单行写回 `action/3 LAYERS COMPRESS` + T8 通过（PR #1509，squash `1177d19b`）。产品验证门：**有产出 diff（hook 下划线）**；无 shipped pack 新增 beats。frontier：③ 清空（仅 `#1472` 冻结）；1A/①②④ 空；`#228` 余 ②③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXVIII，原文）**：
+
+**Round CCXXXVIII**（`#733` 闭票——amber 4px underline + 六类题材档 + 真实 pack 写回；**有产出 diff（下划线）**；③ 清空，1A/①②④ 空）
+
+## Round CCXXXIX 下沉：`#1512` 立项（TTS 冷批四段取证，2026-11-22）
+
+> **Last inventory**: 2026-11-22（**Round CCXXXIX：`#1512` 立项——TTS 冷批四段取证**——近 9 天 25 次冷跑合计 539 min（中位 16.1 min、最长 106 min），同期 55 次重跑渲染合计 34.3 min（中位 48 s）；3 个 kernel 日志：setup（依赖导入 + `Loaded in`）占 82–94%、合成 4–7%，主候选为常驻 kernel / 预热镜像，结论另开实施票。PR #1513。产品验证门：**无产出差异**（取证票，无代码）。frontier：1A 空；① `#1512`（ready-for-agent）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXIX，原文）**：
+
+**Round CCXXXIX**（`#1512` 立项：TTS 冷批四段取证——9 天 25 次冷跑 539 min vs 55 次重跑渲染 34.3 min；3 个 kernel setup 占 82–94%；**无产出差异**；① `#1512`，1A/②③④ 空）
+
+## Round CCXL 下沉：`#1512` 取证与闭票（2026-11-23）
+
+> **Last inventory**: 2026-11-22（**Round CCXL：`#1512` 交付闭票**——TTS 冷批四段取证：8 次冷跑 / 8 包对账，`step-1-tts` 墙钟中位 1023 s 中 Kaggle 内核仅 405 s（42.4%，其中依赖导入占内核 78.4%、模型加载 11.8%、合成 6.3%），下载后**本地尾巴 573 s（56.0%，跨包 429–1027 s、无子步计时）**，下载 13 s，排队 0.2%；另记 `anthropic-ipo-china-ai` 30.4 min、`tencent-hy4` 40.4 min 卡排队且 `runningMs=0`。结论：**「常驻 kernel / 预热镜像」的收益上限 ≈ 冷跑墙钟 25%，首要目标是先给本地尾巴加子步计时**——是否立票待用户拍板。证据 [`research/tts-cold-run-trace-2026-11-22.md`](research/tts-cold-run-trace-2026-11-22.md)。PR #1513。产品验证门：**无产出差异**（取证票，无代码）。frontier：1A 空；① 空（`#1512` 闭票后本段清空）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXL，原文）**：
+
+**Round CCXL**（`#1512` 闭票：TTS 冷批四段取证——墙钟中位 1023 s 内核仅 42%、本地尾巴 56% 无计时；**无产出差异**；①②③④ 空，`#228` 余 ③④⑥ dormant）
