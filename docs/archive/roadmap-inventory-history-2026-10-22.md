@@ -23,6 +23,8 @@
 
 ## 逐轮盘点（Round CCXII → LV；Round CC 见一句话档案）
 
+（**Round CCXLII 2026-11-23**：**Round CCXLII：`#1514` 闭票、`#1515` 立项**——`step-1-tts` 八子步实测：4 包 / 9 次冷内核 + 1 次热跑，子步和与外层误差 ≤0.2%；结论 = 本地机械合计约 60 s（门 41.5 s、对齐 10.8–16.4 s、响度 3.4–4.2 s、plan+write <50 ms），**尾巴的大头是门内重试重付一次完整冷启**（`agnes-harness` 重试 406.3 + 333.5 s = 该包 58%）；下一步 `#1515`（常驻内核复用门内重试），预期每次重试省 300–400 s。证据 [`research/tts-step1-substep-timing-2026-11-23.md`](research/tts-step1-substep-timing-2026-11-23.md)。产品验证门：**无产出差异**（计时票，不改产出）。frontier：1A 空；① `#1515`（ready-for-agent）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
 （**Round CCXII：`#1398` L2 就绪交付**——`experiment.mjs` 由登记模板改为强制协议：双主指标交并判定、T+72h 入库闸（日精度取当天最晚可能发布时刻为下界）、48h 发布间隔与 seed 顺序闸、3s 时长差、`check` 审计（`report` 在其失败时拒跑）、到预设 n 前不出 p/CI/结论；独立复核修掉符号检验 `C(n,k)` 组合数 bug（混合样本 p 系统性偏小），置换改为 n≤20 精确枚举。产品验证门：**无产出差异（enabling fix）**——不产生任何成片变化，也未产生真实配对数据。PR #1428（squash `dee28720`）；交付记录：评论 `6963480688`。frontier 复算：1A 空、① 空、② `#541`、③④ 空。）
 
 （**Round CCXI：`#1406` 盲评交付闭票**——info-layout-v2 六对 stills 全部打分，`experiment-review.mjs --analyze` 出 `report.json`：clarity A−B −1.17 [−1.83, −0.17]、credibility −0.67、memorability −0.67、hierarchy −0.33；偏好 旧 0 / 新 5 / 平 1（Wilson 95% 0.0–43.4%，n=5）。产品验证门：**无产出差异**——内部评估，观众侧不变。口径：单人评分 → ICC `n/a`；n=6 < 8 → 只作描述，无 p 值。分析入口 PR #1407（squash `0004db8f`）；交付记录：评论 `6953059775`。frontier 复算：Track 1A **空**、① **空**、② `#541`、③④ 空。）
