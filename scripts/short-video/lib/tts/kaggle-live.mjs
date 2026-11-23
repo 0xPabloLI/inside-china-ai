@@ -39,7 +39,7 @@ const MARK = {
   batchEnd: "__TTS_BATCH_END__",
 };
 
-export function sha256(buf) {
+function sha256(buf) {
   return createHash("sha256").update(buf).digest("hex");
 }
 
@@ -47,7 +47,7 @@ export function sha256(buf) {
  * Is the GitHub CLI usable? A failed probe is not an error: the engine simply
  * falls back to the classic one-shot path.
  */
-export async function isGhAvailable({ exec, log = () => {} } = {}) {
+async function isGhAvailable({ exec, log = () => {} } = {}) {
   try {
     const { stdout } = await exec("gh --version 2>&1");
     log(`  [TTS Live] gh available: ${String(stdout).split("\n")[0]}`);
