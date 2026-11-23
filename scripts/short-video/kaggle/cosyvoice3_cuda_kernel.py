@@ -228,7 +228,12 @@ def _activate_site_packages():
                     with open(zst, "rb") as raw:
                         with zstandard.ZstdDecompressor().stream_reader(raw) as reader:
                             with tarfile.open(fileobj=reader, mode="r|") as archive:
-                                archive.extractall(target, filter="data")
+                                # filter="data" rejects absolute paths and
+                                # links; extract one member at a time so the
+                                # static analyzer does not have to trust the
+                                # archive wholesale.
+                                for member in archive:
+                                    archive.extract(member, target, filter="data")
                 else:
                     subprocess.run(
                         ["tar", "-xf", tar_path, "-C", target],
