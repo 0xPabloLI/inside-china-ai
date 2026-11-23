@@ -64,6 +64,32 @@ describe("self-heal retry granularity (#241 review)", () => {
     delete process.env.TTS_ALLOW_PARTIAL_TTS;
   });
 
+  it("closes the live kernel session when the verification block exits (#1515)", async () => {
+    const engine = fakeEngine();
+    engine.endLiveSession = vi.fn(async () => {});
+    engine.generate.mockImplementation(async (scenes) =>
+      scenes.map((s) => ({
+        sceneId: s.id,
+        audioPath: `/tmp/scene-${s.id}.wav`,
+        duration: 3.0,
+      })),
+    );
+    runTtsQualityGate.mockImplementation(async (_scenes, results) => ({
+      passed: true,
+      failedCount: 0,
+      evaluations: results.map((r) => ({ sceneId: r.sceneId, passed: true, issues: [] })),
+    }));
+
+    await generateTTSWithEngine(SCENES, "/tmp/unused", engine, {
+      useCache: false,
+      runAlignment: false,
+      maxRetries: 2,
+    });
+
+    // The live kernel must not idle out its timeout after a green run.
+    expect(engine.endLiveSession).toHaveBeenCalledTimes(1);
+  });
+
   it("retry generation receives ONLY the failed scenes, not the full batch", async () => {
     const engine = fakeEngine();
     engine.generate.mockImplementation(async (scenes) =>

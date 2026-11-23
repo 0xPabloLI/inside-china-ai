@@ -13,6 +13,7 @@ Placeholders (replaced by JS adapter before push):
 Ref audio is loaded from Kaggle dataset: xPabloLI/tts-ref-audio
 
 Output: /kaggle/working/output/<scene-N>.wav + summary.json
+                       (+ summary_<batch>.json and per-take .flac in live mode)
 """
 import subprocess, sys, os, time, json, traceback, base64, re, platform, threading
 
@@ -26,6 +27,13 @@ log(f"Python: {sys.version.split()[0]}")
 
 MANIFEST_JSON = r'''__MANIFEST_JSON__'''
 REQUEST_ID = r'''__REQUEST_ID__'''
+# #1515 live session: empty control URL means classic one-shot mode. The host
+# creates a secret gist before push and patches it with retry commands; the
+# kernel polls the raw URL (the only host->kernel channel that works mid-run).
+LIVE_MODE = r'''__LIVE_MODE__'''.strip() == "1"
+CONTROL_URL = r'''__CONTROL_URL__'''
+LIVE_IDLE_TIMEOUT_SEC = int(r'''__LIVE_IDLE_TIMEOUT_SEC__''')
+LIVE_CONTROL_POLL_SEC = int(r'''__LIVE_CONTROL_POLL_SEC__''')
 EXPECTED_WHEELHOUSE = json.loads(r'''__EXPECTED_WHEELHOUSE__''')
 
 # ── Whole-kernel wall-clock self-termination (#1354) ──────────────────────
@@ -511,8 +519,26 @@ log(f"Ref audio: {os.path.getsize(ref_path)} bytes at {ref_path}")
 manifest = json.loads(MANIFEST_JSON)
 log(f"Manifest: {len(manifest)} segments (requestId={REQUEST_ID})")
 
+# ── Live session protocol (#1515) ───────────────────────────────────────────
+# The model load is the 5-6 minute tax. In live mode the child loads it ONCE
+# and then serves batch after batch: batch 1 is the pushed manifest, later
+# batches arrive through the host's control gist (scene ids + speed overrides)
+# and are answered by streaming each take back over stdout as lossless FLAC
+# (base64 chunks). `kaggle kernels logs -f` is the only mid-run host<-kernel
+# channel that actually works (mid-run `kernels output` returns zero files).
+# Classic mode (no control URL) keeps the historical one-shot behaviour.
+SESSION_DIR = "/tmp/tts_session"
+LIVE = bool(LIVE_MODE and CONTROL_URL.strip())
+IDLE_TIMEOUT_SEC = LIVE_IDLE_TIMEOUT_SEC
+CONTROL_POLL_SEC = LIVE_CONTROL_POLL_SEC
+
+log(
+    f"Live mode: {'ON' if LIVE else 'OFF'} "
+    f"(idle timeout {IDLE_TIMEOUT_SEC}s, control poll {CONTROL_POLL_SEC}s)"
+)
+
 INFERENCE_CODE = r'''
-import sys, os, time, json, traceback
+import sys, os, time, json, traceback, hashlib
 sys.path.insert(0, "/tmp/CosyVoice")
 sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 import torch, soundfile as sf
@@ -521,6 +547,12 @@ import torch, soundfile as sf
 # would silently hand us the v1 class and only fail later on a missing
 # speech_tokenizer_v1.onnx. CosyVoice3 asserts the model type up front.
 from cosyvoice.cli.cosyvoice import CosyVoice3
+
+SESSION_DIR = "/tmp/tts_session"
+CONFIG = json.load(open(os.path.join(SESSION_DIR, "config.json")))
+LIVE = bool(CONFIG.get("live"))
+REQUEST_ID = CONFIG["requestId"]
+IDLE_TIMEOUT_SEC = int(CONFIG.get("idleTimeoutSec") or 0)
 
 if "TTS_SEED" in os.environ:
     _seed = int(os.environ["TTS_SEED"])
@@ -542,9 +574,6 @@ if not ref_path or not os.path.exists(ref_path):
 out_dir = "/kaggle/working/output"
 os.makedirs(out_dir, exist_ok=True)
 
-payload = json.load(open("/tmp/manifest.json"))
-manifest = payload["scenes"]
-request_id = payload["requestId"]
 print(f"torch: {torch.__version__}, CUDA: {torch.cuda.is_available()}", flush=True)
 if torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}", flush=True)
@@ -572,51 +601,122 @@ t0 = time.time()
 cosyvoice = CosyVoice3(model_dir=model_dir)
 print(f"Loaded in {time.time()-t0:.1f}s, sr={cosyvoice.sample_rate}", flush=True)
 
-summary = {"engine": "CosyVoice3-Kaggle-CUDA", "requestId": request_id, "segments": []}
-for i, t in enumerate(manifest):
-    print(f"\n[{i+1}/{len(manifest)}] scene-{t['sceneId']}", flush=True)
-    try:
-        seg_start = time.time()
-        chunks = []
-        instruct = t.get("instruct_text")
-        kwargs = {"stream": False}
-        if "speed" in t and t["speed"] is not None:
-            kwargs["speed"] = t["speed"]
+def synthesize_batch(batch_no, batch_manifest):
+    summary = {
+        "engine": "CosyVoice3-Kaggle-CUDA",
+        "requestId": REQUEST_ID,
+        "batch": batch_no,
+        "segments": [],
+    }
+    for i, t in enumerate(batch_manifest):
+        print(f"\n[batch {batch_no} {i+1}/{len(batch_manifest)}] scene-{t['sceneId']}", flush=True)
+        try:
+            seg_start = time.time()
+            chunks = []
+            instruct = t.get("instruct_text")
+            kwargs = {"stream": False}
+            if "speed" in t and t["speed"] is not None:
+                kwargs["speed"] = t["speed"]
 
-        if instruct:
-            for j in cosyvoice.inference_instruct2(t["text"], instruct, ref_path, **kwargs):
-                chunks.append(j['tts_speech'])
-        else:
-            default_instruct = (
-                "You are a helpful assistant. You are a tech documentary narrator. "
-                "Speak in standard American English with a calm, engaging, and professional "
-                "tone at a steady pace.<|endofprompt|>"
-            )
-            for j in cosyvoice.inference_instruct2(
-                t["text"], default_instruct, ref_path, **kwargs
-            ):
-                chunks.append(j['tts_speech'])
-        full = torch.cat(chunks, dim=-1)
-        gen_time = time.time() - seg_start
-        audio_np = full[0].cpu().float().numpy()
-        dur = len(audio_np) / cosyvoice.sample_rate
-        rtf = gen_time / max(dur, 0.01)
-        out = f"{out_dir}/{t['output']}"
-        sf.write(out, audio_np, cosyvoice.sample_rate)
-        summary["segments"].append({"sceneId": t["sceneId"], "output": t["output"],
-            "audioDuration": round(dur, 2), "genTime": round(gen_time, 1), "rtf": round(rtf, 2)})
-        print(f"  {dur:.2f}s in {gen_time:.1f}s, RTF {rtf:.2f}x", flush=True)
-        del full, chunks
-        if torch.cuda.is_available(): torch.cuda.empty_cache()
-    except Exception as e:
-        print(f"  ERROR: {e}", flush=True); traceback.print_exc()
-        summary["segments"].append({"sceneId": t["sceneId"], "error": str(e)})
-json.dump(summary, open(f"{out_dir}/summary.json", "w"), indent=2, ensure_ascii=False)
-n_ok = len([s for s in summary['segments'] if 'error' not in s])
-print(f"\n=== Done! {n_ok}/{len(manifest)} ===", flush=True)
+            if instruct:
+                for j in cosyvoice.inference_instruct2(t["text"], instruct, ref_path, **kwargs):
+                    chunks.append(j['tts_speech'])
+            else:
+                default_instruct = (
+                    "You are a helpful assistant. You are a tech documentary narrator. "
+                    "Speak in standard American English with a calm, engaging, and professional "
+                    "tone at a steady pace.<|endofprompt|>"
+                )
+                for j in cosyvoice.inference_instruct2(
+                    t["text"], default_instruct, ref_path, **kwargs
+                ):
+                    chunks.append(j['tts_speech'])
+            full = torch.cat(chunks, dim=-1)
+            gen_time = time.time() - seg_start
+            audio_np = full[0].cpu().float().numpy()
+            dur = len(audio_np) / cosyvoice.sample_rate
+            rtf = gen_time / max(dur, 0.01)
+            out = os.path.join(out_dir, t['output'])
+            sf.write(out, audio_np, cosyvoice.sample_rate)
+            # FLAC must carry the WAV's INTEGER samples, not the float array:
+            # libsndfile's float->PCM16 conversion rounds differently per
+            # container (measured 2026-11-23: first live take failed the PCM
+            # hash while both files decoded "correctly" on their own). Reading
+            # the just-written wav back and encoding THAT makes the live take
+            # byte-identical to the classic download by construction.
+            flac_name = t['output'].rsplit('.', 1)[0] + ".flac"
+            flac_path = os.path.join(out_dir, flac_name)
+            pcm, _sr = sf.read(out, dtype="int16")
+            sf.write(flac_path, pcm, cosyvoice.sample_rate, format="FLAC", subtype="PCM_16")
+            flac_bytes = open(flac_path, "rb").read()
+            summary["segments"].append({
+                "sceneId": t["sceneId"],
+                "output": t["output"],
+                "flac": flac_name,
+                "audioDuration": round(dur, 2),
+                "genTime": round(gen_time, 1),
+                "rtf": round(rtf, 2),
+                "sampleRate": int(cosyvoice.sample_rate),
+                "flacBytes": len(flac_bytes),
+                "pcmSha256": hashlib.sha256(pcm.tobytes()).hexdigest(),
+            })
+            print(f"  {dur:.2f}s in {gen_time:.1f}s, RTF {rtf:.2f}x", flush=True)
+            del full, chunks
+            if torch.cuda.is_available(): torch.cuda.empty_cache()
+        except Exception as e:
+            print(f"  ERROR: {e}", flush=True); traceback.print_exc()
+            summary["segments"].append({"sceneId": t["sceneId"], "error": str(e)})
+    # Atomic writes: the parent polls these files from another thread, and a
+    # half-written summary would be read as a corrupt batch.
+    def _atomic_dump(obj, path):
+        tmp = path + ".tmp"
+        json.dump(obj, open(tmp, "w"), indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+    _atomic_dump(summary, os.path.join(out_dir, f"summary_{batch_no}.json"))
+    # Last completed batch also lands at the historical summary.json path so
+    # a live run that dies can still be collected by `kaggle kernels output`.
+    _atomic_dump(summary, os.path.join(out_dir, "summary.json"))
+    n_ok = len([s for s in summary['segments'] if 'error' not in s])
+    print(f"BATCH_READY {batch_no} ({n_ok}/{len(batch_manifest)} ok)", flush=True)
+
+def read_request(n):
+    path = os.path.join(SESSION_DIR, f"request_{n}.json")
+    return json.load(open(path))
+
+batch_no = 1
+last_activity = time.time()
+while True:
+    try:
+        payload = read_request(batch_no)
+    except FileNotFoundError:
+        if not LIVE:
+            raise RuntimeError(f"missing request_{batch_no}.json in classic mode")
+        if os.path.exists(os.path.join(SESSION_DIR, "stop")):
+            print("WORKER_STOP", flush=True)
+            break
+        if time.time() - last_activity > IDLE_TIMEOUT_SEC:
+            print("WORKER_IDLE_TIMEOUT", flush=True)
+            break
+        time.sleep(2)
+        continue
+    synthesize_batch(batch_no, payload["scenes"])
+    last_activity = time.time()
+    if not LIVE:
+        break
+    batch_no += 1
+print("WORKER_EXIT", flush=True)
 '''
 
-json.dump({"requestId": REQUEST_ID, "scenes": manifest}, open("/tmp/manifest.json", "w"), ensure_ascii=False)
+# ── Session config + first request ────────────────────────────────────────
+import shutil, hashlib, glob, urllib.request
+
+shutil.rmtree(SESSION_DIR, ignore_errors=True)
+os.makedirs(SESSION_DIR, exist_ok=True)
+json.dump(
+    {"live": LIVE, "requestId": REQUEST_ID, "idleTimeoutSec": LIVE_IDLE_TIMEOUT_SEC},
+    open(os.path.join(SESSION_DIR, "config.json"), "w"),
+)
+json.dump({"scenes": manifest}, open(os.path.join(SESSION_DIR, "request_1.json"), "w"), ensure_ascii=False)
 with open("/tmp/run_inference.py", "w") as f:
     f.write(INFERENCE_CODE)
 
@@ -705,6 +805,7 @@ LOAD_BUDGET_SEC = 1800
 SYNTH_BASE_SEC = 300
 SYNTH_PER_SEGMENT_SEC = 60
 deadline = [time.time() + LOAD_BUDGET_SEC]
+loaded = [False]
 
 # capture_output=True discarded everything the child had already printed when
 # the timeout fired, so a 30-minute GPU run left one exception and no evidence
@@ -717,28 +818,147 @@ def _pump_output():
     for line in proc.stdout:
         log(line.rstrip("\n"))
         if line.startswith("Loaded in"):
+            loaded[0] = True
             deadline[0] = (
                 time.time() + SYNTH_BASE_SEC + SYNTH_PER_SEGMENT_SEC * len(manifest)
             )
 pump = threading.Thread(target=_pump_output, daemon=True)
 pump.start()
-timed_out = False
-while proc.poll() is None:
-    if time.time() > deadline[0]:
-        timed_out = True
-        proc.kill()
-        break
-    time.sleep(1)
-proc.wait()
-pump.join(timeout=60)
-if timed_out:
-    log("ERROR: inference exceeded its budget "
-        f"({LOAD_BUDGET_SEC}s loading, then {SYNTH_BASE_SEC}s + "
-        f"{SYNTH_PER_SEGMENT_SEC}s/segment synthesising) — the last phase "
-        "marker in the output above says where it stalled")
+
+def wait_for_summary(batch_no):
+    path = os.path.join("/kaggle/working/output", f"summary_{batch_no}.json")
+    while not os.path.exists(path):
+        if proc.poll() is not None:
+            raise RuntimeError(f"inference worker exited before batch {batch_no} (see log)")
+        if time.time() > deadline[0]:
+            proc.kill()
+            raise TimeoutError(
+                f"inference exceeded its budget (batch {batch_no}: {LOAD_BUDGET_SEC}s loading, "
+                f"then {SYNTH_BASE_SEC}s + {SYNTH_PER_SEGMENT_SEC}s/segment synthesising)"
+            )
+        time.sleep(1)
+    return json.load(open(path))
+
+def stream_batch(batch_no, summary):
+    """Emit every take as FLAC over stdout, then the summary line.
+
+    `kaggle kernels logs -f` is the only channel that delivers mid-run bytes
+    (mid-run `kernels output` returns zero files, probed 2026-11-23). Base64
+    chunks are plain print(), not log(): the 10MB-ish payload has no business
+    in log.txt, and the CLI reads stdout.
+    """
+    for seg in summary.get("segments", []):
+        if seg.get("error"):
+            continue
+        flac_path = os.path.join("/kaggle/working/output", seg["flac"])
+        data = open(flac_path, "rb").read()
+        meta = {
+            "batch": batch_no,
+            "sceneId": seg["sceneId"],
+            "name": seg["output"],
+            "flac": seg["flac"],
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "pcmSha256": seg.get("pcmSha256"),
+            "sampleRate": seg.get("sampleRate"),
+            "audioDuration": seg.get("audioDuration"),
+        }
+        print("__TTS_FILE_BEGIN__ " + json.dumps(meta), flush=True)
+        for i in range(0, len(data), 32768):
+            print("__TTS_FILE_CHUNK__" + base64.b64encode(data[i:i+32768]).decode(), flush=True)
+        print("__TTS_FILE_END__ " + json.dumps({"sha256": meta["sha256"]}), flush=True)
+    print("__TTS_BATCH_END__ " + json.dumps(summary), flush=True)
+
+def _fetch_control():
+    sep = "&" if "?" in CONTROL_URL else "?"
+    url = CONTROL_URL + sep + "cb=" + str(int(time.time() * 1000))
+    req = urllib.request.Request(url, headers={"User-Agent": "cosyvoice3-live/1"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())
+
+def _lookup(scene_id):
+    for entry in manifest:
+        if str(entry["sceneId"]) == str(scene_id):
+            return dict(entry)
+    raise RuntimeError(f"control asked for scene {scene_id} not in the pushed manifest")
+
+def _table(scene_ids, speeds):
+    overrides = {str(k): v for k, v in (speeds or {}).items()}
+    batch = []
+    for sid in scene_ids:
+        entry = _lookup(sid)
+        # Always override when the host sent a value: pacing compensation may
+        # need 1.0 where the pushed manifest carried 1.2, so "absent means
+        # unchanged" is not good enough.
+        if str(sid) in overrides:
+            entry["speed"] = overrides[str(sid)]
+        batch.append(entry)
+    return batch
+
+# ── Batch 1: the pushed manifest ─────────────────────────────────────────
+summary = wait_for_summary(1)
+if LIVE:
+    stream_batch(1, summary)
+    _set_phase("live-idle")
+    log(f"Live: batch 1 streamed; waiting up to {IDLE_TIMEOUT_SEC}s for a retry command")
+
+next_batch = 2
+idle_started = time.time()
+stop_after = None
+try:
+    # Classic mode has nothing to wait for: the child exits after batch 1.
+    while LIVE and proc.poll() is None:
+        if time.time() - idle_started > IDLE_TIMEOUT_SEC:
+            log(f"Live: no control command for {IDLE_TIMEOUT_SEC}s — exiting to release the GPU")
+            open(os.path.join(SESSION_DIR, "stop"), "w").close()
+            break
+        try:
+            msg = _fetch_control()
+        except Exception as exc:
+            log(f"Live: control read failed ({type(exc).__name__}: {exc}) — retrying")
+            time.sleep(CONTROL_POLL_SEC)
+            continue
+        if not isinstance(msg, dict) or msg.get("requestId") != REQUEST_ID:
+            time.sleep(CONTROL_POLL_SEC)
+            continue
+        action = msg.get("action")
+        if action == "stop":
+            log("Live: host sent stop")
+            open(os.path.join(SESSION_DIR, "stop"), "w").close()
+            break
+        if action == "retry" and int(msg.get("batch") or 0) == next_batch - 1:
+            scene_ids = msg.get("sceneIds") or []
+            if not scene_ids:
+                log("Live: retry command carried no scene ids — ignoring")
+                time.sleep(CONTROL_POLL_SEC)
+                continue
+            log(f"Live: retry batch {next_batch} for scene(s) {scene_ids}")
+            batch_scenes = _table(scene_ids, msg.get("speeds"))
+            deadline[0] = time.time() + SYNTH_BASE_SEC + SYNTH_PER_SEGMENT_SEC * len(batch_scenes)
+            _req_path = os.path.join(SESSION_DIR, f"request_{next_batch}.json")
+            json.dump({"scenes": batch_scenes}, open(_req_path + ".tmp", "w"),
+                      ensure_ascii=False)
+            os.replace(_req_path + ".tmp", _req_path)
+            summary = wait_for_summary(next_batch)
+            stream_batch(next_batch, summary)
+            next_batch += 1
+            idle_started = time.time()
+            continue
+        time.sleep(CONTROL_POLL_SEC)
+except Exception as exc:
+    log(f"ERROR: live session failed ({type(exc).__name__}: {exc})")
+    traceback.print_exc()
+    proc.kill()
     sys.exit(1)
-if proc.returncode != 0:
+
+try:
+    proc.wait(timeout=120)
+except subprocess.TimeoutExpired:
+    proc.kill()
+    proc.wait()
+pump.join(timeout=60)
+if proc.returncode not in (0, None):
     log(f"ERROR: inference exited with {proc.returncode}")
     sys.exit(1)
 _set_phase("complete")
-log("\n=== Kernel complete ===")
+log("\n=== Session complete ===")

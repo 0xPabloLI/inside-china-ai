@@ -1649,6 +1649,15 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         writes: validatedResults.length,
         note: "cache sidecar settle only; audio materialization happens after step-1-tts",
       });
+      // #1515: the verification block is the last consumer that can ask the
+      // engine for another take (gate retry / pacing ladder / local fallback
+      // all run above). Once it exits — green, hard block or error — the live
+      // kernel must stop instead of idling out its timeout and burning quota.
+      try {
+        await engine.endLiveSession?.();
+      } catch (err) {
+        console.warn(`  ⚠️ [TTS Live] session close failed: ${err.message}`);
+      }
     }
   }
 
@@ -1676,6 +1685,12 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         writes: validatedResults.length,
         note: "skip-gate candidate settle",
       });
+    }
+    // A skip-gate run never retries, so a live kernel would idle for nothing.
+    try {
+      await engine.endLiveSession?.();
+    } catch (err) {
+      console.warn(`  ⚠️ [TTS Live] session close failed: ${err.message}`);
     }
   }
 
