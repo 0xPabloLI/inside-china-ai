@@ -464,6 +464,9 @@ beats: [
 
 **media-first：画面优先、文案减量（Stage 3 选版，2026-11-24 #1524）**：当一拍的主角是一条 16:9 的证据片（冠军作品、预告片、官方演示），必须整幅看清、不能裁主体，而文案只剩一句结果时，用 `narrative` + `layout: "media-first"`。画面铺满整幅 0–1920：16:9 完整画面停在上三分之一（约 300–908），同源 blur 填满其余区域；文案块只有 3 行最多 256px，压在 950–1206 的平色条上（无渐变、无阴影）；字幕仍在 1236–1420，1420–1920 留给平台 UI。硬前提：`mediaRole: "evidence"`、`fit: "contain"`、`fill: "blur"` 三件套同时写——`fill: "blur"` 用同一素材的模糊副本填满 contain 留下的空间，既不出黑边也不裁主体；`texts` 只允许 `company` / `result` / `source`（`action` / `context` / `badge` 会 FAIL），单行超过 32 字符报警。它是「文案内容变少」，不是「同样多的字缩小字号」：需要四行叙事或 badge 的拍请留在 `media-bottom-bar`。
 
+**有界媒体面禁止方向性 scrim（Stage 3 硬规则，2026-11-24）**：`MediaCard`、证据带、`media-split` 的单侧窗口都是「有界媒体面」，画面四周必须干净。`MediaBackground` 的 `frame` scrim 是给整幅画布背景用的：它的右侧 rail 渐变和底部长条渐变按 1080×1920 定位，缩进 820px 卡片后就会落在卡片自己的右缘和底缘，看起来就是给素材加了阴影。所有有界媒体面必须使用 `scrimScope="element"`（只保留均匀的平色 `overlay`），只有铺满整幅的背景才允许 `frame`。这条不是靠记忆：`media-card-scrim-contract.test.mjs` 在源码层锁定 `MediaCard` 的 element 范围，`media-focus-render` 用纯白素材采样卡片中心/右缘/底缘，任何方向性渐变会让 CI 的 Pixel render contracts 变红。
+
+
 **原片原声窗口（Stage 3 音频，#1525）**：外部证据片本身有对白或音乐时，`media` 可以开口子而不是整段静音：`volume` 设原片电平（保留原声通常写 `1`），`audioIn` / `audioOut` 是**相对这一拍开头**的秒数，只在这段窗口内出声；`audioFadeIn` / `audioFadeOut` 默认 0.25s，避免硬切爆音。窗口只控制听感，不改变 `videoStartOffsetMs` 决定的画面起点。旁白在场时若要让原声退后，写 `duckUnderNarration: true`，`duckLevel` 是压低后的倍数（默认 0.25，0 等于该段静音）；没有旁白的纯原片拍不要写 duck。原片里的对白与配乐若已混成一条轨，管线不做 stem 分离，只能整条压低；原片是音乐驱动时优先直接停掉项目 BGM（默认不加 BGM 的项目则无需处理），避免两层音乐打架。
 
 **镜头配方卡（Stage 3 选版入口，#733 S1）**：渲染层能画 22 种 `visualType/layout` 组合，过去只能从 `scenes/` 组件里逐个反推这一拍该用哪种。现在这套组合有可寻址的卡面：`node scripts/short-video/shot-recipes.mjs --list` 列出 22 张（含何时用、硬前提、别用它），`--card <visualType/layout>` 看单张的文本槽、文本优先/contain 带属性与真实样张，`--check` 校验卡面齐全、样张在真实包里确实渲染该组合。卡面的 id、文本槽与版式属性都从 `REMOTION_SLOT_MAP` / `resolveRenderLayout` / #761 / #1075 的判据派生，改渲染契约不补卡面会直接 `--check` 红；只有编辑说明是手写的。两张 hook 卡只登记渲染契约，开场选哪版仍走 `hook-layout` 的四条判据（#1480），不在卡面里重复。语义拍（SHOTBOOK 式拍层）不在这一层，属 #733 S2。

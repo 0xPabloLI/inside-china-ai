@@ -32,24 +32,30 @@ import { AbsoluteFill, Composition, registerRoot } from "remotion";
 import { MediaBackground } from "./components/MediaBackground";
 import type { ContainAlign } from "./components/MediaBackground";
 import { MediaCard } from "./components/MediaCard";
+import { COLOR } from "./components/shared";
+import { EVIDENCE_CARD } from "../../lib/safe-zones.mjs";
 import type { MediaField } from "./types";
 
 const SOURCE_FILES = {
   horizontal: { image: "media-focus-horizontal.png", video: "media-focus-horizontal.mp4" },
   vertical: { image: "media-focus-vertical.png", video: "media-focus-vertical.mp4" },
+  solid: { image: "media-card-scrim-solid.png", video: "media-card-scrim-solid.mp4" },
 } as const;
 
 type FixtureProps = {
   /** Which fixture asset to render: a still or a real clip. */
   asset?: "image" | "video";
   /** Colour-band orientation of the generated source. */
-  source?: "horizontal" | "vertical";
+  source?: "horizontal" | "vertical" | "solid";
   /**
    * `background` renders MediaBackground directly (full-frame scenes);
    * `card` renders it through MediaCard, the evidence-card wrapper that must
-   * pass media through unchanged.
+   * pass media through unchanged; `cardFrame` reproduces the same card box
+   * with a frame-scoped scrim as the negative control for the scrim contract.
    */
-  wrap?: "background" | "card";
+  wrap?: "background" | "card" | "cardFrame";
+  /** Media dim layer alpha. Omitted = 0 so colour probes stay unmodified. */
+  overlay?: number | null;
   /** `cropFocus.x` in [0,1]. Setting EITHER axis creates cropFocus; the other
    *  axis defaults to 0.5. Leaving both null leaves cropFocus absent. */
   cropFocusX?: number | null;
@@ -74,13 +80,14 @@ const buildMedia = ({
   cropFocusY = null,
   focus = null,
   fit = null,
+  overlay = 0,
 }: FixtureProps): MediaField => {
   const media: MediaField = {
     type: asset,
     path: `assets/_staged/${SOURCE_FILES[source][asset]}`,
     animation: "none", // static frame: the pixel diff must isolate objectPosition
     volume: 0,
-    overlay: 0, // no dim layer over the colours
+    overlay: overlay ?? 0,
   };
   if (typeof cropFocusX === "number" || typeof cropFocusY === "number") {
     media.cropFocus = { x: cropFocusX ?? 0.5, y: cropFocusY ?? 0.5 };
@@ -96,13 +103,37 @@ const FixtureScene: React.FC<FixtureProps> = ({
   ...rest
 }) => {
   const media = buildMedia(rest);
+  if (wrap === "card") {
+    return (
+      <AbsoluteFill style={{ background: "#000" }}>
+        <MediaCard media={media} duration={4} />
+      </AbsoluteFill>
+    );
+  }
+  if (wrap === "cardFrame") {
+    return (
+      <AbsoluteFill style={{ background: "#000" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: EVIDENCE_CARD.left,
+            top: EVIDENCE_CARD.top,
+            width: EVIDENCE_CARD.width,
+            height: EVIDENCE_CARD.height,
+            overflow: "hidden",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: COLOR.canvas,
+          }}
+        >
+          <MediaBackground media={media} duration={4} scrimScope="frame" />
+        </div>
+      </AbsoluteFill>
+    );
+  }
   return (
     <AbsoluteFill style={{ background: "#000" }}>
-      {wrap === "card" ? (
-        <MediaCard media={media} duration={4} />
-      ) : (
-        <MediaBackground media={media} duration={4} containAlign={containAlign ?? undefined} />
-      )}
+      <MediaBackground media={media} duration={4} containAlign={containAlign ?? undefined} />
     </AbsoluteFill>
   );
 };
@@ -124,6 +155,7 @@ export const MediaFocusFixtureRoot: React.FC = () => (
       focus: null,
       fit: null,
       containAlign: null,
+      overlay: 0,
     }}
   />
 );
