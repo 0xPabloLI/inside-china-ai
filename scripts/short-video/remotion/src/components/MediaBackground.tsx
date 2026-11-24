@@ -84,7 +84,7 @@ interface Props {
 }
 
 /** Vertical anchor for a contained picture inside its container. */
-export type ContainAlign = "bottom" | "center";
+export type ContainAlign = "bottom" | "center" | "upper";
 
 /** Maps focus field to CSS object-position value. */
 const FOCUS_MAP: Record<string, string> = {
@@ -179,7 +179,11 @@ const drawsRailVignette = (scope: "frame" | "element", overlay: number): boolean
 const objectPositionFor = (media: MediaField, containAlign: ContainAlign): string => {
   const focusX = media.cropFocus?.x ?? 0.5;
   if ((media.fit ?? "cover") === "contain") {
-    return `${focusX * 100}% ${containAlign === "bottom" ? "100%" : "50%"}`;
+    // "upper" drops a 16:9 frame into the top third of a full-canvas
+    // media-first bed, leaving the lower half for the copy and its subtitle
+    // lane without putting either on top of the picture.
+    const vertical = containAlign === "bottom" ? "100%" : containAlign === "upper" ? "23%" : "50%";
+    return `${focusX * 100}% ${vertical}`;
   }
   if (media.cropFocus) return `${media.cropFocus.x * 100}% ${media.cropFocus.y * 100}%`;
   return FOCUS_MAP[media.focus ?? "center"] ?? "center";

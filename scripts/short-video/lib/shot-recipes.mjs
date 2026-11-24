@@ -56,7 +56,7 @@ export const RECIPE_NOTES = Object.freeze({
   "narrative/media-first": {
     when: "一个 16:9 证据片本身就是这一拍的主角，必须整幅看清（不能裁主体），文案只剩一句结果、可选一行出处；宁可少写，也不缩字号。",
     prerequisite:
-      "媒体是 evidence 角色；fit 写 contain、fill 写 blur（无黑边且不裁主体）；texts 只允许 company/result/source，单行不超过 32 字符；画面按整条内容带（0→1206）铺开。",
+      "媒体是 evidence 角色；fit 写 contain、fill 写 blur（无黑边且不裁主体）；texts 只允许 company/result/source，单行不超过 32 字符；画面铺满整幅 0–1920，16:9 完整画面停在上三分之一，文案压在 950–1206 的平色条上（无渐变/阴影），字幕仍在 1236–1420。",
     notFor:
       "需要 action/context/badge 三行以上的解释拍（用 media-bottom-bar）、需要整屏沉浸观看（用 fullscreen）、或只有氛围图（用 stacked-cards）。",
     demoGap:

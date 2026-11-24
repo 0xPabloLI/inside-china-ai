@@ -805,16 +805,34 @@ export function checkClippedText(buf, safeZones) {
  * @returns {AnalysisResult[]}
  */
 export function runFrameAnalysis(buf, safeZones, options = {}) {
-  const { mediaBandBottom = null, mediaBandFit = "cover", mediaBandFill = null } = options;
-  const results = [
-    checkNotAllBlack(buf),
-    checkSafeZoneTop(buf, safeZones),
-    checkSafeZoneRight(buf, safeZones),
-    checkSafeZoneBottom(buf, safeZones),
-    checkContentPresence(buf, safeZones),
-    checkTextOverflow(buf, safeZones),
-    checkClippedText(buf, safeZones),
-  ];
+  const {
+    mediaBandBottom = null,
+    mediaBandFit = "cover",
+    mediaBandFill = null,
+    // media-first is full-bleed by contract: the picture intentionally runs
+    // under TikTok's top chrome and action rail, and the copy plate is the
+    // only thing that must stay in the safe box. Darkening the rail to pass
+    // the pixel checks is exactly the "shadow on media" the layout forbids,
+    // so those three region checks are N/A here; text overflow still runs.
+    skipSafeZoneChecks = false,
+    // Full-bleed layouts put a picture through the whole content box, so the
+    // pixel text checks must look only at the copy plate, not at every bright
+    // row of the image. `{ top, bottom }` in canvas px.
+    textRegion = null,
+  } = options;
+  const results = [checkNotAllBlack(buf)];
+  if (!skipSafeZoneChecks) {
+    results.push(
+      checkSafeZoneTop(buf, safeZones),
+      checkSafeZoneRight(buf, safeZones),
+      checkSafeZoneBottom(buf, safeZones),
+    );
+  }
+  results.push(checkContentPresence(buf, safeZones));
+  const textZones = textRegion
+    ? { ...safeZones, top: textRegion.top, bottom: buf.height - textRegion.bottom }
+    : safeZones;
+  results.push(checkTextOverflow(buf, textZones), checkClippedText(buf, textZones));
   if (mediaBandBottom !== null) {
     results.push(
       checkMediaBandFill(buf, safeZones, mediaBandBottom, {

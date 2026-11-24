@@ -53,12 +53,17 @@ const scene = (patch = {}) => ({
 const levels = (results) => results.map((r) => r.level);
 
 describe("media-first geometry", () => {
-  it("runs media the whole content band and anchors a 3-row block at the bottom", () => {
+  it("runs media full-canvas and anchors a 3-row plate at the content bottom", () => {
     const texts = { company: "A", result: "B", source: "C" };
     expect(mediaFirstBarHeightFor(texts)).toBe(256);
     expect(mediaFirstBarTopFor(texts)).toBe(1206 - 256);
     expect(MEDIA_FIRST.textBarHeight).toBe(256);
-    // The picture window is the full content band, not a 1080×820 bed.
+    // The picture bed is the whole canvas, not a 1080×820 bed or the 1206
+    // content band; the contained 16:9 frame sits near the top third.
+    expect(MEDIA_FIRST.mediaHeight).toBe(CANVAS.height);
+    expect(MEDIA_FIRST.pictureTop).toBe(300);
+    expect(MEDIA_FIRST.pictureHeight).toBe(608);
+    expect(MEDIA_FIRST.textBedAlpha).toBe(0.62);
     expect(MEDIA_BAND.bottom).toBe(CANVAS.height - SAFE_ZONES.bottom);
     expect(MEDIA_BAND.bottom).toBe(1206);
   });

@@ -147,8 +147,8 @@ export function mediaBottomBarTopFor(texts = {}) {
  * 256), which leaves the picture 950px of the 1206px band — 4.8× the old
  * 1080×820 bed's usable height above the bar.
  *
- * The block is drawn ON the picture (MediaScrims supplies the contrast bed);
- * it does not push the media up, which is the whole point of the layout.
+ * The block is drawn on a hard-edged flat plate below the picture, not on a
+ * gradient scrim; it does not push the media up, which is the whole point.
  */
 export const MEDIA_FIRST = {
   /** Rows this layout may draw, in reading order. */
@@ -160,23 +160,26 @@ export const MEDIA_FIRST = {
   chrome: 34,
   rowSafety: 16,
   /**
-   * Rail vignette peak alpha for this layout. The shared 0.6 was calibrated
-   * for a subject centred in the content band; media-first shows the FULL
-   * 16:9 frame edge to edge, so a bright grey sky reaches x 880-1080 at
-   * luminance ~220 and 0.6 leaves it at 88 — still above the gate's 80
-   * threshold. Measured on the CapCut winning film's tree shot: 8.2% bright
-   * rail pixels at 0.6 (limit 5%), 0% at 0.74. The darkened strip is the
-   * TikTok action rail, which the UI covers anyway.
+   * The picture bed is the whole canvas, not the 1206 content band: a 16:9
+   * source at full width is only 608px tall, so a 1206 bed leaves both the
+   * picture and the copy in the top two thirds while the bottom stays empty.
+   * The blur fill covers 0 → 1920; the contained picture sits at `pictureTop`
+   * so its lower edge clears the copy block.
    */
-  railAlpha: 0.74,
+  mediaHeight: CANVAS.height,
+  /** Top edge of the contained 16:9 picture inside the full-canvas bed. */
+  pictureTop: 300,
+  /** Rendered height of a 1080-wide 16:9 picture (1080 × 9 / 16 ≈ 608). */
+  pictureHeight: 608,
+  /**
+   * Flat alpha of the copy bed. It is a solid 256px band, not a gradient:
+   * the user's standing rule is "no shadow on media", so contrast comes from
+   * a hard-edged plate rather than a vignette behind the picture.
+   */
+  textBedAlpha: 0.62,
 };
 
-/**
- * Height of the media-first text block for a scene's declared rows.
- *
- * @param {object} texts - the scene's `texts` block
- * @returns {number} block height in px, 0 when the scene declares no copy
- */
+/** Height of the media-first copy plate for a scene's declared rows. */
 export function mediaFirstBarHeightFor(texts = {}) {
   const present = MEDIA_FIRST.fields.filter((key) => texts[key]);
   if (present.length === 0) return 0;

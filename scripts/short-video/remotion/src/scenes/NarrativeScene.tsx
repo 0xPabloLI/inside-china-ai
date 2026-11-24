@@ -190,7 +190,14 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.source`)}
       >
         {(fontSize) => (
-          <div style={{ fontSize, fontWeight: 600, color: COLOR.textDim, letterSpacing: "1px" }}>
+          <div
+            style={{
+              fontSize,
+              fontWeight: 600,
+              color: variant === "media-first" ? COLOR.text : COLOR.textDim,
+              letterSpacing: "1px",
+            }}
+          >
             {txt.source as string}
           </div>
         )}
@@ -327,45 +334,41 @@ export const NarrativeScene: React.FC<{
   };
 
   // ─── Variant: media-first (#1524) ───
-  // Picture first: media runs the whole content band (0 → MEDIA_BAND.bottom,
-  // 1080×1206) and the copy is a compact block anchored to the content bottom.
-  // A 16:9 source stays at full width with `fit:"contain"` + `fill:"blur"`,
-  // so the subject is never cropped and no black bar is visible; the blurred
-  // fill (MediaBackground) takes the space the contained picture leaves.
+  // Picture first: media runs the whole canvas (1080×1920) and the copy is a
+  // compact plate anchored to the content bottom. A 16:9 source stays at full
+  // width with `fit:"contain"` + `fill:"blur"`, so the subject is never cropped
+  // and no black bar is visible; `containAlign="upper"` drops the picture into
+  // the top third, leaving the blurred fill below it for the copy and the
+  // subtitle lane. No gradient vignettes: the standing rule is no shadow on
+  // media, so contrast comes from the flat copy plate, not a scrim.
   const MediaFirst: React.FC = () => {
     const blockHeight = mediaFirstBarHeightFor(txt);
     const blockTop = mediaFirstBarTopFor(txt);
     return (
       <>
         {hasMedia && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: MEDIA_BAND.bottom,
-              overflow: "hidden",
-            }}
-          >
+          <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
             <MediaBackground
               media={scene.media!}
               duration={duration}
               contentDir={contentDir}
-              containAlign="center"
-              // The element spans the band, not the canvas: the frame-relative
-              // lane stop would land inside the blurred fill and read as a
-              // shadow (the same reason the card scrims are scoped).
+              containAlign="upper"
               scrimScope="element"
-              // But the band IS full-canvas width, so the rail region is
-              // inside it — force the vignette with this layout's calibrated
-              // alpha (see MEDIA_FIRST.railAlpha).
-              railVignette
-              railAlpha={MEDIA_FIRST.railAlpha}
             />
           </div>
         )}
-        <MediaScrims mediaBottom={MEDIA_BAND.bottom} />
+        {blockHeight > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: blockTop,
+              left: 0,
+              right: 0,
+              height: blockHeight,
+              background: `rgba(10,10,20,${MEDIA_FIRST.textBedAlpha})`,
+            }}
+          />
+        )}
         {blockHeight > 0 && (
           <Camera visualType="narrative" duration={duration}>
             <div
@@ -384,9 +387,9 @@ export const NarrativeScene: React.FC<{
                 alignItems: "center",
                 gap: SPACING.sm,
                 overflow: "hidden",
-                // No panel, no border, no text shadow: the scrims are the
-                // contrast bed. A 2px rule here would draw a box edge across
-                // the picture the layout exists to expose.
+                // No border and no text shadow: the flat plate behind this
+                // block is the contrast bed. It is a hard-edged 256px band,
+                // not a gradient over the picture.
               }}
             >
               <SlideUpFromBottom delay={0.2} duration={0.5}>

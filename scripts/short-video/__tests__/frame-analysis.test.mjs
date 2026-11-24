@@ -648,6 +648,15 @@ describe("checkMediaBandFill", () => {
     expect(checks).not.toContain("Media band is filled");
   });
 
+  it("skips platform safe-zone regions when the layout is full-bleed", () => {
+    const checks = runFrameAnalysis(contentBuffer(), SAFE_ZONES, {
+      skipSafeZoneChecks: true,
+    }).map((r) => r.check);
+    expect(checks).not.toContain("Right safe zone clear (action rail)");
+    expect(checks).not.toContain("Bottom safe zone clear (subtitle gap)");
+    expect(checks).toContain("Content area has content");
+  });
+
   it("is included when a band bottom is supplied", () => {
     const checks = runFrameAnalysis(contentBuffer(), SAFE_ZONES, {
       mediaBandBottom: 1150,
