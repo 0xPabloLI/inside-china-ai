@@ -86,12 +86,7 @@ export function sceneFingerprint(parts) {
  * Build fingerprints for the whole scene list, wiring neighbour visual types.
  * @returns {{id: string|number, fingerprint: string, parts: object}[]}
  */
-export function buildSceneFingerprints({
-  scenes,
-  durations,
-  audioSha256 = {},
-  mediaSha256 = {},
-}) {
+export function buildSceneFingerprints({ scenes, durations, audioSha256 = {}, mediaSha256 = {} }) {
   return (scenes ?? []).map((scene, index) => {
     const id = scene?.id ?? index + 1;
     const parts = sceneFingerprintParts({
@@ -99,8 +94,8 @@ export function buildSceneFingerprints({
       duration: durations?.[index] ?? null,
       audioSha256: audioSha256[id] ?? null,
       mediaSha256: mediaSha256[id] ?? null,
-      prevVisualType: index > 0 ? scenes[index - 1]?.visualType ?? null : null,
-      nextVisualType: index < scenes.length - 1 ? scenes[index + 1]?.visualType ?? null : null,
+      prevVisualType: index > 0 ? (scenes[index - 1]?.visualType ?? null) : null,
+      nextVisualType: index < scenes.length - 1 ? (scenes[index + 1]?.visualType ?? null) : null,
     });
     return { id, fingerprint: sceneFingerprint(parts), parts };
   });
@@ -118,7 +113,10 @@ export function compositionFingerprintOf(entries) {
 export function timelineDescriptor(props, { fps = 30, transitionFrames = TRANSITION_FRAMES } = {}) {
   const scenes = props?.scenes ?? [];
   const schedule = sceneTimeline(
-    scenes.map((scene, i) => ({ sceneId: scene?.id ?? i + 1, duration: props.durations?.[i] ?? 0 })),
+    scenes.map((scene, i) => ({
+      sceneId: scene?.id ?? i + 1,
+      duration: props.durations?.[i] ?? 0,
+    })),
     { fps, transitionOverlap: transitionFrames },
   );
   return schedule.map((entry) => ({
@@ -140,35 +138,38 @@ export function totalFramesOf(timeline) {
  * range can straddle two sources (raw cut + a part from an earlier run), so
  * this returns one entry per overlap.
  */
-export function sliceSourceRange(previousSegments, startFrame, endFrame, timelineAnchor = startFrame) {
+export function sliceSourceRange(
+  previousSegments,
+  startFrame,
+  endFrame,
+  timelineAnchor = startFrame,
+) {
   const out = [];
-  let cursor = startFrame;
   for (const segment of previousSegments ?? []) {
-    const segStart = segment.startFrame;
-    const segEnd = segment.endFrame;
-    if (segEnd <= cursor) continue;
-    if (segStart >= endFrame) break;
-    const from = Math.max(cursor, segStart);
-    const to = Math.min(endFrame, segEnd);
-    if (to > from) {
-      out.push({
-        kind: "reuse",
-        path: segment.path,
-        startFrame: segment.startFrame + (from - segStart),
-        endFrame: segment.startFrame + (to - segStart),
-        // The frame this slice occupies in the new timeline.
-        timelineStartFrame: timelineAnchor + (from - startFrame),
-        timelineEndFrame: timelineAnchor + (to - startFrame),
-      });
-      cursor = to;
-    }
-    if (cursor >= endFrame) break;
+    // `startFrame`/`endFrame` address the source file; the timeline position is
+    // recorded separately because a reused range may begin at an offset inside
+    // an older raw (and two segments can point at the same source).
+    const timelineStart = segment.timelineStartFrame ?? segment.startFrame;
+    const timelineEnd = segment.timelineEndFrame ?? segment.endFrame;
+    const from = Math.max(startFrame, timelineStart);
+    const to = Math.min(endFrame, timelineEnd);
+    if (to <= from) continue;
+    out.push({
+      kind: "reuse",
+      path: segment.path,
+      startFrame: segment.startFrame + (from - timelineStart),
+      endFrame: segment.startFrame + (to - timelineStart),
+      timelineStartFrame: timelineAnchor + (from - startFrame),
+      timelineEndFrame: timelineAnchor + (to - startFrame),
+    });
   }
-  return out;
+  return out.sort((a, b) => a.timelineStartFrame - b.timelineStartFrame);
 }
 
 function mergeIntervals(intervals) {
-  const sorted = [...intervals].sort((a, b) => a.startFrame - b.startFrame || a.endFrame - b.endFrame);
+  const sorted = [...intervals].sort(
+    (a, b) => a.startFrame - b.startFrame || a.endFrame - b.endFrame,
+  );
   const merged = [];
   for (const interval of sorted) {
     const last = merged[merged.length - 1];
@@ -214,7 +215,9 @@ export function assertSegmentsCover(segments, totalFrames) {
       throw new Error(`incremental plan: bad segment range ${start}..${end}`);
     }
     if (start !== cursor) {
-      throw new Error(`incremental plan: gap or overlap at frame ${cursor} (segment starts ${start})`);
+      throw new Error(
+        `incremental plan: gap or overlap at frame ${cursor} (segment starts ${start})`,
+      );
     }
     cursor = end;
   }
@@ -269,11 +272,13 @@ export function planIncrementalRender({
 
   const previousSegments = previous.segments;
   try {
+    // Segments record *source* ranges; their timeline position is separate
+    // because a reused range can start at an offset inside an older raw.
     assertSegmentsCover(
       previousSegments.map((segment) => ({
         ...segment,
-        timelineStartFrame: segment.startFrame,
-        timelineEndFrame: segment.endFrame,
+        timelineStartFrame: segment.timelineStartFrame ?? segment.startFrame,
+        timelineEndFrame: segment.timelineEndFrame ?? segment.endFrame,
       })),
       previous.totalFrames,
     );
@@ -314,8 +319,8 @@ export function planIncrementalRender({
       path: segment.path,
       startFrame: segment.startFrame,
       endFrame: segment.endFrame,
-      timelineStartFrame: segment.startFrame,
-      timelineEndFrame: segment.endFrame,
+      timelineStartFrame: segment.timelineStartFrame ?? segment.startFrame,
+      timelineEndFrame: segment.timelineEndFrame ?? segment.endFrame,
     }));
     try {
       assertSegmentsCover(segments, totalFrames);
@@ -361,11 +366,16 @@ export function planIncrementalRender({
       for (let j = sceneIndex + 1; j < timeline.length; j += 1) {
         if (timeline[j].offsetFrames >= interval.endFrame) break;
         if (timeline[j].clipFrames !== previous.scenes[j].clipFrames) {
-          throw new Error(`clean range straddles a duration change at scene ${timeline[j].sceneId}`);
+          throw new Error(
+            `clean range straddles a duration change at scene ${timeline[j].sceneId}`,
+          );
         }
       }
       const slices = sliceSourceRange(previousSegments, oldStart, oldEnd, interval.startFrame);
-      const mapped = slices.reduce((sum, s) => sum + (s.timelineEndFrame - s.timelineStartFrame), 0);
+      const mapped = slices.reduce(
+        (sum, s) => sum + (s.timelineEndFrame - s.timelineStartFrame),
+        0,
+      );
       if (mapped !== interval.endFrame - interval.startFrame) {
         throw new Error(
           `clean range ${interval.startFrame}..${interval.endFrame} mapped ${mapped} frames`,

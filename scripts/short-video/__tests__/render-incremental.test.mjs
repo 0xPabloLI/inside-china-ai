@@ -71,8 +71,18 @@ describe("canonicalJson / fingerprints", () => {
 
   it("puts neighbour visual types into the fingerprint", () => {
     const scene = { id: 2, visualType: "narrative" };
-    const base = sceneFingerprintParts({ scene, duration: 4, prevVisualType: "hook", nextVisualType: "data" });
-    const moved = sceneFingerprintParts({ scene, duration: 4, prevVisualType: "hook", nextVisualType: "cta" });
+    const base = sceneFingerprintParts({
+      scene,
+      duration: 4,
+      prevVisualType: "hook",
+      nextVisualType: "data",
+    });
+    const moved = sceneFingerprintParts({
+      scene,
+      duration: 4,
+      prevVisualType: "hook",
+      nextVisualType: "cta",
+    });
     expect(sceneFingerprint(base)).not.toBe(sceneFingerprint(moved));
   });
 
@@ -89,7 +99,10 @@ describe("canonicalJson / fingerprints", () => {
 describe("planIncrementalRender", () => {
   it("reuses everything when no scene input changed", () => {
     const props = makeProps();
-    const fingerprints = buildSceneFingerprints({ scenes: props.scenes, durations: props.durations });
+    const fingerprints = buildSceneFingerprints({
+      scenes: props.scenes,
+      durations: props.durations,
+    });
     const previous = makePrevious(props, fingerprints, "comp-a");
     const result = plan(props, previous);
     expect(result.mode).toBe("noop");
@@ -189,9 +202,61 @@ describe("planIncrementalRender", () => {
     ]);
   });
 
+  it("validates and slices previous segments by recorded timeline, not source offsets", () => {
+    const props = makeProps();
+    const fingerprints = buildSceneFingerprints({
+      scenes: props.scenes,
+      durations: props.durations,
+    });
+    const previous = makePrevious(props, fingerprints, "comp-a");
+    // A reused range that starts at an offset inside an older raw, followed by
+    // a different source. Source order is not timeline order.
+    previous.segments = [
+      {
+        path: "a.mp4",
+        startFrame: 300,
+        endFrame: 400,
+        timelineStartFrame: 0,
+        timelineEndFrame: 100,
+      },
+      {
+        path: "b.mp4",
+        startFrame: 0,
+        endFrame: 410,
+        timelineStartFrame: 100,
+        timelineEndFrame: 510,
+      },
+    ];
+
+    expect(plan(props, previous).mode).toBe("noop");
+
+    props.scenes[2] = { ...props.scenes[2], texts: { subject: "C changed" } };
+    const result = plan(props, previous, {
+      fingerprints: buildSceneFingerprints({ scenes: props.scenes, durations: props.durations }),
+    });
+    expect(result.mode).toBe("incremental");
+    expect(
+      result.segments.map((segment) => [
+        segment.kind,
+        segment.path,
+        segment.startFrame,
+        segment.timelineStartFrame,
+        segment.timelineEndFrame,
+      ]),
+    ).toEqual([
+      ["reuse", "a.mp4", 300, 0, 100],
+      ["reuse", "b.mp4", 0, 100, 240],
+      ["render", undefined, 240, 240, 415],
+      ["reuse", "b.mp4", 315, 415, 510],
+    ]);
+  });
+
   it("falls back to full when the composition fingerprint changed", () => {
     const props = makeProps();
-    const fingerprints = buildSceneFingerprints({ scenes: props.scenes, durations: props.durations });
+    const fingerprints = buildSceneFingerprints({
+      scenes: props.scenes,
+      durations: props.durations,
+    });
     const previous = makePrevious(props, fingerprints, "comp-a");
     const result = plan(props, previous, { compositionFingerprint: "comp-b" });
     expect(result.mode).toBe("full");
@@ -200,9 +265,16 @@ describe("planIncrementalRender", () => {
 
   it("falls back to full when the scene count changed", () => {
     const props = makeProps();
-    const fingerprints = buildSceneFingerprints({ scenes: props.scenes, durations: props.durations });
+    const fingerprints = buildSceneFingerprints({
+      scenes: props.scenes,
+      durations: props.durations,
+    });
     const previous = makePrevious(props, fingerprints, "comp-a");
-    const shorter = { ...props, scenes: props.scenes.slice(0, 3), durations: props.durations.slice(0, 3) };
+    const shorter = {
+      ...props,
+      scenes: props.scenes.slice(0, 3),
+      durations: props.durations.slice(0, 3),
+    };
     const result = plan(shorter, previous, {
       fingerprints: buildSceneFingerprints({
         scenes: shorter.scenes,
@@ -215,7 +287,10 @@ describe("planIncrementalRender", () => {
 
   it("falls back to full when the previous segments have a gap", () => {
     const props = makeProps();
-    const fingerprints = buildSceneFingerprints({ scenes: props.scenes, durations: props.durations });
+    const fingerprints = buildSceneFingerprints({
+      scenes: props.scenes,
+      durations: props.durations,
+    });
     const previous = makePrevious(props, fingerprints, "comp-a");
     previous.segments = [
       { path: "a.mp4", startFrame: 0, endFrame: 200 },
@@ -256,8 +331,22 @@ describe("sliceSourceRange / assertSegmentsCover", () => {
     ];
     const sliced = sliceSourceRange(segments, 50, 150);
     expect(sliced).toEqual([
-      { kind: "reuse", path: "a.mp4", startFrame: 50, endFrame: 100, timelineStartFrame: 50, timelineEndFrame: 100 },
-      { kind: "reuse", path: "b.mp4", startFrame: 100, endFrame: 150, timelineStartFrame: 100, timelineEndFrame: 150 },
+      {
+        kind: "reuse",
+        path: "a.mp4",
+        startFrame: 50,
+        endFrame: 100,
+        timelineStartFrame: 50,
+        timelineEndFrame: 100,
+      },
+      {
+        kind: "reuse",
+        path: "b.mp4",
+        startFrame: 100,
+        endFrame: 150,
+        timelineStartFrame: 100,
+        timelineEndFrame: 150,
+      },
     ]);
   });
 

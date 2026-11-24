@@ -56,7 +56,7 @@ describe("buildFinalizeArgs with segments", () => {
     expect(cmd).toContain("[0:a]atrim=start=0.000000:end=0.500000,asetpts=PTS-STARTPTS[a0]");
     expect(cmd).toContain("[1:a]atrim=start=0.500000:end=1.333333,asetpts=PTS-STARTPTS[a1]");
     expect(cmd).toContain(
-      "[v0][a0][v1][a1]concat=n=2:v=1:a=1[vcat][acat];[vcat]ass=/tmp/subs.ass[vout]",
+      "[v0][a0][v1][a1]concat=n=2:v=1:a=1[vcatraw][acat];[vcatraw]fps=30,settb=1/30[vcat];[vcat]ass=/tmp/subs.ass[vout]",
     );
     expect(cmd).toContain("-map [vout] -map [aout]");
   });
@@ -104,25 +104,29 @@ describe("finalizeRenderedVideo with segments (real ffmpeg)", () => {
       ["part-0.mp4", "red", 440],
       ["part-1.mp4", "blue", 880],
     ]) {
-      execFileSync("ffmpeg", [
-        "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        `color=c=${color}:s=320x568:r=30:d=1`,
-        "-f",
-        "lavfi",
-        "-i",
-        `sine=frequency=${frequency}:sample_rate=44100:duration=1`,
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-shortest",
-        join(dir, name),
-      ], { stdio: ["pipe", "pipe", "pipe"] });
+      execFileSync(
+        "ffmpeg",
+        [
+          "-y",
+          "-f",
+          "lavfi",
+          "-i",
+          `color=c=${color}:s=320x568:r=30:d=1`,
+          "-f",
+          "lavfi",
+          "-i",
+          `sine=frequency=${frequency}:sample_rate=44100:duration=1`,
+          "-c:v",
+          "libx264",
+          "-pix_fmt",
+          "yuv420p",
+          "-c:a",
+          "aac",
+          "-shortest",
+          join(dir, name),
+        ],
+        { stdio: ["pipe", "pipe", "pipe"] },
+      );
     }
 
     const segments = [

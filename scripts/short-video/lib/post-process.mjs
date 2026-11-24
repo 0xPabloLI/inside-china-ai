@@ -557,12 +557,15 @@ export function buildFinalizeArgs({
       // 44100/fps is a whole number of samples.
       const start = (segment.startFrame / fps).toFixed(6);
       const end = (segment.endFrame / fps).toFixed(6);
-      chains.push(
-        `[${index}:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${index}]`,
-      );
+      chains.push(`[${index}:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${index}]`);
     }
     const pairs = segments.map((_, index) => `[v${index}][a${index}]`).join("");
-    chains.push(`${pairs}concat=n=${segments.length}:v=1:a=1[vcat][acat]`);
+    chains.push(`${pairs}concat=n=${segments.length}:v=1:a=1[vcatraw][acat]`);
+    // Concat inherits each input's timebase, which can land cue boundaries a
+    // frame either side of where a single continuous encode puts them — subtitles
+    // then appear/disappear one frame off. Normalizing to exact CFR frames keeps
+    // ASS timing identical to a full render.
+    chains.push(`[vcatraw]fps=${fps},settb=1/${fps}[vcat]`);
     videoSource = "[vcat]";
     audioSource = "[acat]";
   }
