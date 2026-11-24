@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.112.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.111.1...tanstack_start_ts-v1.112.0) (2026-11-24)
+
+
+### Features
+
+* **video:** enforce shadow-free cards and competition demos ([#1538](https://github.com/0xPabloLI/inside-china-ai/issues/1538)) ([e04f92f](https://github.com/0xPabloLI/inside-china-ai/commit/e04f92f867b8dc57f3eb8444c7815ba9e8817497))
+
 ## [1.111.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.111.0...tanstack_start_ts-v1.111.1) (2026-11-24)
 
 
