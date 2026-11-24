@@ -55,9 +55,8 @@ export const BACKDROP_FIELD_KEYS = new Set([
 
 /**
  * Keys that existed before the 2026-11-25 root rule and are now read by
- * nothing. They stay recognisable only so an old pack gets a precise warning
- * instead of a misleading "unknown key" failure. There is no renderer path
- * that consumes them.
+ * nothing. They are accepted as no-ops so an old pack does not fail over a
+ * dead field; there is no renderer path that consumes them.
  */
 export const LEGACY_MEDIA_FIELD_KEYS = new Set(["overlay"]);
 
@@ -107,16 +106,6 @@ export function checkMediaFieldSchema(scenes) {
         check: `Media field schema: Scene ${scene.id} keys are recognised`,
         detail: `unknown media key(s): ${unknown.sort().join(", ")} — nothing reads them, so the declaration has no effect`,
         fix: FIX_UNKNOWN_MEDIA_KEY,
-      });
-    }
-    const legacy = Object.keys(media).filter((key) => LEGACY_MEDIA_FIELD_KEYS.has(key));
-    if (legacy.length > 0) {
-      results.push({
-        level: "warn",
-        category: "Media",
-        check: `Media field schema: Scene ${scene.id} has retired media keys`,
-        detail: `retired key(s): ${legacy.sort().join(", ")} — media is never dimmed, so these values are ignored`,
-        fix: `Delete ${legacy.sort().join(", ")}; text contrast belongs to a text surface, not the picture.`,
       });
     }
 
