@@ -535,6 +535,22 @@ if (scenesWithMedia.length > 0) {
   pass("Media", "No media backgrounds (all CSS)", "");
 }
 
+// ─── Competition demo gate (shared: pre-render + post-render) ───
+// 2026-11-23 user ruling: event/hackathon/awards coverage must carry the
+// work itself, not only stage photos. Docs alone did not prevent a pack from
+// shipping stills-only; this gate makes the omission visible before render.
+{
+  const { checkCompetitionDemo } = await import("./lib/competition-demo.mjs");
+  const report = checkCompetitionDemo({ scenes, meta });
+  console.log("\n🏁 Competition Demo");
+  console.log("─".repeat(50));
+  for (const row of report.rows) {
+    if (row.level === "pass") pass("CompetitionDemo", row.check, row.detail);
+    else if (row.level === "warn") warn("CompetitionDemo", row.check, row.detail, row.fix);
+    else fail("CompetitionDemo", row.check, row.detail, row.fix);
+  }
+}
+
 // ─── B-roll stage summary (shared: pre-render + post-render) ───
 // The report is keyed by content dir — the same path generate-broll.mjs and
 // main.mjs Step 1.5d write to, unlike the pipelineId output dir above. B-roll
