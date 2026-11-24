@@ -206,6 +206,20 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > dependency install, before any inference. The kernel file is the single
 > source for which versions those are and why.
 >
+> **Preinstalled environment (#1520)**: `xpabloli/cosyvoice3-site-packages`
+> carries that wheelhouse already installed, so a cold kernel can skip the
+> 211–309s `pip install` entirely. The kernel compares the mounted
+> `manifest.json` with `scripts/short-video/kaggle/site-packages-manifest.json`
+> (exact distribution names/versions + archive size), expands the
+> `site-packages.tar.zst` envelope with the image's `zstandard` module when
+> Kaggle kept it compressed, and proves `import torch` in a `python -S` child
+> that cannot see the image's
+> site-packages; only then does it put the tree on `sys.path`. A missing
+> mount, manifest drift, a changed archive or a failed probe falls back to the
+> wheelhouse install — the fast path cannot fail a run. Rebuild with
+> `scripts/short-video/kaggle/push-site-packages-build.sh` and paste the
+> printed manifest into the repo before landing the dataset attachment.
+>
 > **Text frontend snapshot (#804)**: `xpabloli/cosyvoice3-wetext` rides along
 > for the same reason. `wetext==0.0.4` calls
 > `snapshot_download("pengzhendong/wetext")` on the first `Normalizer()`, and

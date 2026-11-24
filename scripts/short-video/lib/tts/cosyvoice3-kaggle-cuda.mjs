@@ -91,6 +91,11 @@ const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.
 // compares it to the mount before installing. Read at push time, not baked
 // into the template, so the kernel can never carry a hand-copied copy.
 const KAGGLE_WHEELHOUSE_MANIFEST = join(ROOT_DIR, "kaggle", "wheelhouse-manifest.json");
+// #1520: the preinstalled site-packages set. The manifest exists only after the
+// dataset has been built and recorded; until then the template receives `{}`
+// and the kernel stays on the wheelhouse install, so this code is safe to land
+// before the dataset does.
+const KAGGLE_SITE_PACKAGES_MANIFEST = join(ROOT_DIR, "kaggle", "site-packages-manifest.json");
 // 30min RUNNING budget (#241: the 20min default tripped on slow torch/model
 // downloads even though pure inference is ~64s for a 10-scene batch; #250
 // keeps queue wait in a separate budget).
@@ -104,6 +109,25 @@ const KAGGLE_QUEUE_TIMEOUT_MS = parseInt(
   10,
 ); // 40 min QUEUED/waiting budget
 const KAGGLE_POLL_INTERVAL_MS = 15000; // 15s
+// Accelerator (#1520 acceptance): the Kaggle CLI exposes `--accelerator`, but
+// the metadata it writes stays `machine_shape: Gpu`; a request for
+// NvidiaTeslaP100 on 2026-11-23 still landed on a Tesla T4. Empty string
+// restores Kaggle's default accelerator.
+const KAGGLE_ACCELERATOR =
+  process.env.COSYVOICE3_KAGGLE_ACCELERATOR === undefined
+    ? "Gpu"
+    : process.env.COSYVOICE3_KAGGLE_ACCELERATOR;
+// Internet (#1520 acceptance): on 2026-11-23 an internet-enabled GPU kernel
+// stayed QUEUED >40 min while three metadata-identical probes with
+// `enable_internet: false` completed in under 90 s each (one of them mounted
+// every dataset the TTS kernel uses). The smoke run is fully dataset-backed,
+// so `COSYVOICE3_KAGGLE_INTERNET=0` lets it use the same no-internet lane.
+const KAGGLE_INTERNET =
+  process.env.COSYVOICE3_KAGGLE_INTERNET === undefined
+    ? true
+    : !["0", "false", "off", "no"].includes(
+        String(process.env.COSYVOICE3_KAGGLE_INTERNET).toLowerCase(),
+      );
 // Status-probe hardening (#808). `kaggle kernels status` reaches the network
 // through kaggle 2.2.4 -> kagglesdk, whose `KaggleHttpClient.call()` does
 // `self._session.send(request, **merge_environment_settings(...))` — that
@@ -2224,6 +2248,11 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
 
       // ── Prepare Kaggle kernel ──
       const template = readFileSync(KAGGLE_KERNEL_TEMPLATE, "utf-8");
+      const sitePackagesExpected = existsSync(KAGGLE_SITE_PACKAGES_MANIFEST)
+        ? readFileSync(KAGGLE_SITE_PACKAGES_MANIFEST, "utf-8").trim()
+        : "{}";
+      const sitePackagesSources =
+        sitePackagesExpected === "{}" ? [] : ["xPabloLI/cosyvoice3-site-packages"];
       const manifestJson = JSON.stringify(manifest);
       // Per-call identity (#420): the kernel echoes it into summary.json and
       // the download below is only accepted when that echo matches.
@@ -2257,7 +2286,10 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         .replaceAll(
           "__EXPECTED_WHEELHOUSE__",
           readFileSync(KAGGLE_WHEELHOUSE_MANIFEST, "utf-8").trim(),
-        );
+        )
+        // #1520: the committed preinstalled set. `{}` when the repo has not
+        // published one yet; the kernel then disables the fast path.
+        .replaceAll("__EXPECTED_SITE_PACKAGES__", sitePackagesExpected);
 
       const tempDir = join(outputDir, ".kaggle-kernel");
       mkdirSync(tempDir, { recursive: true });
@@ -2273,7 +2305,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             kernel_type: "script",
             is_private: true,
             enable_gpu: true,
-            enable_internet: true,
+            enable_internet: KAGGLE_INTERNET,
             // cosyvoice3-wheels (#231): the frozen dependency wheelhouse. The
             // kernel installs from it with --no-index when mounted, so the
             // dependency set cannot drift under us and the install stops
@@ -2292,6 +2324,9 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
               "xPabloLI/cosyvoice3-model",
               "xPabloLI/cosyvoice3-wheels",
               "xPabloLI/cosyvoice3-wetext",
+              // #1520: only attached once the repo records the set; a source
+              // that does not exist yet makes `kernels push` fail outright.
+              ...sitePackagesSources,
             ],
             competition_sources: [],
             kernel_sources: [],
@@ -2322,7 +2357,9 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
 
         // ── Push kernel (single push for the whole manifest, #241) ──
         console.log(`  📤 Pushing Kaggle kernel (${manifest.length} segments, 1 push)...`);
-        pushResult = await runCmd(`kaggle kernels push -p "${tempDir}" 2>&1`);
+        pushResult = await runCmd(
+          `kaggle kernels push -p "${tempDir}"${KAGGLE_ACCELERATOR ? ` --accelerator ${KAGGLE_ACCELERATOR}` : ""} 2>&1`,
+        );
       } catch (err) {
         if (control) await control.close();
         throw err;
