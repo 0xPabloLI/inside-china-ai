@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.111.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.111.0...tanstack_start_ts-v1.111.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **video:** keep media cards free of frame scrim gradients ([#1535](https://github.com/0xPabloLI/inside-china-ai/issues/1535)) ([967a9c2](https://github.com/0xPabloLI/inside-china-ai/commit/967a9c2eebd312a1bb685270c8d91bd3898a3e0f)), closes [#1524](https://github.com/0xPabloLI/inside-china-ai/issues/1524)
+
 ## [1.111.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.110.0...tanstack_start_ts-v1.111.0) (2026-11-24)
 
 
