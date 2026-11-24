@@ -115,8 +115,8 @@
 4. `#228` 管线提速二期（P3）—— **sourcing 短路已于 Round CCXXXIV 交付**（PR #1491，squash `00b1fb47`）；**渲染主图切片已于 Round CCXXXV 交付**（PR #1495，squash `bc65ca05`，72.3s→55.2s）；余 ②TTS batch / ③增量渲染 / ④常驻 daemon / ⑥B-roll 并行，各自等 profile 触发条件，dormant；② 的冷启依赖安装段已由 `#1520` 提前落地（PR #1521，真实冷批省 127.2 s），余项仍 dormant
 5. `#535` B-roll 云端生图接入（P3，dormant，唤醒需用户圈定范围）
 6. ✅ `#469` site-patterns 入库机制（P3）—— Round CCXXXII 裁决 B（本机缓存）并交付闭票（子模块 `327770d`）
-7. `#1524` media-first 版式（P2）—— 2026-11-24 认领，Round CCXLVI 交付版式 / 门禁 / 场景（PR #1529，待合）；最终合成与 `#1525` 共用同一次渲染后闭票，不单独重渲。
-8. `#1525` 外部原片原声窗口 + ducking（P2）—— `#1524` 版式落地后认领；只碰音频，不碰画面面积与文案；两条旧片各做一次最终合成。
+7. `#1524` media-first 版式（P2）—— 2026-11-24 认领，Round CCXLVI 交付版式 / 门禁 / 场景（PR #1529，squash `cfcdf19e`，A 方案：全画幅 16:9 + 同源 blur + 950–1206 平色条）；最终合成与 `#1525` 共用同一次渲染后闭票，不单独重渲。
+8. `#1525` 外部原片原声窗口 + ducking（P2）—— Round CCXLVII 交付音频核心（PR #1533：`audioIn/audioOut`、fade、`duckUnderNarration`，真片 −12 dB duck 证据）；只碰音频；余纯原片无旁白时长编排 / 平台 BGM 口径 / 两条旧片联合最终合成与 HITL 听审。
 
 **A′. 数据驱动的重审（不进施工队列，等实拍数据）**
 
