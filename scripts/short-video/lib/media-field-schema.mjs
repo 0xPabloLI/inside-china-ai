@@ -19,6 +19,7 @@ export const MEDIA_FIELD_KEYS = new Set([
   "path",
   "mode",
   "fit",
+  "fill", // #1524: "blur" backdrop behind a contained picture (media-first only)
   "focus",
   "cropFocus", // #1040: [0,1] CSS object-position ratio, not a source-space point
   "source",
@@ -108,6 +109,41 @@ export function checkMediaFieldSchema(scenes) {
         detail: `mode:"card" renders only in HookScene and NarrativeScene media-bottom-bar; scene ${scene.id} is ${scene.visualType}/${scene.layout ?? "no layout"} — it would silently fall back to full-bleed MediaBackground`,
         fix: 'Switch the scene to a narrative with layout "media-bottom-bar", or drop mode:"card" and keep the default background render.',
       });
+    }
+
+    // #1524: `fill` is the blurred backdrop behind a contained picture. It
+    // only makes sense on the media-first layout (where the picture spans the
+    // content band) and only with `fit: "contain"` — anything else silently
+    // paints a blur under a cover-cropped picture, which changes nothing the
+    // viewer can name but costs a second decode per scene.
+    if (media.fill !== undefined) {
+      if (media.fill !== "blur") {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} fill is a known value`,
+          detail: `media.fill must be "blur" (or absent), got ${shown(media.fill)} — nothing else is implemented`,
+          fix: 'Use `fill: "blur"`, or drop the field.',
+        });
+      }
+      if ((media.fit ?? "cover") !== "contain") {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} fill requires contain`,
+          detail: `media.fill is declared with fit "${media.fit ?? "cover"}" — the blur backdrop only fills the space a contained picture leaves`,
+          fix: 'Add `fit: "contain"`, or drop media.fill and let cover crop the frame.',
+        });
+      }
+      if (scene.visualType !== "narrative" || scene.layout !== "media-first") {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} fill is honored by its layout`,
+          detail: `media.fill renders only in NarrativeScene layout "media-first"; scene ${scene.id} is ${scene.visualType}/${scene.layout ?? "no layout"} — the declaration would have no effect`,
+          fix: 'Move the beat to layout "media-first", or drop media.fill.',
+        });
+      }
     }
 
     if (

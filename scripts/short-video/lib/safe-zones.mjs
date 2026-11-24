@@ -130,6 +130,68 @@ export function mediaBottomBarTopFor(texts = {}) {
 }
 
 /**
+ * `media-first` geometry (#1524, 2026-11-24).
+ *
+ * The picture is the protagonist and the copy gives up its reserved band:
+ * media runs the whole content band (0 → MEDIA_BAND.bottom, 1080×1206) and the
+ * text block is a compact overlay anchored to the content bottom instead of a
+ * 312px bar that the picture has to stop above. Only three fields are legal
+ * (company / result / source — see REMOTION_SLOT_MAP), because the ticket's
+ * clarification is "fewer words, shorter copy", never "same words, smaller
+ * box": a scene that needs action + context + badge belongs on media-bottom-bar.
+ *
+ * Height is still derived per scene from the rows actually declared, using the
+ * same measured row heights as MEDIA_BOTTOM_BAR so the two layouts cannot
+ * disagree about what a line costs. The ceiling is the three-row stack
+ * (company 69 + result 74 + source 47 + 2 gaps 16 + chrome 34 + safety 16 =
+ * 256), which leaves the picture 950px of the 1206px band — 4.8× the old
+ * 1080×820 bed's usable height above the bar.
+ *
+ * The block is drawn ON the picture (MediaScrims supplies the contrast bed);
+ * it does not push the media up, which is the whole point of the layout.
+ */
+export const MEDIA_FIRST = {
+  /** Rows this layout may draw, in reading order. */
+  fields: ["company", "result", "source"],
+  /** Ceiling for the three-row stack. */
+  textBarHeight: 69 + 74 + 47 + 2 * 8 + 34 + 16, // 256
+  rowHeights: { company: 69, result: 74, source: 47 },
+  rowGap: 8,
+  chrome: 34,
+  rowSafety: 16,
+  /**
+   * Rail vignette peak alpha for this layout. The shared 0.6 was calibrated
+   * for a subject centred in the content band; media-first shows the FULL
+   * 16:9 frame edge to edge, so a bright grey sky reaches x 880-1080 at
+   * luminance ~220 and 0.6 leaves it at 88 — still above the gate's 80
+   * threshold. Measured on the CapCut winning film's tree shot: 8.2% bright
+   * rail pixels at 0.6 (limit 5%), 0% at 0.74. The darkened strip is the
+   * TikTok action rail, which the UI covers anyway.
+   */
+  railAlpha: 0.74,
+};
+
+/**
+ * Height of the media-first text block for a scene's declared rows.
+ *
+ * @param {object} texts - the scene's `texts` block
+ * @returns {number} block height in px, 0 when the scene declares no copy
+ */
+export function mediaFirstBarHeightFor(texts = {}) {
+  const present = MEDIA_FIRST.fields.filter((key) => texts[key]);
+  if (present.length === 0) return 0;
+  const glyphs = present.reduce((sum, key) => sum + MEDIA_FIRST.rowHeights[key], 0);
+  const gaps = (present.length - 1) * MEDIA_FIRST.rowGap;
+  const height = glyphs + gaps + MEDIA_FIRST.chrome + MEDIA_FIRST.rowSafety;
+  return Math.min(height, MEDIA_FIRST.textBarHeight);
+}
+
+/** Top edge of the media-first text block for a scene's declared rows. */
+export function mediaFirstBarTopFor(texts = {}) {
+  return CANVAS.height - SAFE_ZONES.bottom - mediaFirstBarHeightFor(texts);
+}
+
+/**
  * BrandBar placement — `visuals.tsx` renders the bar at this top with this
  * height. Declared here because the evidence card has to clear it: the bar's
  * glyphs measure y 252-267, which sits INSIDE the content band (220+), so a card

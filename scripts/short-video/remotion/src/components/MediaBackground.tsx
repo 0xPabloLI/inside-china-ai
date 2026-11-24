@@ -69,6 +69,18 @@ interface Props {
    * and no lane/rail gradients at all; neither region is inside the band.
    */
   scrimScope?: "frame" | "element";
+  /**
+   * Force the action-rail vignette on a band-mounted picture (#1524).
+   *
+   * `scrimScope:"element"` suppresses both frame gradients, which is right for
+   * a band that sits inside the content column — but media-first's band spans
+   * the full canvas width all the way down to the content bottom, so the rail
+   * region IS inside it. Without this switch a bright 16:9 frame leaves the
+   * rail at luminance 88 (gate limit 80).
+   */
+  railVignette?: boolean;
+  /** Peak alpha for the rail vignette; defaults to RAIL_VIGNETTE.alpha. */
+  railAlpha?: number;
 }
 
 /** Vertical anchor for a contained picture inside its container. */
@@ -179,6 +191,8 @@ export const MediaBackground: React.FC<Props> = ({
   effects,
   containAlign = "center",
   scrimScope = "frame",
+  railVignette,
+  railAlpha,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -314,6 +328,13 @@ export const MediaBackground: React.FC<Props> = ({
   // get the matte (Issue #119 comment feedback #1).
   const isContain = (media.fit ?? "cover") === "contain";
   const showBrandedMatte = media.type === "image" && isContain;
+  // #1524: a blurred, cover-cropped copy of the SAME source fills the space a
+  // contained 16:9 picture leaves. The element is still a full-bleed picture —
+  // no letterbox, no subject crop — which is what lets the media-first layout
+  // spend the whole content band on imagery. An explicit `backdrop` wins: it
+  // is already the letterbox filler, and stacking two background layers would
+  // pay for a second decode without changing a pixel the viewer can name.
+  const showFillBlur = isContain && media.fill === "blur" && !media.backdrop;
 
   // Overlay also fades in/out slightly for smoother transitions
   const overlayOpacity =
@@ -343,13 +364,52 @@ export const MediaBackground: React.FC<Props> = ({
 
   return (
     <>
-      {showBrandedMatte && (
+      {showBrandedMatte && !showFillBlur && (
         <AbsoluteFill
           style={{
             background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
             opacity,
           }}
         />
+      )}
+      {/* #1524: blurred fill for a contained picture. It is the SAME source at
+          cover crop, so the colour and motion belong to the shot instead of a
+          flat matte; the sharp contain picture paints on top. Blur 48px hides
+          the upscale's softness while keeping the shot readable as atmosphere,
+          and scale 1.12 keeps the blur from sampling the element edge. */}
+      {showFillBlur && (
+        <AbsoluteFill style={{ opacity }}>
+          {media.type === "image" ? (
+            <Img
+              src={src}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                filter: "blur(48px) saturate(0.92)",
+                transform: "scale(1.12)",
+              }}
+            />
+          ) : (
+            <Video
+              src={src}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                filter: "blur(48px) saturate(0.92)",
+                transform: "scale(1.12)",
+              }}
+              objectFit="cover"
+              volume={0}
+              trimBefore={trimBefore}
+              loop
+            />
+          )}
+        </AbsoluteFill>
       )}
       {/* Backdrop sits ABOVE the matte (which is bare background) but BELOW
           the primary media — visible in the letterbox/strip area around it. */}
@@ -369,13 +429,12 @@ export const MediaBackground: React.FC<Props> = ({
         />
       )}
       {media.type === "image" ? (
-        // #156: with a backdrop present, the primary image must render as a
-        // regular <img> — CanvasImage's canvas compositing always paints
-        // beneath <Video> elements regardless of DOM order/z-index, which
-        // would hide the primary media behind the backdrop. Without a
-        // backdrop the same <Img> is also the faster path: CanvasImage
-        // repaints the full-frame canvas every frame, while <Img> is
-        // composited by the browser. Measured on a real 57.5s pack
+        // #156: CanvasImage's canvas compositing always paints beneath <Video>
+        // elements regardless of DOM order/z-index, which hides the primary
+        // image behind a backdrop; #1524's blurred fill is the same problem.
+        // <Img> is now unconditionally the faster and correct path: it is
+        // composited by the browser, while CanvasImage repainted the
+        // full-frame canvas every frame. Measured on a real 57.5s pack
         // (1725 frames): 73s → 55s, SSIM 0.999 vs the CanvasImage render.
         <Img src={src} style={{ ...mediaStyle, objectFit: fit }} />
       ) : (
@@ -449,7 +508,7 @@ export const MediaBackground: React.FC<Props> = ({
           would let the exit fade brighten the rail back up, and `overlay: 0`
           means "no dim layer" — a pure-colour fixture must stay untouched
           (render contracts). */}
-      {drawsRailVignette(scrimScope, overlay) && (
+      {(railVignette ?? drawsRailVignette(scrimScope, overlay)) && (
         <div
           style={{
             position: "absolute",
@@ -457,7 +516,7 @@ export const MediaBackground: React.FC<Props> = ({
             // Full-frame element on purpose: the gradient's stops are
             // canvas-relative, so a `left: rampStartX` element would scale the
             // ramp into its own 230px width and land it at x≈1031.
-            background: railVignetteGradient(),
+            background: railVignetteGradient(railAlpha),
           }}
         />
       )}

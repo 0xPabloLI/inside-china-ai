@@ -1,7 +1,9 @@
 /**
  * NarrativeScene — layout-driven scene template.
  *
- * Dispatches by `scene.layout` field into 4 variants:
+ * Dispatches by `scene.layout` field into 5 variants:
+ *   - media-first: picture owns the content band, compact copy overlaid at the
+ *     bottom (see MEDIA_FIRST in lib/safe-zones.mjs; #1524)
  *   - media-bottom-bar: full-bleed media to the subtitle lane, text over a
  *     gradient scrim (see MEDIA_BAND in lib/safe-zones.mjs)
  *   - media-split: media left half, text right half
@@ -31,6 +33,9 @@ import {
   CONTAIN_MEDIA_BOTTOM,
   mediaBottomBarHeightFor,
   mediaBottomBarTopFor,
+  mediaFirstBarHeightFor,
+  mediaFirstBarTopFor,
+  MEDIA_FIRST,
   MEDIA_BAND,
 } from "../../../lib/safe-zones.mjs";
 import { MediaScrims } from "../components/MediaScrims";
@@ -42,7 +47,8 @@ import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 import { mediaRoleOf, MEDIA_ROLE } from "../../../lib/media-role.mjs";
 
-type Layout = "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
+type Layout =
+  "media-first" | "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
 
 /** Fixture-only per-slot TextGate overrides (e.g. lockFontSize for F1). */
 type GateOverrides = Record<
@@ -195,11 +201,17 @@ export const NarrativeScene: React.FC<{
   const hasMedia = !!scene.media;
 
   const renderLayout = () => {
+    // #1524: media-first is evidence-only. The picture owns the content band
+    // and the copy is a compact overlay; a decorative/ambient picture is
+    // explicitly routed to the bounded card path below instead.
+    if (layout === "media-first" && mediaRole === MEDIA_ROLE.EVIDENCE) return <MediaFirst />;
     // Non-evidence media: no split, no overlay. The bottom bar is the only
     // layout that can hold a text block plus either a background band or a
     // bounded card, and it is what keeps text out of the picture's focal area.
     if (hasMedia && mediaRole !== MEDIA_ROLE.EVIDENCE) return <MediaBottomBar />;
     switch (layout) {
+      case "media-first":
+        return <MediaFirst />;
       case "media-bottom-bar":
         return <MediaBottomBar />;
       case "media-split":
@@ -310,6 +322,85 @@ export const NarrativeScene: React.FC<{
             </FadeIn>
           </div>
         </Camera>
+      </>
+    );
+  };
+
+  // ─── Variant: media-first (#1524) ───
+  // Picture first: media runs the whole content band (0 → MEDIA_BAND.bottom,
+  // 1080×1206) and the copy is a compact block anchored to the content bottom.
+  // A 16:9 source stays at full width with `fit:"contain"` + `fill:"blur"`,
+  // so the subject is never cropped and no black bar is visible; the blurred
+  // fill (MediaBackground) takes the space the contained picture leaves.
+  const MediaFirst: React.FC = () => {
+    const blockHeight = mediaFirstBarHeightFor(txt);
+    const blockTop = mediaFirstBarTopFor(txt);
+    return (
+      <>
+        {hasMedia && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: MEDIA_BAND.bottom,
+              overflow: "hidden",
+            }}
+          >
+            <MediaBackground
+              media={scene.media!}
+              duration={duration}
+              contentDir={contentDir}
+              containAlign="center"
+              // The element spans the band, not the canvas: the frame-relative
+              // lane stop would land inside the blurred fill and read as a
+              // shadow (the same reason the card scrims are scoped).
+              scrimScope="element"
+              // But the band IS full-canvas width, so the rail region is
+              // inside it — force the vignette with this layout's calibrated
+              // alpha (see MEDIA_FIRST.railAlpha).
+              railVignette
+              railAlpha={MEDIA_FIRST.railAlpha}
+            />
+          </div>
+        )}
+        <MediaScrims mediaBottom={MEDIA_BAND.bottom} />
+        {blockHeight > 0 && (
+          <Camera visualType="narrative" duration={duration}>
+            <div
+              data-text-container
+              style={{
+                position: "absolute",
+                top: blockTop,
+                left: SAFE_ZONES.left,
+                right: SAFE_ZONES.right,
+                height: blockHeight,
+                maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING.xl,
+                padding: `${SPACING.lg}px ${SPACING.xl}px`,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: SPACING.sm,
+                overflow: "hidden",
+                // No panel, no border, no text shadow: the scrims are the
+                // contrast bed. A 2px rule here would draw a box edge across
+                // the picture the layout exists to expose.
+              }}
+            >
+              <SlideUpFromBottom delay={0.2} duration={0.5}>
+                <CompanyText variant="media-first" />
+              </SlideUpFromBottom>
+              <StampIn delay={0.4} duration={0.5}>
+                <ResultText variant="media-first" />
+              </StampIn>
+              <FadeIn delay={0.6} duration={0.5}>
+                <SourceText variant="media-first" />
+              </FadeIn>
+            </div>
+          </Camera>
+        )}
       </>
     );
   };

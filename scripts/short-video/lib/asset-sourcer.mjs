@@ -1237,7 +1237,7 @@ export function sourceTierRank(asset) {
  *     would push reused/total above opts.reusedCap (default 0.4); rejection
  *     happens before scene search so it never consumes a scene slot
  *   - composition (#963): on scenes that have the contain band (narrative
- *     media-bottom-bar, hook), third-party landscape sources (aspect >=
+ *     media-bottom-bar / media-first, hook), third-party landscape sources (aspect >=
  *     LANDSCAPE_MIN_ASPECT) are written with fit:"contain" so cover cannot
  *     crop them. Portrait/square sources keep cover, and layouts without the
  *     band (info-card/context/contrast backgrounds) keep their existing fit —

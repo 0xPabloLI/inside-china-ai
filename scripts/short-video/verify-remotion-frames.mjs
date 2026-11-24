@@ -225,13 +225,20 @@ for (let i = 0; i < scenes.length; i++) {
   // both are left unprobed rather than reported as a pass they did not earn.
   // #952: the check is fit-aware — a scene that declares fit:"contain" asked
   // for the letterbox, so it passes by declaration instead of warning about it.
+  // #1524: media-first paints the same full-bleed band (0 → MEDIA_BAND.bottom)
+  // under a compact text block at the content bottom. A contained 16:9 picture
+  // with blur fill still reaches that bottom edge through the fill layer, so
+  // the band probe applies exactly as it does to media-bottom-bar.
   const mediaBandBottom =
-    scene.media && scene.media.mode !== "card" && scene.layout === "media-bottom-bar"
+    scene.media &&
+    scene.media.mode !== "card" &&
+    (scene.layout === "media-bottom-bar" || scene.layout === "media-first")
       ? MEDIA_BAND.bottom
       : null;
   const analysisResults = runFrameAnalysis(buf, SAFE_ZONES, {
     mediaBandBottom,
     mediaBandFit: scene.media?.fit ?? "cover",
+    mediaBandFill: scene.media?.fill ?? null,
   });
   for (const r of analysisResults) {
     logResult(r);

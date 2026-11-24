@@ -226,6 +226,12 @@ export const MEASURED_MAX_WIDTH = {
   "narrative.media-bottom-bar.action": 724,
   "narrative.media-bottom-bar.result": 724,
   "narrative.media-bottom-bar.source": 724,
+  // media-first (#1524): same 820 band + same padding as the bottom bar, so the
+  // content box is identical; the difference is where the block sits, not how
+  // wide a line may be.
+  "narrative.media-first.company": 724,
+  "narrative.media-first.result": 724,
+  "narrative.media-first.source": 724,
   "narrative.media-overlay.badge": 820,
   // stacked-cards: card fields sit inside padded+bordered cards inside the
   // 820 band (measured 752); source renders OUTSIDE the cards, so it gets
@@ -486,8 +492,8 @@ export function resolveRenderLayout(scene) {
 /**
  * Whether the scene's renderer has the contain band (#963).
  *
- * Only NarrativeScene's `media-bottom-bar` variant and HookScene place a
- * contained picture in [SAFE_ZONES.top, CONTAIN_MEDIA_BOTTOM]. InfoCard /
+ * Only NarrativeScene's `media-bottom-bar` and `media-first` variants and
+ * HookScene place a contained picture in a dedicated band. InfoCard /
  * Context / Contrast draw MediaBackground in a full-frame container, where
  * contain letterboxes the picture somewhere inside the frame — those scenes
  * keep cover rather than inherit a band they do not have. The layout is read
@@ -505,9 +511,8 @@ export function resolveRenderLayout(scene) {
 export function hasContainBand(scene) {
   if (!scene) return false;
   if (scene.visualType === "hook") return true;
-  return (
-    scene.visualType === "narrative" && resolveRenderLayout(scene) === DEFAULT_NARRATIVE_LAYOUT
-  );
+  const layout = scene.visualType === "narrative" ? resolveRenderLayout(scene) : null;
+  return layout === DEFAULT_NARRATIVE_LAYOUT || layout === "media-first";
 }
 
 /**
@@ -559,6 +564,17 @@ export const REMOTION_SLOT_MAP = {
       control: ["highlight"],
       optional: ["source"],
       intentionallyOmitted: [],
+    },
+    // Media-first (#1524, 2026-11-24): the picture owns the content band and
+    // the copy is deliberately SMALLER IN VOLUME, not smaller in type. Only
+    // three rows exist here; `action`/`context`/`badge` are omitted so a scene
+    // that still carries the old four-row stack fails preflight and Render
+    // instead of quietly shrinking 60px type into a 256px box.
+    "media-first": {
+      rendered: ["result"],
+      control: ["highlight"],
+      optional: ["company", "source"],
+      intentionallyOmitted: ["action", "context", "badge"],
     },
     "media-overlay": {
       rendered: ["company", "action", "result"],
@@ -821,12 +837,12 @@ export function textFieldValue(visualType, texts, field) {
  */
 export function assertKnownTextFields(visualType, layout, texts) {
   const groups = remotionSlotsFor(visualType, layout);
-  const known = new Set([
-    ...groups.rendered,
-    ...groups.optional,
-    ...groups.control,
-    ...groups.intentionallyOmitted,
-  ]);
+  const known = new Set([...groups.rendered, ...groups.optional, ...groups.control]);
+  // #1524: intentionallyOmitted is a CONTRACT statement, not a synonym for
+  // "unknown but tolerated". A media-first scene that still carries `action`
+  // would draw nothing and read as a shorter version of the same script — the
+  // exact silent downgrade this layout exists to prevent. Fail it by name.
+  const omitted = new Set(groups.intentionallyOmitted ?? []);
   const aliases = FIELD_ALIASES[visualType] ?? {};
   const t = texts ?? {};
   // Rendered fields are contract-promised: the template draws them
@@ -845,6 +861,14 @@ export function assertKnownTextFields(visualType, layout, texts) {
   }
   for (const key of Object.keys(t)) {
     const field = aliases[key] ?? key;
+    if (omitted.has(field)) {
+      throw new Error(
+        `Text field "${key}" is intentionally omitted by layout "${layout}" ` +
+          `(${visualType}) — this template does not draw it, so the declaration ` +
+          `would silently shorten the scene. Remove the field, or move the beat ` +
+          `to a layout that renders it.`,
+      );
+    }
     if (known.has(field)) continue;
     // Report the field by name, never by slot id: a SLOT_FIELDS entry with no
     // rendered slot for this layout used to reach getSlot() and fail with
