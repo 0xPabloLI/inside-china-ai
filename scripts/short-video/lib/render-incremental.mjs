@@ -45,7 +45,7 @@ export function canonicalJson(value, seen = new Set()) {
   return out;
 }
 
-export function sha256Hex(input) {
+function sha256Hex(input) {
   return createHash("sha256").update(input).digest("hex");
 }
 

@@ -247,7 +247,7 @@ export function warnOffsetUnverifiable(scene) {
 }
 
 /** File-level sha256, or null when the file is unreadable. */
-export function sha256File(path) {
+function sha256File(path) {
   try {
     return createHash("sha256").update(readFileSync(path)).digest("hex");
   } catch {

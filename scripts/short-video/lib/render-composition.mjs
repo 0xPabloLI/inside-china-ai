@@ -12,7 +12,7 @@
  * for determinism tests, never for `Root.tsx`'s real composition.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { compositionFingerprintOf } from "./render-incremental.mjs";
 
@@ -59,13 +59,4 @@ export function computeCompositionFingerprint({ remotionDir }) {
   const fingerprint = compositionFingerprintOf(entries);
 
   return { fingerprint, entries };
-}
-
-/** Cheap stat-based guard used before trusting a cache directory. */
-export function isReadableFile(path) {
-  try {
-    return statSync(path).isFile();
-  } catch {
-    return false;
-  }
 }
