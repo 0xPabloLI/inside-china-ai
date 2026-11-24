@@ -21,6 +21,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnv } from "./lib/load-env.mjs";
 import { resolveRun } from "./lib/run-history.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { listPlatformProfiles } from "./lib/platforms/index.mjs";
@@ -36,6 +37,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const args = process.argv.slice(2);
+
+// #287 — the CLI entry owns .env.local loading; lib/** never self-loads.
+loadEnv();
+
 function getArg(name) {
   const index = args.indexOf(`--${name}`);
   return index >= 0 && index + 1 < args.length ? args[index + 1] : null;

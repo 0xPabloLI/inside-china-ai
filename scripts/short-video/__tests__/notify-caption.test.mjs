@@ -113,15 +113,13 @@ describe("chunkText", () => {
 });
 
 describe("feishu payload", () => {
-  it("signs with base64(HmacSHA256(timestamp\\nsecret, secret))", () => {
+  it("signs with the timestamp\\nsecret string as the HMAC key, empty message", () => {
     const payload = buildFeishuPayload({
       text: "hi",
       secret: "topsecret",
       timestamp: 1700000000000,
     });
-    const expected = createHmac("sha256", "topsecret")
-      .update("1700000000000\ntopsecret")
-      .digest("base64");
+    const expected = createHmac("sha256", "1700000000000\ntopsecret").digest("base64");
     expect(payload.timestamp).toBe("1700000000000");
     expect(payload.sign).toBe(expected);
     expect(payload.sign).toBe(feishuSignature({ timestamp: "1700000000000", secret: "topsecret" }));

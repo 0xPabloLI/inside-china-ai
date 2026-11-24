@@ -135,12 +135,22 @@ export function chunkText(text, maxBytes = DEFAULT_CHUNK_BYTES) {
   return chunks;
 }
 
-/** Feishu signature: base64(HmacSHA256(`${timestamp}\n${secret}`, secret)). */
+/** Feishu custom-bot signature.
+ *
+ * The spec is easy to get backwards: the HMAC **key** is `${timestamp}\n${secret}`
+ * and the **message** is empty — not `key=secret, msg=timestamp\nsecret`.
+ * Verified against a live webhook on 2026-11-24 (the other reading returns
+ * `code=19021 sign match fail`). `timestamp` is UNIX **seconds**.
+ */
 export function feishuSignature({ timestamp, secret }) {
-  return createHmac("sha256", secret).update(`${timestamp}\n${secret}`).digest("base64");
+  return createHmac("sha256", `${timestamp}\n${secret}`).digest("base64");
 }
 
-export function buildFeishuPayload({ text, secret = "", timestamp = Date.now() }) {
+export function buildFeishuPayload({
+  text,
+  secret = "",
+  timestamp = Math.floor(Date.now() / 1000),
+}) {
   const payload = { msg_type: "text", content: { text } };
   if (secret) {
     payload.timestamp = String(timestamp);
