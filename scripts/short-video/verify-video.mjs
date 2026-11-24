@@ -912,4 +912,28 @@ if (!preMode && results.fail.length === 0) {
   }
 }
 
+// ─── Post-render: push caption + hashtags to IM (#1530) ───
+// Best-effort by design: an unreachable chat channel must never flip a green
+// verification red. notify-caption.mjs exits 0 on send failure itself; this
+// catch covers crashes (missing module, bad args) the same way.
+if (!preMode && results.fail.length === 0) {
+  console.log("\n📲 Pushing caption + hashtags...");
+  try {
+    const notifyArgs = [join(__dirname, "notify-caption.mjs"), "--content", contentDir];
+    if (run?.runId) notifyArgs.push("--run", run.runId);
+    execFileSync(process.execPath, notifyArgs, { stdio: "inherit" });
+  } catch (e) {
+    if (args.includes("--require-notify") || process.env.NOTIFY_REQUIRED === "1") {
+      fail(
+        "Notify",
+        "Caption push succeeded",
+        e.message,
+        "Fix FEISHU_BOT_WEBHOOK / network, or drop NOTIFY_REQUIRED to downgrade this to a warning",
+      );
+    } else {
+      console.warn(`⚠️  [Notify] caption push skipped: ${e.message}`);
+    }
+  }
+}
+
 process.exit(results.fail.length > 0 ? 1 : 0);
