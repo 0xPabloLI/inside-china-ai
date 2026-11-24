@@ -11,9 +11,6 @@ import {
   MEDIA_BAND,
   BRAND_BAR,
   BRAND_FONT_STACK,
-  scrimGradient,
-  RAIL_VIGNETTE,
-  railVignetteGradient,
 } from "../lib/safe-zones.mjs";
 
 /**
@@ -183,7 +180,8 @@ describe("evidence card (#663, #848)", () => {
  * These lock the geometry that answers the "内容整体还是太偏上了" note: the picture
  * used to stop at the four-row text bar top (y=838, 43.6% of the frame) with an
  * opaque panel below it, and now runs to the content band's own bottom edge
- * (y=1206, 62.8%) with the text drawn on a gradient scrim over the picture.
+ * (y=1206, 62.8%) with the text drawn on its own opaque panel below the
+ * picture. 2026-11-25: no gradient scrim, no dim layer on the media.
  *
  * The 2026-10-29 change moved that edge 1150 → 1309 by taking SAFE_ZONES.bottom
  * 770 → 611. (An intermediate 710 / y=1210 pass came and went first: 60px is 3%
@@ -202,7 +200,7 @@ describe("media band (full-bleed footage)", () => {
     // the content band, 39px clear of the FAIL-only gap. A taller band walks it
     // into that gap (SUBTITLE_LANE_TOP, 1328, would put it at 1235-1288 and the
     // band's own edge at the gap's start), where the frame gate reads it as
-    // content and fails, and the scrim needed to pass dims it past readability.
+    // content and fails; media is never dimmed to hide it.
     expect(MEDIA_BAND.bottom).toBe(1206);
     expect(MEDIA_BAND.bottom).toBe(CANVAS.height - SAFE_ZONES.bottom);
     expect(MEDIA_BAND.bottom).toBeLessThan(SUBTITLE_LANE_TOP);
@@ -214,137 +212,6 @@ describe("media band (full-bleed footage)", () => {
     expect(MEDIA_BAND.bottom).toBeGreaterThan(MEDIA_BOTTOM_BAR.textBarTop);
     expect(MEDIA_BOTTOM_BAR.textBarTop / CANVAS.height).toBeLessThan(0.53);
     expect(MEDIA_BAND.bottom / CANVAS.height).toBeCloseTo(0.628, 3);
-  });
-
-  it("leaves a real ramp above the media's bottom edge", () => {
-    expect(MEDIA_BAND.scrimTop).toBeLessThan(MEDIA_BAND.bottom);
-    expect(MEDIA_BAND.bottom - MEDIA_BAND.scrimTop).toBeGreaterThanOrEqual(200);
-    expect(MEDIA_BAND.scrimAlpha).toBeGreaterThan(0);
-    expect(MEDIA_BAND.scrimAlpha).toBeLessThanOrEqual(1);
-  });
-
-  it("spends the right vignette on the action rail, not on the subject", () => {
-    const contentCentreX =
-      SAFE_ZONES.left + (CANVAS.width - SAFE_ZONES.right - SAFE_ZONES.left) / 2;
-    // The rail is x∈[880,1080]. 700 → 880 (2026-10-29): at 700 the ramp began
-    // 180px inside the picture and darkened the right third of the SUBJECT, to
-    // buy headroom in a region the gate samples ONLY between x 880 and 1080.
-    // Starting at the rail's own edge spends the whole ramp where it is read.
-    expect(MEDIA_BAND.vignetteStartX).toBeLessThanOrEqual(880);
-    // ...and not so far left that it eats the content band's own centre.
-    expect(MEDIA_BAND.vignetteStartX).toBeGreaterThan(contentCentreX);
-    // 0.95 → 0.6. At 0.95 the outer 200px went effectively opaque, which
-    // REMOVES evidence rather than dimming it ("右边的内容好像被你遮挡掉一些了").
-    // The rail no longer has to carry the darkest layer in the stack: it only
-    // overlaps a contained picture between y 640 and the picture's bottom edge,
-    // so 0.6 clears the luminance-80 threshold on its own. The bottom scrim is
-    // now the heaviest, and that is correct — it is the one carrying the text.
-    expect(MEDIA_BAND.vignetteAlpha).toBeLessThan(MEDIA_BAND.scrimAlpha);
-  });
-
-  it("covers the TikTok top nav band with a lighter scrim", () => {
-    // Top nav (tabs + search) measured ≈ y 0-165. The top scrim stays lighter
-    // than the bottom one on purpose: the film's own top-corner captions
-    // ("4 Meter High Platform" at canvas y 47-153) are evidence and must survive.
-    expect(MEDIA_BAND.topScrimHeight).toBeGreaterThanOrEqual(165);
-    expect(MEDIA_BAND.topScrimAlpha).toBeLessThan(MEDIA_BAND.scrimAlpha);
-  });
-});
-
-describe("scrimGradient", () => {
-  /** Parse `linear-gradient(dir, rgba(10,10,20,a) p%, ...)` into its stops. */
-  const parse = (css) => {
-    const direction = css.match(/^linear-gradient\((.*?), rgba/)?.[1];
-    const stops = [...css.matchAll(/rgba\(10,10,20,([\d.]+)\) (\d+)%/g)].map(([, a, offset]) => ({
-      alpha: Number(a),
-      offset: Number(offset),
-    }));
-    return { direction, stops };
-  };
-
-  it("ramps monotonically and lands exactly on the declared alpha", () => {
-    // MediaScrims holds a flat band at `scrimAlpha` past the ramp end, so the
-    // gradient's last stop must equal that same alpha or the two scrims show a
-    // seam where they meet.
-    const { direction, stops } = parse(scrimGradient(0.75, "to bottom"));
-    expect(direction).toBe("to bottom");
-    expect(stops).toHaveLength(5);
-    expect(stops[0]).toEqual({ alpha: 0, offset: 0 });
-    expect(stops.at(-1)).toEqual({ alpha: 0.75, offset: 100 });
-    for (let i = 1; i < stops.length; i++) {
-      expect(stops[i].offset).toBeGreaterThan(stops[i - 1].offset);
-      expect(stops[i].alpha).toBeGreaterThan(stops[i - 1].alpha);
-    }
-  });
-
-  it("reverses the ramp for the top scrim (peak at y=0)", () => {
-    const { stops } = parse(scrimGradient(0.55, "to bottom", true));
-    expect(stops[0]).toEqual({ alpha: 0.55, offset: 0 });
-    expect(stops.at(-1)).toEqual({ alpha: 0, offset: 100 });
-    for (let i = 1; i < stops.length; i++) {
-      expect(stops[i].alpha).toBeLessThan(stops[i - 1].alpha);
-    }
-  });
-
-  it("tracks a smoothstep curve, not a two-stop linear ramp", () => {
-    // CSS interpolates linearly between stops, so a two-stop gradient reads as
-    // a hard edge and bands across the picture. Linear would put the quarter
-    // points at 0.25 / 0.75; smoothstep puts them at 0.15625 / 0.84375.
-    const { stops } = parse(scrimGradient(1, "to right"));
-    expect(stops).toHaveLength(5);
-    expect(stops[1].alpha).toBeCloseTo(0.15625, 3);
-    expect(stops[3].alpha).toBeCloseTo(0.84375, 3);
-    expect(stops[1].alpha).toBeLessThan(0.25);
-    expect(stops[3].alpha).toBeGreaterThan(0.75);
-  });
-});
-
-/**
- * The full-frame rail vignette is a plateau, not MediaScrims' smoothstep, and
- * the geometry is what makes it work: the gate samples x 880-1080, so alpha has
- * to be at full strength by the time the region starts. Measured on the frame
- * that forced this (minimax-h3-image scene 2): smoothstep @ 0.85 still left
- * 5.2% bright pixels in the rail, the plateau left 0.0%.
- */
-describe("railVignetteGradient", () => {
-  /** Parse a `to right` gradient into (offset%, alpha) stops. */
-  const parseRight = (css) => {
-    expect(css.startsWith("linear-gradient(to right, ")).toBe(true);
-    return [...css.matchAll(/rgba\(10,10,20,([\d.]+)\) ([\d.]+)%/g)].map(([, a, offset]) => ({
-      alpha: Number(a),
-      offset: Number(offset),
-    }));
-  };
-
-  it("is fully transparent where the ramp starts and fully opaque by the rail edge", () => {
-    const stops = parseRight(railVignetteGradient());
-    const rampPct = (RAIL_VIGNETTE.rampStartX / CANVAS.width) * 100;
-    const holdPct = (RAIL_VIGNETTE.holdX / CANVAS.width) * 100;
-
-    expect(stops[0].offset).toBeCloseTo(rampPct, 1);
-    expect(stops[0].alpha).toBe(0);
-    // The stop that lands on the rail's left edge carries the peak alpha …
-    const atHold = stops.find((s) => Math.abs(s.offset - holdPct) < 0.05);
-    expect(atHold).toBeDefined();
-    expect(atHold.alpha).toBeCloseTo(RAIL_VIGNETTE.alpha, 3);
-    // … and the alpha holds there to the right edge (plateau, no re-ramp).
-    expect(stops[stops.length - 1].offset).toBeCloseTo(100, 1);
-    expect(stops[stops.length - 1].alpha).toBeCloseTo(RAIL_VIGNETTE.alpha, 3);
-  });
-
-  it("never decreases across the ramp and stays flat past the rail edge", () => {
-    const stops = parseRight(railVignetteGradient());
-    for (let i = 1; i < stops.length; i += 1) {
-      expect(stops[i].alpha).toBeGreaterThanOrEqual(stops[i - 1].alpha - 1e-9);
-    }
-    const past = stops.filter((s) => s.offset > (RAIL_VIGNETTE.holdX / CANVAS.width) * 100);
-    for (const s of past) expect(s.alpha).toBeCloseTo(RAIL_VIGNETTE.alpha, 3);
-  });
-
-  it("keeps the alpha configurable and defaults to the calibrated value", () => {
-    expect(RAIL_VIGNETTE.alpha).toBe(MEDIA_BAND.vignetteAlpha);
-    const custom = parseRight(railVignetteGradient(0.9));
-    expect(custom[custom.length - 1].alpha).toBeCloseTo(0.9, 3);
   });
 });
 

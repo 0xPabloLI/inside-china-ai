@@ -19,7 +19,6 @@ const BASE_MEDIA: MediaField = {
   type: "video",
   path: `assets/${AUDIO_WINDOW_FIXTURE_VIDEO}`,
   animation: "none",
-  overlay: 0,
   volume: 1,
   audioIn: 2,
   audioOut: 5,

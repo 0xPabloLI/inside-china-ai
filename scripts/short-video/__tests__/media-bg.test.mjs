@@ -149,14 +149,13 @@ describe("mediaLayer", () => {
 
   it("generates image background HTML with background-image", () => {
     const result = mediaLayer(
-      { type: "image", path: "../../assets/logos/deepseek.svg", animation: "fade", overlay: 0.7 },
+      { type: "image", path: "../../assets/logos/deepseek.svg", animation: "fade" },
       REAL_CONTENT_DIR,
       6.0,
     );
     expect(result.html).toContain("background-image");
     expect(result.html).toContain("file://");
-    expect(result.html).toContain("media-overlay");
-    expect(result.html).toContain("0.7");
+    expect(result.html).not.toContain("media-overlay");
     expect(result.css).toContain("@keyframes");
   });
 
@@ -172,27 +171,7 @@ describe("mediaLayer", () => {
     expect(result.html).toContain("autoplay");
     expect(result.html).toContain("loop");
     expect(result.html).toContain("muted");
-    expect(result.html).toContain("media-overlay");
-    // Default overlay = 0.7
-    expect(result.html).toContain("0.7");
-  });
-
-  it("omits overlay div when overlay is 0", () => {
-    const result = mediaLayer(
-      { type: "image", path: "../../assets/logos/deepseek.svg", animation: "fade", overlay: 0 },
-      REAL_CONTENT_DIR,
-      6.0,
-    );
     expect(result.html).not.toContain("media-overlay");
-  });
-
-  it("uses default overlay 0.7 when not specified", () => {
-    const result = mediaLayer(
-      { type: "image", path: "../../assets/logos/deepseek.svg", animation: "fade" },
-      REAL_CONTENT_DIR,
-      6.0,
-    );
-    expect(result.html).toContain("0.7");
   });
 
   it("includes base CSS with media-container and media-bg classes", () => {
@@ -203,7 +182,7 @@ describe("mediaLayer", () => {
     );
     expect(result.css).toContain(".media-container");
     expect(result.css).toContain(".media-bg");
-    expect(result.css).toContain(".media-overlay");
+    expect(result.css).not.toContain(".media-overlay");
   });
 });
 
@@ -315,11 +294,10 @@ describe("validateMedia", () => {
     // This test verifies the VALID_MODES constant recognizes "fullscreen".
     // The texts check is in scene-rules.mjs (separate test).
     const result = validateMedia(
-      { type: "video", path: "assets/demo.mp4", mode: "fullscreen", overlay: 0.7 },
+      { type: "video", path: "assets/demo.mp4", mode: "fullscreen" },
       CONTENT_DIR,
     );
     expect(result.valid).toBe(true);
-    // overlay is accepted but will be forced to 0 at render time
   });
 
   // ── volume field tests (per-scene volume + envelope ducking) ──

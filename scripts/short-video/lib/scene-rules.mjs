@@ -1439,8 +1439,8 @@ export function checkLoopClose(scenes, meta) {
  *  The hook is the opening 4.5–5 seconds, and asset-sourcer structurally skips it —
  *  so a missing hook file is never "a sourcing gap".  A hook must have one of:
  *
- *    (a) a manually bound `media` object (curated: cover fit, legible overlay,
- *        attribution),
+ *    (a) a manually bound `media` object (curated: fit, attribution; media is
+ *        never dimmed),
  *    (b) `media: null` — an explicit CSS-only waiver, surfaced as a warning,
  *    (c) a strategy that can produce media after sourcing (b-roll /
  *        asset-then-broll / ai-image / asset-then-ai-image) — preflight warns,
@@ -1504,7 +1504,7 @@ export function checkHookMediaContract(scenes) {
     // The binding itself passes (media exists); quality issues are reported as
     // their own checks so the author sees exactly what to fix. The contract is
     // shared with the final media gate (hook-media.mjs) so render-only /
-    // rerender paths enforce the same fit/overlay/source rules.
+    // rerender paths enforce the same fit/source rules.
     const results = [
       {
         level: "pass",

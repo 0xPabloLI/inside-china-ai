@@ -351,25 +351,14 @@ export const SUBTITLE_LANE_TOP =
  * centre of 960, and the user read the result as "内容整体还是太偏上了".
  *
  * The band now runs to the content band's bottom edge (y=1298), so the picture
- * occupies 67.6% of the frame instead of 43-53%, and the text is drawn ON the
- * picture over a gradient scrim rather than in an opaque panel below it. The
- * band deliberately stops at 1298 rather than at the subtitle lane top (1328):
- * see the `bottom` note below for the measured reason (the source's own
+ * occupies 67.6% of the frame instead of 43-53%. 2026-11-25: the text is drawn
+ * on its own opaque panel below the picture, not on a gradient scrim over it.
+ * Media is never dimmed — the old right vignette and bottom scrim are deleted,
+ * and `MediaTextPanel` covers exactly the text bar from its top edge down.
+ *
+ * The band deliberately stops at 1298 rather than at the subtitle lane top
+ * (1328): see the `bottom` note below for the measured reason (the source's own
  * bottom-corner captions would land in the FAIL-only subtitle gap).
- *
- * The scrims are not decoration. They are what lets the full-bleed band pass
- * the frame gate: verify-remotion-frames.mjs fails a frame when more than 5% of
- * the pixels in the TikTok action rail (x 880-1080, y 640-1775) are brighter
- * than luminance 80, and for a full-bleed band that region maps to the middle
- * of the source frame, which is bright in every shot of the unitree film.
- * Measured over that film's own acts, the right vignette plus the bottom scrim
- * hold the rail at 0-3% with `overlay` 0.35; without them it sat at 20-100%.
- *
- * Known trade-off: a burned-in caption in the source's bottom-left corner is
- * dimmed by the bottom scrim. It stays above the gate's threshold and inside
- * the content band (measured: y 1070-1118, x 51-858 for the unitree film), so
- * it reads as dimmed evidence rather than disappearing, but it is no longer at
- * full brightness. Top-corner captions are unaffected.
  */
 export const MEDIA_BAND = {
   /**
@@ -389,42 +378,11 @@ export const MEDIA_BAND = {
    * H tracks SAFE_ZONES.bottom, so the 770 → 611 change above grew the band
    * from 1150 to 1309 (60% → 68.2% of the frame); #1228's 611 → 622 took it to
    * 1298 (67.6%).
+   *
+   * 2026-11-25: there are no scrim/vignette fields left. Media is never
+   * dimmed; a text bar gets its own opaque panel (`MediaTextPanel`).
    */
   bottom: CANVAS.height - SAFE_ZONES.bottom,
-  /** Bottom scrim fades in from this canvas y. */
-  scrimTop: 820,
-  /** Bottom scrim alpha at MEDIA_BAND.bottom. */
-  scrimAlpha: 0.75,
-  /**
-   * Right vignette fades in from this canvas x.
-   *
-   * 700 → 880 (the action rail's own left edge) on 2026-10-29. At 700 the ramp
-   * began 180px inside the picture, so it darkened the right third of the
-   * SUBJECT to buy headroom the rail check never measures — the user read it as
-   * "右边的内容好像被你遮挡掉一些了", which is exactly what it was. The gate
-   * only samples x 880-1080, so starting at 880 spends the whole ramp inside
-   * the region that actually needs it.
-   */
-  vignetteStartX: 880,
-  /**
-   * Right vignette alpha at the canvas right edge.
-   *
-   * 0.95 → 0.6. 0.95 made the outer 200px effectively opaque, which is not
-   * "dimmed evidence" — it is a removed one. 0.6 holds bright frames under the
-   * gate's luminance-80 threshold while leaving rail-adjacent picture legible;
-   * re-measure with verify-remotion-frames.mjs if the source gets brighter.
-   */
-  vignetteAlpha: 0.6,
-  /** Top scrim is at full strength at y=0 and gone by this canvas y. */
-  topScrimHeight: 200,
-  /**
-   * Top scrim alpha at y=0. Deliberately lighter than the bottom scrim: the
-   * top band only WARNs when it carries content, and the film's own captions
-   * sit in the source's top corners ("4 Meter High Platform" at source y
-   * 44-144 → canvas y 47-153). At 0.55 those captions still read as evidence,
-   * which is the point of keeping them in frame.
-   */
-  topScrimAlpha: 0.55,
 };
 
 /**
@@ -491,97 +449,6 @@ export const MEDIA_LED = Object.freeze({
   /** The locked bigNumber size in the strip (bypasses the 150px floor). */
   numberSize: 110,
 });
-
-/**
- * Normalised stops approximating smoothstep(t) = t²(3-2t).
- *
- * CSS gradients interpolate linearly between stops, so a two-stop gradient
- * reads as a hard ramp and puts visible banding across the picture. Five stops
- * track the curve closely enough that the frame gate's measured ratio does not
- * move versus the smoothstep the calibration used.
- */
-const SCRIM_CURVE = [0, 0.25, 0.5, 0.75, 1].map((t) => ({
-  offset: t,
-  weight: t * t * (3 - 2 * t),
-}));
-
-/**
- * Build a scrim's CSS gradient from the curve above.
- *
- * @param {number} alpha - peak alpha, applied at the weighted end
- * @param {"to bottom" | "to right"} direction - CSS gradient direction
- * @param {boolean} [reverse=false] - put the peak at the START instead of the end
- * @returns {string} a CSS `linear-gradient(...)` value
- */
-export function scrimGradient(alpha, direction, reverse = false) {
-  const stops = SCRIM_CURVE.map(({ offset, weight }) => {
-    const a = alpha * (reverse ? 1 - weight : weight);
-    return `rgba(10,10,20,${a.toFixed(4)}) ${(offset * 100).toFixed(0)}%`;
-  });
-  return `linear-gradient(${direction}, ${stops.join(", ")})`;
-}
-
-/**
- * Action-rail vignette for FULL-FRAME media (MediaBackground) — a plateau, not
- * the smoothstep MediaScrims puts on the media band.
- *
- * The two geometries differ because the pictures differ, and the numbers below
- * are measured on the frame that forced this (minimax-h3-image scene 2, a bright
- * film-strip still at `overlay` 0.55 — bright pixels in the rail band, x
- * 880-1080 / y 640-1775, against the 5% ceiling in `BRIGHT_RATIO_FAIL`):
- *
- *   no vignette                       15.7%
- *   MediaScrims geometry @ 0.85        5.2%   ← still over the ceiling
- *   plateau 0.60 from x 880            0.0%
- *
- * The smoothstep spends most of its ramp INSIDE the rail, so the rail's left
- * edge — exactly where a full-frame picture's subject tends to land — gets
- * almost no scrim, and raising the peak alpha barely helps (0.6 → 0.85 buys
- * 0.6 points). A plateau darkens the whole 200px the platform's own buttons
- * cover, which is why it works and why it costs the picture nothing visible.
- *
- * A plateau needs an edge, and a hard one at 880 reads as a vertical seam once
- * Ken Burns pans the picture. The 30px ramp buys that softness for 30px of
- * picture — an order of magnitude less than the 180px the 2026-10-29
- * calibration rejected ("右边的内容好像被你遮挡掉一些了", see
- * MEDIA_BAND.vignetteStartX).
- */
-export const RAIL_VIGNETTE = {
-  /** Alpha 0 here; the gate's own region starts 30px later. */
-  rampStartX: 850,
-  /** Alpha reaches `alpha` here — the action rail's own left edge. */
-  holdX: 880,
-  /** Reuses the alpha the band layouts were calibrated with. */
-  alpha: MEDIA_BAND.vignetteAlpha,
-};
-
-/**
- * CSS gradient for {@link RAIL_VIGNETTE}: ramp 850→880, flat alpha to the edge.
- *
- * The stops are CANVAS-relative percentages, so the element this is painted on
- * must span the full canvas width. Painting it on a `left: rampStartX` element
- * instead re-interprets 78.7% against that element's own 230px width and the
- * ramp lands at x≈1031 — measured that way, the rail only dropped from 17.1%
- * to 14.7% because the picture's bright subject sits at x 880-1000.
- *
- * @param {number} [alpha=RAIL_VIGNETTE.alpha] - peak alpha at the right edge
- * @returns {string} a CSS `linear-gradient(...)` value spanning the full canvas
- *   width; the left of the ramp is the first stop's colour (transparent)
- */
-export function railVignetteGradient(alpha = RAIL_VIGNETTE.alpha) {
-  const { rampStartX, holdX } = RAIL_VIGNETTE;
-  const pct = (x) => ((x / CANVAS.width) * 100).toFixed(2);
-  const stops = [
-    { x: rampStartX, a: 0 },
-    ...SCRIM_CURVE.slice(1).map(({ offset }) => ({
-      x: rampStartX + (holdX - rampStartX) * offset,
-      a: alpha * (offset * offset * (3 - 2 * offset)),
-    })),
-    { x: CANVAS.width, a: alpha },
-  ];
-  const css = stops.map(({ x, a }) => `rgba(10,10,20,${a.toFixed(4)}) ${pct(x)}%`);
-  return `linear-gradient(to right, ${css.join(", ")})`;
-}
 
 /** Channel watermark position (top-left corner, outside the content band). */
 export const WATERMARK_POS = { top: 60, left: 60 };

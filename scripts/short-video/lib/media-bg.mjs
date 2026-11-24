@@ -57,11 +57,6 @@ export const VALID_FITS = ["cover", "contain"];
 export const VALID_FOCUSES = ["top", "center", "bottom"];
 
 /**
- * Default overlay opacity when `media.overlay` is not specified.
- */
-const DEFAULT_OVERLAY = 0.7;
-
-/**
  * Animation timing parameters per preset (seconds).
  * inDuration: entrance animation length
  * outDuration: exit animation length
@@ -227,14 +222,15 @@ export function animationCss(preset, duration, mediaType) {
  *
  * .media-container: full-canvas wrapper, sits behind scene content (z-index: 0)
  * .media-bg: the actual media element (image div or <video>), covers canvas
- * .media-overlay: semi-transparent dark layer between media and text
+ *
+ * Media is never dimmed: there is no `.media-overlay` layer. Text contrast is
+ * the text surface's job, not the picture's.
  *
  * @returns {string} CSS string
  */
 function mediaBgBaseCss() {
   return `.media-container { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
-.media-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; transform-origin: center; }
-.media-overlay { position: absolute; inset: 0; z-index: 1; pointer-events: none; }`;
+.media-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; transform-origin: center; }`;
 }
 
 // ─── HTML generation ───
@@ -244,7 +240,7 @@ function mediaBgBaseCss() {
  *
  * Returns { css, html } where:
  *   css  — all CSS needed for the media layer (base + animation keyframes)
- *   html — the media element + overlay div, wrapped in .media-container
+ *   html — the media element, wrapped in .media-container
  *
  * When the media file doesn't exist, returns empty strings (fallback to
  * the scene's normal CSS background). When `media` is null/undefined or
@@ -252,7 +248,7 @@ function mediaBgBaseCss() {
  *
  * @param {Object|null} media - Scene's media object
  *   { type: "image"|"video", path: string, source?: string,
- *     animation?: string, overlay?: number }
+ *     animation?: string }
  * @param {string} contentDir - Absolute content directory path
  * @param {number} duration - Scene duration in seconds
  * @returns {{css: string, html: string}}
@@ -268,7 +264,6 @@ export function mediaLayer(media, contentDir, duration) {
 
   const fileUrl = resolveMediaPath(media.path, contentDir);
   const preset = media.animation || "fade";
-  const overlayOpacity = media.overlay !== undefined ? media.overlay : DEFAULT_OVERLAY;
 
   // Generate animation CSS
   const animCss = animationCss(preset, duration, media.type);
@@ -283,15 +278,9 @@ export function mediaLayer(media, contentDir, duration) {
     mediaElement = `<div class="media-bg" style="background-image: url('${fileUrl}');"></div>`;
   }
 
-  // Build overlay (only if opacity > 0)
-  const overlayHtml =
-    overlayOpacity > 0
-      ? `<div class="media-overlay" style="background: rgba(10, 10, 20, ${overlayOpacity});"></div>`
-      : "";
-
   return {
     css: `${baseCss}\n${animCss}`,
-    html: `<div class="media-container">${mediaElement}${overlayHtml}</div>`,
+    html: `<div class="media-container">${mediaElement}</div>`,
   };
 }
 

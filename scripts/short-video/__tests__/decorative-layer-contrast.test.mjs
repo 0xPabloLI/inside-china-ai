@@ -14,10 +14,10 @@
  * walks the whole Remotion source tree, so a plain numeric-literal decoration
  * added to a new scene or component is caught by the same rule.
  *
- * Known gap: interpolated alpha expressions such as
- * `rgba(10,10,20,${alpha})` in MediaBackground/MediaScrims cannot be decided
- * statically and are not flagged here. Those are dynamic scrims, not constant
- * decorations; a new constant layer written in that form needs a manual check.
+ * Known gap: interpolated alpha expressions cannot be decided statically and
+ * are not flagged here. MediaBackground no longer draws any dim layer
+ * (2026-11-25), so a new constant layer written in that form needs a manual
+ * check.
  */
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "fs";

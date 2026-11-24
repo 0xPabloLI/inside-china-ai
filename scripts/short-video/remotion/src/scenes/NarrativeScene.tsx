@@ -4,13 +4,13 @@
  * Dispatches by `scene.layout` field into 5 variants:
  *   - media-first: picture owns the content band, compact copy overlaid at the
  *     bottom (see MEDIA_FIRST in lib/safe-zones.mjs; #1524)
- *   - media-bottom-bar: full-bleed media to the subtitle lane, text over a
- *     gradient scrim (see MEDIA_BAND in lib/safe-zones.mjs)
+ *   - media-bottom-bar: full-bleed media to the content bottom, text over its
+ *     own opaque MediaTextPanel (see MEDIA_BAND in lib/safe-zones.mjs)
  *   - media-split: media left half, text right half
  *   - media-overlay: fullscreen media, text overlay top+bottom
- *   - stacked-cards: text-first cards; `scene.media` renders as a dimmed
- *     full-bleed background behind them (ambient only — evidence is routed to
- *     the media-window layouts by #761)
+ *   - stacked-cards: text-first cards; `scene.media` renders as a full-bleed
+ *     background behind them without dimming (ambient only — evidence is
+ *     routed to the media-window layouts by #761)
  *
  * Each variant has its own entrance animation pattern and uses
  * SPACING tokens and Interactive.Div on company/result.
@@ -38,7 +38,7 @@ import {
   MEDIA_FIRST,
   MEDIA_BAND,
 } from "../../../lib/safe-zones.mjs";
-import { MediaScrims } from "../components/MediaScrims";
+import { MediaTextPanel } from "../components/MediaTextPanel";
 import { MediaBackground } from "../components/MediaBackground";
 import { MediaCard } from "../components/MediaCard";
 import { Camera } from "../components/Camera";
@@ -244,13 +244,10 @@ export const NarrativeScene: React.FC<{
     const textBarTop = mediaBottomBarTopFor(txt);
     return (
       <>
-        {/* Media fills the frame down to the subtitle lane (2026-10-25), not
-            just to the text bar. The picture used to stop at textBarTop and
-            the rest of the frame was opaque panel, which put the composition's
-            weight in the top half. The scrims below are what keep a full-bleed
-            band inside the frame gate's rail and subtitle-gap limits — see the
-            MEDIA_BAND note in lib/safe-zones.mjs. Card mode keeps its own
-            geometry: it renders a page capture, not a full-bleed picture. */}
+        {/* Media fills the frame down to the content bottom (2026-10-25), not
+            just to the text bar. The picture above is never dimmed; the text
+            bar gets its own opaque panel. Card mode keeps its own geometry:
+            it renders a page capture, not a full-bleed picture. */}
         {hasMedia &&
           (scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.CARD ? (
             <MediaCard media={scene.media!} duration={duration} bottom={textBarTop} />
@@ -280,21 +277,18 @@ export const NarrativeScene: React.FC<{
                   containAlign="bottom"
                 />
               </div>
-              {/* The scrims are what keep a full-bleed band inside the frame
-                  gate's rail and subtitle-gap limits — see the MEDIA_BAND note
-                  in lib/safe-zones.mjs. A contained picture stops at
-                  CONTAIN_MEDIA_BOTTOM, so its scrim does too: darkening the
-                  empty letterbox below it would only dim bare background. */}
-              <MediaScrims
-                mediaBottom={
-                  scene.media!.fit === "contain" ? CONTAIN_MEDIA_BOTTOM : MEDIA_BAND.bottom
-                }
+              {/* The picture above is never dimmed. The text bar gets its own
+                  opaque surface from `textBarTop` down: the media is covered
+                  where the copy sits, not darkened behind the whole frame. */}
+              <MediaTextPanel
+                top={textBarTop}
+                bottom={scene.media!.fit === "contain" ? CONTAIN_MEDIA_BOTTOM : MEDIA_BAND.bottom}
               />
             </>
           ))}
-        {/* Text block anchored to the safe zone bottom (y=1150), drawn over the
-            picture. No panel background: the bottom scrim already guarantees
-            contrast, and an opaque bar would undo the full-bleed band. */}
+        {/* Text block anchored to the safe zone bottom (y=1150), drawn on the
+            opaque panel above. The picture keeps its own brightness; the text
+            gets its own surface. */}
         <Camera visualType="narrative" duration={duration}>
           <div
             data-text-container
@@ -339,8 +333,8 @@ export const NarrativeScene: React.FC<{
   // width with `fit:"contain"` + `fill:"blur"`, so the subject is never cropped
   // and no black bar is visible; `containAlign="upper"` drops the picture into
   // the top third, leaving the blurred fill below it for the copy and the
-  // subtitle lane. No gradient vignettes: the standing rule is no shadow on
-  // media, so contrast comes from the flat copy plate, not a scrim.
+  // subtitle lane. No gradient vignettes and no dim layer: media is never
+  // darkened, so contrast comes from the flat copy plate.
   const MediaFirst: React.FC = () => {
     const blockHeight = mediaFirstBarHeightFor(txt);
     const blockTop = mediaFirstBarTopFor(txt);
@@ -353,7 +347,6 @@ export const NarrativeScene: React.FC<{
               duration={duration}
               contentDir={contentDir}
               containAlign="upper"
-              scrimScope="element"
             />
           </div>
         )}
@@ -493,6 +486,9 @@ export const NarrativeScene: React.FC<{
             flexDirection: "column",
             gap: SPACING.sm,
             overflow: "hidden",
+            background: COLOR.canvas,
+            outline: `${SPACING.xl}px solid ${COLOR.canvas}`,
+            borderRadius: 12,
           }}
         >
           <FadeIn delay={0.2} duration={0.5}>
@@ -540,8 +536,9 @@ export const NarrativeScene: React.FC<{
             display: "flex",
             flexDirection: "column",
             gap: SPACING.sm,
-            background: "linear-gradient(to top, rgba(10,10,20,0.8), transparent)",
-            padding: `${SPACING.xl}px ${SPACING["2xl"]}px`,
+            background: COLOR.canvas,
+            borderRadius: 12,
+            outline: `${SPACING.xl}px solid ${COLOR.canvas}`,
             overflow: "hidden",
           }}
         >
@@ -624,7 +621,7 @@ export const NarrativeScene: React.FC<{
                   padding: SPACING["2xl"],
                   border: `2px solid ${i === 0 ? "rgba(77,139,255,0.2)" : "rgba(245,158,11,0.2)"}`,
                   borderRadius: 12,
-                  background: "rgba(10,10,20,0.6)",
+                  background: COLOR.canvas,
                 }}
               >
                 {/* Cards read label/value from the contract fields: card 0 shows

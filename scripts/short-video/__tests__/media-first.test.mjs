@@ -35,7 +35,6 @@ const media = (patch = {}) => ({
   source: "official demo",
   fit: "contain",
   fill: "blur",
-  overlay: 0.2,
   volume: 0,
   ...patch,
 });
