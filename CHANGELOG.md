@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.109.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.108.0...tanstack_start_ts-v1.109.0) (2026-11-24)
+
+
+### Features
+
+* **render:** incremental Remotion renders by dirty scene ([#228](https://github.com/0xPabloLI/inside-china-ai/issues/228) ③) ([#1523](https://github.com/0xPabloLI/inside-china-ai/issues/1523)) ([0b573ab](https://github.com/0xPabloLI/inside-china-ai/commit/0b573abce81cc2304f3e7060bad00c1dc07cc55c))
+
 ## [1.108.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.107.0...tanstack_start_ts-v1.108.0) (2026-11-24)
 
 
