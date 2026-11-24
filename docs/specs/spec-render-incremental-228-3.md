@@ -70,12 +70,13 @@ render 内部再拆（`*-raw.mp4` 与 `*-short.mp4` 的落盘时间）：
 
 ## Modified Files Impact（R3）
 
-- 新增 `render-incremental.mjs`（`lib/` 下，待建：指纹、时间线映射、脏区间、segment 计划、缓存选择）
+- `scripts/short-video/lib/render-incremental.mjs`（指纹、时间线映射、脏区间、segment 计划、缓存选择）
+- `scripts/short-video/lib/render-composition.mjs`（合成层指纹）
 - `scripts/short-video/lib/render-remotion.mjs`（缓存查找、按区间渲染、回落、manifest 写入、prune）
 - `scripts/short-video/lib/render-manifest.mjs`（`incremental` 块 schema、segments 校验、replay 兼容）
 - `scripts/short-video/lib/post-process.mjs`（`segments` 的 finalize argv 与临时整轨 wav 度量）
 - `scripts/short-video/main.mjs`（Step 6 修复按 segments 重跑 finalize）
-- 测试：新增 `render-incremental.test.mjs`（`__tests__/` 下，待建）、`post-process-finalize-segments.test.mjs`（待建）、`render-manifest` 相关断言
+- 测试：`render-incremental.test.mjs`、`render-incremental-cache.test.mjs`、`post-process-finalize-segments.test.mjs`、`render-manifest` 相关断言
 - 文档：`docs/video-production-runbook.md` 增补「增量渲染」执行口径与逃生口；`docs/DOCS-INDEX.md` 登记本 spec 与 tickets；`docs/issue-roadmap.md` Round 更新
 
 ## Behavioral Scenarios（R3）
@@ -126,4 +127,4 @@ SSIM（增量成片 vs 整片重渲成片，逐帧 `ssim`，默认 CRF23 配方�
 
 - **T1 — 计划层（R2）**：`lib/render-incremental.mjs` + 单测。交付 `planIncrementalRender(prevManifest, props, {compositionFingerprint})`：场景指纹、脏集合、脏帧区间、新旧 offset 映射、segment 计划、缓存候选选择。验收：S1/S2/S3/S5/S6 的纯函数用例；demo：对 `workbuddy-computer-use` 的两版 props 打印脏区间与预计复用帧数。
 - **T2 — 拼接 finalize（R3）**：`post-process.mjs` 的 segments 参数 + 单测 + 真实 ffmpeg smoke（3 个合成片段拼 90 帧、音轨连续、ASS/loudnorm/BGM 仍生效）。验收：`buildFinalizeArgs` 输出含 `concat=n=3`；smoke 产物帧数/时长/loudness 与整段输入一致；既有 finalize 测试全绿。
-- **T3 — 编排与回落（R3）**：`render-remotion.mjs` + `main.mjs` 修复路径 + `render-manifest.mjs` schema + prune + 逃生口。验收：真实 `workbuddy-computer-use` 改 1 个场景重跑 ≤30 s（2 场景 ≤35 s）、SSIM 门通过、`verify-video` 通过；无画面变化重跑 ≤15 s；强制全量与首渲路径全绿。
+- **T3 — 编排与回落（R3）**：`render-remotion.mjs` + `main.mjs` 修复路径 + `render-manifest.mjs` schema + prune + 逃生口。验收：真实 `workbuddy-computer-use` 改 1 个场景重跑 ≤30 s（2 场景 ≤35 s）、SSIM All ≥0.999 / 最低帧 ≥0.985、`verify-video` 通过；无画面变化重跑 ≤15 s；强制全量与首渲路径全绿。
