@@ -25,9 +25,10 @@ import { AbsoluteFill, useCurrentFrame, staticFile, Img, useVideoConfig } from "
 import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
-import { videoVolumeAt } from "../../../lib/audio-envelope.mjs";
+import { resolveMediaAudio, videoVolumeAt } from "../../../lib/audio-envelope.mjs";
 import { railVignetteGradient } from "../../../lib/safe-zones.mjs";
 import type { MediaField } from "../types";
+import { useNarrationActive } from "./narration-context";
 
 // Animation timing (seconds)
 const TIMING: Record<string, { in: number; out: number }> = {
@@ -332,6 +333,15 @@ export const MediaBackground: React.FC<Props> = ({
   // cannot be handed a degenerate interpolate() input range on short scenes.
   const baseVolume = media.volume ?? 0.08;
   const fadeFrames = secToFrames(Math.min(0.25, duration / 2));
+  // #1525: source-audio window + narration ducking. Both are optional and
+  // resolved in one helper so an untouched clip keeps the pre-#1525 envelope.
+  const narrationActive = useNarrationActive();
+  const { audioWindow, duck } = resolveMediaAudio({
+    media,
+    fps,
+    totalFrames,
+    narrationActive,
+  });
   const videoVolume = videoVolumeAt({
     frame,
     baseVolume,
@@ -340,6 +350,8 @@ export const MediaBackground: React.FC<Props> = ({
     outStart,
     totalFrames,
     fadeFrames,
+    audioWindow,
+    duck,
   });
 
   const mediaStyle: React.CSSProperties = {

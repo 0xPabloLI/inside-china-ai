@@ -66,6 +66,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - TTS at full volume
 - BGM off by default (TikTok/Reels auto-add their own). Enable with `--bgm` flag: procedural cyber-ambient with an 8% bed gain (`DEFAULT_BGM_VOLUME` in `lib/post-process.mjs`), fades in 2s, fades out last 3s
 - All audio 192k AAC, 44100Hz
+- External source sound (#1525): `media.volume` (usually `1` to keep the original level), `audioIn` / `audioOut` as scene-relative seconds, `audioFadeIn` / `audioFadeOut` defaulting to 0.25s; `duckUnderNarration: true` with `duckLevel` (default 0.25) lowers the source while this scene has TTS. The window is a per-frame gain gate in the Remotion mix, not a separate ffmpeg pass; no stem separation, so a mixed dialogue+music track ducks as a whole.
 
 ### Mobile-First Vertical (9:16)
 

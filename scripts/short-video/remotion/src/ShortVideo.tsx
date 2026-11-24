@@ -25,6 +25,7 @@ import { ContextScene } from "./scenes/ContextScene";
 import { ContrastScene } from "./scenes/ContrastScene";
 import { StatRevealScene } from "./scenes/StatRevealScene";
 import { FullscreenMedia } from "./scenes/FullscreenMedia";
+import { NarrationProvider } from "./components/narration-provider";
 import { sceneTimeline, TRANSITION_FRAMES, COLOR, TYPE } from "./components/shared";
 import {
   assertKnownTextFields,
@@ -153,7 +154,9 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
 
     elements.push(
       <TransitionSeries.Sequence key={`s-${i}`} durationInFrames={entry.visualFrames}>
-        {renderScene(scene, entry.visualDuration, contentDir)}
+        <NarrationProvider active={Boolean(audioPaths[i])}>
+          {renderScene(scene, entry.visualDuration, contentDir)}
+        </NarrationProvider>
       </TransitionSeries.Sequence>,
     );
 

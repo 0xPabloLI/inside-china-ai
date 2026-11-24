@@ -63,6 +63,25 @@ export interface MediaField {
   overlay?: number;
   volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
   /**
+   * #1525: scene-relative audio window, seconds. `audioIn` starts the source
+   * sound at that scene time; `audioOut` stops it. Both default to the scene
+   * edges, so omitting them keeps the pre-#1525 whole-scene behaviour. The
+   * source is still the same clip selected by `videoStartOffsetMs`; this gates
+   * what the viewer hears, not which frames play.
+   */
+  audioIn?: number;
+  audioOut?: number;
+  /** #1525: seconds of fade at the audio window edges; default 0.25 each. */
+  audioFadeIn?: number;
+  audioFadeOut?: number;
+  /**
+   * #1525: lower this clip's source audio while the scene has narration.
+   * `duckLevel` is the multiplier (0–1, default 0.25); requires
+   * `duckUnderNarration: true` because silent-by-default is the safer choice.
+   */
+  duckUnderNarration?: boolean;
+  duckLevel?: number;
+  /**
    * Controls the sub-720p upscale safety net. `false` opts out entirely (set by
    * the B-roll stage — Tier A clips are 480×832 by design). `"resample"` keeps
    * the net but swaps Real-ESRGAN for the deterministic kernel: charts and

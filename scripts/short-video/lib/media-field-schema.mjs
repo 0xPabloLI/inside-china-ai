@@ -26,6 +26,12 @@ export const MEDIA_FIELD_KEYS = new Set([
   "animation",
   "overlay",
   "volume",
+  "audioIn", // #1525: scene-relative source-audio window, seconds
+  "audioOut",
+  "audioFadeIn",
+  "audioFadeOut",
+  "duckUnderNarration",
+  "duckLevel",
   "upscale",
   "videoStartOffsetMs",
   "evidence",
@@ -142,6 +148,80 @@ export function checkMediaFieldSchema(scenes) {
           check: `Media field schema: Scene ${scene.id} fill is honored by its layout`,
           detail: `media.fill renders only in NarrativeScene layout "media-first"; scene ${scene.id} is ${scene.visualType}/${scene.layout ?? "no layout"} — the declaration would have no effect`,
           fix: 'Move the beat to layout "media-first", or drop media.fill.',
+        });
+      }
+    }
+
+    // #1525: source-audio window. Numeric, non-negative, and only meaningful
+    // on a video. A window whose out-point precedes its in-point is silent
+    // everywhere, which is not what a producer writing "audioOut" means.
+    const audioEdges = ["audioIn", "audioOut", "audioFadeIn", "audioFadeOut"];
+    for (const key of audioEdges) {
+      if (media[key] === undefined) continue;
+      if (typeof media[key] !== "number" || !Number.isFinite(media[key]) || media[key] < 0) {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} ${key} is a non-negative number`,
+          detail: `media.${key} must be seconds as a finite number ≥ 0, got ${shown(media[key])} (${typeof media[key]})`,
+          fix: `Write media.${key} in seconds (e.g. 2.4), or drop the field.`,
+        });
+      }
+    }
+    if (
+      typeof media.audioIn === "number" &&
+      typeof media.audioOut === "number" &&
+      media.audioOut <= media.audioIn
+    ) {
+      results.push({
+        level: "fail",
+        category: "Media",
+        check: `Media field schema: Scene ${scene.id} audioOut follows audioIn`,
+        detail: `audioIn ${media.audioIn}s / audioOut ${media.audioOut}s — the window is empty or reversed, so no source sound can play`,
+        fix: "Make audioOut later than audioIn, or drop one edge.",
+      });
+    }
+    if (audioEdges.some((key) => media[key] !== undefined) && media.type !== "video") {
+      results.push({
+        level: "fail",
+        category: "Media",
+        check: `Media field schema: Scene ${scene.id} audio window is on a video`,
+        detail: `media.type is "${media.type}"; an image has no source audio to window`,
+        fix: 'Set media.type to "video", or drop the audio fields.',
+      });
+    }
+    if (media.duckUnderNarration !== undefined && typeof media.duckUnderNarration !== "boolean") {
+      results.push({
+        level: "fail",
+        category: "Media",
+        check: `Media field schema: Scene ${scene.id} duckUnderNarration is a boolean`,
+        detail: `got ${shown(media.duckUnderNarration)} (${typeof media.duckUnderNarration})`,
+        fix: "Use `duckUnderNarration: true` or `false`, or drop the field.",
+      });
+    }
+    if (media.duckLevel !== undefined) {
+      if (
+        typeof media.duckLevel !== "number" ||
+        !Number.isFinite(media.duckLevel) ||
+        media.duckLevel < 0 ||
+        media.duckLevel > 1
+      ) {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} duckLevel is in [0, 1]`,
+          detail: `got ${shown(media.duckLevel)} — it is a gain multiplier, not a percentage`,
+          fix: "Use a number between 0 and 1 (0.25 = quarter volume), or drop the field.",
+        });
+      }
+      if (media.duckUnderNarration !== true) {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} duckLevel has an effect`,
+          detail:
+            "duckLevel is declared without duckUnderNarration:true — the renderer will never read it",
+          fix: "Add `duckUnderNarration: true`, or drop duckLevel.",
         });
       }
     }
