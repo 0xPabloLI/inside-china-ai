@@ -1016,3 +1016,17 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 > **Last inventory**: 2026-11-23（**Round CCXLIII：`#1515` 闭票**——常驻内核复用门内重试：2 个包 / 3 次真实重试 63.9 / 67.6 / 71.5 s（中位 67.6 s，对照 406.3 / 333.5 s，省 82–84%）；冷启仍 351 s（4 scene，排队 0）；票面 `<60 s` 按实测改 60–90 s。证据 [`research/tts-live-kernel-reuse-2026-11-23.md`](research/tts-live-kernel-reuse-2026-11-23.md)。产品验证门：**无产出差异**（等待时间变化，wav/字幕/sidecar 契约不变）。PR #1518。frontier：1A 空、1B 空；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
 
 本轮台账补登：PR #1516（`ece93a4c`，`step-1-tts` 八子步计时，涉及 #1514/#1515/#1512/#758）——该施工 PR 未在 Round CCXLII 盘点登记，按 `roadmap-ledger` 处置补登。
+
+## Round CCXLIV 下沉：`#1520` 闭票（2026-11-24）
+
+> **Last inventory**: 2026-11-24（**Round CCXLIV：`#1520` 闭票**——预装 `cosyvoice3-site-packages` 数据集在 `import torch` 前挂载；manifest、解包或 `python -S` 探针任一不符即回落 wheelhouse。真实 2 包 / 4 scene 冷批 `engineWallMs` 374.8→247.6 s（−33.9%）、内核 298.0→173.3 s、依赖安装 185.5 s→0，4/4 wav SHA-256 与基线一致；票面 `<120 s` 按实测改 `≤250 s`（余解包 49.6 s、模型 32.8 s、合成 32.4 s、宿主约 74 s）。证据 [`research/tts-site-packages-2026-11-23.md`](research/tts-site-packages-2026-11-23.md)。产品验证门：**无产出差异**（等待时间变化，wav/字幕/sidecar 契约不变）。PR #1521。frontier：1A 空、1B 空；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXLIV，原文）**：
+
+**Round CCXLIV**（`#1520` 闭票：预装 site-packages 数据集跳过冷启 pip——真实冷批 374.8→247.6 s（−33.9%），4/4 wav 逐字节一致；票面按实测改 `≤250 s`；**无产出差异**；1A/1B/②③④ 空）
+
+## Round CCXLI 下沉：`#1514` 立项（2026-11-24）
+
+**下沉的一句话档案（Round CCXLI，原文）**：
+
+**Round CCXLI**（`#1514` 立项：`step-1-tts` 子步计时——`#1512` 结论落地，拆 573 s 本地尾巴，**无产出差异**；① `#1514`，1A/②③④ 空）
