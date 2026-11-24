@@ -58,7 +58,7 @@ function writeManifest(outputDir, version, { fingerprint = "comp-a", segments, c
       propsPath: join(dir, "props.json"),
       audioDir: join(outputDir, "audio"),
       finalize: { deleteRawAfter: true, sceneDurations: [], audioBasenames: [] },
-      command: ["npx"],
+      command: ["node"],
       incremental: {
         schema: INCREMENTAL_SCHEMA,
         fps: 30,
