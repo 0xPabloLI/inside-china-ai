@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.110.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.109.0...tanstack_start_ts-v1.110.0) (2026-11-24)
+
+
+### Features
+
+* **video:** media-first 版式——画面铺满画幅、文案减量 ([#1529](https://github.com/0xPabloLI/inside-china-ai/issues/1529)) ([cfcdf19](https://github.com/0xPabloLI/inside-china-ai/commit/cfcdf19e5a91f59da747e9145a4ac96d7862d706)), closes [#1524](https://github.com/0xPabloLI/inside-china-ai/issues/1524)
+
 ## [1.109.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.108.0...tanstack_start_ts-v1.109.0) (2026-11-24)
 
 
