@@ -23,6 +23,7 @@ import {
   copyFileSync,
   statSync,
   rmSync,
+  rmdirSync,
   readFileSync,
   readdirSync,
 } from "fs";
@@ -330,6 +331,38 @@ export function findIncrementalBase({
 }
 
 /**
+ * Delete everything under a stale version directory except files a kept
+ * manifest still references. A newer incremental render can reuse an older
+ * version's part, so `rm -rf render/<old>/` would silently break its cache.
+ */
+function removeUnprotectedTree(dir, protectedFiles) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (protectedFiles.has(full)) continue;
+    if (entry.isDirectory()) {
+      removeUnprotectedTree(full, protectedFiles);
+    } else {
+      try {
+        unlinkSync(full);
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+  try {
+    if (readdirSync(dir).length === 0) rmdirSync(dir);
+  } catch {
+    /* best effort */
+  }
+}
+
+/**
  * Keep the two newest cached versions per pipeline (#228 ③ decision 11).
  *
  * Only files this renderer wrote are candidates: part files under
@@ -377,9 +410,13 @@ export function pruneRenderCache({ outputDir, keep = 2, keepVersion = null }) {
   const removed = [];
   for (const entry of entries) {
     if (keepSet.has(entry.version)) continue;
+    let protectedInDir = false;
     for (const segment of entry.manifest.incremental.segments) {
       const abs = isAbsolute(segment.path) ? segment.path : join(outputDir, segment.path);
-      if (protectedFiles.has(abs)) continue;
+      if (protectedFiles.has(abs)) {
+        protectedInDir = true;
+        continue;
+      }
       const rel = relative(outputDir, abs);
       if (rel.startsWith("..") || isAbsolute(rel)) continue;
       const allowed = rel.startsWith("render/") || /-raw\.mp4$/.test(abs);
@@ -390,6 +427,11 @@ export function pruneRenderCache({ outputDir, keep = 2, keepVersion = null }) {
       } catch {
         /* best effort */
       }
+    }
+    if (protectedInDir) {
+      removeUnprotectedTree(entry.dir, protectedFiles);
+      if (!existsSync(entry.dir)) removed.push(relative(outputDir, entry.dir));
+      continue;
     }
     try {
       rmSync(entry.dir, { recursive: true, force: true });

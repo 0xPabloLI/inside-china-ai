@@ -155,6 +155,30 @@ describe("pruneRenderCache", () => {
     expect(existsSync(join(outputDir, raw))).toBe(true);
     expect(existsSync(v1)).toBe(false);
   });
+
+  it("keeps an old part when a kept newer version reuses it", () => {
+    const outputDir = tmp("inc-prune-shared-part-");
+    const v1 = writeManifest(outputDir, "v1", {
+      segments: [{ path: "render/v1/part-000.mp4", startFrame: 0, endFrame: 100, generation: 1 }],
+      createdAt: "2026-11-20T10:00:00.000Z",
+    });
+    const v2 = writeManifest(outputDir, "v2", {
+      segments: [{ path: "render/v1/part-000.mp4", startFrame: 0, endFrame: 100, generation: 1 }],
+      createdAt: "2026-11-20T11:00:00.000Z",
+    });
+    const v3 = writeManifest(outputDir, "v3", {
+      segments: [{ path: "render/v3/part-000.mp4", startFrame: 0, endFrame: 100, generation: 1 }],
+      createdAt: "2026-11-20T12:00:00.000Z",
+    });
+
+    const { removed } = pruneRenderCache({ outputDir, keep: 2, keepVersion: "v3" });
+    const sharedPart = join(v1, "part-000.mp4");
+    expect(existsSync(sharedPart)).toBe(true);
+    expect(existsSync(join(v1, "manifest.json"))).toBe(false);
+    expect(removed).not.toContain(join("render", "v1"));
+    expect(existsSync(v2)).toBe(true);
+    expect(existsSync(v3)).toBe(true);
+  });
 });
 
 describe("computeCompositionFingerprint", () => {
