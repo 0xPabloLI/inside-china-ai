@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.111.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.110.0...tanstack_start_ts-v1.111.0) (2026-11-24)
+
+
+### Features
+
+* **video:** 原片原声窗口与旁白 ducking ([#1533](https://github.com/0xPabloLI/inside-china-ai/issues/1533)) ([abcf797](https://github.com/0xPabloLI/inside-china-ai/commit/abcf7972feae6736ddb264d5a7786c1bb93befe9)), closes [#1524](https://github.com/0xPabloLI/inside-china-ai/issues/1524) [#1525](https://github.com/0xPabloLI/inside-china-ai/issues/1525)
+
 ## [1.110.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.109.0...tanstack_start_ts-v1.110.0) (2026-11-24)
 
 
