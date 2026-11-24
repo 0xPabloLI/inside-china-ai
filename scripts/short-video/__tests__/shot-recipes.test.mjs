@@ -29,7 +29,7 @@ describe("recipeCatalog", () => {
   it("has exactly one card per renderable combo, ids are canonical", () => {
     const catalog = recipeCatalog();
     expect(catalog.map((recipe) => recipe.id).sort()).toEqual(contractIds().sort());
-    expect(catalog).toHaveLength(21);
+    expect(catalog).toHaveLength(22);
     expect(new Set(catalog.map((recipe) => recipe.id)).size).toBe(catalog.length);
   });
 
@@ -75,7 +75,7 @@ describe("recipeCatalog", () => {
 
 describe("validateRecipeCatalog", () => {
   it("accepts the shipped catalogue", () => {
-    expect(validateRecipeCatalog()).toEqual({ ok: true, errors: [], cards: 21 });
+    expect(validateRecipeCatalog()).toEqual({ ok: true, errors: [], cards: 22 });
   });
 
   const mutate = (id, patch) => {

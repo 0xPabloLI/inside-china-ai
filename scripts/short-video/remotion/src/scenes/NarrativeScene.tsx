@@ -1,7 +1,9 @@
 /**
  * NarrativeScene — layout-driven scene template.
  *
- * Dispatches by `scene.layout` field into 4 variants:
+ * Dispatches by `scene.layout` field into 5 variants:
+ *   - media-first: picture owns the content band, compact copy overlaid at the
+ *     bottom (see MEDIA_FIRST in lib/safe-zones.mjs; #1524)
  *   - media-bottom-bar: full-bleed media to the subtitle lane, text over a
  *     gradient scrim (see MEDIA_BAND in lib/safe-zones.mjs)
  *   - media-split: media left half, text right half
@@ -31,6 +33,9 @@ import {
   CONTAIN_MEDIA_BOTTOM,
   mediaBottomBarHeightFor,
   mediaBottomBarTopFor,
+  mediaFirstBarHeightFor,
+  mediaFirstBarTopFor,
+  MEDIA_FIRST,
   MEDIA_BAND,
 } from "../../../lib/safe-zones.mjs";
 import { MediaScrims } from "../components/MediaScrims";
@@ -42,7 +47,8 @@ import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 import { mediaRoleOf, MEDIA_ROLE } from "../../../lib/media-role.mjs";
 
-type Layout = "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
+type Layout =
+  "media-first" | "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
 
 /** Fixture-only per-slot TextGate overrides (e.g. lockFontSize for F1). */
 type GateOverrides = Record<
@@ -184,7 +190,14 @@ export const NarrativeScene: React.FC<{
         {...ov(`narrative.${variant}.source`)}
       >
         {(fontSize) => (
-          <div style={{ fontSize, fontWeight: 600, color: COLOR.textDim, letterSpacing: "1px" }}>
+          <div
+            style={{
+              fontSize,
+              fontWeight: 600,
+              color: variant === "media-first" ? COLOR.text : COLOR.textDim,
+              letterSpacing: "1px",
+            }}
+          >
             {txt.source as string}
           </div>
         )}
@@ -195,11 +208,17 @@ export const NarrativeScene: React.FC<{
   const hasMedia = !!scene.media;
 
   const renderLayout = () => {
+    // #1524: media-first is evidence-only. The picture owns the content band
+    // and the copy is a compact overlay; a decorative/ambient picture is
+    // explicitly routed to the bounded card path below instead.
+    if (layout === "media-first" && mediaRole === MEDIA_ROLE.EVIDENCE) return <MediaFirst />;
     // Non-evidence media: no split, no overlay. The bottom bar is the only
     // layout that can hold a text block plus either a background band or a
     // bounded card, and it is what keeps text out of the picture's focal area.
     if (hasMedia && mediaRole !== MEDIA_ROLE.EVIDENCE) return <MediaBottomBar />;
     switch (layout) {
+      case "media-first":
+        return <MediaFirst />;
       case "media-bottom-bar":
         return <MediaBottomBar />;
       case "media-split":
@@ -310,6 +329,81 @@ export const NarrativeScene: React.FC<{
             </FadeIn>
           </div>
         </Camera>
+      </>
+    );
+  };
+
+  // ─── Variant: media-first (#1524) ───
+  // Picture first: media runs the whole canvas (1080×1920) and the copy is a
+  // compact plate anchored to the content bottom. A 16:9 source stays at full
+  // width with `fit:"contain"` + `fill:"blur"`, so the subject is never cropped
+  // and no black bar is visible; `containAlign="upper"` drops the picture into
+  // the top third, leaving the blurred fill below it for the copy and the
+  // subtitle lane. No gradient vignettes: the standing rule is no shadow on
+  // media, so contrast comes from the flat copy plate, not a scrim.
+  const MediaFirst: React.FC = () => {
+    const blockHeight = mediaFirstBarHeightFor(txt);
+    const blockTop = mediaFirstBarTopFor(txt);
+    return (
+      <>
+        {hasMedia && (
+          <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+            <MediaBackground
+              media={scene.media!}
+              duration={duration}
+              contentDir={contentDir}
+              containAlign="upper"
+              scrimScope="element"
+            />
+          </div>
+        )}
+        {blockHeight > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: blockTop,
+              left: 0,
+              right: 0,
+              height: blockHeight,
+              background: `rgba(10,10,20,${MEDIA_FIRST.textBedAlpha})`,
+            }}
+          />
+        )}
+        {blockHeight > 0 && (
+          <Camera visualType="narrative" duration={duration}>
+            <div
+              data-text-container
+              style={{
+                position: "absolute",
+                top: blockTop,
+                left: SAFE_ZONES.left,
+                right: SAFE_ZONES.right,
+                height: blockHeight,
+                maxWidth: CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right - 2 * SPACING.xl,
+                padding: `${SPACING.lg}px ${SPACING.xl}px`,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: SPACING.sm,
+                overflow: "hidden",
+                // No border and no text shadow: the flat plate behind this
+                // block is the contrast bed. It is a hard-edged 256px band,
+                // not a gradient over the picture.
+              }}
+            >
+              <SlideUpFromBottom delay={0.2} duration={0.5}>
+                <CompanyText variant="media-first" />
+              </SlideUpFromBottom>
+              <StampIn delay={0.4} duration={0.5}>
+                <ResultText variant="media-first" />
+              </StampIn>
+              <FadeIn delay={0.6} duration={0.5}>
+                <SourceText variant="media-first" />
+              </FadeIn>
+            </div>
+          </Camera>
+        )}
       </>
     );
   };

@@ -1869,6 +1869,7 @@ function checkTextConcatenation(scenes) {
  */
 const VALID_LAYOUTS = [
   "hero-center",
+  "media-first",
   "media-bottom-bar",
   "media-split",
   "media-overlay",
@@ -2980,6 +2981,89 @@ export function checkLayoutMediaRouting(scenes) {
  * `allowsContainFit` is the same predicate the allocator uses, so the writer
  * and the gate cannot drift apart.
  */
+/**
+ * media-first contract (#1524).
+ *
+ * The layout exists to let a 16:9 source fill the frame without cropping the
+ * subject or showing letterbox bars, and to shrink the copy by VOLUME (fewer
+ * rows), not by type size. Those are four declarations the template cannot
+ * infer, so preflight checks them explicitly:
+ *   - media present (the band is the layout),
+ *   - role evidence (decorative/ambient pictures are routed elsewhere),
+ *   - fit "contain" + fill "blur" (the pair that removes black bars without
+ *     cropping; either alone reproduces the problem this ticket fixes),
+ *   - no per-row copy longer than the 32-character comfort line.
+ */
+export function checkMediaFirstContract(scenes) {
+  const CHECK = "Media-first layout contract";
+  const CATEGORY = "Media";
+  const results = [];
+  for (const scene of scenes || []) {
+    if (scene?.visualType !== "narrative" || scene?.layout !== "media-first") continue;
+    const where = `Scene ${scene.id}`;
+    if (!scene.media) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: layout "media-first" has no media — the picture IS the layout`,
+        fix: 'Bind media (evidence), or use "media-bottom-bar" for a text-led beat.',
+      });
+      continue;
+    }
+    if (mediaRoleOf(scene) !== MEDIA_ROLE.EVIDENCE) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: media-first picture is not evidence (role "${mediaRoleOf(scene)}") — it would fall back to the bounded card path at render`,
+        fix: 'Promote the picture to evidence (mediaRole: "evidence" + source), or move the beat to another layout.',
+      });
+    }
+    if (scene.media.fit !== "contain") {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: media-first requires fit "contain" (got "${scene.media.fit ?? "cover"}") — cover crops the sides of a 16:9 source, which is the defect the layout exists to avoid`,
+        fix: 'Add fit: "contain" and fill: "blur".',
+      });
+    }
+    if (scene.media.fill !== "blur") {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: media-first requires fill "blur" — a contained picture without it leaves visible letterbox bars`,
+        fix: 'Add fill: "blur" beside fit: "contain".',
+      });
+    }
+    if (scene.media.mode === "card") {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: mode "card" is not honored by media-first — the card branch only exists in media-bottom-bar / hook`,
+        fix: 'Drop mode:"card", or move the beat to media-bottom-bar.',
+      });
+    }
+    const copy = scene.texts || {};
+    for (const key of ["company", "result"]) {
+      const value = copy[key];
+      if (typeof value === "string" && value.trim().length > 32) {
+        results.push({
+          level: "warn",
+          category: CATEGORY,
+          check: CHECK,
+          detail: `${where}: texts.${key} is ${value.trim().length} chars — media-first is a short-copy layout (comfort line 32); move the detail into voiceover or drop it`,
+          fix: "Shorten the row; do not shrink the type.",
+        });
+      }
+    }
+  }
+  return results;
+}
+
 export function checkContainFitBand(scenes) {
   const CHECK = "contain fit has a band";
   const CATEGORY = "Media";
@@ -3533,6 +3617,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaFieldSchema(scenes),
+    ...checkMediaFirstContract(scenes),
     ...checkSearchHintsSchema(scenes, claimPhrases),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),

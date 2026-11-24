@@ -26,7 +26,7 @@ import { join, dirname } from "path";
 import { resolveSceneAudio } from "./lib/audio/sync.mjs";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
-import { MEDIA_BAND, SAFE_ZONES } from "./lib/safe-zones.mjs";
+import { MEDIA_BAND, SAFE_ZONES, mediaFirstBarTopFor } from "./lib/safe-zones.mjs";
 import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./lib/timeline.mjs";
 import { resolveRun } from "./lib/run-history.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
@@ -225,6 +225,11 @@ for (let i = 0; i < scenes.length; i++) {
   // both are left unprobed rather than reported as a pass they did not earn.
   // #952: the check is fit-aware — a scene that declares fit:"contain" asked
   // for the letterbox, so it passes by declaration instead of warning about it.
+  // #1524: media-first paints a full-canvas picture (0 → 1920) with the copy
+  // on a flat plate at 950–1206; the picture may run under the platform chrome,
+  // and there is no letterbox at MEDIA_BAND.bottom to probe. Its safe-zone
+  // checks are therefore skipped by the contract documented in frame-analysis.
+  const isMediaFirst = scene.layout === "media-first";
   const mediaBandBottom =
     scene.media && scene.media.mode !== "card" && scene.layout === "media-bottom-bar"
       ? MEDIA_BAND.bottom
@@ -232,6 +237,13 @@ for (let i = 0; i < scenes.length; i++) {
   const analysisResults = runFrameAnalysis(buf, SAFE_ZONES, {
     mediaBandBottom,
     mediaBandFit: scene.media?.fit ?? "cover",
+    mediaBandFill: scene.media?.fill ?? null,
+    // Full-bleed media under the platform chrome is the declaration, not a
+    // defect; the pixel text checks look only at the copy plate.
+    skipSafeZoneChecks: isMediaFirst,
+    textRegion: isMediaFirst
+      ? { top: mediaFirstBarTopFor(scene.texts ?? {}), bottom: MEDIA_BAND.bottom }
+      : null,
   });
   for (const r of analysisResults) {
     logResult(r);
