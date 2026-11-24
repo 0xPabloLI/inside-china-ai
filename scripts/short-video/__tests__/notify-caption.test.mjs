@@ -6,8 +6,9 @@ import { join } from "node:path";
 import {
   FEISHU_MAX_BODY_BYTES,
   appendNotifyLog,
-  buildCaptionText,
+  buildCopyText,
   buildFeishuPayload,
+  buildSummaryText,
   chunkText,
   feishuSignature,
   hasSuccessfulSend,
@@ -58,35 +59,51 @@ describe("resolveNotifyConfig", () => {
   });
 });
 
-describe("buildCaptionText", () => {
-  it("forwards the caption verbatim and lists every hashtag", () => {
-    const text = buildCaptionText({
+describe("buildSummaryText", () => {
+  it("carries run info, pinned comment and package path but no caption body", () => {
+    const text = buildSummaryText({
       slug: "suno-visuals",
       runId: "r-20261124T045706-e611c3",
       platform: "tiktok",
-      caption: CAPTION,
-      hashtags: TAGS,
       pinnedComment: "Would you use it for a song?",
       packageDir: "/tmp/out/publish/tiktok",
     });
-    expect(text).toContain(CAPTION);
-    expect(text).toContain(TAGS.join(" "));
-    expect(text).toContain("Would you use it for a song?");
+    expect(text).toContain("suno-visuals");
     expect(text).toContain("r-20261124T045706-e611c3");
+    expect(text).toContain("Would you use it for a song?");
     expect(text).toContain("/tmp/out/publish/tiktok");
+    expect(text).not.toContain("Caption（整段复制）");
+    expect(text).not.toContain("#suno");
   });
 
   it("omits empty blocks instead of leaving blank labels", () => {
-    const text = buildCaptionText({
-      slug: "x",
-      runId: "r-1",
-      platform: "tiktok",
-      caption: "hello",
-      hashtags: [],
-    });
+    const text = buildSummaryText({ slug: "x", runId: "r-1", platform: "tiktok" });
     expect(text).not.toContain("置顶评论");
     expect(text).not.toContain("发布包");
-    expect(text).toContain("hello");
+    expect(text).toContain("x");
+  });
+});
+
+describe("buildCopyText", () => {
+  it("forwards the caption verbatim and appends only the missing hashtags", () => {
+    const text = buildCopyText({
+      caption: "Suno's new Visuals turns songs into clips.\n\n#suno #chinaai",
+      hashtags: ["#suno", "#chinaai", "#ainews"],
+    });
+    expect(text).toBe("Suno's new Visuals turns songs into clips.\n\n#suno #chinaai\n\n#ainews");
+  });
+
+  it("adds no hashtag line when the caption already carries them all", () => {
+    const text = buildCopyText({
+      caption: `${CAPTION}`,
+      hashtags: TAGS,
+    });
+    expect(text).toBe(CAPTION);
+    expect(text.toLowerCase()).not.toContain("#ainews\n\n#ainews");
+  });
+
+  it("returns the tags alone when there is no caption", () => {
+    expect(buildCopyText({ caption: "  ", hashtags: ["#a", "#b"] })).toBe("#a #b");
   });
 });
 
@@ -282,7 +299,7 @@ describe("notifyCaption", () => {
         config: resolveNotifyConfig({ FEISHU_BOT_WEBHOOK: "https://example.test/hook" }),
         fetchImpl: async () => feishuResponse(0),
       });
-      expect(result).toMatchObject({ ok: true, channel: "feishu", chunks: 1 });
+      expect(result).toMatchObject({ ok: true, channel: "feishu", parts: 2 });
       const log = readFileSync(logPath, "utf8").trim().split("\n");
       expect(log).toHaveLength(1);
       expect(hasSuccessfulSend(logPath, { runId: "r-3", platform: "tiktok" })).toBe(true);

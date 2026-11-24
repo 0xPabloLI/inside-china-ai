@@ -26,8 +26,9 @@ import { resolveRun } from "./lib/run-history.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
 import { listPlatformProfiles } from "./lib/platforms/index.mjs";
 import {
-  buildCaptionText,
+  buildCopyText,
   buildFeishuPayload,
+  buildSummaryText,
   chunkText,
   notifyCaption,
   resolveNotifyConfig,
@@ -66,6 +67,7 @@ if (testMode) {
   const text = [
     "🔔 China AI News 成片推送已接通",
     "这条是测试消息：以后每条视频 verify 全 PASS 后，caption + hashtags 会自动发到这里。",
+    "正式推送分两条：① 运行信息（片名/文件/置顶评论/发布包路径）；② 可直接整段复制进 TikTok 的 caption + hashtags。",
   ].join("\n");
   if (dryRun) {
     console.log(text);
@@ -77,6 +79,7 @@ if (testMode) {
     platform: "test",
     caption: text,
     hashtags: [],
+    singleText: text,
     config,
     force: true,
   });
@@ -161,22 +164,31 @@ for (const platform of platforms) {
   const logPath = join(runDir, "publish", "notify-log.jsonl");
 
   if (dryRun) {
-    const text = buildCaptionText({
-      slug: pipelineId,
-      runId,
-      platform,
-      caption,
-      hashtags: metadata.hashtags ?? [],
-      pinnedComment,
-      videoPath,
-      packageDir,
-    });
-    const payload = JSON.stringify(buildFeishuPayload({ text, secret: config.secret || "" }));
-    const chunks = chunkText(text);
+    const messages = [
+      buildSummaryText({
+        slug: pipelineId,
+        runId,
+        platform,
+        pinnedComment,
+        videoPath,
+        packageDir,
+      }),
+      buildCopyText({ caption, hashtags: metadata.hashtags ?? [] }),
+    ].filter((message) => message && message.trim() !== "");
+    const chunks = messages.flatMap((message) => chunkText(message));
+    const chars = messages.reduce((sum, message) => sum + message.length, 0);
     console.log(`\n=== ${platform} · ${runId} ===`);
-    console.log(text);
+    messages.forEach((message, index) => {
+      console.log(`\n--- 消息 ${index + 1}/${messages.length} ---`);
+      console.log(message);
+    });
     console.log(
-      `\n[dry-run] ${text.length} chars · ${chunks.length} chunk(s) · payload ${Buffer.byteLength(payload, "utf8")} bytes`,
+      `\n[dry-run] ${messages.length} 条消息 · ${chars} chars · ${chunks.length} chunk(s) · payload ${Buffer.byteLength(
+        JSON.stringify(
+          buildFeishuPayload({ text: messages[0] ?? "", secret: config.secret || "" }),
+        ),
+        "utf8",
+      )} bytes（首条）`,
     );
     continue;
   }
@@ -205,7 +217,7 @@ for (const platform of platforms) {
   if (result.ok) {
     sent += 1;
     console.log(
-      `✅ [notify] ${platform} caption 已推送到飞书（${result.chars} 字，${result.chunks} 条，attempts=${result.attempts}）`,
+      `✅ [notify] ${platform} 已推送到飞书（${result.parts} 条消息 / ${result.chunks} 块，${result.chars} 字，attempts=${result.attempts}）`,
     );
     continue;
   }

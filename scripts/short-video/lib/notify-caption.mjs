@@ -55,15 +55,14 @@ export function formatBytes(bytes) {
 }
 
 /**
- * The message the user reads on the phone. Caption and hashtags are delimited
- * so a whole block can be copied without picking up the surrounding labels.
+ * Message 1: run metadata, the pinned comment and the package path. Deliberately
+ * carries **no** caption text — that lives in message 2, and repeating it here
+ * only gets in the way when the user is long-pressing to copy.
  */
-export function buildCaptionText({
+export function buildSummaryText({
   slug,
   runId,
   platform,
-  caption,
-  hashtags = [],
   pinnedComment = "",
   videoPath = "",
   packageDir = "",
@@ -86,16 +85,29 @@ export function buildCaptionText({
     .filter(Boolean)
     .join("\n");
 
-  const captionBody = String(caption ?? "").trim();
-  const tagLine = (hashtags ?? []).filter(Boolean).join(" ");
   const pinned = String(pinnedComment ?? "").trim();
 
-  const blocks = [header, "—— Caption（整段复制） ——", captionBody, "—— Hashtags ——", tagLine];
-
+  const blocks = [header];
   if (pinned) blocks.push("—— 置顶评论（发布后手动发） ——", pinned);
   if (packageDir) blocks.push("—— 发布包 ——", packageDir);
 
   return blocks.filter((b) => b !== "").join("\n\n");
+}
+
+/**
+ * Message 2: the paste-ready block — caption verbatim, then only the hashtags
+ * that are not already in the caption. No emoji, no labels, no paths: whatever
+ * this message contains is exactly what goes into the TikTok caption field.
+ */
+export function buildCopyText({ caption, hashtags = [] }) {
+  const base = String(caption ?? "").trim();
+  const tags = (hashtags ?? [])
+    .map((tag) => String(tag ?? "").trim())
+    .filter(Boolean)
+    .filter((tag) => !base.toLowerCase().includes(tag.toLowerCase()));
+  if (tags.length === 0) return base;
+  if (!base) return tags.join(" ");
+  return `${base}\n\n${tags.join(" ")}`;
 }
 
 /**
@@ -270,6 +282,7 @@ export async function notifyCaption({
   pinnedComment = "",
   videoPath = "",
   packageDir = "",
+  singleText = null,
   logPath,
   config = resolveNotifyConfig(),
   force = false,
@@ -283,17 +296,14 @@ export async function notifyCaption({
     return { ok: true, skipped: true, reason: "duplicate", channel: config.channel };
   }
 
-  const text = buildCaptionText({
-    slug,
-    runId,
-    platform,
-    caption,
-    hashtags,
-    pinnedComment,
-    videoPath,
-    packageDir,
-  });
-  const chunks = chunkText(text);
+  const messages = singleText
+    ? [String(singleText)]
+    : [
+        buildSummaryText({ slug, runId, platform, pinnedComment, videoPath, packageDir }),
+        buildCopyText({ caption, hashtags }),
+      ].filter((message) => message && message.trim() !== "");
+  const chunks = messages.flatMap((message) => chunkText(message));
+  const chars = messages.reduce((sum, message) => sum + message.length, 0);
   let attempts = 0;
 
   for (const chunk of chunks) {
@@ -335,10 +345,18 @@ export async function notifyCaption({
       channel: config.channel,
       ok: true,
       attempts,
+      parts: messages.length,
       chunks: chunks.length,
-      chars: text.length,
+      chars,
     });
   }
 
-  return { ok: true, channel: config.channel, attempts, chunks: chunks.length, chars: text.length };
+  return {
+    ok: true,
+    channel: config.channel,
+    attempts,
+    parts: messages.length,
+    chunks: chunks.length,
+    chars,
+  };
 }
