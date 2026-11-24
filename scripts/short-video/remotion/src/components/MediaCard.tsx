@@ -39,7 +39,13 @@ export const MediaCard: React.FC<Props> = ({ media, duration, bottom }) => {
         background: COLOR.canvas,
       }}
     >
-      <MediaBackground media={media} duration={duration} />
+      {/* #1524 follow-up: a card is a bounded window, not a full-frame
+          background. The default "frame" scrim re-scales its rail vignette
+          and bottom lane stop into the card, painting a dark gradient over
+          the picture's right edge and bottom — exactly the shadow the user
+          rejected. "element" keeps only the flat `overlay` dim, so the
+          picture reads evenly edge to edge. */}
+      <MediaBackground media={media} duration={duration} scrimScope="element" />
     </div>
   );
 };
