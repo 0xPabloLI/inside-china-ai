@@ -68,6 +68,13 @@ interface Props {
    * crosses the band's right edge — darkening the exact focal content the
    * layout exists to expose. A band therefore gets a flat dim at `overlay`
    * and no lane/rail gradients at all; neither region is inside the band.
+   *
+   * Bounded surfaces (MediaCard, evidence bands, media-split windows) MUST
+   * pass `"element"`. `"frame"` is only for a background that genuinely spans
+   * the 1080×1920 canvas. Getting this wrong paints a directional shadow over
+   * the picture's right and bottom edge; the source + pixel gates live in
+   * `__tests__/media-card-scrim-contract.test.mjs` and
+   * `__tests__/media-focus-render.test.mjs`.
    */
   scrimScope?: "frame" | "element";
   /**
