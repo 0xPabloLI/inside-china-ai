@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.108.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.107.0...tanstack_start_ts-v1.108.0) (2026-11-24)
+
+
+### Features
+
+* **tts:** reuse a prebuilt site-packages dataset to skip cold pip install ([#1520](https://github.com/0xPabloLI/inside-china-ai/issues/1520)) ([#1521](https://github.com/0xPabloLI/inside-china-ai/issues/1521)) ([3dccb4b](https://github.com/0xPabloLI/inside-china-ai/commit/3dccb4bd592708349df0b8d9ae8f80d838f5f56f))
+
 ## [1.107.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.106.0...tanstack_start_ts-v1.107.0) (2026-11-23)
 
 
