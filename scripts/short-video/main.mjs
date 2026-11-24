@@ -687,7 +687,28 @@ async function main() {
     // the current path instead of the constants captured at render time.
     const repairFn = (category, report, { videoPath: repairVideoPath, assPath: repairAssPath }) => {
       const findBaseAndBurn = () => {
-        // The finalize pass keeps the RAW render output as the repair base.
+        // Incremental renders have no single raw: their frames live in the
+        // segments recorded on the manifest. Re-finalize those with the
+        // corrected ASS, exactly as the render door did.
+        if (result.mode !== "full" && result.segments?.length) {
+          const usable = result.segments.every((segment) => existsSync(segment.path));
+          if (usable) {
+            finalizeRenderedVideo({
+              videoPath: null,
+              segments: result.segments,
+              assPath: repairAssPath,
+              bgmPath,
+              outputPath: repairVideoPath,
+              realign: {
+                outputDir,
+                sceneDurations,
+                audioPaths: ttsResults.map((t) => t.audioPath),
+              },
+            });
+            return { success: true, videoPath: repairVideoPath, assPath: repairAssPath };
+          }
+        }
+        // The full-render path keeps the RAW render output as the repair base.
         // Rebuild the shipped file from it with the corrected ASS — the full
         // single-pass chain (subs + BGM + loudnorm + #176 head trim), not a
         // bare re-burn, so the repaired artifact matches the shipped recipe.

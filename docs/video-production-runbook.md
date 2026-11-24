@@ -1124,6 +1124,17 @@ manifest 是磁盘上的数据，重放把它当不可信输入：`--props` / �
 
 still 的 manifest 带 `kind: "still"`，重放只重出那一帧，不跑 finalize、也不删图；still 默认写到 `output/<id>/render/still-<frame>/frame-<frame>.png`，`--out` 只允许落在 `output/<id>/` 内，否则重放读不到它。
 
+### 增量渲染（#228 ③）
+
+渲染默认按场景复用上一版的帧，不重画整条片子。判据是 manifest 里的场景指纹（scene JSON、duration、音频字节、素材字节、相邻 `visualType`）与合成层指纹（`remotion/src/**` 除 fixtures、`package.json`、`remotion.config.ts`）；任何一项证明不了「没变」就回落全量，并写 `incremental.fallbackReason`。
+
+- 只在场景边界切；脏场景的窗口是 `[offset, offset + clipFrames + 10)`，前后转场带都归它。干净区间从上一版 raw/part 按旧时间线偏移裁出。
+- 无画面变化（只改 ASS/BGM）→ 0 帧光栅，只跑一次 finalize。
+- 缓存按 `output/<id>/render/` 保留最近 2 版；part 在 `render/<version>/parts/`。`SHORT_VIDEO_FORCE_FULL_RENDER=1` 强制全量且不写缓存。
+- 真实包实测（`workbuddy-computer-use`，9 场景/1725 帧）：全量 69.5–72.4 s；改 1 场景 20.3 s；改 2 个不相邻场景 32.7 s；无变化重跑 10.1 s。
+- 画面门：增量 vs 整片重渲 All ≥0.999、最低帧 ≥0.985（现有 `full raw → full final` 自身最低 0.9844，0.995 不可达），切点前后 2 帧人工抽查。要更严的画面一致性就设 `SHORT_VIDEO_FORCE_FULL_RENDER=1`。
+- 增量 manifest 没有单一 raw，`replay-render.mjs --plan` 会明确报 blocked：重放会重渲整片，不适用；要复现请重跑管线。Step 6 字幕修复走 segments 重新 finalize，不退回 raw。
+
 ### Pipeline Steps
 
 | Step | Action                                                                                                                                                                                                                                                                       | Output                                                   |

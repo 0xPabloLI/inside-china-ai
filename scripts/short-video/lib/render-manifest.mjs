@@ -89,6 +89,8 @@ function sha256(text) {
  * @param {string[]} input.command - exact argv, no shell quoting
  * @param {"render"|"still"} [input.kind] - a still has no finalize pass
  * @param {object|null} [input.finalize] - the door's finalize decisions (see finalizePlan)
+ * @param {object|null} [input.incremental] - reuse plan for the next run (see
+ *   `lib/render-incremental.mjs`); null when no cache was written
  * @returns {{dir: string, propsPath: string, manifestPath: string, manifest: object}}
  */
 export function writeRenderArtifacts({
@@ -106,6 +108,7 @@ export function writeRenderArtifacts({
   command,
   kind = "render",
   finalize = null,
+  incremental = null,
 }) {
   const dir = renderArtifactDir(outputDir, version);
   mkdirSync(dir, { recursive: true });
@@ -133,6 +136,7 @@ export function writeRenderArtifacts({
     propsSha256: sha256(serialized),
     command: [...command],
     finalize: finalize ?? null,
+    incremental: incremental ?? null,
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
@@ -163,9 +167,21 @@ export function readRenderArtifacts(manifestPath) {
       `render manifest schema ${JSON.stringify(manifest.schema)} is not supported (expected ${RENDER_MANIFEST_SCHEMA}): ${manifestPath}`,
     );
   }
-  for (const field of ["pipelineId", "rawPath", "finalPath", "propsPath", "audioDir"]) {
+  const incremental = manifest.incremental;
+  const hasIncrementalSegments =
+    incremental &&
+    typeof incremental.schema === "string" &&
+    Array.isArray(incremental.segments) &&
+    incremental.segments.length > 0;
+  for (const field of ["pipelineId", "finalPath", "propsPath", "audioDir"]) {
     if (typeof manifest[field] !== "string" || manifest[field].length === 0) {
       throw new Error(`render manifest is missing "${field}": ${manifestPath}`);
+    }
+  }
+  // An incremental render has no single raw file: its frames live in parts.
+  if (typeof manifest.rawPath !== "string" || manifest.rawPath.length === 0) {
+    if (!hasIncrementalSegments) {
+      throw new Error(`render manifest is missing "rawPath": ${manifestPath}`);
     }
   }
   if (!Array.isArray(manifest.command) || manifest.command.length === 0) {
@@ -312,8 +328,20 @@ export function finalizePlan({ manifest, audioDir, exists = existsSync }) {
   const recorded = manifest.finalize;
   if (!recorded) return null;
   const audioPaths = (recorded.audioBasenames ?? []).map((name) => join(audioDir, name));
+  // Manifest paths are stored relative to the pipeline output dir, anchored by
+  // the manifest location: <outputDir>/render/<version>/manifest.json.
+  const outputDir = dirname(dirname(dirname(manifest.propsPath)));
+  const segments =
+    Array.isArray(manifest.incremental?.segments) && manifest.incremental.segments.length > 0
+      ? manifest.incremental.segments.map((segment) => ({
+          path: isAbsolute(segment.path) ? segment.path : join(outputDir, segment.path),
+          startFrame: segment.startFrame,
+          endFrame: segment.endFrame,
+        }))
+      : null;
   return {
-    videoPath: manifest.rawPath,
+    videoPath: segments ? null : manifest.rawPath,
+    segments,
     assPath: recorded.assPath && exists(recorded.assPath) ? recorded.assPath : null,
     bgmPath: recorded.bgmPath && exists(recorded.bgmPath) ? recorded.bgmPath : null,
     outputPath: manifest.finalPath,
@@ -321,12 +349,28 @@ export function finalizePlan({ manifest, audioDir, exists = existsSync }) {
       audioPaths.length === 0
         ? null
         : {
-            outputDir: dirname(manifest.rawPath),
+            outputDir: segments ? outputDir : dirname(manifest.rawPath),
             sceneDurations: recorded.sceneDurations ?? [],
             audioPaths,
           },
     deleteRawAfter: recorded.deleteRawAfter === true,
   };
+}
+
+/**
+ * Rewrite the manifest after a render settles (incremental segments are only
+ * known once the parts exist). The props hash is untouched, so a later
+ * `readRenderArtifacts` still verifies the same props file.
+ *
+ * @param {string} manifestPath
+ * @param {object} patch
+ * @returns {object} the updated manifest
+ */
+export function updateRenderManifest(manifestPath, patch) {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const next = { ...manifest, ...patch };
+  writeFileSync(manifestPath, `${JSON.stringify(next, null, 2)}\n`);
+  return next;
 }
 
 /**
@@ -447,6 +491,22 @@ export function planReplay({ manifestPath, publicDir, remotionDir, audioDir }) {
   assertContained(manifestDir, manifest.propsPath, "props file", manifestPath);
 
   const sourceAudioDir = audioDir || manifest.audioDir;
+
+  if (!manifest.rawPath) {
+    blocking.push(
+      "incremental render: no single raw file exists (frames live in parts)\n    a faithful replay would need a full re-render — re-run the pipeline instead",
+    );
+    return {
+      ok: false,
+      kind: manifest.kind,
+      blocking,
+      recoverable,
+      notes,
+      command: [],
+      cwd: remotionDir,
+      audioDir: sourceAudioDir,
+    };
+  }
 
   for (const rel of collectStagedAssets(props)) {
     const stagedPath = join(publicDir, rel);

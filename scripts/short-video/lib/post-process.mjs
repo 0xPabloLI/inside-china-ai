@@ -10,6 +10,7 @@
 
 import { execFileSync, spawnSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
+import { join } from "path";
 import { measureAudioDrift } from "./audio/sync.mjs";
 import { writeBgmMixMarker } from "./audio/bgm-margin.mjs";
 import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
@@ -504,11 +505,17 @@ export function normalizeLoudness(videoPath, outputPath, target = -16) {
  *
  * @param {object} options
  * @param {string} options.videoPath - Input MP4 (the raw render output)
+ * @param {Array<{path: string, startFrame: number, endFrame: number}>} [options.segments]
+ *   - Incremental mode: ordered parts covering the timeline. Each range is
+ *   local to its file; ffmpeg trims them and concatenates in one pass. When
+ *   present, `videoPath` is ignored and the video stream is re-encoded.
+ * @param {number} [options.fps=30] - Frame rate used to convert segment frame
+ *   ranges into atrim seconds (44100/30 is a whole number, so no drift).
  * @param {string|null} options.assPath - ASS subtitle file, or null to skip
  * @param {string|null} options.bgmPath - BGM audio file, or null to skip
  * @param {string} options.outputPath - Output MP4
  * @param {string|null} [options.audioFilter] - Head trim/pad filter prepended
- *   on [0:a] (from measureAudioDrift), or null
+ *   on the narration audio (from measureAudioDrift), or null
  * @param {number} [options.bgmFadeOutStart] - Seconds; required with bgmPath
  * @param {number} [options.bgmVolume=DEFAULT_BGM_VOLUME]
  * @param {number} [options.loudnessTarget=-16]
@@ -516,6 +523,8 @@ export function normalizeLoudness(videoPath, outputPath, target = -16) {
  */
 export function buildFinalizeArgs({
   videoPath,
+  segments = null,
+  fps = 30,
   assPath,
   bgmPath,
   outputPath,
@@ -524,21 +533,53 @@ export function buildFinalizeArgs({
   bgmVolume = DEFAULT_BGM_VOLUME,
   loudnessTarget = -16,
 }) {
-  const args = ["-y", "-i", videoPath];
+  const useSegments = Array.isArray(segments) && segments.length > 0;
+  const args = ["-y"];
+  if (useSegments) {
+    for (const segment of segments) args.push("-i", segment.path);
+  } else {
+    args.push("-i", videoPath);
+  }
   const useBgm = Boolean(bgmPath);
+  const bgmIndex = useSegments ? segments.length : 1;
   if (useBgm) args.push("-stream_loop", "-1", "-i", bgmPath);
 
   const chains = [];
-  if (assPath) chains.push(`[0:v]ass=${assPath}[vout]`);
+  let videoSource = "[0:v]";
+  let audioSource = "[0:a]";
 
-  // The TTS branch label: [0:a] passes through untouched when there is no
-  // head filter, otherwise the filter output feeds the mix.
-  const ttsIn = audioFilter ? "[tts]" : "[0:a]";
-  if (audioFilter) chains.push(`[0:a]${audioFilter}[tts]`);
+  if (useSegments) {
+    for (const [index, segment] of segments.entries()) {
+      chains.push(
+        `[${index}:v]trim=start_frame=${segment.startFrame}:end_frame=${segment.endFrame},setpts=PTS-STARTPTS[v${index}]`,
+      );
+      // atrim has no frame options; seconds are exact at 30/60fps because
+      // 44100/fps is a whole number of samples.
+      const start = (segment.startFrame / fps).toFixed(6);
+      const end = (segment.endFrame / fps).toFixed(6);
+      chains.push(`[${index}:a]atrim=start=${start}:end=${end},asetpts=PTS-STARTPTS[a${index}]`);
+    }
+    const pairs = segments.map((_, index) => `[v${index}][a${index}]`).join("");
+    chains.push(`${pairs}concat=n=${segments.length}:v=1:a=1[vcatraw][acat]`);
+    // Concat inherits each input's timebase, which can land cue boundaries a
+    // frame either side of where a single continuous encode puts them — subtitles
+    // then appear/disappear one frame off. Normalizing to exact CFR frames keeps
+    // ASS timing identical to a full render.
+    chains.push(`[vcatraw]fps=${fps},settb=1/${fps}[vcat]`);
+    videoSource = "[vcat]";
+    audioSource = "[acat]";
+  }
+
+  if (assPath) chains.push(`${videoSource}ass=${assPath}[vout]`);
+
+  // The TTS branch label: the source passes through untouched when there is
+  // no head filter, otherwise the filter output feeds the mix.
+  const ttsIn = audioFilter ? "[tts]" : audioSource;
+  if (audioFilter) chains.push(`${audioSource}${audioFilter}[tts]`);
   const loudnorm = `loudnorm=I=${loudnessTarget}:TP=-1.5:LRA=11`;
   if (useBgm) {
     const fade = `afade=t=in:st=0:d=0.1,afade=t=out:st=${bgmFadeOutStart.toFixed(2)}:d=3,volume=${bgmVolume}`;
-    chains.push(`[1:a]${fade}[bgm]`);
+    chains.push(`[${bgmIndex}:a]${fade}[bgm]`);
     chains.push(`${ttsIn}[bgm]amix=inputs=2:duration=first:dropout_transition=0[mix]`);
     chains.push(`[mix]${loudnorm}[aout]`);
   } else {
@@ -548,11 +589,53 @@ export function buildFinalizeArgs({
   args.push("-filter_complex", chains.join(";"));
   if (assPath) {
     args.push("-map", "[vout]", "-map", "[aout]");
+  } else if (useSegments) {
+    // concat sits in the filter graph, so the video must be re-encoded.
+    args.push("-map", "[vcat]", "-map", "[aout]");
   } else {
     args.push("-map", "0:v", "-map", "[aout]", "-c:v", "copy");
   }
   args.push("-c:a", "aac", "-b:a", "192k", "-ar", "44100", outputPath);
   return args;
+}
+
+/**
+ * Concatenate the audio of every segment into one temporary PCM wav.
+ *
+ * `measureAudioDrift` cross-correlates each scene's voiceover against the
+ * shipped track, so it needs a file that spans the whole timeline. In
+ * incremental mode the shipped file is only assembled later in finalize, so
+ * this builds a measurement-only stand-in. 44.1kHz mono is what the drift
+ * measurement decodes to anyway. Caller deletes the file.
+ */
+export function concatSegmentsAudio({ segments, fps = 30, outputDir }) {
+  const wavPath = join(outputDir, `.segments-audio-${process.pid}-${Date.now()}.wav`);
+  const args = ["-y"];
+  for (const segment of segments) args.push("-i", segment.path);
+  const chains = segments.map(
+    (segment, index) =>
+      `[${index}:a]atrim=start=${(segment.startFrame / fps).toFixed(6)}:end=${(
+        segment.endFrame / fps
+      ).toFixed(6)},asetpts=PTS-STARTPTS[a${index}]`,
+  );
+  chains.push(
+    `${segments.map((_, index) => `[a${index}]`).join("")}concat=n=${segments.length}:v=0:a=1[aout]`,
+  );
+  args.push(
+    "-filter_complex",
+    chains.join(";"),
+    "-map",
+    "[aout]",
+    "-ac",
+    "1",
+    "-ar",
+    "44100",
+    "-c:a",
+    "pcm_s16le",
+    wavPath,
+  );
+  execFileSync("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+  return wavPath;
 }
 
 /**
@@ -569,6 +652,10 @@ export function buildFinalizeArgs({
  *
  * @param {object} options
  * @param {string} options.videoPath - Input MP4 (the raw render output)
+ * @param {Array<{path: string, startFrame: number, endFrame: number}>} [options.segments]
+ *   - Incremental mode: ordered parts covering the timeline (see
+ *   buildFinalizeArgs). `videoPath` is ignored when present.
+ * @param {number} [options.fps=30]
  * @param {string|null} options.assPath - ASS subtitle file, or null to skip
  * @param {string|null} options.bgmPath - BGM audio file, or null to skip
  * @param {string} options.outputPath - Output MP4
@@ -584,6 +671,8 @@ export function buildFinalizeArgs({
  */
 export function finalizeRenderedVideo({
   videoPath,
+  segments = null,
+  fps = 30,
   assPath,
   bgmPath,
   outputPath,
@@ -593,14 +682,30 @@ export function finalizeRenderedVideo({
   loudnessReadback = true,
   strictLoudness = false,
 }) {
+  const useSegments = Array.isArray(segments) && segments.length > 0;
   let audioFilter = null;
   if (realign) {
-    const m = measureAudioDrift({
-      videoPath,
-      outputDir: realign.outputDir,
-      sceneDurations: realign.sceneDurations,
-      audioPaths: realign.audioPaths,
-    });
+    // verifyAudioSync only needs a file whose audio track spans the timeline;
+    // with segments that file does not exist yet, so concatenate the parts'
+    // audio into a throwaway wav first (PCM, no codec loss).
+    let measureInput = videoPath;
+    let tempAudio = null;
+    if (useSegments) {
+      if (!realign.outputDir) throw new Error("segments realign requires outputDir");
+      tempAudio = concatSegmentsAudio({ segments, fps, outputDir: realign.outputDir });
+      measureInput = tempAudio;
+    }
+    let m;
+    try {
+      m = measureAudioDrift({
+        videoPath: measureInput,
+        outputDir: realign.outputDir,
+        sceneDurations: realign.sceneDurations,
+        audioPaths: realign.audioPaths,
+      });
+    } finally {
+      if (tempAudio && existsSync(tempAudio)) unlinkSync(tempAudio);
+    }
     audioFilter = m.filter;
     if (m.filter) {
       console.log(
@@ -616,11 +721,16 @@ export function finalizeRenderedVideo({
 
   let bgmFadeOutStart;
   if (bgmPath) {
-    bgmFadeOutStart = Math.max(probeVideoDuration(videoPath) - 3, 1);
+    const durationSeconds = useSegments
+      ? segments.reduce((sum, s) => sum + (s.endFrame - s.startFrame), 0) / fps
+      : probeVideoDuration(videoPath);
+    bgmFadeOutStart = Math.max(durationSeconds - 3, 1);
   }
 
   const args = buildFinalizeArgs({
     videoPath,
+    segments: useSegments ? segments : null,
+    fps,
     assPath: useAss ? assPath : null,
     bgmPath: bgmPath || null,
     outputPath,
@@ -633,6 +743,7 @@ export function finalizeRenderedVideo({
   const parts = [
     useAss ? "subtitles burned" : null,
     bgmPath ? "BGM mixed" : null,
+    useSegments ? `${segments.length} segments concatenated` : null,
     "loudness normalized",
     audioFilter ? "head trimmed" : null,
   ].filter(Boolean);
