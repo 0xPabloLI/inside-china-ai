@@ -185,6 +185,86 @@ const objectPositionFor = (media: MediaField, containAlign: ContainAlign): strin
   return FOCUS_MAP[media.focus ?? "center"] ?? "center";
 };
 
+const motionFor = (
+  preset: ReturnType<typeof resolvePreset>,
+  frame: number,
+  inFrames: number,
+  outStart: number,
+  totalFrames: number,
+): { scale: number; translateX: string; translateY: string; filter: string } => {
+  let scale = 1;
+  let translateX = "0px";
+  let translateY = "0px";
+  let filter = "none";
+
+  if (preset === "fade") {
+    scale = interpolate(frame, [0, totalFrames], [1.0, 1.05], clamp);
+    translateY = interpolate(frame, [outStart, totalFrames], [0, -30], clamp) + "px";
+  } else if (preset === "ken-burns") {
+    scale = interpolate(frame, [0, totalFrames], [1.0, 1.12], clamp);
+    translateX = interpolate(frame, [0, totalFrames], [-20, 20], clamp) + "px";
+    translateY = interpolate(frame, [0, totalFrames], [10, -10], clamp) + "px";
+  } else if (preset === "slide") {
+    const xPercent = interpolate(
+      frame,
+      [0, inFrames, outStart, totalFrames],
+      [100, 0, 0, -100],
+      clamp,
+    );
+    translateX = `${xPercent}%`;
+    const blurAmount = interpolate(frame, [0, inFrames], [8, 0], clamp);
+    filter = `blur(${blurAmount}px)`;
+    scale = interpolate(frame, [0, inFrames, outStart, totalFrames], [1.1, 1.0, 1.0, 1.05], clamp);
+  } else if (preset === "zoom") {
+    scale = interpolate(frame, [0, inFrames, outStart, totalFrames], [1.3, 1.0, 1.0, 1.15], {
+      ...clamp,
+      easing: easeOutExpo,
+    });
+  }
+
+  return { scale, translateX, translateY, filter };
+};
+
+const FillBlur: React.FC<{
+  media: MediaField;
+  src: string;
+  opacity: number;
+  trimBefore: number;
+}> = ({ media, src, opacity, trimBefore }) => (
+  <AbsoluteFill style={{ opacity }}>
+    {media.type === "image" ? (
+      <Img
+        src={src}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          filter: "blur(48px) saturate(0.92)",
+          transform: "scale(1.12)",
+        }}
+      />
+    ) : (
+      <Video
+        src={src}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          filter: "blur(48px) saturate(0.92)",
+          transform: "scale(1.12)",
+        }}
+        objectFit="cover"
+        volume={0}
+        trimBefore={trimBefore}
+        loop
+      />
+    )}
+  </AbsoluteFill>
+);
+
 export const MediaBackground: React.FC<Props> = ({
   media,
   duration,
@@ -226,41 +306,13 @@ export const MediaBackground: React.FC<Props> = ({
 
   // ─── Preset-specific transforms ───
 
-  let scale = 1;
-  let translateX = "0px";
-  let translateY = "0px";
-  let filter = "none";
-
-  if (preset === "fade") {
-    // Gentle scale-up throughout + slight drift up on exit
-    scale = interpolate(frame, [0, totalFrames], [1.0, 1.05], clamp);
-    translateY = interpolate(frame, [outStart, totalFrames], [0, -30], clamp) + "px";
-  } else if (preset === "ken-burns") {
-    // Slow continuous zoom + pan
-    scale = interpolate(frame, [0, totalFrames], [1.0, 1.12], clamp);
-    translateX = interpolate(frame, [0, totalFrames], [-20, 20], clamp) + "px";
-    translateY = interpolate(frame, [0, totalFrames], [10, -10], clamp) + "px";
-  } else if (preset === "slide") {
-    // Slide in from right + slide out to left
-    const xPercent = interpolate(
-      frame,
-      [0, inFrames, outStart, totalFrames],
-      [100, 0, 0, -100],
-      clamp,
-    );
-    translateX = `${xPercent}%`;
-    // Blur during entrance, sharp when settled
-    const blurAmount = interpolate(frame, [0, inFrames], [8, 0], clamp);
-    filter = `blur(${blurAmount}px)`;
-    // Slight scale for depth
-    scale = interpolate(frame, [0, inFrames, outStart, totalFrames], [1.1, 1.0, 1.0, 1.05], clamp);
-  } else if (preset === "zoom") {
-    // Dramatic zoom in (1.3→1.0), then zoom out on exit (1.0→1.15)
-    scale = interpolate(frame, [0, inFrames, outStart, totalFrames], [1.3, 1.0, 1.0, 1.15], {
-      ...clamp,
-      easing: easeOutExpo,
-    });
-  }
+  const { scale, translateX, translateY, filter } = motionFor(
+    preset,
+    frame,
+    inFrames,
+    outStart,
+    totalFrames,
+  );
 
   // ─── Volume (independent exit fade: audio ducks out at scene end) ───
   // Video volume has its own 4-stop envelope so audio still fades out
@@ -378,38 +430,7 @@ export const MediaBackground: React.FC<Props> = ({
           the upscale's softness while keeping the shot readable as atmosphere,
           and scale 1.12 keeps the blur from sampling the element edge. */}
       {showFillBlur && (
-        <AbsoluteFill style={{ opacity }}>
-          {media.type === "image" ? (
-            <Img
-              src={src}
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                filter: "blur(48px) saturate(0.92)",
-                transform: "scale(1.12)",
-              }}
-            />
-          ) : (
-            <Video
-              src={src}
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                filter: "blur(48px) saturate(0.92)",
-                transform: "scale(1.12)",
-              }}
-              objectFit="cover"
-              volume={0}
-              trimBefore={trimBefore}
-              loop
-            />
-          )}
-        </AbsoluteFill>
+        <FillBlur media={media} src={src} opacity={opacity} trimBefore={trimBefore} />
       )}
       {/* Backdrop sits ABOVE the matte (which is bare background) but BELOW
           the primary media — visible in the letterbox/strip area around it. */}
