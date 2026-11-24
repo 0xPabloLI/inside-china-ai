@@ -5,10 +5,10 @@
  * composition itself is byte-identical. Scene fingerprints cover data; this
  * covers the renderer: React components, tokens, layout helpers, transition
  * rules and the Remotion config/package. Fonts are not loaded from files in
- * this project (system stacks live in `src/tokens.ts`), so tokens changes are
+ * this project (system stacks live in the tokens module), so token changes are
  * already caught by the source sweep.
  *
- * Fixtures are excluded: `src/*-fixture.tsx` and `src/fixture-media.mjs` exist
+ * Fixtures are excluded: component files whose name contains "fixture" exist
  * for determinism tests, never for `Root.tsx`'s real composition.
  */
 import { createHash } from "node:crypto";
