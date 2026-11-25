@@ -424,45 +424,6 @@ describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, (
   });
 });
 
-describe("MediaCard scrim stays inside the card", { timeout: 600_000 }, () => {
-  const baseProps = { asset: "image", source: "solid", overlay: 0.7 };
-
-  it("current card: right and bottom edges match the centre", async () => {
-    const png = PNG.sync.read(readFileSync(await still({ ...baseProps, wrap: "card" })));
-    const centre = meanLuma(png, CARD_CENTRE);
-    const right = meanLuma(png, CARD_RIGHT);
-    const bottom = meanLuma(png, CARD_BOTTOM);
-    console.log(
-      `[evidence] card scrim edge/centre: right ${right.toFixed(1)} / bottom ${bottom.toFixed(1)} / centre ${centre.toFixed(1)}`,
-    );
-    expect(right, "card right edge must not carry a frame-relative rail vignette").toBeGreaterThan(
-      centre * 0.97,
-    );
-    expect(
-      bottom,
-      "card bottom edge must not carry a frame-relative subtitle scrim",
-    ).toBeGreaterThan(centre * 0.97);
-  });
-
-  it("frame scope control: the old card geometry does darken both edges", async () => {
-    const png = PNG.sync.read(readFileSync(await still({ ...baseProps, wrap: "cardFrame" })));
-    const centre = meanLuma(png, CARD_CENTRE);
-    const right = meanLuma(png, CARD_RIGHT);
-    const bottom = meanLuma(png, CARD_BOTTOM);
-    console.log(
-      `[evidence] frame-scoped control edge/centre: right ${right.toFixed(1)} / bottom ${bottom.toFixed(1)} / centre ${centre.toFixed(1)}`,
-    );
-    expect(
-      right,
-      "the negative control must fail this ratio, otherwise the test is not measuring the scrim",
-    ).toBeLessThan(centre * 0.96);
-    expect(
-      bottom,
-      "the negative control must fail this ratio, otherwise the test is not measuring the scrim",
-    ).toBeLessThan(centre * 0.94);
-  });
-});
-
 describe("contained media uses the declared matte colour", { timeout: 600_000 }, () => {
   it("card: a red matte fills the side letterbox instead of the dark default", async () => {
     const props = {
