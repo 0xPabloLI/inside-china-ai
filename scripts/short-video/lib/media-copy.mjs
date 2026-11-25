@@ -26,7 +26,7 @@ export const MEDIA_COPY_LIMIT = 2;
  * action and attribution are the rows that can move into voiceover/caption
  * when the picture already carries the evidence.
  */
-export const MEDIA_COPY_ORDER = Object.freeze(["company", "result", "action", "source"]);
+const MEDIA_COPY_ORDER = Object.freeze(["company", "result", "action", "source"]);
 
 /**
  * Whether a scene is a full-bleed evidence page whose copy should stay compact.
@@ -56,7 +56,7 @@ export function isCompactMediaScene(scene) {
  * @param {Record<string, any>} texts
  * @returns {string[]}
  */
-export function mediaCopyRows(texts = {}) {
+function mediaCopyRows(texts = {}) {
   return MEDIA_COPY_ORDER.filter((key) => {
     const value = texts?.[key];
     return typeof value === "string" ? value.trim() !== "" : Boolean(value);

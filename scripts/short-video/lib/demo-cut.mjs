@@ -288,4 +288,4 @@ export function checkDemoCuts({
   return { rows };
 }
 
-export const DEMO_CUT_LIMITS = { MIN_SEC, MAX_SEC, MIN_WHY, AUDIO_POLICIES };
+const DEMO_CUT_LIMITS = { MIN_SEC, MAX_SEC, MIN_WHY, AUDIO_POLICIES };
