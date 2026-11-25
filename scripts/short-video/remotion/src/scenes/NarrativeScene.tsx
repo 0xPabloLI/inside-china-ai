@@ -254,6 +254,19 @@ export const NarrativeScene: React.FC<{
             <MediaCard media={scene.media!} duration={duration} bottom={textBarTop} />
           ) : (
             <>
+              {/* Atmospheric bed: the SAME source blurred across the full
+                  canvas, so the area below the text plate keeps the shot's
+                  colour instead of reading as an empty black third. The
+                  sharp picture and the opaque plate still separate copy from
+                  picture; this bed is a blur, never a darkening layer. */}
+              <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+                <MediaBackground
+                  media={scene.media!}
+                  duration={duration}
+                  contentDir={contentDir}
+                  blurOnly
+                />
+              </div>
               <div
                 style={{
                   position: "absolute",
@@ -278,12 +291,10 @@ export const NarrativeScene: React.FC<{
                   containAlign="bottom"
                 />
               </div>
-              {/* Cover puts the text bar ON the picture; contain already ends
-                  the picture at textBarTop. Only cover needs the opaque
-                  surface; the picture is never darkened either way. */}
-              {scene.media!.fit !== "contain" && (
-                <MediaTextPanel top={textBarTop} bottom={MEDIA_BAND.bottom} />
-              )}
+              {/* Copy always gets its own opaque surface. On contain the
+                  picture already ends at textBarTop; on cover this covers its
+                  lower part. Neither mode dims the picture. */}
+              <MediaTextPanel top={textBarTop} bottom={MEDIA_BAND.bottom} />
             </>
           ))}
         {/* Text block anchored to the safe zone bottom (y=1150), drawn on the
@@ -664,8 +675,12 @@ export const NarrativeScene: React.FC<{
           templates. Until #1215 the background layers were painted after
           renderLayout(), i.e. on top of the text. */}
       <Glow color={glowColor} />
-      <BrandBar />
+      {/* media-overlay puts copy in the top band, so there the brand bar must
+          stay behind the layout; every other layout paints it LAST so a
+          full-bleed picture cannot bury the China AI News lockup. */}
+      {scene.layout === "media-overlay" && <BrandBar />}
       {renderLayout()}
+      {scene.layout !== "media-overlay" && <BrandBar />}
     </div>
   );
 };
