@@ -510,7 +510,11 @@ describe(
         ["bottom third", 450, 900],
       ]) {
         const band = meanAt(x, y, 60, 60);
-        expect(band.r + band.g + band.b, `${label} ${JSON.stringify(band)}`).toBeGreaterThan(180);
+        // 2026-11-25: the strip starts higher (994), so the contained photo
+        // is 576px tall instead of 619; its bottom-third mean is 179.07 on
+        // the generated fixture. 170 still separates "undimmed" from the old
+        // scrim (which sat below 120).
+        expect(band.r + band.g + band.b, `${label} ${JSON.stringify(band)}`).toBeGreaterThan(170);
       }
     });
   },

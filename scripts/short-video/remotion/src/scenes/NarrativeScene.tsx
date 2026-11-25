@@ -30,7 +30,6 @@ import {
 } from "../components/animations/entrance";
 import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION, COLOR } from "../components/shared";
 import {
-  CONTAIN_MEDIA_BOTTOM,
   mediaBottomBarHeightFor,
   mediaBottomBarTopFor,
   mediaFirstBarHeightFor,
@@ -244,10 +243,12 @@ export const NarrativeScene: React.FC<{
     const textBarTop = mediaBottomBarTopFor(txt);
     return (
       <>
-        {/* Media fills the frame down to the content bottom (2026-10-25), not
-            just to the text bar. The picture above is never dimmed; the text
-            bar gets its own opaque panel. Card mode keeps its own geometry:
-            it renders a page capture, not a full-bleed picture. */}
+        {/* Media owns the band above the text bar. On a contain binding the
+            picture's bottom edge IS textBarTop (2026-11-25): the two regions
+            never overlap, even when the copy runs to four rows. A cover
+            binding fills the content band and the text bar gets its own opaque
+            panel; the picture itself is never dimmed. Card mode keeps its own
+            geometry: it renders a page capture, not a full-bleed picture. */}
         {hasMedia &&
           (scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.CARD ? (
             <MediaCard media={scene.media!} duration={duration} bottom={textBarTop} />
@@ -257,15 +258,15 @@ export const NarrativeScene: React.FC<{
                 style={{
                   position: "absolute",
                   // contain → the picture's own band, hung on the text bar
-                  // (CONTAIN_MEDIA_BOTTOM, with containAlign="bottom" passed
-                  // below — MediaBackground defaults to centring, #1075).
+                  // (textBarTop, with containAlign="bottom" passed below —
+                  // MediaBackground defaults to centring, #1075).
                   // cover → the full-bleed band, unchanged.
                   top: scene.media!.fit === "contain" ? SAFE_ZONES.top : 0,
                   left: 0,
                   right: 0,
                   height:
                     scene.media!.fit === "contain"
-                      ? CONTAIN_MEDIA_BOTTOM - SAFE_ZONES.top
+                      ? textBarTop - SAFE_ZONES.top
                       : MEDIA_BAND.bottom,
                   overflow: "hidden",
                 }}
@@ -277,13 +278,12 @@ export const NarrativeScene: React.FC<{
                   containAlign="bottom"
                 />
               </div>
-              {/* The picture above is never dimmed. The text bar gets its own
-                  opaque surface from `textBarTop` down: the media is covered
-                  where the copy sits, not darkened behind the whole frame. */}
-              <MediaTextPanel
-                top={textBarTop}
-                bottom={scene.media!.fit === "contain" ? CONTAIN_MEDIA_BOTTOM : MEDIA_BAND.bottom}
-              />
+              {/* Cover puts the text bar ON the picture; contain already ends
+                  the picture at textBarTop. Only cover needs the opaque
+                  surface; the picture is never darkened either way. */}
+              {scene.media!.fit !== "contain" && (
+                <MediaTextPanel top={textBarTop} bottom={MEDIA_BAND.bottom} />
+              )}
             </>
           ))}
         {/* Text block anchored to the safe zone bottom (y=1150), drawn on the

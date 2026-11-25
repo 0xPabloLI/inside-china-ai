@@ -445,7 +445,11 @@ export const MEDIA_LED = Object.freeze({
   kicker: Object.freeze({ top: 220, height: 78 }),
   subject: Object.freeze({ top: 306, height: 96 }),
   mediaTop: 410,
-  strip: Object.freeze({ top: 1037, height: 261 }),
+  // 2026-11-25: the strip starts at the measured top of the 110px number's
+  // line box (994) and ends above the content safe bottom. The picture band
+  // stops 8px above it, so text never sits on the picture; longer copy is
+  // trimmed rather than pushed into the subtitle lane.
+  strip: Object.freeze({ top: 994, height: 169 }),
   /** The locked bigNumber size in the strip (bypasses the 150px floor). */
   numberSize: 110,
 });

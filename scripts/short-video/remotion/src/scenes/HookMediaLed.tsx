@@ -201,7 +201,7 @@ export const HookMediaLed: React.FC<{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "flex-start",
           }}
         >
           {txt.bigNumber && (

@@ -190,8 +190,6 @@ const MEDIA_LED_CONTAIN_SCENE: SceneData = {
     badge: "BREAKING ANALYSIS",
     subject: "QWEN3.8 FLASH",
     bigNumber: "-80%",
-    numberLabel: "SINCE JUNE PEAK",
-    source: "HKEX CLOSE, NOV 12",
   },
 };
 
@@ -254,8 +252,6 @@ const MEDIA_LED_CANDLE_SCENE: SceneData = {
     badge: "HKEX LISTING",
     subject: "ZHIPU",
     bigNumber: "-85%",
-    numberLabel: "SINCE JUNE PEAK",
-    source: "HKEX CLOSE, NOV 12",
   },
 };
 
