@@ -30,6 +30,7 @@ import sys
 import tarfile
 import time
 import traceback
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -135,8 +136,14 @@ def try_model_cache():
         return False
     try:
         if MODEL_CACHE_URL:
+            parsed = urllib.parse.urlparse(MODEL_CACHE_URL)
+            if parsed.scheme not in ("https", "http") or not parsed.netloc:
+                raise ValueError("COSYVOICE3_COLAB_MODEL_CACHE_URL must be an http(s) URL")
             log(f"fetching model cache from URL: {MODEL_CACHE_URL}")
-            urllib.request.urlretrieve(MODEL_CACHE_URL, MODEL_CACHE_ARCHIVE)
+            # Operator-supplied staging URL; scheme and host presence are checked above.
+            urllib.request.urlretrieve(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+                MODEL_CACHE_URL, MODEL_CACHE_ARCHIVE
+            )
         else:
             log(f"fetching model cache from Google Drive id: {MODEL_CACHE_GDRIVE_ID}")
             run([sys.executable, "-m", "gdown", "--id", MODEL_CACHE_GDRIVE_ID, "-O", MODEL_CACHE_ARCHIVE])

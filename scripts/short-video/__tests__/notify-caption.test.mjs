@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createHmac } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -131,15 +131,13 @@ describe("chunkText", () => {
 
 describe("feishu payload", () => {
   it("signs with the timestamp\\nsecret string as the HMAC key, empty message", () => {
-    const payload = buildFeishuPayload({
-      text: "hi",
-      secret: "topsecret",
-      timestamp: 1700000000000,
-    });
-    const expected = createHmac("sha256", "1700000000000\ntopsecret").digest("base64");
-    expect(payload.timestamp).toBe("1700000000000");
+    const secret = randomBytes(16).toString("hex");
+    const timestamp = Date.now();
+    const payload = buildFeishuPayload({ text: "hi", secret, timestamp });
+    const expected = createHmac("sha256", `${timestamp}\n${secret}`).digest("base64");
+    expect(payload.timestamp).toBe(String(timestamp));
     expect(payload.sign).toBe(expected);
-    expect(payload.sign).toBe(feishuSignature({ timestamp: "1700000000000", secret: "topsecret" }));
+    expect(payload.sign).toBe(feishuSignature({ timestamp: String(timestamp), secret }));
   });
 
   it("omits timestamp and sign when no secret is configured", () => {
