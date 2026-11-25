@@ -336,6 +336,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论证（陌生观众听这一句，能否听懂发生了什么），再给分集结论。**报告发出后暂停**，等用户确认角度后才写 scene-data。
 
 - 完成标准：报告含 hook 一句 + 独立可理解论证 + **该 hook 的四轴自评（Hook 合格判据，评审端）** + **全片脚本预览表**（每个 scene 一行，voiceover / texts / 预估秒数 / 计划素材四列填全，见下），且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
+- **视觉优先级（#1542）**：预览表的「计划素材」列必须让包内第一段 motion clip 落在 scene 1–2；不能前置时，报告里写一句可复核理由，并落进 `meta.hookVisualPriorityReason`。
 
 #### 全片脚本预览表（#949）
 
@@ -556,6 +557,12 @@ Hook 是开头的 4.5–5 秒（目标带，见上节「hook 时长口径」）�
 
 已有包迁移口径：hook 没有媒体**且没有生成策略**的包，下一次预检会 FAIL；带生成策略的包预检只 WARN，由最终 media gate 判定落地文件是否可用。hook 若写了已废弃的 `mediaOptOut: true` 且没有媒体，预检直接 FAIL——改用 `media: null` 显式豁免。
 
+### 开场视觉优先级（#1542，editorial）
+
+包内只要绑定了 motion clip，第一段必须出现在 scene 1–2。hook 用该 clip 的 0.5–1.5s teaser / 关键帧，完整 demo 仍留 payoff；若第一段视频只能放在 scene 3+，写 `meta.hookVisualPriorityReason`（剧透 / 事实不匹配 / 版权或原声限制）。`videoFit = 3` 且包内没有视频素材时，静图 hook 合法。
+
+判定由 `scene-rules.mjs` 的 `checkHookVisualPriority` 执行：只进 `🧭 Editorial Suggestions`，不进退出码。适用增量包，不回溯已发布成片。
+
 ### Hook 承诺-画面对账（#1206）
 
 `verify-video` 与帧分析只判**布局**（安全区、对比度、媒体是否存在），从不判「hook 说的和画面里的是不是一回事」。2026-10-25 的 unitree 剪辑就是反例：`IT LIFTS A CAR.` 压在夜景救援片段上，全部机检通过，缺陷只能靠人工读帧发现。本节补这一层。
@@ -599,7 +606,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | 编辑建议（advisory） | 需要品味/上下文/世界知识，**不进退出码、不算 WARN** | `🧭 Editorial Suggestions` 区块 |
 | Agent 判断项         | 机器无法判定，Agent 自评                            | HITL 报告                       |
 
-机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
+机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、开场视觉优先级（#1542）、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
 
 **行业事实门（#1479 S2）**：`runIndustryFactChecks` 在 gate bucket 里，对提及账本职实体的句子判三类——总参/激活混用、端侧档对旗舰档、stale 事实现在时（无 `as of`），以及无法溯源的量表数字；FAIL 行给出检查名与 FIX。事实由 `industry-knowledge.json` live 读取，`content/<dir>/industry-context.json` 只提供实体列表，不作为事实源。
 
