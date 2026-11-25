@@ -3633,7 +3633,7 @@ export function checkAvatarContract(scenes) {
  * @param {{meta?: object|null}} [opts]
  * @returns {Array<object>}
  */
-export function checkCaptionReadability(seriesMeta, { meta = null } = {}) {
+function checkCaptionReadability(seriesMeta, { meta = null } = {}) {
   const description =
     typeof seriesMeta?.description === "string" ? seriesMeta.description.trim() : "";
   if (description.length === 0) return [];
