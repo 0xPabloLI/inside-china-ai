@@ -205,6 +205,11 @@ export const NarrativeScene: React.FC<{
 
   // ─── Layout dispatch ───
   const hasMedia = !!scene.media;
+  // A picture that owns the frame is the page: a small brand lockup laid over
+  // it covers the exact evidence the viewer came for. Keep the lockup for
+  // text-only pages and bounded cards; drop it when media is full-bleed.
+  const hasFullBleedMedia =
+    hasMedia && !(scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.CARD);
 
   const renderLayout = () => {
     // #1524: media-first is evidence-only. The picture owns the content band
@@ -254,19 +259,6 @@ export const NarrativeScene: React.FC<{
             <MediaCard media={scene.media!} duration={duration} bottom={textBarTop} />
           ) : (
             <>
-              {/* Atmospheric bed: the SAME source blurred across the full
-                  canvas, so the area below the text plate keeps the shot's
-                  colour instead of reading as an empty black third. The
-                  sharp picture and the opaque plate still separate copy from
-                  picture; this bed is a blur, never a darkening layer. */}
-              <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-                <MediaBackground
-                  media={scene.media!}
-                  duration={duration}
-                  contentDir={contentDir}
-                  blurOnly
-                />
-              </div>
               <div
                 style={{
                   position: "absolute",
@@ -676,11 +668,12 @@ export const NarrativeScene: React.FC<{
           renderLayout(), i.e. on top of the text. */}
       <Glow color={glowColor} />
       {/* media-overlay puts copy in the top band, so there the brand bar must
-          stay behind the layout; every other layout paints it LAST so a
-          full-bleed picture cannot bury the China AI News lockup. */}
+          stay behind the layout. Every other layout paints the lockup LAST so
+          text cannot bury it — except when a full-bleed picture owns the
+          frame, where the lockup is omitted instead of covering the evidence. */}
       {scene.layout === "media-overlay" && <BrandBar />}
       {renderLayout()}
-      {scene.layout !== "media-overlay" && <BrandBar />}
+      {scene.layout !== "media-overlay" && !hasFullBleedMedia && <BrandBar />}
     </div>
   );
 };

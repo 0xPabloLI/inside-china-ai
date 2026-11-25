@@ -53,14 +53,6 @@ interface Props {
    * keeps the picture off the burned-subtitle lane.
    */
   containAlign?: ContainAlign;
-  /**
-   * Render ONLY the full-canvas blurred copy of the same source, with no
-   * primary picture. `media-bottom-bar` uses this as the atmospheric bed
-   * behind a separated text plate: the sharp picture still owns the band
-   * above the copy, but the rest of the canvas keeps the shot's colour instead
-   * of turning flat black. It is a blur of the same image, never a dim layer.
-   */
-  blurOnly?: boolean;
 }
 
 /** Vertical anchor for a contained picture inside its container. */
@@ -230,7 +222,6 @@ export const MediaBackground: React.FC<Props> = ({
   duration,
   effects,
   containAlign = "center",
-  blurOnly = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -371,10 +362,6 @@ export const MediaBackground: React.FC<Props> = ({
           : `assets/${media.backdrop.path}`,
       )
     : null;
-
-  if (blurOnly) {
-    return <FillBlur media={media} src={src} opacity={1} trimBefore={trimBefore} />;
-  }
 
   return (
     <>
