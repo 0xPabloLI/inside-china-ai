@@ -179,7 +179,7 @@ describe("validateInfoSpec", () => {
       layout: "chart",
     });
     expect(result.errors.map((e) => e.code)).toContain("info.unit");
-    expect(result.errors.map((e) => e.code)).toContain("info.source");
+    expect(result.errors.map((e) => e.code)).toContain("texts.source");
   });
 
   it("warns when a ranking has no highlighted point", () => {

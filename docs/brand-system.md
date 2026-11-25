@@ -132,7 +132,7 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Outline            | Black, 3px (ASS: &H66000000, semi-transparent)                                                            |
 | Shadow             | 1px                                                                                                       |
 | Position           | Bottom-center (Alignment=2), in the lower third below the content band                                    |
-| Margin from bottom | 500px (cue bottom edge y=1420, 256px above the measured TikTok caption top)                               |
+| Margin from bottom | 400px (cue bottom edge y=1520, 156px above the measured TikTok caption top)                               |
 | Margins L/R        | 110/250 (left-shifted to match content band center; cue right edge x=830, clears the action rail by 50px) |
 | Max lines          | 2 (`SUBTITLE_LANE.maxLines`; a *third* line FAILS the run — a two-line cue is a rescue merge, not a licence) |
 | Background         | None (transparent, text outline only)                                                                     |
@@ -140,7 +140,7 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Timing             | wav2vec2 forced alignment (`text-align.py`), per-word timestamps                                          |
 | Generation         | `lib/subtitles/` (JS, see docs/video-production-runbook.md)                                               |
 
-Subtitle values have two single sources: the **look** (karaoke colour pair, family/weight, outline/shadow, glyph spacing) lives in `SUBTITLE_STYLE` (`scripts/short-video/lib/subtitles/style-tokens.mjs`), and **position/size** (font size, bottom-centre alignment, the three margins) lives in `SUBTITLE_LANE` (`scripts/short-video/lib/safe-zones.mjs`). The two palette hexes are declared once in `scripts/short-video/lib/video-palette.mjs`, which the composition's `COLOR` also imports. `lib/subtitles/ass.mjs` only serialises them — never hardcode either. The subtitle lane (y=1236–1420, two lines reserved since `#230`) is structurally separated from the content band (ends y=1206), so burned subtitles never overlap scene text; a wrapped cue may sit over full-bleed media, which is why the lane is filled with an outline rather than a panel.
+Subtitle values have two single sources: the **look** (karaoke colour pair, family/weight, outline/shadow, glyph spacing) lives in `SUBTITLE_STYLE` (`scripts/short-video/lib/subtitles/style-tokens.mjs`), and **position/size** (font size, bottom-centre alignment, the three margins) lives in `SUBTITLE_LANE` (`scripts/short-video/lib/safe-zones.mjs`). The two palette hexes are declared once in `scripts/short-video/lib/video-palette.mjs`, which the composition's `COLOR` also imports. `lib/subtitles/ass.mjs` only serialises them — never hardcode either. The subtitle lane (y=1336–1520, two lines reserved since `#230`) is structurally separated from the content band (ends y=1206), so burned subtitles never overlap scene text; a wrapped cue may sit over full-bleed media, which is why the lane is filled with an outline rather than a panel.
 
 ASS Style line (pinned by `scripts/short-video/__tests__/subtitle-tokens.test.mjs`):
 
@@ -265,7 +265,7 @@ Calibrated against real FYP playback screenshots cross-checked with 2026 researc
 | Bottom | 714                          | y ≤ 1206     | Bottom UI: caption, progress bar; also clears the subtitle lane (two lines since `#230`)                      |
 | Left   | 60                           | x ≥ 60       | Left margin (no overlay, but content breathes here)                                                           |
 
-Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1206]**. The subtitle lane sits below it (y=1236–1420, two lines, left-shifted to x∈[110,830]); the TikTok caption UI starts at the measured y≈1676.
+Content band: **x ∈ [60, 880] (width 820px), y ∈ [220, 1206]**. The subtitle lane sits below it (y=1336–1520, two lines, left-shifted to x∈[110,830]); the TikTok caption UI starts at the measured y≈1676.
 
 Enforcement semantics (top / bottom band crossing → FAIL; right band crossing x > 880 → FAIL when the element's bottom is inside the action rail y > 640, WARN above it) are implemented by TextGate/text-geometry on the Remotion side.
 

@@ -26,7 +26,12 @@ import { join, dirname } from "path";
 import { resolveSceneAudio } from "./lib/audio/sync.mjs";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
-import { MEDIA_BAND, SAFE_ZONES, mediaFirstBarTopFor } from "./lib/safe-zones.mjs";
+import {
+  MEDIA_BAND,
+  SAFE_ZONES,
+  mediaFirstBarTopFor,
+  mediaBottomBarTopFor,
+} from "./lib/safe-zones.mjs";
 import { FPS, sceneTimeline, scheduleTotalFrames, TRANSITION_FRAMES } from "./lib/timeline.mjs";
 import { resolveRun } from "./lib/run-history.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
@@ -227,23 +232,28 @@ for (let i = 0; i < scenes.length; i++) {
   // for the letterbox, so it passes by declaration instead of warning about it.
   // #1524: media-first paints a full-canvas picture (0 → 1920) with the copy
   // on a flat plate at 950–1206; the picture may run under the platform chrome,
-  // and there is no letterbox at MEDIA_BAND.bottom to probe. Its safe-zone
-  // checks are therefore skipped by the contract documented in frame-analysis.
+  // and there is no letterbox at MEDIA_BAND.bottom to probe.
+  // 2026-11-25: media-bottom-bar is the same declaration now that the picture
+  // is no longer dimmed — the band is full-bleed through y 1298, so it runs
+  // under the action rail too. Skip the region checks; text checks look only
+  // at the opaque copy panel. Neither layout uses darkening as a gate.
   const isMediaFirst = scene.layout === "media-first";
-  const mediaBandBottom =
-    scene.media && scene.media.mode !== "card" && scene.layout === "media-bottom-bar"
-      ? MEDIA_BAND.bottom
+  const isMediaBottomBar =
+    scene.layout === "media-bottom-bar" && scene.media && scene.media.mode !== "card";
+  const mediaBandBottom = isMediaBottomBar ? MEDIA_BAND.bottom : null;
+  const textRegion = isMediaFirst
+    ? { top: mediaFirstBarTopFor(scene.texts ?? {}), bottom: MEDIA_BAND.bottom }
+    : isMediaBottomBar
+      ? { top: mediaBottomBarTopFor(scene.texts ?? {}), bottom: MEDIA_BAND.bottom }
       : null;
   const analysisResults = runFrameAnalysis(buf, SAFE_ZONES, {
     mediaBandBottom,
     mediaBandFit: scene.media?.fit ?? "cover",
     mediaBandFill: scene.media?.fill ?? null,
     // Full-bleed media under the platform chrome is the declaration, not a
-    // defect; the pixel text checks look only at the copy plate.
-    skipSafeZoneChecks: isMediaFirst,
-    textRegion: isMediaFirst
-      ? { top: mediaFirstBarTopFor(scene.texts ?? {}), bottom: MEDIA_BAND.bottom }
-      : null,
+    // defect; the pixel text checks look only at the copy panel.
+    skipSafeZoneChecks: isMediaFirst || isMediaBottomBar,
+    textRegion,
   });
   for (const r of analysisResults) {
     logResult(r);

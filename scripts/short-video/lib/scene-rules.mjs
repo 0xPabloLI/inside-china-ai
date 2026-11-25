@@ -22,6 +22,10 @@ import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs"
 // compare equal without a second lexicon.
 import { numericAnchors } from "./normalize-tts-text.mjs";
 import { validateSceneBeats } from "./semantic-beats.mjs";
+import {
+  auditCaptionReadability,
+  shouldEnforceCaptionReadability,
+} from "./caption-readability.mjs";
 // One spelling list for Step 0.5 and this advisory: whatever the auto-fix
 // annotates is exactly what the verify-time net stops flagging.
 import { findCurrencySpellings, hasNearbyUsd } from "./normalize-currency.mjs";
@@ -83,6 +87,7 @@ import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs"
 import { runIndustryFactChecks } from "./industry-facts.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
 import { mediaRoleOf, MEDIA_ROLE, MEDIA_ROLES } from "./media-role.mjs";
+import { isCompactMediaScene, mediaCopyRowCount, MEDIA_COPY_LIMIT } from "./media-copy.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
 import {
   MEDIA_STRATEGIES,
@@ -1439,8 +1444,8 @@ export function checkLoopClose(scenes, meta) {
  *  The hook is the opening 4.5–5 seconds, and asset-sourcer structurally skips it —
  *  so a missing hook file is never "a sourcing gap".  A hook must have one of:
  *
- *    (a) a manually bound `media` object (curated: cover fit, legible overlay,
- *        attribution),
+ *    (a) a manually bound `media` object (curated: fit, attribution; media is
+ *        never dimmed),
  *    (b) `media: null` — an explicit CSS-only waiver, surfaced as a warning,
  *    (c) a strategy that can produce media after sourcing (b-roll /
  *        asset-then-broll / ai-image / asset-then-ai-image) — preflight warns,
@@ -1504,7 +1509,7 @@ export function checkHookMediaContract(scenes) {
     // The binding itself passes (media exists); quality issues are reported as
     // their own checks so the author sees exactly what to fix. The contract is
     // shared with the final media gate (hook-media.mjs) so render-only /
-    // rerender paths enforce the same fit/overlay/source rules.
+    // rerender paths enforce the same fit/source rules.
     const results = [
       {
         level: "pass",
@@ -3064,6 +3069,40 @@ export function checkMediaFirstContract(scenes) {
   return results;
 }
 
+/**
+ * Media-page copy density (2026-11-25 user ruling).
+ *
+ * A full-bleed evidence page is a picture with a short caption, not a four-row
+ * article. New packs are capped at two rows; the template also compacts the
+ * rendered block, so a legacy pack that is re-rendered cannot silently pay for
+ * rows it no longer shows. Old packs are grandfathered by meta.createdAt so a
+ * re-run of an already shipped package is not retroactively failed.
+ */
+export function checkMediaCopyDensity(scenes, { meta } = {}) {
+  const CHECK = "Media page copy density";
+  const CATEGORY = "Media";
+  const results = [];
+  const createdAt = typeof meta?.createdAt === "string" ? meta.createdAt.slice(0, 10) : "";
+  const enforcementFrom = "2026-11-25";
+  const enforce = !createdAt || createdAt >= enforcementFrom;
+
+  for (const scene of scenes || []) {
+    if (!isCompactMediaScene(scene)) continue;
+    const rows = mediaCopyRowCount(scene.texts);
+    if (rows <= MEDIA_COPY_LIMIT) continue;
+    if (!enforce) continue;
+    const present = ["company", "result", "action", "source"].filter((key) => scene.texts?.[key]);
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene ${scene.id}: ${rows} copy rows (${present.join("/")}); a full-bleed evidence page reads as one picture plus 1–2 lines`,
+      fix: "Keep company + result; move action/source into voiceover or the TikTok caption. The renderer already drops the extra rows.",
+    });
+  }
+  return results;
+}
+
 export function checkContainFitBand(scenes) {
   const CHECK = "contain fit has a band";
   const CATEGORY = "Media";
@@ -3581,6 +3620,52 @@ export function checkAvatarContract(scenes) {
   return results;
 }
 
+/**
+ * Caption readability, checked at pre-render time from metadata.description.
+ *
+ * The assembled caption (with CTA + hashtags) is measured again by
+ * generate-publish-package; this check catches the common cause early — a
+ * manually written metadata.description that is a 400-char wall. New packs
+ * fail; packs created before 2026-11-25 are grandfathered and warned so an
+ * already-accepted caption is not invalidated retroactively.
+ *
+ * @param {object|null} seriesMeta - metadata from scene-data.mjs
+ * @param {{meta?: object|null}} [opts]
+ * @returns {Array<object>}
+ */
+function checkCaptionReadability(seriesMeta, { meta = null } = {}) {
+  const description =
+    typeof seriesMeta?.description === "string" ? seriesMeta.description.trim() : "";
+  if (description.length === 0) return [];
+
+  const audit = auditCaptionReadability(description);
+  if (audit.issues.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Caption",
+        check: "Caption readability",
+        detail: `body ${audit.metrics.bodyChars}, first block ${audit.metrics.previewChars}`,
+      },
+    ];
+  }
+
+  const enforce = shouldEnforceCaptionReadability(meta);
+  const fails = audit.issues.filter((issue) => issue.level === "fail");
+  const level = enforce && fails.length > 0 ? "fail" : "warn";
+  return [
+    {
+      level,
+      category: "Caption",
+      check: "Caption readability",
+      detail: audit.issues.map((issue) => issue.message).join("; "),
+      fix:
+        "Rewrite metadata.description: put the hook in the first 100 chars " +
+        "(hard 150), keep the body under 200 (hard 300); hashtags stay 3-5.",
+    },
+  ];
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const avatarResults = checkAvatarContract(scenes);
@@ -3596,6 +3681,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkNoEmDashes(scenes),
     ...checkHookDiffersFromText(scenes),
     ...checkSEOKeywords(scenes),
+    ...checkCaptionReadability(opts.metadata ?? seriesMeta, { meta }),
     ...checkSourceAttribution(scenes),
     ...checkVoiceoverWordCount(scenes, opts),
     ...checkOneBreath(scenes),
@@ -3618,6 +3704,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaFieldSchema(scenes),
     ...checkMediaFirstContract(scenes),
+    ...checkMediaCopyDensity(scenes, { meta }),
     ...checkSearchHintsSchema(scenes, claimPhrases),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),

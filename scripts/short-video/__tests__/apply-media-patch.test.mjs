@@ -147,7 +147,6 @@ describe("formatPatchEntry — output boundary", () => {
         type: "image",
         path: "content/test/img.jpg",
         animation: "fade",
-        overlay: 0.7,
         fit: "cover",
       },
       analysis: {
@@ -441,7 +440,7 @@ describe("formatMediaPatch — full output", () => {
         sceneId: 1,
         sceneName: "Scene 1",
         visualType: "narrative",
-        media: { type: "image", path: "img1.jpg", animation: "fade", overlay: 0.7 },
+        media: { type: "image", path: "img1.jpg", animation: "fade" },
         analysis: {
           focusAnalysis: {
             status: "ok",
@@ -457,7 +456,7 @@ describe("formatMediaPatch — full output", () => {
         sceneId: 2,
         sceneName: "Scene 2",
         visualType: "info-card",
-        media: { type: "video", path: "clip1.mp4", animation: "zoom", overlay: 0.75 },
+        media: { type: "video", path: "clip1.mp4", animation: "zoom" },
         assetScore: 70,
         source: "youtube",
         status: "assigned",
@@ -1512,7 +1511,6 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       fill: "blur",
       focus: "left",
       animation: "fade",
-      overlay: 0.7,
       volume: 0.08,
       audioIn: 2,
       audioOut: 5.5,
@@ -1572,7 +1570,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
         '  { id: 17, media: { type: "image", path: "assets/old.png" }, voiceover: "x" },',
       );
       const result = applyPatchesToText(text, [
-        { sceneId: 17, media: { type: "image", path: "assets/new.png", overlay: 0.6 } },
+        { sceneId: 17, media: { type: "image", path: "assets/new.png" } },
       ]);
 
       expect(result.errors).toEqual([]);
@@ -1583,7 +1581,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       );
       writeFileSync(file, result.modifiedContent, "utf8");
       const mod = await import(`file://${file}`);
-      expect(mod.scenes[0].media).toEqual({ type: "image", path: "assets/new.png", overlay: 0.6 });
+      expect(mod.scenes[0].media).toEqual({ type: "image", path: "assets/new.png" });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1611,7 +1609,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
     const out = formatPatchEntry({
       sceneId: 1,
       status: "assigned",
-      media: { type: "image", path: "assets/a.png", overlay: "0.7" },
+      media: { type: "image", path: "assets/a.png", volume: "0.7" },
     });
     expect(out).toContain("INVALID media");
     expect(out).toContain("media: {},");

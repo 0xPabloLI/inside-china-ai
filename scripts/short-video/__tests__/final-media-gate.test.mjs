@@ -65,9 +65,9 @@ function makeContentDir(files) {
 }
 
 const withMedia = (over = {}) => ({ type: "image", path: "assets/present.jpg", ...over });
-// A hook binding that satisfies the full curation contract (fit/overlay/source),
-// used wherever the test asserts "no warnings".
-const hookMedia = (over = {}) => withMedia({ source: "official page", overlay: 0.7, ...over });
+// A hook binding that satisfies the curation contract (fit/source); media is
+// never dimmed (2026-11-25), so no overlay field is declared.
+const hookMedia = (over = {}) => withMedia({ source: "official page", ...over });
 
 describe("layout classification", () => {
   it("treats the text-over-media layouts as media dependent", () => {
@@ -317,23 +317,17 @@ describe("hook media quality at the final gate (#299)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("WARNS for an out-of-band overlay and a missing source, still passing", () => {
+  it("WARNS for a missing source and still passes", () => {
     const dir = makeContentDir(["present.jpg"]);
     const result = checkFinalMedia({
-      scenes: [{ id: 9, visualType: "hook", media: withMedia({ overlay: 0.2 }) }],
+      scenes: [{ id: 9, visualType: "hook", media: withMedia({}) }],
       contentDir: dir,
     });
     expect(result.pass).toBe(true);
-    expect(result.warnings).toHaveLength(2);
-    expect(result.warnings.map((w) => w.reason)).toEqual([
-      "hook-media-quality",
-      "hook-media-quality",
-    ]);
-    expect(result.warnings[0].detail).toContain("overlay 0.2 is outside [0.4, 0.9]");
-    expect(result.warnings[1].detail).toContain("has no source");
-    expect(formatFinalMediaWarnings(result)).toContain(
-      "Scene 9: Hook media overlay 0.2 is outside [0.4, 0.9]",
-    );
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings.map((w) => w.reason)).toEqual(["hook-media-quality"]);
+    expect(result.warnings[0].detail).toContain("has no source");
+    expect(formatFinalMediaWarnings(result)).toContain("Scene 9");
     rmSync(dir, { recursive: true, force: true });
   });
 

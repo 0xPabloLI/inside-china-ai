@@ -295,14 +295,13 @@ media: {
   path: "assets/<file>",  // 相对 content/{slug}/，不是全局 assets/
   source: "<出处>",       // 归因；缺失 preflight 与最终 gate 都会 WARN
   animation: "ken-burns",
-  overlay: 0.55,          // 建议 0.45–0.7（#1305）
   fit: "cover",
 }
 ```
 
 预绑定的 `media` 优先，且不会被自动补位覆盖。
 
-**可读性**：hook 模板自带 bigNumber + numberLabel，媒体要退到背景层。`overlay` 建议 0.45–0.7（显式值超出 0.4–0.9 时 preflight WARN；缺省由渲染器取 0.7）；流水线自动分配的默认值来自 `scripts/short-video/lib/media-overlay.mjs`——`context` / `contrast` / `narrative` 0.55、`info-card` 0.65、`stat-reveal` 0.65（2026-11-14 起 stat-reveal 也接受环境背景，数字仍是主角）、`hook` 0.5、`quote` 0.8（#1305：此前三处各写一份 0.7，图在成片里被压到几乎看不见）；`fit` 只接受 `cover`（缺省）与 `contain`（`fill`/`none`/拼错值 preflight FAIL）。hook 与正文同构：正文声明多数为 contain 的 pack，hook 也用 contain；未声明正文 `fit` 的 pack，hook 按自身源宽高比取 contain/cover（#963，口径见 `docs/media-asset-management.md` → 第三方横屏素材的默认构图）。不要设置 `mode: "fullscreen"`：渲染端在该模式下把 overlay 归零，满屏素材会直接压住大字。
+**可读性**：素材不再压暗，也没有 `overlay` 字段可写。文字要么放在独立文字带/实色面板上，要么不与素材同框。`fit` 只接受 `cover`（缺省）与 `contain`（`fill`/`none`/拼错值 preflight FAIL）。hook 与正文同构：正文声明多数为 contain 的 pack，hook 也用 contain；未声明正文 `fit` 的 pack，hook 按自身源宽高比取 contain/cover（#963，口径见 `docs/media-asset-management.md` → 第三方横屏素材的默认构图）。不要设置 `mode: "fullscreen"` 来让大字压住满屏素材：fullscreen 只用于「整屏画面 + 只有 source 标注」的拍。
 
 **素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 目前只有 7 条、RAG 只能搜到这 7 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
 
@@ -458,13 +457,13 @@ beats: [
 
 素材标注不要写进 voiceover（TTS 会读出来，scene-rules B13 会 FAIL）。VLM 判的是**画面主体是不是 claim 要的那类东西**（公司 / 产品 / 人物 / 地点 / 物体），不要求拍出旁白里的抽象事件（融资、战略调整、招聘计划）；外语界面文字不算负面证据，官方中文 UI 截图反而是强证据。40–59 分属 borderline，会再跑一次「画面主体」二度校验，`match` 才准入；分数缺失或解析失败记 UNAVAILABLE，属工具问题、先修 analyzer 而不是换图。宁缺毋滥：scene 保持纯 CSS 是合法结果（见 `docs/content-pipeline.md` → 8b）。
 
-**版式与素材职责（Stage 3 必填实践，#761）**：`narrative/stacked-cards` 与 `contrast/hero-center` 是**文本优先版式**——`scene.media` 只作为全幅暗化背景垫在文字块下面，证据类素材（图表、表格、页面截图、必须看清的官方图）放进去会被卡片或对比栏遮住，等于没给。因此这两个版式**禁止声明 `assetNeed`，也禁止绑定 `media.evidence: true`**；preflight 的 `Text-first layout media routing` 会直接 FAIL，并给出三选一修法。需要证据的拍必须路由到有独立媒体视窗的版式：`narrative` 用 `media-first` / `media-bottom-bar` / `media-split` / `media-overlay`，整屏素材用 `visualType: "fullscreen"` 或 `media.mode: "fullscreen"`（后者绕过版式，文字只剩 source 标注）。只要氛围的拍删掉 `assetNeed`、绑定一张 stock/实拍背景（或保持纯 CSS）即可；确定不要素材就**同时**删掉 `assetNeed` 并写 `media: null`——只写 `media: null` 不解除门禁。判据是「这一拍是否真的要让观众读清一张图」，不是素材文件名听起来像不像图表。
+**版式与素材职责（Stage 3 必填实践，#761）**：`narrative/stacked-cards` 与 `contrast/hero-center` 是**文本优先版式**——`scene.media` 只作为全幅背景垫在文字块下面（不再压暗），证据类素材（图表、表格、页面截图、必须看清的官方图）放进去会被卡片或对比栏遮住，等于没给。因此这两个版式**禁止声明 `assetNeed`，也禁止绑定 `media.evidence: true`**；preflight 的 `Text-first layout media routing` 会直接 FAIL，并给出三选一修法。需要证据的拍必须路由到有独立媒体视窗的版式：`narrative` 用 `media-first` / `media-bottom-bar` / `media-split` / `media-overlay`，整屏素材用 `visualType: "fullscreen"` 或 `media.mode: "fullscreen"`（后者绕过版式，文字只剩 source 标注）。只要氛围的拍删掉 `assetNeed`、绑定一张 stock/实拍背景（或保持纯 CSS）即可；确定不要素材就**同时**删掉 `assetNeed` 并写 `media: null`——只写 `media: null` 不解除门禁。判据是「这一拍是否真的要让观众读清一张图」，不是素材文件名听起来像不像图表。
 
 **contain 只写在有带的版式上（Stage 3 必填实践，#1075）**：`media.fit: "contain"` 的语义是「整幅保留、画面坐在文字条上」，只有在**有 contain 带**的地方成立——`narrative` 的 `media-bottom-bar` / `media-first`、`hook`，以及 `media.mode: "fullscreen"`（整幅画面、没有文字块压在上面，居中 letterbox 合法）。info-card / context / contrast，以及 `narrative` 的 `media-split` / `media-overlay` / `stacked-cards` 都在全幅容器里把画面垫在文字块下面：contain 会让画面 letterbox 到文字块以下、扎进字幕带。preflight 的 `contain fit has a band` 对这类组合直接 FAIL，修法与上一条同形（改 `cover`、把拍路由到 `media-bottom-bar`、或走 `fullscreen`）。自动取材同样受约束：VLM 给出的 contain 判定落在无带版式时会降级为 `cover`，并在产线日志里打一条降级告警——画面仍出，只是被裁。
 
-**media-first：画面优先、文案减量（Stage 3 选版，2026-11-24 #1524）**：当一拍的主角是一条 16:9 的证据片（冠军作品、预告片、官方演示），必须整幅看清、不能裁主体，而文案只剩一句结果时，用 `narrative` + `layout: "media-first"`。画面铺满整幅 0–1920：16:9 完整画面停在上三分之一（约 300–908），同源 blur 填满其余区域；文案块只有 3 行最多 256px，压在 950–1206 的平色条上（无渐变、无阴影）；字幕仍在 1236–1420，1420–1920 留给平台 UI。硬前提：`mediaRole: "evidence"`、`fit: "contain"`、`fill: "blur"` 三件套同时写——`fill: "blur"` 用同一素材的模糊副本填满 contain 留下的空间，既不出黑边也不裁主体；`texts` 只允许 `company` / `result` / `source`（`action` / `context` / `badge` 会 FAIL），单行超过 32 字符报警。它是「文案内容变少」，不是「同样多的字缩小字号」：需要四行叙事或 badge 的拍请留在 `media-bottom-bar`。
+**media-first：画面优先、文案减量（Stage 3 选版，2026-11-24 #1524）**：当一拍的主角是一条 16:9 的证据片（冠军作品、预告片、官方演示），必须整幅看清、不能裁主体，而文案只剩一句结果时，用 `narrative` + `layout: "media-first"`。画面铺满整幅 0–1920：16:9 完整画面停在上三分之一（约 300–908），同源 blur 填满其余区域；文案块最多 2 行（company + result，201px），压在 1005–1206 的平色条上（无渐变、无阴影）；字幕在 1336–1520，1520–1920 留给平台 UI。硬前提：`mediaRole: "evidence"`、`fit: "contain"`、`fill: "blur"` 三件套同时写——`fill: "blur"` 用同一素材的模糊副本填满 contain 留下的空间，既不出黑边也不裁主体；`texts` 允许 `company` / `result` / `source`，但 full-bleed 页只渲染前两行，超过 2 行新包 preflight 直接 FAIL。它是「文案内容变少」，不是「同样多的字缩小字号」：需要三行以上叙事、badge 或页捕获的拍请改走 `media-split` / 文本页。
 
-**有界媒体面禁止方向性 scrim（Stage 3 硬规则，2026-11-24）**：`MediaCard`、证据带、`media-split` 的单侧窗口都是「有界媒体面」，画面四周必须干净。`MediaBackground` 的 `frame` scrim 是给整幅画布背景用的：它的右侧 rail 渐变和底部长条渐变按 1080×1920 定位，缩进 820px 卡片后就会落在卡片自己的右缘和底缘，看起来就是给素材加了阴影。所有有界媒体面必须使用 `scrimScope="element"`（只保留均匀的平色 `overlay`），只有铺满整幅的背景才允许 `frame`。这条不是靠记忆：`media-card-scrim-contract.test.mjs` 在源码层锁定 `MediaCard` 的 element 范围，`media-focus-render` 用纯白素材采样卡片中心/右缘/底缘，任何方向性渐变会让 CI 的 Pixel render contracts 变红。
+**媒体层没有压暗能力（Stage 3 硬规则，2026-11-25）**：`MediaBackground` 不接受 `overlay`、`scrimScope`、`railVignette`、`railAlpha`；`MediaScrims` 组件与 `lib/media-overlay.mjs` 已删除。`MediaCard`、证据带、`media-split` 单侧窗口只负责显示素材，不负责给文字让路。需要文字的地方用 `MediaTextPanel` 实色面板，或把素材放进独立 band/card；不要给图片或视频加任何方向的阴影、暗角、渐变或平色压暗。这不是「把 overlay 调小」，是渲染路径里不再有 dim 层。
 
 
 **原片原声窗口（Stage 3 音频，#1525）**：外部证据片本身有对白或音乐时，`media` 可以开口子而不是整段静音：`volume` 设原片电平（保留原声通常写 `1`），`audioIn` / `audioOut` 是**相对这一拍开头**的秒数，只在这段窗口内出声；`audioFadeIn` / `audioFadeOut` 默认 0.25s，避免硬切爆音。窗口只控制听感，不改变 `videoStartOffsetMs` 决定的画面起点。旁白在场时若要让原声退后，写 `duckUnderNarration: true`，`duckLevel` 是压低后的倍数（默认 0.25，0 等于该段静音）；没有旁白的纯原片拍不要写 duck。原片里的对白与配乐若已混成一条轨，管线不做 stem 分离，只能整条压低；原片是音乐驱动时优先直接停掉项目 BGM（默认不加 BGM 的项目则无需处理），避免两层音乐打架。

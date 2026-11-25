@@ -106,6 +106,15 @@ async function main() {
     console.log(
       `   Total caption: ${pkg.captionText.length} chars (limit: ${profile.caption.maxLength})`,
     );
+    const readability = pkg.metadataJson.captionReadability;
+    if (readability) {
+      console.log(
+        `   Readability: body ${readability.bodyChars}, first block ${readability.previewChars}` +
+          (readability.issues?.length
+            ? ` — ${readability.issues.map((issue) => `${issue.level}: ${issue.message}`).join("; ")}`
+            : " — inside the 100/200 soft bands"),
+      );
+    }
     console.log(`   Pinned comment: ${pkg.pinnedComment || "(none — AITL not set)"}`);
     console.log(`   Source:      ${pkg.metadataJson.source}`);
     console.log(`📁 Files written (${paths.dir}):`);

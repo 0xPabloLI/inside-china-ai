@@ -13,7 +13,8 @@
  * Consumers:
  *   - generate-caption.mjs (CLI shell — loads scene-data/meta, calls
  *     generatePublishPackages, exits non-zero on violations)
- *   - verify-video.mjs (B6 checks each platform's caption against ITS limit)
+ *   - verify-video.mjs (B6 checks each platform's caption against ITS limit,
+ *     plus the feed-readability caps for new packs)
  *   - publish-tiktok.mjs (reads the metadata file via packageFilePaths)
  */
 
@@ -27,6 +28,10 @@ import {
   classifyHashtags,
 } from "../caption-utils.mjs";
 import { validateArticleUrl } from "../article-url-readiness.mjs";
+import {
+  auditCaptionReadability,
+  shouldEnforceCaptionReadability,
+} from "../caption-readability.mjs";
 import { listPlatformProfiles } from "./index.mjs";
 
 /**
@@ -136,6 +141,9 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
   // sentence is the first line of the description.
   const hashtagLine = hashtags.join(" ");
   const captionText = `${description}\n\n${hashtagLine}\n`;
+  // Feed readability is measured on the assembled caption, so a manually
+  // supplied metadata.description and an auto-derived one get the same gate.
+  const readability = auditCaptionReadability(captionText);
 
   // ─── Assemble metadata JSON ───
   // classifyHashtags returns {traffic, brand, vertical, trending, selectionMode}
@@ -151,6 +159,13 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
   const metadataJson = {
     title,
     description: `${description}\n\n${hashtagLine}`,
+    // Readability metrics ride along for the HITL review and for verify-video's
+    // B6; issues is empty when the caption is inside both soft bands.
+    captionReadability: {
+      ...readability.metrics,
+      ok: readability.ok,
+      issues: readability.issues,
+    },
     hashtags,
     hashtagStrategy: {
       total: hashtags.length,
@@ -182,6 +197,14 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
   }
   if (captionText.length > limits.description) {
     violations.push(`Caption exceeds ${limits.description} chars (${captionText.length})`);
+  }
+  // The platform maximum is not the human limit. A new pack whose first block
+  // or body blows past the feed-readable caps fails package generation; old
+  // packs keep their accepted caption and only carry warnings.
+  if (shouldEnforceCaptionReadability(meta)) {
+    for (const issue of readability.issues) {
+      if (issue.level === "fail") violations.push(`Caption readability: ${issue.message}`);
+    }
   }
   if (hashtags.length < limits.hashtags.min || hashtags.length > limits.hashtags.max) {
     violations.push(
