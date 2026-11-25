@@ -13,7 +13,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { mediaRoleOf } from "./media-role.mjs";
 
-export const VIDEO_FIT_POLICY_DATE = "2026-11-20";
+const VIDEO_FIT_POLICY_DATE = "2026-11-20";
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".m4v"]);
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
 const MIN_VIDEO_WIDTH = 640;
@@ -96,7 +96,7 @@ function probeMedia(file) {
  * count; a 165×144 logo is not a visual, and a 120-second demo is capped at
  * 10 counted seconds per clip so one long screen recording cannot buy a 5.
  */
-export function scanAssetInventory(assetsDir, { probe = probeMedia } = {}) {
+function scanAssetInventory(assetsDir, { probe = probeMedia } = {}) {
   const inventory = { videos: [], images: [], skipped: [] };
   for (const file of walkFiles(assetsDir)) {
     const extension = extname(file).toLowerCase();

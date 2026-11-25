@@ -24,17 +24,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Default SSOT location (overridable via --pool in the CLIs). */
 export const DEFAULT_POOL_PATH = join(__dirname, "..", "config", "hashtag-pool.json");
 
-export const TAG_KINDS = ["traffic", "niche", "entity", "brand", "trending", "meta"];
-export const TAG_STATUSES = [
-  "ok",
-  "low-volume",
-  "saturated",
-  "unverified",
-  "deprecated",
-  "blacklisted",
-];
-export const TAG_GRADES = ["A", "B", "C"];
-export const SOURCE_METHODS = ["browser", "curl", "manual"];
+const TAG_KINDS = ["traffic", "niche", "entity", "brand", "trending", "meta"];
+const TAG_STATUSES = ["ok", "low-volume", "saturated", "unverified", "deprecated", "blacklisted"];
+const TAG_GRADES = ["A", "B", "C"];
+const SOURCE_METHODS = ["browser", "curl", "manual"];
 
 const THRESHOLD_KEYS = [
   "poolWarnDays",
@@ -462,7 +455,7 @@ const INGEST_FIELDS = [
  * @param {object} record
  * @returns {{tag: string, fields: object}|null}
  */
-export function normalizeIngestRecord(record) {
+function normalizeIngestRecord(record) {
   if (!isPlainObject(record)) return null;
   const tag = normalizeTag(record.tag ?? record.hashtag);
   if (!tag) return null;

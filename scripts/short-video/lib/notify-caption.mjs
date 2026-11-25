@@ -28,9 +28,9 @@ import { dirname } from "node:path";
 /** Feishu rejects request bodies larger than 20 KB (custom-bot guide). */
 export const FEISHU_MAX_BODY_BYTES = 20 * 1024;
 /** Leaves room for JSON envelope + sign fields inside the 20 KB body limit. */
-export const DEFAULT_CHUNK_BYTES = 6 * 1024;
+const DEFAULT_CHUNK_BYTES = 6 * 1024;
 /** Per-attempt HTTP timeout; 3 attempts stay inside the 10 s budget. */
-export const DEFAULT_TIMEOUT_MS = 2500;
+const DEFAULT_TIMEOUT_MS = 2500;
 
 /**
  * Resolve the notification channel from env. Empty webhook = no channel: the
@@ -47,7 +47,7 @@ export function resolveNotifyConfig(env = process.env) {
   };
 }
 
-export function formatBytes(bytes) {
+function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return "unknown size";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

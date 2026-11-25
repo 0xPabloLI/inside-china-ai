@@ -11,15 +11,9 @@
 // This split closes the 2026-11-21 failure where every new topic scored 0
 // because the old rubric only counted files under content/<slug>/assets/.
 
-export const TOPIC_VIDEO_FIT_POLICY_DATE = "2026-11-21";
+const TOPIC_VIDEO_FIT_POLICY_DATE = "2026-11-21";
 
-export const TOPIC_VIDEO_FORMATS = [
-  "demo-led",
-  "chart-led",
-  "data-reveal",
-  "explainer",
-  "text-led",
-];
+const TOPIC_VIDEO_FORMATS = ["demo-led", "chart-led", "data-reveal", "explainer", "text-led"];
 
 const ASSET_RULES = {
   demo: { dynamic: true, entityVisual: true, officialEligible: true },
@@ -43,7 +37,7 @@ function asString(value) {
  * A URL or an absolute/local content-library path is required; a bare label
  * ("official demo") is not evidence and must not earn points.
  */
-export function normalizeAssetEvidence(item = {}) {
+function normalizeAssetEvidence(item = {}) {
   const type = asString(item.type).toLowerCase();
   const rule = ASSET_RULES[type];
   if (!rule) return { ok: false, reason: `unknown asset type: ${item.type ?? "(missing)"}` };
