@@ -1508,6 +1508,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       source: "youtube",
       mode: "replace",
       fit: "contain",
+      matteColor: "#ffffff",
       fill: "blur",
       focus: "left",
       animation: "fade",
