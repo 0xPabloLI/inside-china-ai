@@ -38,8 +38,13 @@ export const meta = {
   pipelineId: "my-article", // Used for output directory: output/my-article/
   title: "My Article Title", // Display name
   article: "my-article-slug", // Website article slug (for reference)
-  // Optional: why the strongest motion clip cannot open in scene 1-2 (#1542)
+  createdAt: "2026-11-20", // Packages on/after this date must declare videoFit
+  videoFit: 4, // Measured from assets/ by lib/video-fit.mjs; never a webpage claim
+  // Optional: only when a motion clip cannot open scene 1-2 (#1542).
   // hookVisualPriorityReason: "The demo reveals the payoff; the hook uses its key frame.",
+  // Optional: override the default 3-10 scenes / 175 words / 70s when the
+  // story is a short breaking-news item or a longer multi-entity explainer.
+  // scenePlan: { minScenes: 3, maxScenes: 5, maxVoiceoverWords: 100, maxDurationSec: 45 },
   // For series:
   // seriesId: "my-series",
   // partNumber: 1,
@@ -61,7 +66,7 @@ export const scenes = [
       line2: "SUPPORTING",
     },
   },
-  // ... 6-10 more scenes
+  // ... 3-10 scenes total, as many as the spine needs
   {
     id: N,
     name: "cta",

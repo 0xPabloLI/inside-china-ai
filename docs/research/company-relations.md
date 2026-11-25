@@ -1,6 +1,6 @@
 # 中国 AI 公司关系图谱（#248，2026-09-12）
 
-> **机器可读 SSOT**：`scripts/short-video/lib/data/company-relations.json`（68 实体）。管线消费经 `lib/company-relations.mjs`：`resolveEntityHashtag` / `howToPresent` / `buildEntityHashtagMap`（caption-utils）/ `buildModelBrandKeys`（caption 模型品牌白名单）/ `buildEntityColorAliases`（prompt-injection）。本文件是人读视图与裁决依据，不重复存数据。
+> **机器可读 SSOT**：`scripts/short-video/lib/data/company-relations.json`（70 实体）。管线消费经 `lib/company-relations.mjs`：`resolveEntityHashtag` / `howToPresent` / `buildEntityHashtagMap`（caption-utils）/ `buildModelBrandKeys`（caption 模型品牌白名单）/ `buildEntityColorAliases`（prompt-injection）。本文件是人读视图与裁决依据，不重复存数据。
 >
 > **下游票**：无下游：本文件是 #248 的裁决记录，本次仅同步既有的模型品牌标签双锚裁决，无需新票承接。
 
@@ -36,6 +36,15 @@
 
 高认知度（alibaba/bytedance/tencent/baidu/huawei/xiaomi/deepseek/openai/google/meta/nvidia/capcut 等）直接用本名。
 
+### 首次报道实体的收录与背景（2026-11-20）
+
+首次进入管线的新公司（以及首次出现的模型家族）必须同时完成两件事：
+
+1. **收录**：在 `scripts/short-video/lib/data/company-relations.json` 增加实体记录（`hashtag`、`matchKeys`、`aliases`、`overseasAwareness`、`presentation`），并在 `docs/refs/entity-registry.yaml` 增加公司与模型/人物条目。前者供 caption、实体色和检索消费；后者供 RAG 实体链接与后续研究复用。
+2. **背景**：脚本/文章第一次出现该公司时，必须给一句定位——`who + where + why it matters`，而不是假设观众认识它。已有报道历史的公司不重复讲背景。
+
+例：Phancy（`phancy`，原第四范式，2014 年成立、2023 年港交所 6682 上市）首次进入视频时，Scene 2 用一句 `The company is Phancy Group, formerly Fourth Paradigm. It listed in Hong Kong in 2023 and sells enterprise AI.` 完成定位。
+
 ### 实体色继承（B-roll prompt）
 
 `buildEntityColorAliases()`：沿 parent 链向上找最近的 `colorKey`（ENTITY_COLORS 六家：deepseek/huawei/zhipu/baidu/alibaba/tencent）。新增继承：pangu/ascend→huawei、yuanbao→tencent、lingbot→alibaba、tongyi/wan/z-image/dingtalk/quark→alibaba、wenxin/apollo→baidu。
@@ -48,4 +57,4 @@
 
 ## 覆盖范围
 
-68 实体：Tier 1 大厂 32（含子公司/品牌）、Tier 2 创业公司 11、Tier 3 芯片 3（+amd）、Tier 4 机器人 5、Tier 5 自动驾驶 3、Tier 6 国际对照 11、平台品牌 3。≥60 验收达成；后续新实体直接追加 JSON 记录。
+70 实体：Tier 1 大厂 32（含子公司/品牌）、Tier 2 创业公司 12（含 Phancy）、Tier 3 芯片 3（+amd）、Tier 4 机器人 5、Tier 5 自动驾驶 3、Tier 6 国际对照 11、平台品牌 3。另含模型品牌 `phai`；≥60 验收达成；后续新实体直接追加 JSON 记录。

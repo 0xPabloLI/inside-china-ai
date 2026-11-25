@@ -43,11 +43,12 @@ describe("Source structure", () => {
     expect(SELF_MEDIA_SOURCES).toHaveLength(9);
   });
 
-  it("ALL_SOURCES has 63 sources", () => {
+  it("ALL_SOURCES has 62 sources", () => {
     // 64 − xinzhiyuan/baidu_news (dead upstream, removed #140 P5) + weibo_search (#317)
     // − duckduckgo_search (retired 2026-09-24, #269 Round I)
     // + wechat_dongchabeating_rss (self-hosted feed, #320)
-    expect(ALL_SOURCES).toHaveLength(63);
+    // − wechat_dongchabeating Google republish fallback (retired 2026-11-22)
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 
   it("each source has required fields", () => {
@@ -114,8 +115,24 @@ describe("Wechat RSS sources", () => {
         freshnessWindowDays: 14,
       });
       expect(source.apiSearch.url()).toMatch(
-        /^https:\/\/wechat2rss\.xlab\.app\/feed\/[a-f0-9]+\.xml$/,
+        /^https:\/\/wechat2rss\.xlab\.app\/feed\/[a-f0-9]+\.xml(\?content=0)?$/,
       );
+    }
+  });
+
+  it("gives public feeds a body-read budget large enough for full-content RSS", () => {
+    for (const source of publicFeeds) {
+      // Wechat2RSS embeds full article HTML; 0.9–4.0MB payloads regularly
+      // exceed the generic 15s API budget.
+      expect(source.apiSearch.timeoutMs).toBeGreaterThanOrEqual(60000);
+      expect(source.apiSearch.retriesOnTimeout).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("keeps an account-specific Google fallback for a failed public feed", () => {
+    for (const source of publicFeeds) {
+      expect(source.googleSiteFallback).toBeTruthy();
+      expect(source.googleSiteFallback.url()).toContain(encodeURIComponent(`"${source.label}"`));
     }
   });
 
@@ -151,7 +168,9 @@ describe("Wechat RSS sources", () => {
       freshnessWindowDays: 14,
     });
     expect(source.accessMethod.notes).toMatch(/Self-hosted/);
-    expect(source.apiSearch.url()).toBe("http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml");
+    expect(source.apiSearch.url()).toBe(
+      "http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml?content=0",
+    );
     expect(source.url()).toBe(source.apiSearch.url());
   });
 
@@ -657,8 +676,9 @@ describe("supportsKeyword validation", () => {
     // and the self-hosted 动察 feed (#320).
     // Stock API sources all support keyword search.
     // ithome and jiqizhixin now support keyword search (unified to search page).
-    // 20 + telegram_aipost fixed-feed channel (#204) + wechat_dongchabeating_rss (#320)
-    expect(homepageSources.length).toBe(22);
+    // 19 + telegram_aipost fixed-feed channel (#204) + wechat_dongchabeating_rss (#320)
+    // − wechat_dongchabeating Google republish fallback (retired 2026-11-22)
+    expect(homepageSources.length).toBe(21);
   });
 
   it("keyword-capable sources have supportsKeyword=true", () => {
@@ -1493,11 +1513,6 @@ describe("#88 Part 2 — shouldAutoGenGoogleSiteFallback", () => {
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
   });
 
-  it("returns false for wechat_dongchabeating (uses Google as primary)", () => {
-    const src = ALL_SOURCES.find((s) => s.name === "wechat_dongchabeating");
-    expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
-  });
-
   it("returns false for weibo_hot (hot search, no keyword search)", () => {
     const src = ALL_SOURCES.find((s) => s.name === "weibo_hot");
     expect(shouldAutoGenGoogleSiteFallback(src)).toBe(false);
@@ -1575,8 +1590,8 @@ describe("#314 video capability declarations", () => {
     expect(baidu.capabilities.videos.videoScript).toBeTruthy();
   });
 
-  it("keeps the source count at 63", () => {
-    expect(ALL_SOURCES).toHaveLength(63);
+  it("keeps the source count at 62", () => {
+    expect(ALL_SOURCES).toHaveLength(62);
   });
 });
 

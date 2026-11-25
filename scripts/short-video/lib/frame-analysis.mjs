@@ -789,25 +789,31 @@ export function checkClippedText(buf, safeZones) {
  *
  * @param {PixelBuffer} buf
  * @param {{top: number, right: number, bottom: number, left: number}} safeZones
- * @param {{mediaBandBottom?: number|null, mediaBandFit?: "cover"|"contain", mediaBandFill?: "blur"|null}} [options]
+ * @param {{mediaBandBottom?: number|null, mediaBandFit?: "cover"|"contain", skipRightRail?: boolean}} [options]
  *   - `mediaBandBottom` is the canvas y this scene's full-bleed media is
- *   expected to reach. Pass it for media-bottom-bar / media-first scenes,
- *   whose band top carries no text and can be probed unambiguously. Omit or
- *   pass null for scenes with no full-bleed media, and for the hook — its
- *   media is full-frame, so its band top is covered by the brand bar and
- *   badge and the probe cannot tell picture from chrome. `mediaBandFit` is
- *   the scene's effective fit (`media.fit ?? "cover"`): the band check then
- *   judges the frame against that declaration — a flat band top passes under
- *   `"contain"` (the declared letterbox) and warns under `"cover"` (the defect),
- *   while picture at the band top warns under `"contain"` (#952). `mediaBandFill`
- *   `"blur"` marks the declared blurred fill, which is expected to carry
- *   picture at the band top (#1524).
+ *   expected to reach. Pass it for media-bottom-bar scenes, whose band top
+ *   carries no text and can be probed unambiguously. Omit or pass null for
+ *   scenes with no full-bleed media, and for the hook — its media is
+ *   full-frame, so its band top is covered by the brand bar and badge and the
+ *   probe cannot tell picture from chrome. `mediaBandFit` is the scene's
+ *   effective fit (`media.fit ?? "cover"`): the band check then judges the
+ *   frame against that declaration — a flat band top passes under `"contain"`
+ *   (the declared letterbox) and warns under `"cover"` (the defect), while
+ *   picture at the band top warns under `"contain"` (#952).
+ *   - `skipRightRail` is for media-bottom-bar: its picture ends at y=820 and
+ *   the opaque text panel owns y=820-1298, where TikTok's action rail
+ *   actually sits. Sampling the full y=640-1775 rail against a band layout
+ *   measures 180px of picture plus 955px of black panel, so it reports a
+ *   shadow-shaped false fail on a bright top band. The rail check applies to
+ *   full-frame media; a band layout gets a pass with the reason stated.
+ *   - `mediaBandFill` `"blur"` marks the declared blurred fill, which is expected to carry picture at the band top (#1524).
  * @returns {AnalysisResult[]}
  */
 export function runFrameAnalysis(buf, safeZones, options = {}) {
   const {
     mediaBandBottom = null,
     mediaBandFit = "cover",
+    skipRightRail = false,
     mediaBandFill = null,
     // media-first is full-bleed by contract: the picture intentionally runs
     // under TikTok's top chrome and action rail, and the copy plate is the
@@ -824,7 +830,14 @@ export function runFrameAnalysis(buf, safeZones, options = {}) {
   if (!skipSafeZoneChecks) {
     results.push(
       checkSafeZoneTop(buf, safeZones),
-      checkSafeZoneRight(buf, safeZones),
+      skipRightRail
+        ? {
+            level: "pass",
+            check: "Right safe zone clear (action rail)",
+            detail:
+              "not applicable: media-bottom-bar picture ends at y=820; the opaque panel owns the action-rail band",
+          }
+        : checkSafeZoneRight(buf, safeZones),
       checkSafeZoneBottom(buf, safeZones),
     );
   }

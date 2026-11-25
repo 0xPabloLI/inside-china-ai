@@ -1,6 +1,8 @@
 /**
  * DataScene — big stat reveal with source attribution.
- * Pure CSS, no media background.
+ * CSS-first. A declared `scene.media` may render as a full-bleed background
+ * behind the stat (LingSante re-cut, 2026-11-24); without it the frame stays
+ * the original pure-CSS layout. The media keeps its own brightness (#1541).
  * Scene 3 in the Unitree video (8,288× oversubscribed).
  *
  * Light (#738): the stat is the protagonist and lands with a white flash; the
@@ -22,6 +24,18 @@ import { ChartPanel, ChartRenderer } from "../components/charts";
 import { normalizeInfoSpec } from "../../../lib/info-grammar.mjs";
 import { resolveRenderLayout } from "../../../lib/text-slots.mjs";
 
+/** Resolve a scene media path to a static file URL, preserving the assets/ prefix. */
+const assetSrc = (path: string): string =>
+  staticFile(path.startsWith("assets/") ? path : `assets/${path}`);
+
+/** Chart card media, only when the resolved layout renders a chart card. */
+const chartSrcFor = (layout: string, media: SceneData["media"]): string | null =>
+  layout === "chart-card" && media?.path ? assetSrc(media.path) : null;
+
+/** DataScene full-bleed media source. */
+const mediaSrcFor = (media: SceneData["media"]): string | null =>
+  media?.path ? assetSrc(media.path) : null;
+
 export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
   scene,
   duration,
@@ -36,12 +50,8 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
     extrapolateRight: "clamp",
   });
   const layout = resolveRenderLayout(scene);
-  const chartSrc =
-    layout === "chart-card" && scene.media?.path
-      ? staticFile(
-          scene.media.path.startsWith("assets/") ? scene.media.path : `assets/${scene.media.path}`,
-        )
-      : null;
+  const chartSrc = chartSrcFor(layout, scene.media);
+  const mediaSrc = mediaSrcFor(scene.media);
   const yearSource = layout === "year-source" && Boolean(txt.stat) && Boolean(txt.subtext);
 
   if (yearSource) {
@@ -276,7 +286,7 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
                 position: "absolute",
                 left: 60,
                 right: 200,
-                bottom: 210,
+                bottom: 714,
                 display: "flex",
                 justifyContent: "center",
               }}
@@ -416,13 +426,39 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      {mediaSrc && (
+        <>
+          <Img
+            src={mediaSrc}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center",
+              filter: "blur(2px)",
+              transform: "scale(1.04)",
+            }}
+          />
+        </>
+      )}
       <BrandBar />
 
       <Camera visualType="data" duration={duration}>
         <Slot variant="hero">
           {txt.stat && (
             <StampIn delay={0.2} duration={0.5}>
-              <TextGate sceneId={sceneId} slotId="data.hero-center.stat">
+              <TextGate
+                sceneId={sceneId}
+                slotId="data.hero-center.stat"
+                // Five-character stats (e.g. "66.03") fill the 820px band at
+                // the 240px preferred size and leave the gate 13px above its
+                // container. Lock them to 216px — still above the 180px floor
+                // and inside the same visual weight — so the stat cannot
+                // vertical-overflow after the entrance settles.
+                lockFontSize={String(txt.stat).length >= 5 ? 216 : undefined}
+              >
                 {(fontSize) => (
                   <Interactive.Div
                     name="stat"

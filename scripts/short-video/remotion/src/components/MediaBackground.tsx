@@ -368,7 +368,8 @@ export const MediaBackground: React.FC<Props> = ({
       {showBrandedMatte && !showFillBlur && (
         <AbsoluteFill
           style={{
-            background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
+            background:
+              media.matteColor ?? "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
             opacity,
           }}
         />

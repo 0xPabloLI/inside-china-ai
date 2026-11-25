@@ -60,6 +60,8 @@ type FixtureProps = {
   /** `media.fit`. Omitted = cover (the frame default). Set "contain" to make
    *  the letterbox — and therefore the vertical anchor — observable. */
   fit?: "cover" | "contain" | null;
+  /** `media.matteColor` — fill behind a contained picture. */
+  matteColor?: string | null;
   /** Vertical anchor for a contained picture. Omitted = MediaBackground's
    *  default ("center", #1075). "bottom" reproduces the pre-#1075 behaviour,
    *  where every container bottom-anchored and a full-frame scene dropped the
@@ -74,6 +76,7 @@ const buildMedia = ({
   cropFocusY = null,
   focus = null,
   fit = null,
+  matteColor = null,
 }: FixtureProps): MediaField => {
   const media: MediaField = {
     type: asset,
@@ -86,6 +89,7 @@ const buildMedia = ({
   }
   if (focus) media.focus = focus;
   if (fit) media.fit = fit;
+  if (matteColor) media.matteColor = matteColor;
   return media;
 };
 

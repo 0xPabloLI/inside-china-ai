@@ -67,8 +67,17 @@
  * Used by search-sources.mjs.
  */
 
+import dns from "node:dns";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
+
+// Cloudflare-backed WeChat feeds resolve to both A and AAAA records; this
+// machine's IPv6 route stalls on the TLS handshake while IPv4 completes.
+// Prefer IPv4 for all registry-driven fetches so a dead IPv6 route cannot
+// turn a working public feed into a false zero-result.
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -2317,45 +2326,17 @@ export const LAST30DAYS_SOURCES = [
 
 // ─── Directed WeChat account monitors ───
 //
-// Each entry monitors a specific WeChat Official Account by searching
-// Google for republished articles (via 虎嗅, 新浪, ZAKER etc.) that cite
-// the account. #320 gave 动察Beating a direct RSS feed
-// (wechat_dongchabeating_rss in WECHAT_RSS_SOURCES), so this Google layer is
-// now the fallback for that account. The method remains here for accounts
-// with no RSS path; it is the most reliable fallback since:
-//   - Sogou WeChat Search has aggressive anti-bot (returns empty via CDP)
-//   - mp.weixin.qq.com profile_ext requires WeChat client (not Chrome)
-//   - Google site:mp.weixin.qq.com indexes very few articles
+// Retired 2026-11-22: #320 (2026-11-09) gave 动察Beating a direct self-hosted
+// RSS feed (wechat_dongchabeating_rss in WECHAT_RSS_SOURCES). The old Google
+// "来自微信公众号" republish search was kept as a fallback, but it returns
+// republishes and search noise rather than the account's own articles. With
+// the direct feed healthy and fresh, the fallback is removed instead of being
+// silently treated as a second 动察 source.
 //
-// To add a new account, copy an entry and change name/label/account.
-// If you have mp.weixin.qq.com backend cookie+token, also see WECHAT_API_CONFIG below.
-
-const WECHAT_ACCOUNT_SOURCES = [
-  {
-    name: "wechat_dongchabeating",
-    label: "动察Beating（公众号）",
-    account: "动察Beating",
-    category: "wechat",
-    locale: "zh-CN",
-    supportsKeyword: false,
-    accessMethod: {
-      primary: "cdp",
-      notes:
-        "CDP only. Google search for republished WeChat articles. No keyword search, homepage-only.",
-    },
-    needsAuth: false,
-    useCleanTitle: false,
-    // Search for articles citing this WeChat account via republish platforms
-    url: () =>
-      `https://www.google.com/search?q=${encodeURIComponent('"来自微信公众号" "动察Beating"')}`,
-    // #336: legacy div[data-ved][data-hveid] + div[role="heading"] extraction
-    // returned 0 (2026-09 SERP DOM, A/B: own script 0 vs shared h3 script 10).
-    // Shared h3 script reused verbatim — the query's quoted phrases do the
-    // sourcing, no bespoke domain whitelist needed (old whitelist dropped real
-    // republishes on sohu/163/ifeed).
-    articleScript: SHARED_GOOGLE_SITE_SEARCH_SCRIPT,
-  },
-];
+// If a future account has no direct RSS path, prefer a direct feed first.
+// Sogou WeChat Search has aggressive anti-bot; mp.weixin.qq.com profile_ext
+// requires the WeChat client; Google site:mp.weixin.qq.com indexes very few
+// articles. A Google republish search is a last resort, not a source.
 
 // ─── WeChat RSS sources ───
 // Two tracks share the RSS parser and the tracked-feed role:
@@ -2411,6 +2392,23 @@ const WECHAT_RSS_TRACKING = Object.freeze({
   freshnessWindowDays: 14,
 });
 
+/**
+ * Wechat2RSS returns full `content:encoded` HTML for every item. Observed
+ * payloads are 0.9–4.0MB, so the generic 15s fetch budget aborts mid-body for
+ * the slower feeds and the source is reported as a false zero-result. Give
+ * every public WeChat RSS feed a body-read budget that covers the full feed.
+ */
+const WECHAT_RSS_TIMEOUT_MS = 240000;
+
+// Wechat2RSS full `content:encoded` turns a 20-item feed into 0.9–4.0 MB.
+// The public instance honors `content=0` on newer deployments and ignores it
+// on older ones; both shapes parse the same. The IPv4 preference and retry
+// budget below are what keep this from collapsing into a false zero-result.
+function wechatRssSummaryUrl(feedUrl) {
+  const sep = feedUrl.includes("?") ? "&" : "?";
+  return `${feedUrl}${sep}content=0`;
+}
+
 // #320: a self-hosted we-mp-rss instance backed by a WeChat Reading session.
 // The tracking shape stays the shared RSS shape; the local-only nature lives in
 // accessMethod.notes and docs/tools-catalog.md rather than in unread fields.
@@ -2420,7 +2418,24 @@ const WECHAT_SELF_HOSTED_RSS_TRACKING = Object.freeze({
   freshnessWindowDays: 14,
 });
 
+/**
+ * A failed WeChat2RSS feed should not collapse into a false zero-result.
+ * The account's articles are also republished on mp.weixin.qq.com and indexed
+ * by Google. It is a fallback only — it does not replace the feed when the feed works.
+ */
+function makeWechatAccountGoogleFallback(label, query = `"${label}"`) {
+  // The exact phrase alone is deliberate: `"来自微信公众号" "<label>"` is
+  // stricter but returns zero for accounts whose republished pages omit the
+  // byline (verified with 字节跳动技术团队). The label-only query still
+  // anchors on the account name and lets the China-AI filter do the rest.
+  return {
+    url: () => `https://www.google.com/search?q=${encodeURIComponent(query)}&tbs=qdr:y`,
+    articleScript: SHARED_GOOGLE_SITE_SEARCH_SCRIPT,
+  };
+}
+
 function createWechatRssSource(name, label, feedUrl, options = {}) {
+  const summaryUrl = wechatRssSummaryUrl(feedUrl);
   return {
     name,
     label,
@@ -2440,11 +2455,21 @@ function createWechatRssSource(name, label, feedUrl, options = {}) {
     },
     tracking: options.tracking ?? WECHAT_RSS_TRACKING,
     apiSearch: {
-      url: () => feedUrl,
+      url: () => summaryUrl,
       parser: parseWechatRss,
       authRequired: false,
+      // Summary-mode payloads are much smaller; keep a generous body budget
+      // for a cold Cloudflare edge and the occasional slow origin.
+      timeoutMs: options.timeoutMs ?? WECHAT_RSS_TIMEOUT_MS,
+      // A cold Cloudflare edge can stall the first body read; one retry
+      // usually lands on the warm object and avoids a false zero-result.
+      retriesOnTimeout: options.retriesOnTimeout ?? 1,
     },
-    url: () => feedUrl,
+    googleSiteFallback:
+      options.googleFallback === false
+        ? null
+        : makeWechatAccountGoogleFallback(label, options.googleQuery),
+    url: () => summaryUrl,
     articleScript: "var results = []; return results;",
   };
 }
@@ -2454,6 +2479,7 @@ export const WECHAT_RSS_SOURCES = [
     "wechat2rss_geekpark",
     "极客公园",
     "https://wechat2rss.xlab.app/feed/1a5aec98e71c707c8ca092bc2c255b9d4bac477d.xml",
+    { googleQuery: '"来自微信公众号" "极客公园"' },
   ),
   createWechatRssSource(
     "wechat2rss_bytedance_tech",
@@ -2509,6 +2535,7 @@ export const WECHAT_RSS_SOURCES = [
     "wechat2rss_alibaba_tech",
     "阿里技术",
     "https://wechat2rss.xlab.app/feed/6e1f9b775f7a5841ac1a94310f0478b45a02ec01.xml",
+    { googleQuery: '"来自微信公众号" "阿里技术"' },
   ),
   // #320: 动察Beating is the one account with no public feed. The 12
   // wechat2rss feeds above stay the primary WeChat track; this self-hosted
@@ -2521,6 +2548,9 @@ export const WECHAT_RSS_SOURCES = [
     "http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml",
     {
       tracking: WECHAT_SELF_HOSTED_RSS_TRACKING,
+      timeoutMs: 15000,
+      retriesOnTimeout: 0,
+      googleFallback: false,
       notes:
         "Self-hosted we-mp-rss feed backed by a WeChat Reading session. Local-only, read-only, no official WeChat API.",
     },
@@ -2669,7 +2699,7 @@ export const WECHAT_API_CONFIG = {
   //   appmsgpublish?sub=list — ✅ works, but ONLY for own account's publish history
   //   appmsg?action=list_ex&fakeid=xxx — ❌ DISABLED by WeChat (returns "invalid args")
   //   Conclusion: cannot fetch other accounts' article lists via platform API.
-  //   Use WECHAT_ACCOUNT_SOURCES (Google search for republished articles) instead.
+  //   There is no reliable public API for another account's article list.
 };
 
 // ─── Stock API sources (image/video) ───
@@ -3805,8 +3835,6 @@ export const AUTOGEN_EXCLUDED_SOURCES = new Set([
   "pixabay",
   // RSS feed — no web search needed
   "datacube_ai",
-  // Uses Google search as primary URL already
-  "wechat_dongchabeating",
   // Hot search page, no keyword search need
   "weibo_hot",
   // #309 (2026-09-19): no Google index — site:threads.net would be a dead
@@ -4040,7 +4068,6 @@ const _ENRICHED_SELF_MEDIA = enrichWithCapabilities(SELF_MEDIA_SOURCES);
 const _ENRICHED_INTERNATIONAL = enrichWithCapabilities(INTERNATIONAL_SOURCES);
 const _ENRICHED_GENERAL = enrichWithCapabilities(GENERAL_SEARCH_SOURCES);
 const _ENRICHED_LAST30DAYS = enrichWithCapabilities(LAST30DAYS_SOURCES);
-const _ENRICHED_WECHAT_ACCOUNT = enrichWithCapabilities(WECHAT_ACCOUNT_SOURCES);
 const _ENRICHED_WECHAT_RSS = enrichWithCapabilities(WECHAT_RSS_SOURCES);
 const _ENRICHED_TELEGRAM = enrichWithCapabilities(TELEGRAM_SOURCES);
 
@@ -4050,7 +4077,6 @@ export const ALL_SOURCES = [
   ..._ENRICHED_INTERNATIONAL,
   ..._ENRICHED_GENERAL,
   ..._ENRICHED_LAST30DAYS,
-  ..._ENRICHED_WECHAT_ACCOUNT,
   ..._ENRICHED_WECHAT_RSS,
   ..._ENRICHED_TELEGRAM,
   ...STOCK_MEDIA_SOURCES,

@@ -5,7 +5,7 @@
 // confidence, status) with bi-temporal supersession, plus per-domain baseline
 // bands. These tests lock:
 //   1. schema integrity of lib/data/industry-knowledge.json,
-//   2. the entity index resolves all 68 company-relations entities and every
+//   2. the entity index resolves all 71 company-relations entities and every
 //      model subject (the S1 acceptance criterion),
 //   3. applyFact replaces a same-key different-value fact without deleting
 //      history, and is idempotent on an identical refresh,
@@ -118,13 +118,13 @@ describe("industry-knowledge.json schema", () => {
   });
 });
 
-// ─── entity index + S1 acceptance: all 68 entities resolve ───
+// ─── entity index + S1 acceptance: all 71 entities resolve ───
 
 describe("entity index", () => {
   const index = buildEntityIndex(raw);
 
-  it("resolves all 68 company-relations entities and their matchKeys", () => {
-    expect(company.entities).toHaveLength(68);
+  it("resolves all 71 company-relations entities and their matchKeys", () => {
+    expect(company.entities).toHaveLength(71);
     for (const e of company.entities) {
       expect(index.byId.get(e.entity), `entity ${e.entity}`).toBeTruthy();
       for (const key of e.matchKeys) {
@@ -374,10 +374,10 @@ describe("loadIndustryKnowledge", () => {
 // ─── migration from company-relations.json ───
 
 describe("migrate-industry-knowledge", () => {
-  it("projects all 68 awareness facts and one has_model fact per model", () => {
+  it("projects all 71 awareness facts and one has_model fact per model", () => {
     const migrated = buildMigratedKnowledge(raw);
     const awareness = migrated.facts.filter((f) => f.relation === "overseas_awareness");
-    expect(awareness).toHaveLength(68);
+    expect(awareness).toHaveLength(71);
     const hasModel = migrated.facts.filter((f) => f.relation === "has_model");
     expect(hasModel).toHaveLength(raw.models.length);
     for (const m of raw.models) {

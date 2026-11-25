@@ -155,13 +155,16 @@ function hasTerm(haystack, term) {
  */
 export function checkSceneCount(scenes, opts = {}) {
   const count = scenes.length;
-  if (count >= THRESHOLDS.minScenes && count <= THRESHOLDS.maxScenes) {
+  const plan = opts.meta?.scenePlan ?? {};
+  const min = Number.isFinite(plan.minScenes) ? plan.minScenes : THRESHOLDS.minScenes;
+  const max = Number.isFinite(plan.maxScenes) ? plan.maxScenes : THRESHOLDS.maxScenes;
+  if (count >= min && count <= max) {
     return [
       {
         level: "pass",
         category: "Structure",
-        check: "Scene count (6-10)",
-        detail: `${count} scenes`,
+        check: `Scene count (${min}-${max})`,
+        detail: `${count} scenes${plan.minScenes || plan.maxScenes ? " (scenePlan)" : ""}`,
       },
     ];
   }
@@ -169,11 +172,11 @@ export function checkSceneCount(scenes, opts = {}) {
     {
       level: opts.longForm ? "warn" : "fail",
       category: "Structure",
-      check: "Scene count (6-10)",
-      detail: `${count} scenes`,
+      check: `Scene count (${min}-${max})`,
+      detail: `${count} scenes${plan.minScenes || plan.maxScenes ? " (scenePlan)" : ""}`,
       fix: opts.longForm
-        ? "SKILL.md recommends 6-10 scenes"
-        : "Split into content/<dir>/pt1, pt2... (6-10 scenes each) or pass --long-form",
+        ? `SKILL.md recommends ${min}-${max} scenes for this package`
+        : `Split into content/<dir>/pt1, pt2... (${min}-${max} scenes each) or pass --long-form`,
     },
   ];
 }
@@ -409,47 +412,6 @@ export function checkHookCompellingElement(scenes) {
   ];
 }
 
-/**
- * Hook layout selection (#1480): does the pack's opening layout fit what the
- * opening fact can carry? Research §6 (industry-knowledge-layer-2026-11.md)
- * rules for number-led / claim-led / media-led, judged by lib/hook-layout.mjs.
- *
- * Advisory on purpose: taste-adjacent selection is a Stage 3 editorial gate
- * (scripts/short-video/hook-layout.mjs, where the cross-pack run is also
- * judged), not a CI block.
- */
-function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
-  const evaluated = evaluateHookLayout(scenes?.[0], {
-    scenes,
-    meta,
-    industryContext: opts.industryContext ?? null,
-    sceneDurations: opts.sceneDurations,
-  });
-  if (evaluated.findings.length === 0) {
-    return [
-      {
-        level: "pass",
-        category: "Hook",
-        check: "Hook layout selection",
-        detail: `版式 ${evaluated.layout}，其硬前提成立`,
-      },
-    ];
-  }
-  return evaluated.findings.map((finding) => ({
-    level: finding.level === "fail" ? "fail" : "warn",
-    category: "Hook",
-    check: "Hook layout selection",
-    detail: `[${finding.code}] ${finding.detail}`,
-    fix: finding.fix,
-  }));
-}
-
-const HOOK_VISUAL_PRIORITY_CHECK = "Hook visual priority";
-
-function sceneHasBoundMedia(scene) {
-  return Boolean(scene?.media?.path && scene?.media?.type);
-}
-
 function sceneHasBoundMotion(scene) {
   return sceneHasBoundMedia(scene) && scene.media.type === "video";
 }
@@ -535,6 +497,47 @@ export function checkHookVisualPriority(scenes, meta = {}) {
       fix: `Use a 0.5-1.5s teaser from that clip in scene 1-2, or add meta.hookVisualPriorityReason explaining why the clip cannot open (spoiler / fact mismatch / rights).`,
     },
   ];
+}
+
+/**
+ * Hook layout selection (#1480): does the pack's opening layout fit what the
+ * opening fact can carry? Research §6 (industry-knowledge-layer-2026-11.md)
+ * rules for number-led / claim-led / media-led, judged by lib/hook-layout.mjs.
+ *
+ * Advisory on purpose: taste-adjacent selection is a Stage 3 editorial gate
+ * (scripts/short-video/hook-layout.mjs, where the cross-pack run is also
+ * judged), not a CI block.
+ */
+function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
+  const evaluated = evaluateHookLayout(scenes?.[0], {
+    scenes,
+    meta,
+    industryContext: opts.industryContext ?? null,
+    sceneDurations: opts.sceneDurations,
+  });
+  if (evaluated.findings.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Hook layout selection",
+        detail: `版式 ${evaluated.layout}，其硬前提成立`,
+      },
+    ];
+  }
+  return evaluated.findings.map((finding) => ({
+    level: finding.level === "fail" ? "fail" : "warn",
+    category: "Hook",
+    check: "Hook layout selection",
+    detail: `[${finding.code}] ${finding.detail}`,
+    fix: finding.fix,
+  }));
+}
+
+const HOOK_VISUAL_PRIORITY_CHECK = "Hook visual priority";
+
+function sceneHasBoundMedia(scene) {
+  return Boolean(scene?.media?.path && scene?.media?.type);
 }
 
 /**
@@ -1000,16 +1003,20 @@ export function checkShareWorthyData(scenes) {
 
 /** Total voiceover should fit the profile's duration ceiling (see maxVoiceoverWords) */
 export function checkVoiceoverWordCount(scenes, opts = {}) {
+  const plan = opts.meta?.scenePlan ?? {};
+  const maxWords = Number.isFinite(plan.maxVoiceoverWords)
+    ? plan.maxVoiceoverWords
+    : THRESHOLDS.maxVoiceoverWords;
   const totalWords = scenes.reduce(
     (sum, s) => sum + (s.voiceover || "").split(/\s+/).filter(Boolean).length,
     0,
   );
-  if (totalWords <= THRESHOLDS.maxVoiceoverWords) {
+  if (totalWords <= maxWords) {
     return [
       {
         level: "pass",
         category: "Duration",
-        check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
+        check: `Total voiceover words (≤${maxWords})`,
         detail: `${totalWords} words (~${(totalWords / THRESHOLDS.voiceoverEstimateWps).toFixed(0)}s)`,
       },
     ];
@@ -1018,11 +1025,11 @@ export function checkVoiceoverWordCount(scenes, opts = {}) {
     {
       level: opts.longForm ? "warn" : "fail",
       category: "Duration",
-      check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
+      check: `Total voiceover words (≤${maxWords})`,
       detail: `${totalWords} words`,
       fix: opts.longForm
-        ? `May exceed 70s at 2.5 wps — consider trimming (limit: ${THRESHOLDS.maxVoiceoverWords} words)`
-        : `Split VO across content/<dir>/pt1, pt2... (≤${THRESHOLDS.maxVoiceoverWords} words each) or pass --long-form`,
+        ? `May exceed the package duration — consider trimming (limit: ${maxWords} words)`
+        : `Split VO across content/<dir>/pt1, pt2... (≤${maxWords} words each) or pass --long-form`,
     },
   ];
 }

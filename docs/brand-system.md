@@ -130,7 +130,7 @@ Burned-in subtitles via FFmpeg ASS filter (libass). Karaoke-style word-by-word h
 | Primary color      | Dispatch Blue (#4d8bff, ASS: &H00FF8B4D) — spoken words                                                   |
 | Secondary color    | White (#F5F5F5, ASS: &H00F5F5F5) — unspoken words                                                         |
 | Outline            | Black, 3px (ASS: &H66000000, semi-transparent)                                                            |
-| Shadow             | 1px                                                                                                       |
+| Shadow             | 0px (subtitles use outline only; 1px ASS shadow removed 2026-11-22)                                      |
 | Position           | Bottom-center (Alignment=2), in the lower third below the content band                                    |
 | Margin from bottom | 400px (cue bottom edge y=1520, 156px above the measured TikTok caption top)                               |
 | Margins L/R        | 110/250 (left-shifted to match content band center; cue right edge x=830, clears the action rail by 50px) |

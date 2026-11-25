@@ -71,15 +71,16 @@ describe("groupSourcesByEvidenceRole", () => {
 // ─── #309 §C ruling: research mode fetches environmentalSignals for real ───
 //
 // 裁决（审计 §C）：research 模式此前只抓 directEvidence + trackedFeedContext
-// （51 源），3 个 environmentalSignals（weibo_hot/datacube_ai/wechat_dongchabeating
+// （51 源），2 个 environmentalSignals（weibo_hot/datacube_ai
 // ——均 supportsKeyword=false、静态/固定 URL）注册不抓。落地 = research 同样
 // 抓取（每 run 一次，同 tracked feeds 节奏），证据角色仍是 environmental-signal
-// （背景信号，永不做 direct evidence）。
+// （背景信号，永不做 direct evidence）。wechat_dongchabeating 的 Google 转载
+// fallback 于 2026-11-22 退役。
 
 describe("selectSourcesForRun (#309 §C: research fetches environmentalSignals)", () => {
-  const ENV_SIGNAL_NAMES = ["weibo_hot", "datacube_ai", "wechat_dongchabeating"];
+  const ENV_SIGNAL_NAMES = ["weibo_hot", "datacube_ai"];
 
-  it("real registry pins the environmentalSignals group to exactly the 3 audit sources", () => {
+  it("real registry pins the environmentalSignals group to the remaining audit sources", () => {
     const groups = groupSourcesByEvidenceRole(articlesCapableSources);
     expect(groups.environmentalSignals.map((s) => s.name).sort()).toEqual(
       ENV_SIGNAL_NAMES.slice().sort(),

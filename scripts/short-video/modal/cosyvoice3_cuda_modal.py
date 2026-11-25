@@ -42,17 +42,18 @@ image = (
         "transformers==4.51.3", "lightning==2.2.4", "x-transformers==2.11.24",
         "numpy<2.0",
     )
-    .pip_install("onnxruntime-gpu==1.20.1")
-    .pip_install("openai-whisper", "--no-deps")
-    .pip_install("tiktoken", "numba")
+    .pip_install("onnxruntime-gpu==1.20.2")
+    .pip_install("openai-whisper", extra_options="--no-deps")
+    .pip_install("tiktoken", "numba", "rich", "matplotlib==3.7.5", "networkx==3.1", "pyarrow==18.1.0", "fastapi==0.115.6", "gradio==5.4.0", "wget==3.2", "fastapi-cli==0.0.4", "grpcio==1.57.0", "grpcio-tools==1.57.0", "tensorboard==2.14.0", "protobuf==4.25.3", "uvicorn==0.30.0")
+    .pip_install("diffusers==0.32.2", extra_options="--no-deps")
 )
 
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 
-stub = modal.Stub(APP_NAME, image=image)
+app = modal.App(APP_NAME, image=image)
 
 
-@stub.function(gpu="A100", timeout=1800, volumes={VOLUME_NAME: volume})
+@app.function(gpu="A100", timeout=1800, volumes={"/vol": volume})
 def infer(manifest: list, ref_audio_b64: str) -> dict:
     """Run CosyVoice3 inference on A100 GPU.
 
@@ -156,7 +157,7 @@ def infer(manifest: list, ref_audio_b64: str) -> dict:
     return summary
 
 
-@stub.local_entrypoint()
+@app.local_entrypoint()
 def main(
     manifest_file: str,
     ref_audio: str,

@@ -155,13 +155,35 @@ export const PRIORITY = [
 ];
 
 /**
+ * F5 is a local backup, not a silent default. Require an explicit opt-in so a
+ * batch cannot drift onto the local voice just because Kaggle/MLX were
+ * unavailable — the 2026-11-22 three-video run did exactly that via a forced
+ * `TTS_ENGINE=f5-mlx`. Kaggle/Modal/Colab remain the default chain.
+ *
+ * @param {TTSEngine} engine
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {TTSEngine}
+ */
+function guardF5OptIn(engine, env = process.env) {
+  if ((engine.name === "f5-mlx" || engine.name === "f5") && env.TTS_ALLOW_LOCAL !== "1") {
+    throw new Error(
+      `TTS_LOCAL_BLOCKED: selected ${engine.name} (local F5 backup). ` +
+        "The default chain is CosyVoice3-Kaggle/Colab/Modal CUDA. " +
+        "Set TTS_ALLOW_LOCAL=1 only when you explicitly accept the local voice for this run.",
+    );
+  }
+  return engine;
+}
+
+/**
  * Select a TTS engine.
  *
  * If TTS_ENGINE env is set to a known engine name, try that engine first.
  * If it's unavailable (or no env override), fall back to priority order.
  *
  * @returns {Promise<TTSEngine>}
- * @throws {Error} If no engine is available.
+ * @throws {Error} If no engine is available, or F5 is selected without
+ *   `TTS_ALLOW_LOCAL=1`.
  */
 export async function selectEngine() {
   const forceEngine = process.env.TTS_ENGINE || null;
@@ -169,7 +191,7 @@ export async function selectEngine() {
   // Try forced engine first
   if (forceEngine && ENGINE_FACTORIES[forceEngine]) {
     const engine = await ENGINE_FACTORIES[forceEngine]();
-    if (engine) return engine;
+    if (engine) return guardF5OptIn(engine);
     console.log(
       `  ⚠️ Forced engine "${forceEngine}" not available, falling back to priority order...`,
     );
@@ -178,7 +200,7 @@ export async function selectEngine() {
   // Try engines in priority order
   for (const key of PRIORITY) {
     const engine = await ENGINE_FACTORIES[key]();
-    if (engine) return engine;
+    if (engine) return guardF5OptIn(engine);
   }
 
   throw new Error(

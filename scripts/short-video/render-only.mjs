@@ -168,6 +168,27 @@ async function main() {
     }
   }
 
+  // The same inventory gate as verify-video: re-rendering an old package must
+  // not resurrect a videoFit claim its assets cannot support.
+  {
+    const { checkVideoFit } = await import("./lib/video-fit.mjs");
+    const report = checkVideoFit({
+      scenes,
+      meta,
+      contentDirAbs: resolve(__dirname, "content", contentDir),
+    });
+    for (const row of report.rows) {
+      if (row.level === "fail") {
+        console.error(`❌ Step 2: VideoFit ${row.check} FAILED — ${row.detail}`);
+        if (row.fix) console.error(`   ${row.fix}`);
+        process.exit(1);
+      }
+    }
+    console.log(
+      `✅ Step 2: Video-fit inventory passed (claim ${report.claimed ?? "legacy"}; measured ${report.actual})\n`,
+    );
+  }
+
   // ── Step 2.5: BGM (optional) ──
   const useBGM = args.includes("--bgm");
   const bgmFileOverride = getArg("bgm-file");

@@ -22,6 +22,9 @@ import os
 import time
 import subprocess
 import unicodedata
+import wave
+
+import numpy as np
 
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
@@ -135,6 +138,40 @@ def ref_duration_seconds(path, cache=None):
     return dur
 
 
+def install_peak_ceiling(ceiling=0.92):
+    """Keep F5's float waveform below the PCM16 ceiling before soundfile writes.
+
+    F5-TTS-MLX can return samples above ±1.0. `sf.write` silently clips them to
+    PCM16 full scale, which is audible as a crackle on loud vowels (2026-11-22:
+    several scene WAVs had 1–29 clipped samples at 0.000265 dBFS). Scaling the
+    whole take before the write avoids introducing flat-topped samples.
+    """
+    from f5_tts_mlx import generate as f5_generate_module
+
+    sf = f5_generate_module.sf
+    if getattr(sf.write, "_peak_ceiling_installed", False):
+        return
+    original_write = sf.write
+
+    def safe_write(path, data, samplerate, *args, **kwargs):
+        arr = np.asarray(data, dtype=np.float32)
+        peak = float(np.max(np.abs(arr))) if arr.size else 0.0
+        if peak > ceiling:
+            arr = arr * (ceiling / peak)
+        return original_write(path, arr, samplerate, *args, **kwargs)
+
+    safe_write._peak_ceiling_installed = True
+    sf.write = safe_write
+
+
+def wav_peak_abs(path):
+    """Return the absolute peak of a PCM WAV as a linear 0..1 float."""
+    with wave.open(path, "rb") as w:
+        frames = w.readframes(w.getnframes())
+    data = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    return float(np.max(np.abs(data))) if data.size else 0.0
+
+
 def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
     from f5_tts_mlx.generate import generate as f5_generate
 
@@ -192,10 +229,18 @@ def generate_batch(manifest_path, output_dir, ref_audio, ref_text, speed=1.0):
 
         print(f"    Duration: {duration:.2f}s, RTF: {(t3 - t2) / max(duration, 0.01):.2f}x", file=sys.stderr)
 
+        peak = wav_peak_abs(output_path)
+        if peak > 0.98:
+            raise RuntimeError(
+                f"Scene {scene_id} clipped at PCM16 full scale (peak={peak:.4f}); "
+                "the F5 peak ceiling is missing or was bypassed"
+            )
+
         results.append({
             "sceneId": scene_id,
             "audioPath": os.path.abspath(output_path),
             "duration": duration,
+            "peak": round(peak, 4),
         })
 
     print(f"\nAll {len(scenes)} scenes processed!", file=sys.stderr)
@@ -221,6 +266,7 @@ def main():
         print("Error: --ref-audio and --ref-text (or F5_REF_AUDIO/F5_REF_TEXT env vars) are required", file=sys.stderr)
         sys.exit(1)
 
+    install_peak_ceiling(float(os.environ.get("F5_PEAK_CEILING", "0.92")))
     generate_batch(args.manifest, args.output_dir, ref_audio, ref_text, speed)
 
 

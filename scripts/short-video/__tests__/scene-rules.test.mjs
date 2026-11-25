@@ -225,16 +225,21 @@ describe("checkHookContract", () => {
 // ── checkSceneCount ──
 
 describe("checkSceneCount", () => {
-  it("passes for 6-10 scenes", () => {
-    for (const n of [6, 7, 8, 9, 10]) {
+  it("passes for 3-10 scenes", () => {
+    for (const n of [3, 4, 5, 6, 7, 8, 9, 10]) {
       const scenes = Array(n).fill(validScenes[0]);
       const results = checkSceneCount(scenes);
       expect(results[0].level).toBe("pass");
     }
   });
 
-  it("fails for <6 scenes (TikTok default)", () => {
-    const results = checkSceneCount(Array(5).fill(validScenes[0]));
+  it("does not force a 6-scene floor on short news", () => {
+    const results = checkSceneCount(Array(4).fill(validScenes[0]));
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fails for <3 scenes (TikTok floor)", () => {
+    const results = checkSceneCount(Array(2).fill(validScenes[0]));
     expect(results[0].level).toBe("fail");
   });
 
@@ -248,8 +253,8 @@ describe("checkSceneCount", () => {
     expect(results[0].level).toBe("warn");
   });
 
-  it("warns for <6 scenes with --long-form opt-in", () => {
-    const results = checkSceneCount(Array(5).fill(validScenes[0]), { longForm: true });
+  it("warns for <3 scenes with --long-form opt-in", () => {
+    const results = checkSceneCount(Array(2).fill(validScenes[0]), { longForm: true });
     expect(results[0].level).toBe("warn");
   });
 
@@ -262,6 +267,13 @@ describe("checkSceneCount", () => {
     const results = checkSceneCount(Array(11).fill(validScenes[0]));
     expect(results[0].fix).toMatch(/pt/i);
     expect(results[0].fix).toMatch(/split|拆分/i);
+  });
+
+  it("honours a per-package scenePlan instead of the 6-10 default", () => {
+    const meta = { scenePlan: { minScenes: 4, maxScenes: 6 } };
+    const results = checkSceneCount(Array(4).fill(validScenes[0]), { meta });
+    expect(results[0].level).toBe("pass");
+    expect(results[0].check).toContain("4-6");
   });
 });
 
@@ -728,6 +740,16 @@ describe("checkVoiceoverWordCount", () => {
     expect(results[0].fix).toMatch(/pt/i);
     expect(results[0].fix).toMatch(/split|拆分/i);
   });
+
+  it("honours a per-package maxVoiceoverWords instead of 175", () => {
+    const longVO = Array(120).fill("word").join(" ");
+    const scenes = [{ ...validScenes[0], voiceover: longVO }];
+    const results = checkVoiceoverWordCount(scenes, {
+      meta: { scenePlan: { maxVoiceoverWords: 100 } },
+    });
+    expect(results[0].level).toBe("fail");
+    expect(results[0].check).toContain("≤100");
+  });
 });
 
 // ── runAllSceneDataChecks aggregation (guard strictness) ──
@@ -744,17 +766,17 @@ describe("runAllSceneDataChecks guard strictness", () => {
   it("defaults: scene count + word count land in fail bucket", () => {
     const res = runAllSceneDataChecks(overLimitScenes);
     const failedChecks = res.fail.map((r) => r.check);
-    expect(failedChecks).toContain("Scene count (6-10)");
+    expect(failedChecks).toContain("Scene count (3-10)");
     expect(failedChecks).toContain(`Total voiceover words (≤${MAX_WORDS})`);
   });
 
   it("--long-form: scene count + word count downgrade to warn bucket", () => {
     const res = runAllSceneDataChecks(overLimitScenes, undefined, { longForm: true });
     const warnedChecks = res.warn.map((r) => r.check);
-    expect(warnedChecks).toContain("Scene count (6-10)");
+    expect(warnedChecks).toContain("Scene count (3-10)");
     expect(warnedChecks).toContain(`Total voiceover words (≤${MAX_WORDS})`);
     const failedChecks = res.fail.map((r) => r.check);
-    expect(failedChecks).not.toContain("Scene count (6-10)");
+    expect(failedChecks).not.toContain("Scene count (3-10)");
     expect(failedChecks).not.toContain(`Total voiceover words (≤${MAX_WORDS})`);
   });
 
@@ -763,7 +785,7 @@ describe("runAllSceneDataChecks guard strictness", () => {
     const resLong = runAllSceneDataChecks(validScenes, undefined, { longForm: true });
     for (const res of [resDefault, resLong]) {
       const failedChecks = res.fail.map((r) => r.check);
-      expect(failedChecks).not.toContain("Scene count (6-10)");
+      expect(failedChecks).not.toContain("Scene count (3-10)");
       expect(failedChecks).not.toContain(`Total voiceover words (≤${MAX_WORDS})`);
     }
   });

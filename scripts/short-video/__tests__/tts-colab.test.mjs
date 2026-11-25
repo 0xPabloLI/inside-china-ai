@@ -43,7 +43,24 @@ describe("renderColabScript", () => {
     );
     expect(script).not.toContain("__MANIFEST_B64__");
     expect(script).not.toContain("__REF_AUDIO_B64__");
+    expect(script).not.toContain("__MODEL_CACHE_URL__");
+    expect(script).not.toContain("__MODEL_CACHE_GDRIVE_ID__");
     expect(script).toContain(Buffer.from("fake-ref").toString("base64"));
+  });
+
+  it("embeds a non-interactive model cache source when provided", () => {
+    const script = renderColabScript(
+      [{ sceneId: 1, text: "hello", output: "scene-1.wav" }],
+      Buffer.from("fake-ref"),
+      {
+        modelCacheUrl: "https://example.com/cosyvoice3-model.tar",
+        modelCacheGdriveId: "drive-file-id",
+      },
+    );
+    expect(script).toContain('MODEL_CACHE_URL = "https://example.com/cosyvoice3-model.tar"');
+    expect(script).toContain('MODEL_CACHE_GDRIVE_ID = "drive-file-id"');
+    expect(script).not.toContain("__MODEL_CACHE_URL__");
+    expect(script).not.toContain("__MODEL_CACHE_GDRIVE_ID__");
   });
 });
 

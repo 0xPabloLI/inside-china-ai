@@ -53,6 +53,10 @@ const COLAB_KERNEL_SILENCE_S = Number.parseInt(
 );
 const COLAB_GPU = process.env.COSYVOICE3_COLAB_GPU || "T4";
 
+/** Optional non-interactive model cache: a tar/zip archive on Drive or any URL. */
+const COLAB_MODEL_CACHE_URL = process.env.COSYVOICE3_COLAB_MODEL_CACHE_URL || "";
+const COLAB_MODEL_CACHE_GDRIVE_ID = process.env.COSYVOICE3_COLAB_MODEL_CACHE_GDRIVE_ID || "";
+
 /** Locate the Colab CLI without assuming PATH (it installs under ~/.local/bin). */
 export function resolveColabBin(deps = {}) {
   if (deps.colabBin) return deps.colabBin;
@@ -90,10 +94,14 @@ async function isAvailable(deps = {}) {
  * @param {Buffer} refAudio
  * @returns {string} script source
  */
-export function renderColabScript(manifest, refAudio) {
+export function renderColabScript(manifest, refAudio, options = {}) {
+  const cacheUrl = options.modelCacheUrl ?? COLAB_MODEL_CACHE_URL;
+  const cacheGdriveId = options.modelCacheGdriveId ?? COLAB_MODEL_CACHE_GDRIVE_ID;
   return readFileSync(COLAB_TEMPLATE, "utf-8")
     .replaceAll("__MANIFEST_B64__", Buffer.from(JSON.stringify(manifest)).toString("base64"))
-    .replaceAll("__REF_AUDIO_B64__", refAudio.toString("base64"));
+    .replaceAll("__REF_AUDIO_B64__", refAudio.toString("base64"))
+    .replaceAll("__MODEL_CACHE_URL__", JSON.stringify(String(cacheUrl || "")))
+    .replaceAll("__MODEL_CACHE_GDRIVE_ID__", JSON.stringify(String(cacheGdriveId || "")));
 }
 
 /**
@@ -150,7 +158,10 @@ export async function createCosyVoice3ColabCudaEngine(deps = {}) {
 
     async generate(scenes, outputDir) {
       const manifest = buildCV3CudaManifest(scenes);
-      const script = renderColabScript(manifest, readFileSync(deps.refAudioPath ?? CV3_REF_AUDIO));
+      const script = renderColabScript(manifest, readFileSync(deps.refAudioPath ?? CV3_REF_AUDIO), {
+        modelCacheUrl: deps.modelCacheUrl,
+        modelCacheGdriveId: deps.modelCacheGdriveId,
+      });
       // The output directory is pipeline-owned, not request input, but pin it
       // to an absolute non-root path so the artifact writes cannot escape it.
       const outputRoot = resolve(String(outputDir));

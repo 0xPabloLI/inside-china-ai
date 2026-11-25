@@ -75,7 +75,7 @@ describe("renderAss style row", () => {
     const expected =
       "Style: Default,Helvetica Neue,68," +
       "&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000," +
-      "-1,0,0,0,100,100,0,0,1,3,1,2," +
+      "-1,0,0,0,100,100,0,0,1,3,0,2," +
       "110,250,400,1";
     expect(styleRow()).toBe(expected);
   });

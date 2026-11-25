@@ -46,6 +46,8 @@ export interface MediaField {
   path: string;
   mode?: "background" | "fullscreen" | "card"; // default "background" — card = framed evidence card (#663)
   fit?: "cover" | "contain"; // default "cover" — how to place landscape media in 9:16
+  /** Solid matte behind a contained picture's letterbox (CSS color). Match the source's own edge so the card frame does not read as a dark shadow. */
+  matteColor?: string;
   /**
    * #1524: fill behind a contained picture. `"blur"` paints a blurred,
    * cover-cropped copy of the same source across the container, so a 16:9
@@ -111,6 +113,10 @@ export interface MediaField {
     path: string;
     source?: string;
     animation?: "fade";
+    /** Opt out of the frame-level right action-rail vignette. Default true.
+     * Light full-bleed artwork otherwise reads as a hard vertical shadow in
+     * the 200px TikTok action rail. */
+    railVignette?: boolean;
     volume?: number;
     upscale?: boolean;
   };

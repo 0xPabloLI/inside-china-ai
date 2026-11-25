@@ -542,6 +542,22 @@ if (scenesWithMedia.length > 0) {
   pass("Media", "No media backgrounds (all CSS)", "");
 }
 
+// ─── Video-fit inventory gate (shared: pre-render + post-render) ───
+// videoFit is no longer an editorial label. It is measured from the curated
+// assets/ package: motion clip count and counted seconds buy the score, and a
+// declared score above the measurement fails. The 2026-11-20 baseline: Phai
+// declared video-fit with 3 stills / 0 clips; DeepSeek with 2 stills / 0 clips.
+{
+  const { checkVideoFit } = await import("./lib/video-fit.mjs");
+  const report = checkVideoFit({ scenes, meta, contentDirAbs: CONTENT_DIR_ABS });
+  console.log("\n🎯 Video-Fit Inventory");
+  console.log("─".repeat(50));
+  for (const row of report.rows) {
+    if (row.level === "pass") pass("VideoFit", row.check, row.detail);
+    else fail("VideoFit", row.check, row.detail, row.fix);
+  }
+}
+
 // ─── Demo cut provenance (shared: pre-render + post-render) ───
 // A contest pack can "have a demo" and still ship the wrong 8 seconds of it.
 // meta.demoCuts fixes the chosen window to the scene, and this gate makes the

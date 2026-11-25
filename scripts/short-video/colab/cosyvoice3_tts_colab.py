@@ -24,16 +24,28 @@ pip + clone + ~2GB model download before inference.
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
 import time
 import traceback
+import urllib.parse
+import urllib.request
+import zipfile
 
 MANIFEST_B64 = "__MANIFEST_B64__"
 REF_AUDIO_B64 = "__REF_AUDIO_B64__"
 PINNED_COSYVOICE_COMMIT = "074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc"
 HF_REPO = "FunAudioLLM/Fun-CosyVoice3-0.5B-2512"
 MODEL_DIR = "/tmp/cosyvoice3-model"
+# Optional pre-staged model archive (tar/zip). The Node adapter injects these
+# from COSYVOICE3_COLAB_MODEL_CACHE_URL / COSYVOICE3_COLAB_MODEL_CACHE_GDRIVE_ID.
+# Empty values keep the original HuggingFace download path.
+MODEL_CACHE_URL = __MODEL_CACHE_URL__
+MODEL_CACHE_GDRIVE_ID = __MODEL_CACHE_GDRIVE_ID__
+MODEL_CACHE_ARCHIVE = "/tmp/cosyvoice3-model-cache"
+MODEL_CACHE_EXTRACT = "/tmp/cosyvoice3-model-cache-extract"
 # CosyVoice3 has no generic `inference()` method: every call must carry an
 # instruct prompt ending in <|endofprompt|>. Scenes without a style-specific
 # instruct still need a neutral news-narrator one, or the kernel raises
@@ -58,6 +70,87 @@ def run(cmd, **kwargs):
 def pip_install(args, extra=None):
     cmd = [sys.executable, "-m", "pip", "install", "-q"] + list(extra or []) + list(args)
     subprocess.run(cmd, check=True)
+
+
+def model_ready():
+    return os.path.exists(os.path.join(MODEL_DIR, "cosyvoice3.yaml"))
+
+
+def _safe_extract_tar(archive, dest):
+    root = os.path.realpath(dest)
+    with tarfile.open(archive) as tar:
+        members = []
+        for member in tar.getmembers():
+            target = os.path.realpath(os.path.join(dest, member.name))
+            if target != root and not target.startswith(root + os.sep):
+                raise RuntimeError(f"archive member escapes destination: {member.name}")
+            members.append(member)
+        tar.extractall(dest, members=members)
+
+
+def _safe_extract_zip(archive, dest):
+    root = os.path.realpath(dest)
+    with zipfile.ZipFile(archive) as zf:
+        for member in zf.infolist():
+            target = os.path.realpath(os.path.join(dest, member.filename))
+            if target != root and not target.startswith(root + os.sep):
+                raise RuntimeError(f"archive member escapes destination: {member.filename}")
+        zf.extractall(dest)
+
+
+def _find_model_root(root):
+    for dirpath, _dirnames, filenames in os.walk(root):
+        if "cosyvoice3.yaml" in filenames:
+            return dirpath
+    return None
+
+
+def _install_model_cache(archive):
+    if not os.path.isfile(archive) or os.path.getsize(archive) == 0:
+        raise RuntimeError(f"model cache archive missing/empty: {archive}")
+    shutil.rmtree(MODEL_CACHE_EXTRACT, ignore_errors=True)
+    os.makedirs(MODEL_CACHE_EXTRACT, exist_ok=True)
+    if tarfile.is_tarfile(archive):
+        _safe_extract_tar(archive, MODEL_CACHE_EXTRACT)
+    elif zipfile.is_zipfile(archive):
+        _safe_extract_zip(archive, MODEL_CACHE_EXTRACT)
+    else:
+        raise RuntimeError(f"model cache is neither tar nor zip: {archive}")
+    root = _find_model_root(MODEL_CACHE_EXTRACT)
+    if not root:
+        raise RuntimeError("model cache archive has no cosyvoice3.yaml")
+    if os.path.lexists(MODEL_DIR):
+        if os.path.islink(MODEL_DIR) or os.path.isfile(MODEL_DIR):
+            os.unlink(MODEL_DIR)
+        else:
+            shutil.rmtree(MODEL_DIR)
+    os.symlink(root, MODEL_DIR)
+    log(f"model cache hit: {archive} -> {root}")
+
+
+def try_model_cache():
+    if model_ready():
+        log(f"model already present: {MODEL_DIR}")
+        return True
+    if not MODEL_CACHE_URL and not MODEL_CACHE_GDRIVE_ID:
+        return False
+    try:
+        if MODEL_CACHE_URL:
+            parsed = urllib.parse.urlparse(MODEL_CACHE_URL)
+            if parsed.scheme not in ("https", "http") or not parsed.netloc:
+                raise ValueError("COSYVOICE3_COLAB_MODEL_CACHE_URL must be an http(s) URL")
+            log(f"fetching model cache from URL: {MODEL_CACHE_URL}")
+            # Operator-supplied staging URL; scheme and host presence are checked above.
+            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            urllib.request.urlretrieve(MODEL_CACHE_URL, MODEL_CACHE_ARCHIVE)
+        else:
+            log(f"fetching model cache from Google Drive id: {MODEL_CACHE_GDRIVE_ID}")
+            run([sys.executable, "-m", "gdown", "--id", MODEL_CACHE_GDRIVE_ID, "-O", MODEL_CACHE_ARCHIVE])
+        _install_model_cache(MODEL_CACHE_ARCHIVE)
+        return model_ready()
+    except Exception as e:
+        log(f"model cache miss: {e}; falling back to HuggingFace")
+        return False
 
 
 def main():
@@ -94,8 +187,8 @@ def main():
     sys.path.insert(0, "/tmp/CosyVoice")
     sys.path.insert(0, "/tmp/CosyVoice/third_party/Matcha-TTS")
 
-    # ── model ──
-    if not os.path.exists(os.path.join(MODEL_DIR, "cosyvoice3.yaml")):
+    # ── model: pre-staged cache first, HuggingFace only on miss ──
+    if not try_model_cache():
         from huggingface_hub import snapshot_download
         log(f"downloading {HF_REPO} ...")
         snapshot_download(repo_id=HF_REPO, local_dir=MODEL_DIR)

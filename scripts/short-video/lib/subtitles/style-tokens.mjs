@@ -60,7 +60,9 @@ const STROKE_INK = { hex: "#000000", alpha: 0x66 };
  *   `outline` and `back` share one ink — ASS needs both fields, the cue uses
  *   the same 40% black in each, so they reference one object.
  * - `stroke.outlineWidth` / `stroke.shadowOffset` are libass px at the ASS
- *   script resolution (1080×1920), not CSS px. `borderStyle: 1` is the
+ *   script resolution (1080×1920), not CSS px. `shadowOffset` is 0: a 1px
+ *   black shadow sat behind the glyph and read as an unwanted second edge on
+ *   dark slides, so the burned cue uses outline only. `borderStyle: 1` is the
  *   outline-and-shadow box (no opaque box behind the text).
  * - `glyph.*` is how the glyphs are laid out inside the cue: letter spacing
  *   (ASS `Spacing`), horizontal/vertical scale and rotation, all at their
@@ -96,7 +98,8 @@ export const SUBTITLE_STYLE = {
   },
   stroke: {
     outlineWidth: 3,
-    shadowOffset: 1,
+    /** 0: the 1px ASS shadow read as a second edge on dark slides (#2026-11-22). */
+    shadowOffset: 0,
     borderStyle: 1,
   },
   glyph: {

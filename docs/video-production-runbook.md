@@ -374,6 +374,8 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 
 **Force engine**: `export TTS_ENGINE=cosyvoice3-mlx` / `f5-mlx` / `edge-tts` / `say`
 
+**F5 必须显式 opt-in（2026-11-22）**: `selectEngine()` 选中 `f5-mlx` 时，如果 `TTS_ALLOW_LOCAL !== "1"`，直接抛 `TTS_LOCAL_BLOCKED`，不会静默降级到本地 F5。默认链仍是 Kaggle → Colab → Modal CUDA；只有明确接受本地音色时才 `export TTS_ALLOW_LOCAL=1`。2026-11-22 三条片因命令里强制 `TTS_ENGINE=f5-mlx` 走了本地引擎，新增这道门就是防止同类误选。
+
 **CosyVoice3-MLX 本地兜底（#704）**: 主引擎是 `cosyvoice3-mlx` 时，声学失败（`TTS_ACOUSTIC_HARD_BLOCK`）或 pacing-floor 失败（`TTS_PACING_FLOOR_BLOCK`）后，只对失败的 scene 自动用 `f5-mlx` 重生成（已通过的 take 不动）。fallback take 必须全部通过 Quality Gate 且不超过 225 WPM 硬上限才采用（阻断发生在 pacing 阶梯之前，上限无法由阶梯施加，改在采用判据里独立执行）。若本次 run 的任一 take（含已通过门禁的与缓存命中的）超过 225 WPM，兜底整体放弃并保持原阻断——超速 take 不能借兜底放行；fallback take 自身超限同样拒绝提升。**采用后 pacing 补偿阶梯对合并后的 take 集重跑（#820）**：阻断把阶梯短路了，不重跑的话，一个 gate-PASS 但实测 <150 WPM 的场景（或未达 1.1x hook floor 的 hook）会以原速出片；重跑照常规划它们的补差（在主引擎上重生成加速 take）。重跑排除 F5 take 自身（F5 按自然语速生成、不消费 `scene.ttsSpeed`，hook 1.1x 等加速对它是空操作），并复用第一轮已接受的补偿（日志 `⏭️ … take already at X`，同一 take 不重复付费）；重跑后仍有 take 低于其**计划速度**时打印显眼 warning 并列出 scene、WPM 与原因（如 `f5-mlx take — that engine speaks at its natural pace`、`already at 1.18x`），不静默出片——判据统一覆盖 `<150 WPM` 慢速场景与 `#244` `<1.1x` hook floor（#925），且**常态路径（未触发兜底时）同样打印**该 warning。重跑中某条补差 take 若仍不合格，按 #252 语义**保留原 take**（它已通过门禁）并把它记进 stranded warning——不抛阻断。真正 fail-closed 的重跑错误会**取代**原阻断。gate 类错误在采用判据下不可达（提升前已对全体 take 过门禁并对 225 上限整体否决），但 **#925 的 `TTS_PACING_COMPENSATION_BLOCK` 是可达路径**：重跑里幸存场景的补差轮若整轮失败（kernel 超时 / 部分返回 / 返回但无音频字节），即使 F5 take 已提升落盘，本轮仍以「补差未产出」中止——有意为之：否则就是在修好一条 take 之后，又静默发出一条未按计划提速的 take；重跑只为缺失场景付费（其余 take 已 approved，F5 take 缓存 key 按 F5 计算、下一次主引擎 run 不复用它）。meta 记录 `engine: f5-mlx` / `fallbackFrom: cosyvoice3-mlx`（缓存 key 按 F5 计算）；这两项只是 provenance，不是跨 run 命中路径——下一次 run 仍按**主引擎** key 尝试 MLX，不会把 F5 take 当成 MLX 命中或跨 run 复用（避免不同音色被永久锁进缓存；F5 兜底成本每次重付）；F5 按自然语速生成（`ttsSpeed: 1.0`），**音色可能与全片不同**，采用时日志会打印显眼警告。兜底失败、不可用或只回来部分 scene 时保持原 fail-closed 错误。`TTS_DISABLE_LOCAL_FALLBACK=1` 关闭该兜底；pacing-hard（>225 WPM）、infra 失败与非 MLX 主引擎不兜底。`COSYVOICE3_SEED` 固定 MLX 每场景种子，但缓存命中时仍按既有 key 复用已批准 take；要真正复现生成需配合 `TTS_NO_CACHE=1`。
 
 **多管线并行与 Kaggle 排队协调（#250）**:
@@ -977,6 +979,26 @@ TikTok doesn't have a separate cover image — the first frame of the video IS t
 
 **Hashtag 手动覆盖**：在 `meta.mjs` 中设置 `hashtags` 数组（3-5 个）可锁定 hashtag 输出，跳过自动推导。`generate-caption.mjs` 读取 `meta.mjs.hashtags`（非空时优先于 `keyEntities` 自动匹配）。锁定模式下 trending hashtags 不隐式注入——如需 trending tag，手动加入数组。未设置时 `deriveHashtags()` 从 `keyEntities.companies` 自动匹配 + `keyEntities.models` 的**品牌名**匹配（公司+模型双锚，如 `zhipu` + `glm`）+ 默认流量标签。模型名先归一到 SSOT `modelBrand: true` 白名单品牌（`qwen3.8-flash-next` → `#qwen`、`deepseek_v4.1-flash` → `#deepseek`）；未收录的品牌（如 `gpt_5_5`、`lingbot-world-2-13b`，后者虽是公司实体 matchKey 但非模型品牌）**不出标签**——版本号做 hashtag 只会引来错误受众。标签总数仍受平台 profile 上限（TikTok 3–5）截断，模型标签与次级公司标签同级，可被 trending 标签替换，主公司标签不可替换。
 
+**手动覆盖前同样必须跑流量门禁**：在 `meta.mjs` 里锁定 `hashtags` 数组不是免检——写死数组之前先跑：
+
+```bash
+node scripts/short-video/tag-preflight.mjs --content <slug>
+```
+
+发布前强校验：
+
+```bash
+node scripts/short-video/tag-preflight.mjs --content <slug> --strict
+```
+
+Hy4 当前 5 标签手动覆盖（`#chinaai`、`#tencent`、`#hy4`、`#openweights`、`#ainews`）示例：
+
+```bash
+node scripts/short-video/tag-preflight.mjs --content tencent-hy4
+```
+
+预期判定：5 个标签数量合规；`#hy4` / `#openweights` 可能为 grade C（仅存在性验证，entity/brand 类允许 WARN 保留）；`#ainews` / `#chinaai` / `#tencent` 应带浏览量/帖子数数值。若 `#hy4` 整体不在池中，默认模式 WARN、`--strict` FAIL，输出消息会给出修复命令。既有事实不变：override 模式下 trending hashtags 不隐式注入——如需 trending tag，手动加入数组；门禁的候选建议不会自动改写锁定数组。
+
 > Enforcement: `verify-video.mjs` runs automated checks after every video — do NOT publish until all checks pass. Post-render PASS 也会自动生成各平台发布包到 `output/{pipelineId}/publish/{platform}/` 并按各平台 Profile 上限校验（#219）。TikTok best practices, analytics, series strategy and scaffold guides: see "Design Decisions & References" at the bottom.
 
 ## File Locations
@@ -1208,6 +1230,20 @@ node scripts/short-video/main.mjs --content restraint/pt1 --bgm
 
 After starting, poll progress with `cat /tmp/pipeline.log | tail -30` at 2-minute intervals.
 Do NOT start a second pipeline while the first is still running — check `ps aux | grep main.mjs` first.
+
+---
+
+## Incident Learnings (2026-11-21)
+
+These were learned from the Tencent Hy4 / WeChat RSS runs and should be treated as defaults:
+
+- **A scene's on-screen text and voiceover must be changed together.** `render-only` reuses cached audio; if you only edit `scene-data.mjs` text, the old VO stays. After regenerating `audio/scene-N.wav`, update `audio/scene-durations.json`, then run `realign-render` — do not use plain `render-only`.
+- **BGM is opt-in.** `--bgm` is a render-only option and is skipped by default. Never add it unless the user explicitly asks.
+- **Local file first.** Deliver the local output path; a CDN link alone is not acceptable.
+- **WeChat2RSS on this Mac needs IPv4-first DNS.** `wechat2rss.xlab.app` has A/AAAA records and the local IPv6 TLS path can stall. `dns.setDefaultResultOrder("ipv4first")` is required.
+- **WeChat2RSS feeds can be very slow/large.** Use `WECHAT_RSS_TIMEOUT_MS=240000`, append `content=0`, and retry both timeouts and transport errors (`fetch failed`, `ECONNRESET`, `EAI_AGAIN`, socket hang-up). `tencent_tech` can take ~214s; that is slow, not dead.
+- **License claims need the full relationship, not just a negation.** Tencent Hy License 1.0 is *derived from Apache 2.0* but is *not Apache*; its real delta is Section 10's separate license for large MaaS. Do not reduce it to "Not Apache."
+- **TTS fallback:** Kaggle CUDA can stay QUEUED past 40 minutes and Colab ADC may be missing. The local `CosyVoice3-MLX` path with the same brand-clone reference is the fallback; check and trim trailing silence, then update the exact scene duration before realigning.
 
 ---
 

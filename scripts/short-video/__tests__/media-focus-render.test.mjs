@@ -88,6 +88,7 @@ const ASSETS = {
   verticalImage: "media-focus-vertical.png",
   verticalVideo: "media-focus-vertical.mp4",
   solidImage: "media-card-scrim-solid.png",
+  solidVideo: "media-card-scrim-solid.mp4",
 };
 
 /** Frame inside the settled part of the scene (animation "none" → no motion). */
@@ -112,6 +113,10 @@ const CARD_RIGHT = {
 const CARD_BOTTOM = {
   x: CARD_CENTRE.x,
   y: EVIDENCE_CARD.top + EVIDENCE_CARD.height - CARD_EDGE_INSET,
+};
+const CARD_LEFT = {
+  x: EVIDENCE_CARD.left + CARD_EDGE_INSET,
+  y: CARD_CENTRE.y,
 };
 
 /** Palette reference points. Nearest-colour classification, not thresholds. */
@@ -159,10 +164,13 @@ function writeBands(axis, out, clip) {
  * Write a uniform white source. A solid colour is what makes a scrim gradient
  * measurable: any edge darkening is the scrim, not the picture.
  */
-function writeSolid(out) {
+function writeSolid(out, clip) {
+  const encode = clip
+    ? ["-t", "1", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "18", "-y"]
+    : ["-frames:v", "1", "-y"];
   execFileSync(
     "ffmpeg",
-    ["-v", "error", "-f", "lavfi", "-i", "color=c=white:s=1080x1920", "-frames:v", "1", "-y", out],
+    ["-v", "error", "-f", "lavfi", "-i", "color=c=white:s=1080x1920", ...encode, out],
     { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
   );
 }
@@ -179,7 +187,8 @@ beforeAll(() => {
   writeBands("horizontal", assetPaths.horizontalVideo, true);
   writeBands("vertical", assetPaths.verticalImage, false);
   writeBands("vertical", assetPaths.verticalVideo, true);
-  writeSolid(assetPaths.solidImage);
+  writeSolid(assetPaths.solidImage, false);
+  writeSolid(assetPaths.solidVideo, true);
 });
 
 afterAll(() => {
@@ -412,6 +421,26 @@ describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, (
       expect(top, String(containAlign)).toBe(0);
       expect(bottom, String(containAlign)).toBe(1919);
     }
+  });
+});
+
+describe("contained media uses the declared matte colour", { timeout: 600_000 }, () => {
+  it("card: a red matte fills the side letterbox instead of the dark default", async () => {
+    const props = {
+      asset: "image",
+      source: "vertical",
+      wrap: "card",
+      fit: "contain",
+      matteColor: "#ff0000",
+      overlay: 0,
+    };
+    const png = PNG.sync.read(readFileSync(await still(props)));
+    const rgb = meanColourInPatch(png, CARD_LEFT);
+    console.log(`[evidence] contained card matte at left edge: ${JSON.stringify(rgb)}`);
+    expect(
+      nearestPaletteColour(rgb, PALETTE),
+      `left letterbox must be the declared red matte, got ${JSON.stringify(rgb)}`,
+    ).toBe("red");
   });
 });
 

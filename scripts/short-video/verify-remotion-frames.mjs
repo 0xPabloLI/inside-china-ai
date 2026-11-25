@@ -249,6 +249,11 @@ for (let i = 0; i < scenes.length; i++) {
   const analysisResults = runFrameAnalysis(buf, SAFE_ZONES, {
     mediaBandBottom,
     mediaBandFit: scene.media?.fit ?? "cover",
+    // In a band layout the picture ends at y=820 and the text panel covers the
+    // action-rail band below it. Running the full rail check here measured the
+    // black panel plus 180px of picture and reported a shadow-shaped fail;
+    // the rail check is a full-frame-media check (2026-11-23).
+    skipRightRail: scene.layout === "media-bottom-bar",
     mediaBandFill: scene.media?.fill ?? null,
     // Full-bleed media under the platform chrome is the declaration, not a
     // defect; the pixel text checks look only at the copy panel.

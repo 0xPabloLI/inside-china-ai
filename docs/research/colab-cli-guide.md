@@ -3,6 +3,7 @@
 > **创建时间**：2026-08-21
 > **目的**：Colab CLI 的安装、认证、使用方式和限制
 > **状态**：✅ 已验证（v0.6.0，ADC 认证，全链路通过）
+> **下游票**：#1537（Colab TTS 模型预置缓存）
 
 ---
 
@@ -100,6 +101,18 @@ colab --auth=adc delete --session echomimic-nf4
 
 - Kaggle: `/kaggle/input/echomimicv3-flash/...`
 - Colab: `/content/models/flash/...`（运行时从 HuggingFace 下载）
+
+### CosyVoice3 模型预置缓存（#1537）
+
+`colab run` 是 ephemeral VM，不能依赖交互式 `colab drivemount`。CosyVoice3 的缓存因此是一个**可由脚本非交互拉取的 tar/zip 归档**：
+
+- 归档里必须包含 `cosyvoice3.yaml`，可以在任意子目录；脚本会自己找到它的根目录并 symlink 到 `/tmp/cosyvoice3-model`。
+- 来源二选一：
+  - `COSYVOICE3_COLAB_MODEL_CACHE_URL`：任意可直接下载的 URL；
+  - `COSYVOICE3_COLAB_MODEL_CACHE_GDRIVE_ID`：公开 Google Drive 文件 ID（`gdown --id`，必须是文件，不是文件夹）。
+- 两个都不设时保持原行为：从 `FunAudioLLM/Fun-CosyVoice3-0.5B-2512` `snapshot_download`。
+- 缓存命中会在 stdout 打 `model cache hit: ...`；归档损坏或缺 `cosyvoice3.yaml` 时回退 HuggingFace，不阻断推理。
+- wetext frontend 目前仍由 `modelscope` 下载；如果要一起缓存，把 wetext 目录打进归档并在脚本里设置对应 cache 路径（后续再扩展）。
 
 ## 限制
 

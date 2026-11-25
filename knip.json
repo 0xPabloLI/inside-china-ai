@@ -10,15 +10,8 @@
     "exports",
     "types"
   ],
-  "ignore": [
-    "src/integrations/supabase/types.ts",
-    "src/lib/email-templates/**"
-  ],
-  "ignoreDependencies": [
-    "@tanstack/router-plugin",
-    "@remotion/effects",
-    "@remotion/renderer"
-  ],
+  "ignore": ["src/integrations/supabase/types.ts", "src/lib/email-templates/**"],
+  "ignoreDependencies": ["@tanstack/router-plugin", "@remotion/effects", "@remotion/renderer"],
   "ignoreBinaries": [
     "semgrep",
     "mcp-scanner",
@@ -57,11 +50,7 @@
         "scripts/short-video/content/**/*.mjs",
         "scripts/short-video/bench/search-orthogonality/*.mjs"
       ],
-      "project": [
-        "src/**/*.{ts,tsx}",
-        "src/**/*.css",
-        "scripts/**/*.{ts,tsx,mjs}"
-      ]
+      "project": ["src/**/*.{ts,tsx}", "src/**/*.css", "scripts/**/*.{ts,tsx,mjs}"]
     },
     "scripts/short-video/remotion": {
       "entry": ["remotion.config.ts", "src/**/*.{ts,tsx}"],

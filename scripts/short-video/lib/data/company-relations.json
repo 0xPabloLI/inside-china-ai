@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-12",
+  "updatedAt": "2026-11-20",
   "source": "docs/research/china-ai-hashtag-mapping.md (2026-08-26, 60+ entities) + #242/#245 delivery evidence + #248 compilation. Overseas-awareness tiers are editorial judgments recorded in docs/research/company-relations.md.",
   "fieldNotes": {
     "entity": "canonical id (pipeline key)",
@@ -103,7 +103,6 @@
       "presentation": "Alibaba's Ant Group",
       "colorKey": "alibaba"
     },
-
     {
       "entity": "bytedance",
       "parent": null,
@@ -193,7 +192,6 @@
       "presentation": "ByteDance's Volcano Engine",
       "colorKey": null
     },
-
     {
       "entity": "baidu",
       "parent": null,
@@ -227,7 +225,6 @@
       "presentation": "Baidu's Apollo robotaxi",
       "colorKey": "baidu"
     },
-
     {
       "entity": "tencent",
       "parent": null,
@@ -262,7 +259,17 @@
       "presentation": "Tencent's Yuanbao AI",
       "colorKey": "tencent"
     },
-
+    {
+      "entity": "workbuddy",
+      "parent": "tencent",
+      "tier": 2,
+      "hashtag": "workbuddy",
+      "matchKeys": ["workbuddy", "work buddy"],
+      "aliases": ["WorkBuddy", "腾讯WorkBuddy", "工作搭子"],
+      "overseasAwareness": "low",
+      "presentation": "Tencent's WorkBuddy",
+      "colorKey": "tencent"
+    },
     {
       "entity": "huawei",
       "parent": null,
@@ -296,7 +303,6 @@
       "presentation": "Huawei Ascend chips",
       "colorKey": "huawei"
     },
-
     {
       "entity": "xiaomi",
       "parent": null,
@@ -319,7 +325,6 @@
       "presentation": "Xiaomi's MiMo model",
       "colorKey": null
     },
-
     {
       "entity": "kuaishou",
       "parent": null,
@@ -342,7 +347,6 @@
       "presentation": "Kuaishou's Kling video AI",
       "colorKey": null
     },
-
     {
       "entity": "iflytek",
       "parent": null,
@@ -365,7 +369,6 @@
       "presentation": "iFlytek's Spark model",
       "colorKey": null
     },
-
     {
       "entity": "deepseek",
       "modelBrand": true,
@@ -470,6 +473,29 @@
       "colorKey": null
     },
     {
+      "entity": "phancy",
+      "parent": null,
+      "tier": 2,
+      "hashtag": "chinaai",
+      "matchKeys": ["phancy", "phanthy", "范式智能", "第四范式", "4paradigm", "fourth paradigm"],
+      "aliases": ["Phancy Group", "范式智能", "Fourth Paradigm", "Phanthy"],
+      "overseasAwareness": "low",
+      "presentation": "Phancy Group, formerly Fourth Paradigm",
+      "colorKey": null
+    },
+    {
+      "entity": "phai",
+      "modelBrand": true,
+      "parent": "phancy",
+      "tier": 2,
+      "hashtag": "chinaai",
+      "matchKeys": ["phai", "phai-a1", "phai-m1"],
+      "aliases": ["Phai", "Phai-A1", "Phai-M1"],
+      "overseasAwareness": "low",
+      "presentation": "Phancy's Phai",
+      "colorKey": null
+    },
+    {
       "entity": "stepfun",
       "parent": null,
       "tier": 2,
@@ -491,7 +517,6 @@
       "presentation": "Kai-Fu Lee's 01.AI",
       "colorKey": null
     },
-
     {
       "entity": "cambricon",
       "parent": null,
@@ -525,7 +550,6 @@
       "presentation": null,
       "colorKey": null
     },
-
     {
       "entity": "unitree",
       "parent": null,
@@ -581,7 +605,6 @@
       "presentation": "Alibaba's Ant Group LingBot",
       "colorKey": "alibaba"
     },
-
     {
       "entity": "pony-ai",
       "parent": null,
@@ -615,7 +638,6 @@
       "presentation": "China's Momenta",
       "colorKey": null
     },
-
     {
       "entity": "openai",
       "parent": null,
@@ -738,7 +760,6 @@
       "presentation": null,
       "colorKey": null
     },
-
     {
       "entity": "meituan",
       "parent": null,
