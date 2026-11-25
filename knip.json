@@ -30,7 +30,9 @@
     "say",
     "nslookup",
     "colima",
-    "yt-dlp"
+    "yt-dlp",
+    "pbpaste",
+    "pbcopy"
   ],
   "workspaces": {
     ".": {
