@@ -50,9 +50,8 @@ type FixtureProps = {
   /**
    * `background` renders MediaBackground directly (full-frame scenes);
    * `card` renders it through MediaCard, the evidence-card wrapper that must
-   * pass media through unchanged; `cardFrame` renders the same card geometry
-   * with the OLD frame-scoped scrim — the negative control for the scrim
-   * contract.
+   * pass media through unchanged; `cardFrame` reproduces the same card box
+   * with a frame-scoped scrim as the negative control for the scrim contract.
    */
   wrap?: "background" | "card" | "cardFrame";
   /** Media dim layer alpha. Omitted = 0 so colour probes stay unmodified. */

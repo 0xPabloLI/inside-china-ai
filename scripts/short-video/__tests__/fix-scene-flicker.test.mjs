@@ -105,7 +105,7 @@ describe("S4: Video volume — independent exit fade envelope", () => {
   it("#1030: delegates to the preset-independent envelope module", () => {
     const content = readFile("components/MediaBackground.tsx");
     expect(content).toMatch(
-      /import \{ videoVolumeAt \} from "\.\.\/\.\.\/\.\.\/lib\/audio-envelope\.mjs"/,
+      /import \{ [^}]*videoVolumeAt[^}]* \} from "\.\.\/\.\.\/\.\.\/lib\/audio-envelope\.mjs"/,
     );
     const block = content.match(/const videoVolume[\s\S]*?\n  \}\);/)?.[0] ?? "";
     expect(block).not.toMatch(/preset\s*===\s*"none"/);

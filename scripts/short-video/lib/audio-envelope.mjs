@@ -61,6 +61,17 @@ export function audioEnvelopeStops({ inFrames, outFrames, outStart, totalFrames,
  *
  * A 1–2 frame scene cannot hold four distinct integer stops; such a clip is
  * inaudible, so it stays silent rather than crashing the composition.
+ *
+ * #1525 adds two optional layers on top of that scene-boundary ramp:
+ *
+ *   - `audioWindow` (`{ startFrame, endFrame, fadeInFrames, fadeOutFrames }`)
+ *     gates the source audio to a sub-range of the scene, with its own fades.
+ *     Frames are 0-based scene frames; an end beyond `totalFrames` is clamped.
+ *   - `duck` (0–1) scales the audible gain while narration is present. The
+ *     caller resolves whether narration exists; this helper stays pure.
+ *
+ * With neither option the curve is bit-for-bit the pre-#1525 curve (the
+ * content-aware-animation test sweeps it against the old formula).
  */
 export function videoVolumeAt({
   frame,
@@ -70,6 +81,8 @@ export function videoVolumeAt({
   outStart,
   totalFrames,
   fadeFrames,
+  audioWindow = null,
+  duck = 1,
 }) {
   if (totalFrames < 3) return 0;
   const { audioInFrames, audioOutStart } = audioEnvelopeStops({
@@ -80,7 +93,63 @@ export function videoVolumeAt({
     fadeFrames,
   });
   if (frame <= 0 || frame >= totalFrames) return 0;
-  if (frame < audioInFrames) return baseVolume * (frame / audioInFrames);
-  if (frame < audioOutStart) return baseVolume;
-  return baseVolume * ((totalFrames - frame) / (totalFrames - audioOutStart));
+
+  let gain;
+  if (frame < audioInFrames) gain = baseVolume * (frame / audioInFrames);
+  else if (frame < audioOutStart) gain = baseVolume;
+  else gain = baseVolume * ((totalFrames - frame) / (totalFrames - audioOutStart));
+
+  if (audioWindow) {
+    const start = Math.max(0, Math.min(audioWindow.startFrame ?? 0, totalFrames));
+    const end = Math.max(start, Math.min(audioWindow.endFrame ?? totalFrames, totalFrames));
+    if (frame < start || frame >= end) return 0;
+    const fadeIn = Math.max(0, audioWindow.fadeInFrames ?? 0);
+    const fadeOut = Math.max(0, audioWindow.fadeOutFrames ?? 0);
+    const inStop = Math.min(start + fadeIn, end);
+    const outStop = Math.max(end - fadeOut, start);
+    let windowGain = 1;
+    if (fadeIn > 0 && frame < inStop) windowGain = (frame - start) / (inStop - start);
+    if (fadeOut > 0 && frame >= outStop) windowGain = (end - frame) / (end - outStop);
+    gain *= windowGain;
+  }
+
+  const duckFactor = Math.max(0, Math.min(duck, 1));
+  return gain * duckFactor;
+}
+
+/**
+ * Resolve a `scene.media` declaration into the two #1525 render inputs.
+ *
+ * Kept here rather than in MediaBackground so the component does not grow
+ * another branch per field (the pixel component is already at its complexity
+ * ceiling). Seconds are converted at the composition's fps; the audio window
+ * is only built when at least one edge is declared, so an untouched clip keeps
+ * the pre-#1525 whole-scene envelope.
+ *
+ * @param {Object} options
+ * @param {Object} options.media - scene.media (audioIn/audioOut/audioFadeIn/audioFadeOut/duckLevel)
+ * @param {number} options.fps - composition fps
+ * @param {number} options.totalFrames - scene length in frames
+ * @param {boolean} options.narrationActive - whether this scene has a TTS track
+ * @returns {{ audioWindow: null | {startFrame:number,endFrame:number,fadeInFrames:number,fadeOutFrames:number}, duck: number }}
+ */
+export function resolveMediaAudio({ media, fps, totalFrames, narrationActive }) {
+  const hasAudioWindow = media.audioIn !== undefined || media.audioOut !== undefined;
+  const toFrames = (seconds) => Math.round(seconds * fps);
+  const audioWindow = hasAudioWindow
+    ? {
+        startFrame: toFrames(Math.max(0, media.audioIn ?? 0)),
+        endFrame: media.audioOut !== undefined ? toFrames(media.audioOut) : totalFrames,
+        fadeInFrames: toFrames(Math.max(0, media.audioFadeIn ?? 0.25)),
+        fadeOutFrames: toFrames(Math.max(0, media.audioFadeOut ?? 0.25)),
+      }
+    : null;
+  // Ducking is opt-in: a clip with a source window is not assumed to sit under
+  // a voice. The provider only sets narrationActive when the scene has a TTS
+  // track, so silent scenes keep the full source level.
+  const duck =
+    narrationActive && media.duckUnderNarration
+      ? Math.max(0, Math.min(media.duckLevel ?? 0.25, 1))
+      : 1;
+  return { audioWindow, duck };
 }

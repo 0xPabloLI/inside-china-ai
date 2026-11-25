@@ -49,6 +49,7 @@ export { NO_MEDIA_TYPES };
 /** Layouts whose text placement assumes a media layer fills the frame. */
 export const MEDIA_DEPENDENT_LAYOUTS = new Set([
   "media-overlay",
+  "media-first",
   "media-bottom-bar",
   "media-split",
   // Media-led hook (2026-11-15): the picture IS the scene. Hooks are judged by

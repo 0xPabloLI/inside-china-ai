@@ -413,8 +413,13 @@ async function main() {
     {
       name: "step-1-tts",
       // #689: the gate may only near-miss-rescue names the author declared.
+      // #1514: the profiler rides along so the span carries its own substeps
+      // (plan / engine / post-process / verify / align / write) in profile-*.json.
       fn: () =>
-        generateTTS(scenes, ttsCacheDir, { qualityGateOptions: { keyEntities: meta.keyEntities } }),
+        generateTTS(scenes, ttsCacheDir, {
+          qualityGateOptions: { keyEntities: meta.keyEntities },
+          prof,
+        }),
       meta: { track: "voice" },
     },
   ]);
@@ -682,7 +687,28 @@ async function main() {
     // the current path instead of the constants captured at render time.
     const repairFn = (category, report, { videoPath: repairVideoPath, assPath: repairAssPath }) => {
       const findBaseAndBurn = () => {
-        // The finalize pass keeps the RAW render output as the repair base.
+        // Incremental renders have no single raw: their frames live in the
+        // segments recorded on the manifest. Re-finalize those with the
+        // corrected ASS, exactly as the render door did.
+        if (result.mode !== "full" && result.segments?.length) {
+          const usable = result.segments.every((segment) => existsSync(segment.path));
+          if (usable) {
+            finalizeRenderedVideo({
+              videoPath: null,
+              segments: result.segments,
+              assPath: repairAssPath,
+              bgmPath,
+              outputPath: repairVideoPath,
+              realign: {
+                outputDir,
+                sceneDurations,
+                audioPaths: ttsResults.map((t) => t.audioPath),
+              },
+            });
+            return { success: true, videoPath: repairVideoPath, assPath: repairAssPath };
+          }
+        }
+        // The full-render path keeps the RAW render output as the repair base.
         // Rebuild the shipped file from it with the corrected ASS — the full
         // single-pass chain (subs + BGM + loudnorm + #176 head trim), not a
         // bare re-burn, so the repaired artifact matches the shipped recipe.

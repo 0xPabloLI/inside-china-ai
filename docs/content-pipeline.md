@@ -63,6 +63,31 @@ Stage 0 的「素材集合」不只有全文与媒体 URL。进入 Stage 1 前�
 
 **完成标准**：赛事包里能指出“第几场、哪段、来源 URL、奖项状态”；如果只有参赛预告，报告里明确写“参赛预告，非获奖 Demo”。
 
+### Stage 0 比赛类内容：Demo 必选（2026-11-23 用户裁决）
+
+赛事、黑客松、颁奖礼、benchmark contest 这类内容，**获奖/参赛作品 Demo 是必选素材，不是可选装饰**。舞台照只能证明“办过”，Demo 才能证明“做成了什么”。
+
+1. **至少 1 段真实作品片段**：优先获奖片/冠军片，其次入围片、官方预告、展映片段。落到 `content/<slug>/assets/`，`ffprobe` 记时长；没有可剪片段时写 `accepted-gap`，原因必须具体（抓取失败、只有图片、版权不可用），不能静默跳过。
+2. **搜索渠道顺序**：官方活动页/官方视频号 → 抖音、快手、B站、YouTube 的官方或作者账号 → 媒体报道内嵌视频 → 现场素材。抖音分享页用 `yt-dlp` 取源流；图片仍走素材搜索/官方图库。
+3. **归属只写已证实的**：只有官方明确“作品—奖项—团队”对应时才写“冠军/一等奖”。对应关系未确认时写“获奖作品”“入围作品”“参赛预告”，不能把参赛预告说成获奖片，也不能凭剪辑猜团队。
+4. **剪进 payoff/peak 场景**：hook 用舞台、结果数字或奖杯；Demo 放中段证据位，不要拿它当纯背景。保留作者署名/水印时不要裁掉。**原声按内容角色处理（2026-11-23 用户裁决）**：音乐视觉、电影对白、现场演唱这类声音本身就是作品的一部分，保留 2–4 秒原声窗口，旁白在该窗口让位或压到 -18 dB 以下；纯舞台/人群/环境 b-roll 才默认静音。不要把所有外部片段一律 `volume: 0`，也不要让原声盖着旁白从头响到尾。
+5. **落盘字段**：`media.source` 写清 URL、账号、日期、奖项状态；`videoFit` 只按已落盘、已确认的素材计分，不用“可能获奖”的片段抬分。
+
+**完成标准**：赛事包里能指出“第几场、哪段、来源 URL、奖项状态”；如果只有参赛预告，报告里明确写“参赛预告，非获奖 Demo”。
+
+**Preflight 门禁（2026-11-24 起）**：`verify-video.mjs --pre` 的 `CompetitionDemo` 检查会把这条规则从“文档要求”变成可失败的合同。赛事/黑客松/颁奖礼包至少要有 1 个 `media.type: "video"` + `mediaRole: "evidence"`（或路径含 demo/trailer/winner/award）场景；没有就 FAIL，不等到渲染后才发现只有舞台照。确实找不到可剪片段时，必须在 `meta.mjs` 写：
+
+```js
+competitionDemo: {
+  status: "accepted-gap",
+  reason: "官方页面只有图片，没有可剪片段", // 具体原因，不能空
+  searched: ["官方活动页", "抖音", "B站"],
+}
+```
+
+门禁只接受带具体 `reason` 的 gap；写 `status: "accepted-gap"` 但不写原因仍 FAIL。Demo 的 `media.source` 缺 URL/账号/奖项状态时 WARN，提醒归属必须写已证实的信息。
+
+
 ### Stage 0 核实规范：权威报告与一手信源（#266）
 
 核实权威报告（官方 PDF/白皮书/监管文件/法庭文书）时的三条硬规则：
@@ -298,6 +323,19 @@ node scripts/rag/query.mjs "logo" --type asset-catalog        # 只搜素材目�
 
 > **脚本写作方法论**：参照 `docs/video-script-writing-guide.md`（S.T.A.R.T. 主框架 + AI Outline opt-in 工具 + 留存引擎 + per-scene 素材要求）。
 
+### 行业坐标系注入（#1479 S2）
+
+写 hook 与全片预览表之前先跑：
+
+`node scripts/short-video/industry-context.mjs --content <dir>`
+
+它从 `meta.keyEntities` 与正文里解析出本 Pack 命中的账本实体，把每个实体的 `current` 事实、所属领域基线带、「首次报道」标记与超预算事实（`stale` + `ageDays` / `budgetDays`）落成 `content/<dir>/industry-context.json`（本地工件，gitignored），并在 stdout 打印可直接贴进写稿上下文的块。
+
+- 量表数字只能取 `model_scale` 的 `current` 值：**总参**和**每 token 激活**是两个数，不能互换，也不能只写一个模糊的「参数」。
+- 档位比较只读 `domains.<domain>` 的 edge / mainstream / frontier 带：端侧档不和旗舰档当同级比较（"1.3B 比旗舰 2.8T 更强" 是错句；"1.3B，比典型 14B 小 10 倍" 才是端侧叙述）。
+- `stale: true` 的事实只能写 `as of <month>`，并触发一次复核；不得用现在时。
+- 超期未复核的事实被阻断时转人工，不自行改数。
+
 ### Step 0: 分集评估
 
 Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `recommendedParts`（1-5，Agent cap 为 3）。`recommendedParts > 1` 时输出分集评估报告，等待用户确认后生成 N 份 scene-data。
@@ -366,6 +404,8 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
    **窗口与粒度是两件事（2026-11-23 用户裁决）**：`chart.range` 是 x 轴窗口，`chart.interval` 是窗口内的 K 线粒度。单日叙事必须写 `range: "1D"` + `interval: "15m"` 或 `"1h"`；禁止 `range: "1D"` + `interval: "1D"`，那只有一根日 K，画不出日内路径。多日趋势才用 `interval: "1D"` 配合多日 `range`。`validateChartPin` 已把 `1D/1D` 判 FAIL；价格/涨跌场景必须绑定 `chart` 或 `info.chart: "candle"`，不能只靠 `stat-reveal` 的数字代替 K 线。完整“每个价格场景必须有图”的扫描仍是待接的硬门，不能因为 `1D/1D` 已拦就当成全部完成。
    8b-3. **hook 排版：`layout: "media-led"`（素材为主角，2026-11-15 用户裁决）** — hero-center hook 把 bigNumber（240px）压在媒体正中央——适合「合成封面镜头」，但 K 线、产品 demo 这类「素材本身即钩子」的场景会挡住焦点（zhipu 包实测：`-80%` 正好盖住 K 线的 6 月峰值）。hook 声明 `layout: "media-led"` 后层级反转：媒体带独占画面主体（contain 在 y 410-1029 的 820×619 带、cover 铺满全帧），文字全部退到图片不占的区间（顶部 badge + subject 行、底部 y 1037-1298 文字条：数字锁 110px + numberLabel + source，无圆圈标注）。几何常量在 `lib/safe-zones.mjs` → `MEDIA_LED`；slot 契约 `hook.media-led.*`（`lib/text-slots.mjs`）。约束：**只支持 number-led**（hookText/revealText/stats 未注册，写了合同报错；`color` 仍是控制字段，但在这里作用于底部数字条而不是 claim 文案，缺省 amber）；**不支持 `mode: "card"`**（证据卡跨 y 300-986，会压住 badge/subject 行，合同直接 FAIL）；**`media: null` / `mediaOptOut` 也 FAIL**（与「素材为主角」自相矛盾）——唯一例外是 `info.chart: "candle"`（原生 K 线就是主角，见 8b-5），而「暂时还没有 media」只 WARN——chart pin / assetNeed / 生成策略都在 preflight 之后才落盘，最终由 Step 1.6 的 final media gate 强制文件存在。scrim 随 fit 定：contain 0.15、cover 0.5（`lib/media-overlay.mjs` → `MEDIA_LED_DIM`；渲染层对未写 overlay 的手绑/生成素材同样兜底）。渲染组件 `remotion/src/scenes/HookMediaLed.tsx`；像素契约在 `scene-gate-render.test.mjs`（strip 角 + 媒体带下三分之一采样，证明文字条不压图、画面不被画框级压暗层盖住）。
+   8b-3b. **hook 版式选版 + 跨期反重复（#1480，Stage 3 编辑门）** — 三种版式（number-led / claim-led / media-led，渲染规则见 8b-3）按判据选，不按写稿习惯：**number-led** 要求跨档数字且有可溯源事实（`meta.dataPoints` 或行业账本的 current 事实），`V4.1` / `GLM-6.0` / `H100` 这类型号铭牌、以及「约 / 数十倍」不算；**claim-led** 要求主张在正文 30 秒内被兑现；**media-led** 要求素材是 evidence 角色（或原生 K 线）且 provenance 可追，氛围图 / 品牌 logo 不算（声明 `layout: "media-led"` 却挂装饰图会静默回落 hero-center，判据直接 FAIL）。写完 hook 跑 `node scripts/short-video/hook-layout.mjs --content <dir>`：逐条打出版式、该版式的「何时用 / 硬前提 / 禁用」与判据结论。**跨期反重复也在这一步**：读最近 3 条已发布 Pack（`pending-analysis.json` 的发布记录 + 各自 scene-data 的版式，不另存副本），同版式连用 ≥3 次就强制换版，或给一句「为什么必须重复」作为 `--repeat-reason` 传入并在 MRL-2 / HITL 报告里写明；还没有发布记录时用 `--sequence` 按 `meta.createdAt` 看生产序列（输出会标注来源）。这是一道 Stage 3 编辑门：不进 preflight、不阻断渲染，`scene-rules.mjs` 的 `Hook layout selection` 编辑建议是同一判据的只读视图。
+
    8b-4. **原生数据镜头：`scene.info` + `layout: "chart"`（#1398）** — 当镜头要讲的是「2–12 个已知数值之间的关系」，用原生 SVG 图表，不要去找一张近似截图。写法：`visualType: "data"`、`layout: "chart"`、`info: { relationship, chart?, data: [{ label, value, value2?, ... }], unit, highlight?, time?, baseline?, sort?, decimals?, axisLabels? }`；`texts.label` 是图表标题/claim，`texts.subtext` 是读法，`texts.source` 必填。完整示例与关系→图型表见 `docs/specs/spec-information-layout-v2.md` §1–2；设计几何与样式见 `docs/conventions/visual-design-loop.md` → 原生信息图表。
 
    **三条路径先选对**：
@@ -611,6 +651,8 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | Agent 判断项         | 机器无法判定，Agent 自评                            | HITL 报告                       |
 
 机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、开场视觉优先级、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
+
+**行业事实门（#1479 S2）**：`runIndustryFactChecks` 在 gate bucket 里，对提及账本职实体的句子判三类——总参/激活混用、端侧档对旗舰档、stale 事实现在时（无 `as of`），以及无法溯源的量表数字；FAIL 行给出检查名与 FIX。事实由 `industry-knowledge.json` live 读取，`content/<dir>/industry-context.json` 只提供实体列表，不作为事实源。
 
 **币种双标注（Step 0.5 自动补 + 回检硬门禁，#1415 / 2026-11-18）**：`lib/normalize-currency.mjs` 在 TTS 之前把人民币/港币金额补成 `$X (原写法)`。支持 `¥1200` / `￥1,200` / `12.4 billion yuan` / `0.39 yuan`（裸数字，无 magnitude 词）/ `67.7B RMB` / `3,500 亿元` / `3500 亿人民币` / `120 万元` / `500 万人民币` / `500 人民币` / `1,200 元`，港币侧 `HK$454` / `80B HKD` / `2,526 Hong Kong dollars` / `2,980 港币`；中文数字（「三亿五千万」）与英文拼写数字（「thirty nine fen」）不自动转换，回检会把它们标为 unfixable 并拦下。汇率**每个生成音频的 run 取一次**（`open.er-api.com`，8s 超时）：成功把 rates / source / providerTime / fetchedAt 写进 `meta.currencyRates`、落盘 `output/<id>/currency-rates.json`，并打一行 `live` 日志；失败回退 `0.14` / `0.13`（`fallback: true` + `fallback` 警告），绝不中断渲染。`render-only` / `rerender` / `realign-render` / `tts-only` 复用该文件里的 rates（文件缺失则用常量），不再新取，保证与音频对齐时的文本逐字一致。回检 `checkCurrencyDualAnnotation` 在 **gate bucket** 里（`check` 名 `Currency dual-annotation (CNY/HKD → USD)`，与 Step 0.5 共用同一份写法扫描），只报第一处金额与总处数，**任何未换算的人民币/港币写法都会让 preflight 失败并挡住 TTS 与渲染**；它判的是写稿原文，Step 0.5 的补写发生在运行时，两者不矛盾。`--skip-preflight` 仍可绕过，但属于已知例外，不是默认路径。边界：前方 30 字符内已有 `$` 就不重复标注；汇率变动后要换数字，必须重跑生成音频的那一轮（`main` / `rerender-full`），只重渲染不改音频。
 

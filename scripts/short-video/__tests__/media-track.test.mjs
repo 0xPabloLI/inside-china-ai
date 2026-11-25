@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { runMediaTrack } from "../lib/media-track.mjs";
 
@@ -22,7 +23,8 @@ describe("media-track", () => {
   });
 
   function makeCtx({ scenes, broll, deps } = {}) {
-    tmp = mkdtempSync("media-track-test-");
+    // The track contract requires an absolute baseDir (main.mjs passes __dirname).
+    tmp = mkdtempSync(join(tmpdir(), "media-track-test-"));
     const contentDir = "c";
     mkdirSync(join(tmp, "content", contentDir), { recursive: true });
     return {

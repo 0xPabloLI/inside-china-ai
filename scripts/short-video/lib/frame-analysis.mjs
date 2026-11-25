@@ -432,12 +432,13 @@ export function checkContentPresence(buf, safeZones) {
  * @param {PixelBuffer} buf
  * @param {{top: number, right: number, bottom: number, left: number}} safeZones
  * @param {number} bandBottom - canvas y the picture is expected to reach
- * @param {{fit?: "cover" | "contain"}} [options] - the scene's effective fit
- *   (`media.fit ?? "cover"`).
+ * @param {{fit?: "cover" | "contain", fill?: "blur"}} [options] - the scene's effective fit
+ *   (`media.fit ?? "cover"`) and fill; `fill:"blur"` means the top of the band
+ *   is expected to carry the blurred copy, not flat letterbox (#1524).
  * @returns {AnalysisResult}
  */
 export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.bottom, options = {}) {
-  const { fit = "cover" } = options;
+  const { fit = "cover", fill = null } = options;
   const bandTop = safeZones.top;
   const xStart = safeZones.left;
   const xEnd = buf.width - safeZones.right;
@@ -493,6 +494,19 @@ export function checkMediaBandFill(buf, safeZones, bandBottom = MEDIA_BAND.botto
   };
 
   if (fit === "contain") {
+    // #1524: fill:"blur" deliberately covers the letterbox with a blurred
+    // copy of the same source. Picture at the band top is the declaration's
+    // own design, not evidence that contain was ignored.
+    if (fill === "blur") {
+      return {
+        level: "pass",
+        check: "Media band is filled",
+        detail:
+          `fit: "contain" + fill: "blur" as declared — the band is filled by the blurred copy ` +
+          `(${pictureRows}/${totalRows} rows carry picture), and the sharp picture stays uncropped inside it`,
+        metrics,
+      };
+    }
     // The scene asked to show the whole frame. A flat band top is that
     // intent; picture at the band top means either the runtime ignored the
     // declaration or the letterbox is top-aligned. Both are worth a look, and
@@ -792,6 +806,7 @@ export function checkClippedText(buf, safeZones) {
  *   measures 180px of picture plus 955px of black panel, so it reports a
  *   shadow-shaped false fail on a bright top band. The rail check applies to
  *   full-frame media; a band layout gets a pass with the reason stated.
+ *   - `mediaBandFill` `"blur"` marks the declared blurred fill, which is expected to carry picture at the band top (#1524).
  * @returns {AnalysisResult[]}
  */
 export function runFrameAnalysis(buf, safeZones, options = {}) {
@@ -799,25 +814,45 @@ export function runFrameAnalysis(buf, safeZones, options = {}) {
     mediaBandBottom = null,
     mediaBandFit = "cover",
     skipRightRail = false,
+    mediaBandFill = null,
+    // media-first is full-bleed by contract: the picture intentionally runs
+    // under TikTok's top chrome and action rail, and the copy plate is the
+    // only thing that must stay in the safe box. Darkening the rail to pass
+    // the pixel checks is exactly the "shadow on media" the layout forbids,
+    // so those three region checks are N/A here; text overflow still runs.
+    skipSafeZoneChecks = false,
+    // Full-bleed layouts put a picture through the whole content box, so the
+    // pixel text checks must look only at the copy plate, not at every bright
+    // row of the image. `{ top, bottom }` in canvas px.
+    textRegion = null,
   } = options;
-  const results = [
-    checkNotAllBlack(buf),
-    checkSafeZoneTop(buf, safeZones),
-    skipRightRail
-      ? {
-          level: "pass",
-          check: "Right safe zone clear (action rail)",
-          detail:
-            "not applicable: media-bottom-bar picture ends at y=820; the opaque panel owns the action-rail band",
-        }
-      : checkSafeZoneRight(buf, safeZones),
-    checkSafeZoneBottom(buf, safeZones),
-    checkContentPresence(buf, safeZones),
-    checkTextOverflow(buf, safeZones),
-    checkClippedText(buf, safeZones),
-  ];
+  const results = [checkNotAllBlack(buf)];
+  if (!skipSafeZoneChecks) {
+    results.push(
+      checkSafeZoneTop(buf, safeZones),
+      skipRightRail
+        ? {
+            level: "pass",
+            check: "Right safe zone clear (action rail)",
+            detail:
+              "not applicable: media-bottom-bar picture ends at y=820; the opaque panel owns the action-rail band",
+          }
+        : checkSafeZoneRight(buf, safeZones),
+      checkSafeZoneBottom(buf, safeZones),
+    );
+  }
+  results.push(checkContentPresence(buf, safeZones));
+  const textZones = textRegion
+    ? { ...safeZones, top: textRegion.top, bottom: buf.height - textRegion.bottom }
+    : safeZones;
+  results.push(checkTextOverflow(buf, textZones), checkClippedText(buf, textZones));
   if (mediaBandBottom !== null) {
-    results.push(checkMediaBandFill(buf, safeZones, mediaBandBottom, { fit: mediaBandFit }));
+    results.push(
+      checkMediaBandFill(buf, safeZones, mediaBandBottom, {
+        fit: mediaBandFit,
+        fill: mediaBandFill,
+      }),
+    );
   }
   return results;
 }

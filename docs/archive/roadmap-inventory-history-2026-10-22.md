@@ -23,6 +23,8 @@
 
 ## 逐轮盘点（Round CCXII → LV；Round CC 见一句话档案）
 
+（**Round CCXLII 2026-11-23**：**Round CCXLII：`#1514` 闭票、`#1515` 立项**——`step-1-tts` 八子步实测：4 包 / 9 次冷内核 + 1 次热跑，子步和与外层误差 ≤0.2%；结论 = 本地机械合计约 60 s（门 41.5 s、对齐 10.8–16.4 s、响度 3.4–4.2 s、plan+write <50 ms），**尾巴的大头是门内重试重付一次完整冷启**（`agnes-harness` 重试 406.3 + 333.5 s = 该包 58%）；下一步 `#1515`（常驻内核复用门内重试），预期每次重试省 300–400 s。证据 [`research/tts-step1-substep-timing-2026-11-23.md`](research/tts-step1-substep-timing-2026-11-23.md)。产品验证门：**无产出差异**（计时票，不改产出）。frontier：1A 空；① `#1515`（ready-for-agent）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
 （**Round CCXII：`#1398` L2 就绪交付**——`experiment.mjs` 由登记模板改为强制协议：双主指标交并判定、T+72h 入库闸（日精度取当天最晚可能发布时刻为下界）、48h 发布间隔与 seed 顺序闸、3s 时长差、`check` 审计（`report` 在其失败时拒跑）、到预设 n 前不出 p/CI/结论；独立复核修掉符号检验 `C(n,k)` 组合数 bug（混合样本 p 系统性偏小），置换改为 n≤20 精确枚举。产品验证门：**无产出差异（enabling fix）**——不产生任何成片变化，也未产生真实配对数据。PR #1428（squash `dee28720`）；交付记录：评论 `6963480688`。frontier 复算：1A 空、① 空、② `#541`、③④ 空。）
 
 （**Round CCXI：`#1406` 盲评交付闭票**——info-layout-v2 六对 stills 全部打分，`experiment-review.mjs --analyze` 出 `report.json`：clarity A−B −1.17 [−1.83, −0.17]、credibility −0.67、memorability −0.67、hierarchy −0.33；偏好 旧 0 / 新 5 / 平 1（Wilson 95% 0.0–43.4%，n=5）。产品验证门：**无产出差异**——内部评估，观众侧不变。口径：单人评分 → ICC `n/a`；n=6 < 8 → 只作描述，无 p 值。分析入口 PR #1407（squash `0004db8f`）；交付记录：评论 `6953059775`。frontier 复算：Track 1A **空**、① **空**、② `#541`、③④ 空。）
@@ -318,6 +320,8 @@
 ## 近轮一句话档案（Round CCIX → J）
 
 **Round CCXX**（`#230` 两行救援交付——相邻对合并的宽度闸从「单行 720px」放开到「双行各自 ≤720px、每行 ≥180px 且取最平衡断点」，`SUBTITLE_LANE.maxLines` 1→2、lane 1328–1420 → 1236–1420、内容带 1298 → 1206（`SAFE_ZONES.bottom` 622 → 714）；ASS 在断点插 `\N`，`enforceSubtitleCompliance` 改为拒绝第三行；qwen4-max-release 重渲：短 cue 12→3、verify PASS（3 warn）；六包实测短 cue 17/23/15/15/19 → 0/2/2/2/0，两行 cue 9–17 条；**有产出差异**（版面 + 两行字幕）；frontier 1A `#1398`（assigned）、① 空、② `#296`（`#268` 用户暂缓）、③④ 空）
+
+**Round CCXXI**（`#1460` 渲染健壮性——静音轨 loudness 读回由 TypeError 改为 `silent` 标记 + 跳过修复 + 具名错误；`deepseek` 场景 1/3 的死文案键迁到 `numberLabel`/`note` 等现行槽位，补 `media:null`；**有产出差异**（包恢复可渲染）；frontier 1A `#1398`（assigned）、① 空、② `#296`（`#268` 暂缓）、③④ 空）
 
 **Round CCIX**（`#462` Stage 1：PR #1421（squash `e16cc5c1`）；状态迁 `content/{slug}/` + `output/` 薄索引，`pipeline-status.mjs show|migrate`（dry-run 默认）、legacy 读取兼容、per-slug 状态 gitignored；**无产出差异（enabling fix）**；frontier 1A 空、① 空、② `#541`/`#1406`、③④ 空）
 
@@ -961,3 +965,68 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 ## Round CCXXVIII 下沉：`#1398` 收口（2026-11-21）
 
 （2026-11-21（**Round CCXXVIII：`#1398` 收口（无代码，PR #1477，squash `6bca34ff`）**——用户裁决 L2 有机配对不跑：新闻账号下同题双版 + ≥48h 会让第二条的时效衰减成为系统性偏差，判重与观众重叠再让流量池不对等，读数不可解释；限制与收口依据写进 `docs/specs/spec-information-layout-v2.md` §Delivery Status，预注册原样保留不补观察。产品验证门：**无产出差异**（不改渲染、不改门禁）。frontier：Track 2 无激活 map；1A 空；① 空、② 空；③ 队首 `#253`（等 S1–S3 拆票确认）→ `#469`/`#1472`；④ 空。）
+- **Round CCXXIX（2026-11-21）**：`#253` 拆 S1/S2/S3 并交付 S1 数据层（`#1478`，`industry-knowledge.json` v1：121 事实/81 实体/30-90 天 stale；PR #1481）；产品验证门无产出差异（纯数据层）；frontier 落 ③ `#253` 余 S2。
+
+## Round CCXXXII 下沉：`#469` 站点经验收口 + `#253` 父票收口（2026-11-21）
+
+（2026-11-21（**Round CCXXXII：`#469` site-patterns 收口（B 方案）+ `#253` 父票与 `#247`/`#288`/`#301` 三张覆盖票闭票**——站点经验改住本机 `~/.cache/web-access/site-patterns/`：`match-site`/`--doctor` 走新目录、旧仓内目录只做只读回退，新增 `migrate-site-patterns.mjs` 与 `site-patterns-dir.mjs`，SKILL.md 的「必须读取」改「本机有就读」，仓库不再跟踪运行时产物（子模块 `327770d`，父仓 PR #1487）。`#253` 三张子票全交付后父票收口，`#247` 随覆盖关闭，`#288`/`#301` 随 `#310` 收口闭票。产品验证门：**无产出差异**（仓库与文档层，不动产线）。frontier：Track 2 无激活 map；1A 空、① 空、② 空；③ 仅 `#1472`（冻结票，不进施工队列）；④ 空。）
+
+## Round CCXXXIII 下沉：`#733` S1 镜头配方卡层（2026-11-21）
+
+> **Last inventory**: 2026-11-21（**Round CCXXXIII：`#733` 交付 S1 镜头配方卡层**——21 张卡面 / 21 个可渲染组合从 `REMOTION_SLOT_MAP` 与 `resolveRenderLayout` 派生，文本优先与 contain 带复用 #761/#1075 判据，`--check` 在 37 个真实包上全绿（18 个包样张 + 3 条渲染基线）；PR #1488，squash `b66e5618`。产品验证门：**无产出差异**（enabling，可见变化待 S2）。frontier：Track 2 无激活 map；1A 空、① 空、② 空；③ `#733` 余 S2/S3（需用户圈范围）、`#1472` 冻结；④ 空。）
+
+**下沉的一句话档案（Round CCXXVII，原文）**：
+
+**Round CCXXVII**（台账对齐：9 条 ledger 候选消账、11 张分发链票 `P4·deferred`、`#1472` 入表、`#322` 触发改写；**无产出差异**；1A 仅 `#1398`、① 空、③ `#253` 待拆票、④ 空）
+
+## Round CCXXXIV 下沉：`#228` sourcing 短路切片 + `#1160` 闭票（2026-11-21）
+
+> **Last inventory**: 2026-11-21（**Round CCXXXIV：`#228` 交付 sourcing run 级短路切片、`#1160` 契约设计闭票**——`output/<slug>/sourcing-state.json` 以 `buildQueryGroups` 查询面为 digest，素材未变即跳过 37 分钟 sourcing；任一 assigned 缺文件回落全量，`SHORT_VIDEO_FORCE_SOURCING=1` 强制重搜；PR #1491，squash `00b1fb47`。`#1160` 只出 `spec-sfx-cue-contract.md`、不铺产线代码，PR #1492，squash `eb91e71a`。产品验证门：**无产出差异**（前者省等待、后者纯设计）。frontier：Track 2 无激活 map；1A 空、① 空、② 空；③ `#733` 余 S2/S3（需用户圈范围）、`#1472` 冻结；④ 空；`#228` 余 ②③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXI，原文）**：
+
+**Round CCXXXI**（`#1480` 行业知识层 S3 编辑层——hook 版式选版判据 + 跨期反重复
+
+## Round CCXXXVIII 下沉：`#733` 收口（2026-11-22）
+
+> **Last inventory**: 2026-11-22（**Round CCXXXVIII：`#733` 收口闭票**——underline 落 amber 4px（`ANNOTATION` 移入 tokens，14 tests）；S3 六类题材档（`NEWS_BEAT_TOPIC_PROFILES`、`--topics`/`--roles --topic`，33 tests，只重排 26 词）；`qwen4-max-release` 副本 `--highlight --write` 单行写回 `action/3 LAYERS COMPRESS` + T8 通过（PR #1509，squash `1177d19b`）。产品验证门：**有产出 diff（hook 下划线）**；无 shipped pack 新增 beats。frontier：③ 清空（仅 `#1472` 冻结）；1A/①②④ 空；`#228` 余 ②③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXVIII，原文）**：
+
+**Round CCXXXVIII**（`#733` 闭票——amber 4px underline + 六类题材档 + 真实 pack 写回；**有产出 diff（下划线）**；③ 清空，1A/①②④ 空）
+
+## Round CCXXXIX 下沉：`#1512` 立项（TTS 冷批四段取证，2026-11-22）
+
+> **Last inventory**: 2026-11-22（**Round CCXXXIX：`#1512` 立项——TTS 冷批四段取证**——近 9 天 25 次冷跑合计 539 min（中位 16.1 min、最长 106 min），同期 55 次重跑渲染合计 34.3 min（中位 48 s）；3 个 kernel 日志：setup（依赖导入 + `Loaded in`）占 82–94%、合成 4–7%，主候选为常驻 kernel / 预热镜像，结论另开实施票。PR #1513。产品验证门：**无产出差异**（取证票，无代码）。frontier：1A 空；① `#1512`（ready-for-agent）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXXXIX，原文）**：
+
+**Round CCXXXIX**（`#1512` 立项：TTS 冷批四段取证——9 天 25 次冷跑 539 min vs 55 次重跑渲染 34.3 min；3 个 kernel setup 占 82–94%；**无产出差异**；① `#1512`，1A/②③④ 空）
+
+## Round CCXL 下沉：`#1512` 取证与闭票（2026-11-23）
+
+> **Last inventory**: 2026-11-22（**Round CCXL：`#1512` 交付闭票**——TTS 冷批四段取证：8 次冷跑 / 8 包对账，`step-1-tts` 墙钟中位 1023 s 中 Kaggle 内核仅 405 s（42.4%，其中依赖导入占内核 78.4%、模型加载 11.8%、合成 6.3%），下载后**本地尾巴 573 s（56.0%，跨包 429–1027 s、无子步计时）**，下载 13 s，排队 0.2%；另记 `anthropic-ipo-china-ai` 30.4 min、`tencent-hy4` 40.4 min 卡排队且 `runningMs=0`。结论：**「常驻 kernel / 预热镜像」的收益上限 ≈ 冷跑墙钟 25%，首要目标是先给本地尾巴加子步计时**——是否立票待用户拍板。证据 [`research/tts-cold-run-trace-2026-11-22.md`](research/tts-cold-run-trace-2026-11-22.md)。PR #1513。产品验证门：**无产出差异**（取证票，无代码）。frontier：1A 空；① 空（`#1512` 闭票后本段清空）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXL，原文）**：
+
+**Round CCXL**（`#1512` 闭票：TTS 冷批四段取证——墙钟中位 1023 s 内核仅 42%、本地尾巴 56% 无计时；**无产出差异**；①②③④ 空，`#228` 余 ③④⑥ dormant）
+
+## Round CCXLIII 下沉：`#1515` 闭票（2026-11-24）
+
+> **Last inventory**: 2026-11-23（**Round CCXLIII：`#1515` 闭票**——常驻内核复用门内重试：2 个包 / 3 次真实重试 63.9 / 67.6 / 71.5 s（中位 67.6 s，对照 406.3 / 333.5 s，省 82–84%）；冷启仍 351 s（4 scene，排队 0）；票面 `<60 s` 按实测改 60–90 s。证据 [`research/tts-live-kernel-reuse-2026-11-23.md`](research/tts-live-kernel-reuse-2026-11-23.md)。产品验证门：**无产出差异**（等待时间变化，wav/字幕/sidecar 契约不变）。PR #1518。frontier：1A 空、1B 空；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+本轮台账补登：PR #1516（`ece93a4c`，`step-1-tts` 八子步计时，涉及 #1514/#1515/#1512/#758）——该施工 PR 未在 Round CCXLII 盘点登记，按 `roadmap-ledger` 处置补登。
+
+## Round CCXLIV 下沉：`#1520` 闭票（2026-11-24）
+
+> **Last inventory**: 2026-11-24（**Round CCXLIV：`#1520` 闭票**——预装 `cosyvoice3-site-packages` 数据集在 `import torch` 前挂载；manifest、解包或 `python -S` 探针任一不符即回落 wheelhouse。真实 2 包 / 4 scene 冷批 `engineWallMs` 374.8→247.6 s（−33.9%）、内核 298.0→173.3 s、依赖安装 185.5 s→0，4/4 wav SHA-256 与基线一致；票面 `<120 s` 按实测改 `≤250 s`（余解包 49.6 s、模型 32.8 s、合成 32.4 s、宿主约 74 s）。证据 [`research/tts-site-packages-2026-11-23.md`](research/tts-site-packages-2026-11-23.md)。产品验证门：**无产出差异**（等待时间变化，wav/字幕/sidecar 契约不变）。PR #1521。frontier：1A 空、1B 空；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ③④⑥ dormant。）
+
+**下沉的一句话档案（Round CCXLIV，原文）**：
+
+**Round CCXLIV**（`#1520` 闭票：预装 site-packages 数据集跳过冷启 pip——真实冷批 374.8→247.6 s（−33.9%），4/4 wav 逐字节一致；票面按实测改 `≤250 s`；**无产出差异**；1A/1B/②③④ 空）
+
+## Round CCXLI 下沉：`#1514` 立项（2026-11-24）
+
+**下沉的一句话档案（Round CCXLI，原文）**：
+
+**Round CCXLI**（`#1514` 立项：`step-1-tts` 子步计时——`#1512` 结论落地，拆 573 s 本地尾巴，**无产出差异**；① `#1514`，1A/②③④ 空）

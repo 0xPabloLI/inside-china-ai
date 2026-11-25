@@ -49,7 +49,6 @@ export const scenes = [
       context: "PRE-TRAINING AND POST-TRAINING",
       action: "NO HUMAN IN THE LOOP",
       result: "RECURSIVE IMPROVEMENT",
-      highlight: { field: "badge", text: "SELF-TRAINING" },
     },
   },
   {
@@ -73,7 +72,6 @@ export const scenes = [
       context: "REVENUE UP 400 PERCENT",
       action: "API IS 86% OF TOTAL",
       result: "CFO REPORTED",
-      highlight: { field: "context", text: "400" },
       source: "SOURCE: Zhipu earnings call, Sep 2, 2026",
     },
   },
@@ -98,7 +96,6 @@ export const scenes = [
       context: "ON ARTIFICIAL ANALYSIS",
       action: "COST PER TASK 4.5 CENTS",
       result: "GLM CLIMBED THE RANKINGS",
-      highlight: { field: "company", text: "32 TO 60" },
       source: "SOURCE: Artificial Analysis",
     },
   },
@@ -173,7 +170,6 @@ export const scenes = [
       context: "INFERENCE COST DOWN 80%",
       action: "CHEAPER EVERY ITERATION",
       result: "LOOP GETS CHEAPER",
-      highlight: { field: "context", text: "80%" },
     },
   },
   {

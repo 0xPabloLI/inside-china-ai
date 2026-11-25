@@ -38,6 +38,7 @@ export {
   TYPE,
   MOTION,
   HOLD,
+  ANNOTATION,
   CAMERA,
   holdFramesFor,
   settleByFrame,
@@ -59,28 +60,6 @@ export const clamp = {
 export const easeOutExpo = Easing.bezier(0.16, 1, 0.3, 1);
 
 export { interpolate, Easing };
-
-/**
- * Annotation parameters — single source of truth for rough-notation components.
- * Centralized so opacity/strokeWidth/padding are consistent across scenes.
- */
-export const ANNOTATION = {
-  highlight: {
-    color: "rgba(245,158,11,0.15)",
-    padding: { top: 2, bottom: 2, left: 6, right: 6 },
-    progressRange: [20, 40] as const,
-  },
-  underline: {
-    strokeWidth: 3,
-    padding: { top: 4 },
-    progressRange: [20, 40] as const,
-  },
-  circle: {
-    strokeWidth: 3,
-    padding: { top: 20, bottom: 20, left: 24, right: 24 },
-    progressRange: [15, 30] as const,
-  },
-} as const;
 
 /**
  * Spacing scale — 4pt base system (impeccable layout.md guidance).

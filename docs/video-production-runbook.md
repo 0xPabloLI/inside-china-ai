@@ -66,6 +66,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - TTS at full volume
 - BGM off by default (TikTok/Reels auto-add their own). Enable with `--bgm` flag: procedural cyber-ambient with an 8% bed gain (`DEFAULT_BGM_VOLUME` in `lib/post-process.mjs`), fades in 2s, fades out last 3s
 - All audio 192k AAC, 44100Hz
+- External source sound (#1525): `media.volume` (usually `1` to keep the original level), `audioIn` / `audioOut` as scene-relative seconds, `audioFadeIn` / `audioFadeOut` defaulting to 0.25s; `duckUnderNarration: true` with `duckLevel` (default 0.25) lowers the source while this scene has TTS. The window is a per-frame gain gate in the Remotion mix, not a separate ffmpeg pass; no stem separation, so a mixed dialogue+music track ducks as a whole.
 
 ### Mobile-First Vertical (9:16)
 
@@ -93,6 +94,7 @@ Subtitle spec (font, color, position, timing, ASS style line) lives in `docs/bra
 - **Step 0.4 ASS 烧录 hard gate**（2026-10-12, #394）: ASR 门禁之后跑 `lib/ffmpeg-preflight.mjs` 的 `ensureAssBurnOrExit()`——有旁白（任一 scene 带 `voiceover`/`ttsText`）就必须确认烧字幕的二进制带 libass，否则 `process.exit(1)`。判据是**管线真正消费的那个二进制**（`post-process.mjs` 导出的 `FFMPEG_FULL`，即 `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`）的 `-filters` 列表里有 `ass` 行；PATH 上的 ffmpeg 合法地没有 libass，探测 PATH 会「通过」而烧录照旧失败（`ffmpeg -h filter=ass` 在无 libass 时也返回 0，实测 2026-10-12——filter 列表是唯一可靠判据）。2026-10-04 事故：管线烧完 TTS + 整段 Remotion 渲染，最后死在字幕烧录上（#394）。纯视觉 run（无旁白）无需烧字幕 → 记 N/A 直接放行。
 - **并行轨**：`main.mjs` 媒体轨（Step 1.5a evidence captures → 1.5 sourcing → 1.5c media-patch → 1.5b upscale → 1.5d B-roll，`lib/media-track.mjs`）与语音轨（Step 1 TTS）由 `profiler.runParallel`（`Promise.allSettled`）并发跑，join 后过 1.6 media gate 再进字幕/渲染/verify。数据依赖：媒体轨只写 scene 媒体字段、TTS 只读 scene 文本——无共享可变状态。失败语义不变：媒体轨每阶段 warn 不阻塞；TTS 失败仍中止管线。每条轨道的 span 在自身 settle 时收尾，summary 标 `[parallel]` 的即这两条轨道级 span；`step-1.5*` 子步骤与父 span 同样重叠（不标注）——两类重叠里的百分比只作单行读数，不相加。
 - **步骤耗时 profile**：每次 run 结束（含失败路径）自动写 `output/<pipelineId>/profile-<version>.json`（另有稳定名 `last-profile.json`），并在末尾打印按耗时排序的 summary；失败时未结束 step 记 `unfinished: true`。管线提速决策以 profile 证据为准。
+- **sourcing run 级短路（#228）**：同一内容包 claims 未变时，第二轮起跳过整个 Step 1.5 sourcing（zhipu-valuation 实测该步占单轮 96% 墙钟）。判据是 `output/<slug>/sourcing-state.json` 里的 search plan 摘要（`buildQueryGroups` 的 keyword groups + `claimSceneId` + zh pool）与当前 scenes 一致，且 `media-patch.json` 仍在、所有 assigned 文件的磁盘副本都在；跳过时 1.5c 照常应用补丁，1.6 media gate 仍把关。`assetNeed` / `searchHints` / 派生 claim 的口播改动、补丁缺失、assigned 文件被删都会回落全量 sourcing。外网候选需要刷新时用 `SHORT_VIDEO_FORCE_SOURCING=1` 强制重搜（不清状态，下一轮仍可短路）。诊断：`node scripts/short-video/sourcing-state.mjs --content <slug>`。
 - **TTS 缓存**（#198；#423 候选/已批准信任边界）：scene 音频按 `(engine, engine.info, text)` 键跨 run 复用，forced alignment 按 `(text + 音频字节)` 签名复用（ttsText 变化会触发重对齐）；`TTS_NO_CACHE=1` 强制冷跑（重生成全部音频）。只有**已批准**（`scene-N.tts-meta.json`：过了完整质检链、`metaVersion` 当前、绑定音频 sha256 字节摘要）才跳过 GPU；磁盘上存在但未最终验收的 take（质检失败、ASR 不可用、`TTS_SKIP_QUALITY_GATE=1`、旧格式 meta）记为**候选**（`scene-N.tts-candidate.json`），下一轮走本地 ASR 复检（不重生成），通过后原子晋级。首轮生成直写 `audio/`（只生成无可用 take 的场次，且引擎身份/工作目录就在该路径上）；自愈 reroll 与 pacing 补偿轮改写 per-run staging，只有被接受的 take 才晋级——失败 take 不会覆盖既有音频。硬阻断（acoustic/pacing/infra）语义不变。
 - **TTS 识别方差（#689）**：门禁承认三类“听写形态差”证据，但仍以 expected 行为准——（1）相邻 2/3 个 ASR token 的无空格拼接恰好等于某个 expected token（`Deep Seek` → `deepseek`；宽 3 覆盖 `sing a pore` → `singapore`），expected 行本身即声明，不要求词典；（2）含字母的连字符 expected 词被 ASR 合并（`re-run` → `rerun`；纯数字 `3-5` 不合并，`3-5` ≠ `35`）；（3）near-miss 只对 protected name 生效：`meta.keyEntities` 中且**本集脚本确实出现**的名字，或脚本里的结构性专名（首字母后含大写、字母+数字单词），约束为长度 ≥6、长度差 [-2,+1]、共同前缀 ≥ max(5,len-2)、候选不得是严格前缀、编辑距离 ≤2；严格前缀（`DeepSee`）、缺半词（`Deep`）、未声明小写词与错前缀 join（`Deep Sink`）仍失败。证据 join 在 similarity 分母折叠为一个 ASR unit，额外/幻觉词仍逐个计数；命中只写 `Recognition variance [split|near-miss|merged]` 警告（失败 take 的日志也会打印），不改变 issues/硬阻断。`main.mjs` 与 `rerender-full.mjs` 都把 `meta.keyEntities` 传给门禁；**trim 回读（#827）同样带上该词典**——`generateTTSWithEngine` → `finalizeTtsResults` → `runForcedAlignment` → `runAlignmentGuards` → `verifyTrimmedTake` 逐层透传，`main.mjs` 的 realign 修复点（Gate 1）与 `realign-render.mjs` 一并传入（Step 6 曾有一处，随 #818 删除——`subtitle-alignment` 不可自修，见 `lib/verify-retry.mjs` 的不可重试集合）。此前 trim 回读不带词典：声明过的小写品牌被 ASR 听成 near-miss 时会判 truncation、拒切尾部静音（fail-safe，只是少裁一段尾音）；现在回读拿到同一份 `keyEntities`（该词典是当前唯一会改变裁决的 option，其余门禁 option 走各自默认值）。
 - **长任务执行方式**：asset sourcing 全量 40+ 分钟，Agent 会话里**不要前台 `bash` 跑**（工具超时会杀进程）——用 `nohup ... > log 2>&1 &` 后台运行 + 轮询日志；搜索缓存已改为逐次增量落盘（见故障模式表），进程被杀也保留已完成搜索。
@@ -204,6 +206,20 @@ node scripts/short-video/main.mjs --content series/pt4 &
 > (2026-10), and a pin with no cp313 wheel kills the run during the
 > dependency install, before any inference. The kernel file is the single
 > source for which versions those are and why.
+>
+> **Preinstalled environment (#1520)**: `xpabloli/cosyvoice3-site-packages`
+> carries that wheelhouse already installed, so a cold kernel can skip the
+> 211–309s `pip install` entirely. The kernel compares the mounted
+> `manifest.json` with `scripts/short-video/kaggle/site-packages-manifest.json`
+> (exact distribution names/versions + archive size), expands the
+> `site-packages.tar.zst` envelope with the image's `zstandard` module when
+> Kaggle kept it compressed, and proves `import torch` in a `python -S` child
+> that cannot see the image's
+> site-packages; only then does it put the tree on `sys.path`. A missing
+> mount, manifest drift, a changed archive or a failed probe falls back to the
+> wheelhouse install — the fast path cannot fail a run. Rebuild with
+> `scripts/short-video/kaggle/push-site-packages-build.sh` and paste the
+> printed manifest into the repo before landing the dataset attachment.
 >
 > **Text frontend snapshot (#804)**: `xpabloli/cosyvoice3-wetext` rides along
 > for the same reason. `wetext==0.0.4` calls
@@ -377,7 +393,8 @@ ffmpeg -i input.m4a -ar 24000 -ac 1 output.wav
 **批量 push 与失败语义（#241）**:
 
 - **一次 push 生成全部 scene**：`cosyvoice3-kaggle-cuda` 的 `generate()` 把所有待生成 scene 组装进一个 manifest，单次 `kaggle kernels push` 携带（kernel 启动 + 依赖安装 + 模型加载 ~5min 是主导成本，纯推理 10 scene 仅 ~64s）。cache 命中的 scene 不进 manifest（#198）。
-- **自愈重试粒度**：Quality Gate 只挂个别 scene 时，registry 重试只把失败 scene 的单条 manifest 再 push 一次，不重刷整包。**pacing 类失败不占用重抽预算**（#271）：同文本、同速度重抽抬不动实测 WPM，只烧远程 GPU，它们直接进补差环。
+- **自愈重试粒度**：Quality Gate 只挂个别 scene 时，registry 只把这些失败 scene 交给引擎，不重刷整包。**pacing 类失败不占用重抽预算**（#271）：同文本、同速度重抽抬不动实测 WPM，只烧远程 GPU，它们直接进补差环。
+- **常驻内核复用（#1515）**：默认模式下，第一次 push 的 kernel 在 batch 1 完成后**不退出**——模型常驻，宿主用一只 secret GitHub gist 作控制面下发 `{action:"retry", sceneIds, speeds}`；kernel 只合成本批 scene，并以**无损 FLAC** 经 `kaggle kernels logs -f` 回传，宿主解码后校验 FLAC sha256 与 kernel 侧 PCM sha256 再晋级。实测重试 `tts-engine-retry` 从 406.3/333.5s 降到 **63.9/67.6/71.5s**（2 个包、3 次真实重试，中位 67.6s；其中 gist 传播实测约 27s；证据见 `docs/research/tts-live-kernel-reuse-2026-11-23.md`）。控制面不可用、PATCH 失败或流断裂时自动回退到经典 COMPLETE + `kaggle kernels output`（同一个 kernel，不重推）；回退路径的产物身份/覆盖/完整性门与原路径完全一致。验证块退出（绿灯、hard block、异常）时 registry 调 `endLiveSession()` 发 stop；kernel 最迟在空闲超时（`TTS_KAGGLE_LIVE_IDLE_SEC`，默认 300s）自尽，不会空转到 3h 墙钟。关掉：`TTS_KAGGLE_LIVE=0`。控制 gist 只放 scene id 与 speed，不含文案；它是 secret 而非真私有，但泄露也只是一批 scene 编号。
 - **缺音频 fail-closed**：scene 在生成 + 自愈重试后仍无音频（kernel 段失败/超时跳过）→ 管线报错中止，绝不静默缺段渲染。显式接受缺段需 `TTS_ALLOW_PARTIAL_TTS=1`。有音频但 Gate 不过则按 **#271 语义分流**：pacing 类先补差、补差仍不合格 → `TTS_PACING_FLOOR_BLOCK`；acoustic 类 → `TTS_ACOUSTIC_HARD_BLOCK`。两类硬阻断都不受 strict/non-strict 影响，唯一能绕过它们的开关是 `TTS_SKIP_QUALITY_GATE=1`（CosyVoice3-MLX 的 F5 本地兜底不算绕过：F5 take 会重新跑 Quality Gate + 225 WPM 上限，见本节 #704 段）；分流机制见 `docs/content-pipeline.md` → Gate 失败语义分流（阈值与 1.2× 上限见同节 #252 段）。
 - **补差轮同样 fail-closed（#925）**：pacing 阶梯的重生成整轮抛错（kernel 30min 超时、排队掉线、模型加载失败）或只返回部分场景时，未拿到新音频的计划场景**一律阻断**——源 take 已过门的补偿 → `TTS_PACING_COMPENSATION_BLOCK`（旧实现只删 `ttsSpeed` 然后放行，2026-10-24 unitree-h2x-guardian 的 1.0x hook 就是这样发出去的）；源 take 被 gate 拒过的 → `TTS_PACING_FLOOR_BLOCK`；重抽缺音频 → `TTS_PACING_HARD_BLOCK`。已通过的 take 仍是 approved 缓存，重跑只重推缺的那几个 scene。日志出现该阻断时**不要跳过质量门重跑**：先看 `.kaggle-kernel/poll-status.json`，再按上文超时预算重跑。
 - **下载产物身份与新鲜度（#420）**：每次 `generate()` 下载到本次调用独立的 staging（`output/{id}/audio/.kaggle-kernel/downloads/<requestId>/`）并带 `--force`，随后核对 kernel summary 回显的 requestId、scene 覆盖与 wav 完整性（RIFF/WAVE）才晋级到 `audio/`；不匹配即 fail-closed，既有音频不被改动。旧共享目录 `.kaggle-kernel/kaggle-output` 不再被读取，也不再需要「跑前手动 `rm -rf` 该目录」的恢复操作。
@@ -837,7 +854,7 @@ The chain's generation rung derives its still prompt from `assetNeed` (explicit 
 **Report**: `output/<contentDir>/b-roll-report.json` — per scene the strategy (chain entries say `auto`), resolved `form`, `promptSource`, `promptHash`, `round`, status, every candidate with its score and the VLM's reason, and the winner. It is the agent's iteration input. Two gates read it, and they do not have the same authority:
 
 - `verify-video.mjs` renders it as the `B-roll Checks` block, the readable B-roll summary HITL reviews; a scene short of `won` is a **warning** there and does not block publishing on its own.
-- `main.mjs` Step 1.6 (`lib/final-media-gate.mjs`) is the **hard** gate. A media-dependent layout (`media-overlay` / `media-bottom-bar` / `media-split`, plus `media-led` — a hook layout, so a non-hook scene declaring it also lands here) that still has no `scene.media` after sourcing, patch, upscale and generation exits 1 with `missing-media`; the run never reaches render or `verify-video.mjs`. The hook is enforced the same way (`missing-hook-media`), and `layout: "media-led"` + `media: null` fails as `explicit-null-on-media-led-hook` instead of passing as a CSS-only waiver.
+- `main.mjs` Step 1.6 (`lib/final-media-gate.mjs`) is the **hard** gate. A media-dependent layout (`media-first` / `media-overlay` / `media-bottom-bar` / `media-split`, plus `media-led` — a hook layout, so a non-hook scene declaring it also lands here) that still has no `scene.media` after sourcing, patch, upscale and generation exits 1 with `missing-media`; the run never reaches render or `verify-video.mjs`. The hook is enforced the same way (`missing-hook-media`), and `layout: "media-led"` + `media: null` fails as `explicit-null-on-media-led-hook` instead of passing as a CSS-only waiver.
 
 When Step 1.6 fails, the error adds each scene's declared strategy or b-roll report status when known, then lists the three recovery paths: rerun the pipeline (Step 1.5 re-enters sourcing for chain / asset-then-\* scenes and generation for b-roll / ai-image scenes); rewrite the prompt and regenerate with `node scripts/short-video/generate-broll.mjs --content <dir> --scene <id>` (`--approve-auto` for a chain scene; `BROLL_MODEL=fastmetal-1.3b` switches tier manually); or move the scene to a CSS-only layout (`hero-center` / `stacked-cards`) when it does not need media.
 
@@ -1129,6 +1146,17 @@ node scripts/short-video/replay-render.mjs --manifest <manifest>          # 真�
 manifest 是磁盘上的数据，重放把它当不可信输入：`--props` / 输出路径必须是本场 manifest 自己目录树里的（props 在 manifest 目录，raw/final 在 `output/<id>/`，素材与音频必须落在 `remotion/public/` 内），命令也不是照抄记录的那条 argv，而是按 manifest 重建后再与记录逐字比对——多一个 `--browser-executable`、多一个 `--props=` 都会拒绝。props 的字节数与 sha256 都对不上就拒绝重放。
 
 still 的 manifest 带 `kind: "still"`，重放只重出那一帧，不跑 finalize、也不删图；still 默认写到 `output/<id>/render/still-<frame>/frame-<frame>.png`，`--out` 只允许落在 `output/<id>/` 内，否则重放读不到它。
+
+### 增量渲染（#228 ③）
+
+渲染默认按场景复用上一版的帧，不重画整条片子。判据是 manifest 里的场景指纹（scene JSON、duration、音频字节、素材字节、相邻 `visualType`）与合成层指纹（`remotion/src/**` 除 fixtures、`package.json`、`remotion.config.ts`）；任何一项证明不了「没变」就回落全量，并写 `incremental.fallbackReason`。
+
+- 只在场景边界切；脏场景的窗口是 `[offset, offset + clipFrames + 10)`，前后转场带都归它。干净区间从上一版 raw/part 按旧时间线偏移裁出。
+- 无画面变化（只改 ASS/BGM）→ 0 帧光栅，只跑一次 finalize。
+- 缓存按 `output/<id>/render/` 保留最近 2 版；part 在 `render/<version>/parts/`。`SHORT_VIDEO_FORCE_FULL_RENDER=1` 强制全量且不写缓存。
+- 真实包实测（`workbuddy-computer-use`，9 场景/1725 帧）：全量 69.5–72.4 s；改 1 场景 20.3 s；改 2 个不相邻场景 32.7 s；无变化重跑 10.1 s。
+- 画面门：增量 vs 整片重渲 All ≥0.999、最低帧 ≥0.985（现有 `full raw → full final` 自身最低 0.9844，0.995 不可达），切点前后 2 帧人工抽查。要更严的画面一致性就设 `SHORT_VIDEO_FORCE_FULL_RENDER=1`。
+- 增量 manifest 没有单一 raw，`replay-render.mjs --plan` 会明确报 blocked：重放会重渲整片，不适用；要复现请重跑管线。Step 6 字幕修复走 segments 重新 finalize，不退回 raw。
 
 ### Pipeline Steps
 

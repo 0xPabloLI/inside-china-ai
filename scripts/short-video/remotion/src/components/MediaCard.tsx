@@ -39,17 +39,13 @@ export const MediaCard: React.FC<Props> = ({ media, duration, bottom }) => {
         background: COLOR.canvas,
       }}
     >
-      {/* The card is its own band: frame-level lane/rail gradients are
-          canvas-relative, and inside an 820×594 card they land at the card's
-          own 66.8% / 78.7%, reading as a dark band on the right and bottom
-          edge (the "shadow" reported 2026-11-22). `element` keeps the flat
-          dim only; the card does not live under the TikTok rail or subtitle
-          lane. */}
-      <MediaBackground
-        media={media}
-        duration={duration}
-        scrimScope="element"
-      />
+      {/* #1524 follow-up: a card is a bounded window, not a full-frame
+          background. The default "frame" scrim re-scales its rail vignette
+          and bottom lane stop into the card, painting a dark gradient over
+          the picture's right edge and bottom — exactly the shadow the user
+          rejected. "element" keeps only the flat `overlay` dim, so the
+          picture reads evenly edge to edge. */}
+      <MediaBackground media={media} duration={duration} scrimScope="element" />
     </div>
   );
 };

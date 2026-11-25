@@ -269,12 +269,22 @@ export function formatMediaObject(media, propertyIndent = "  ", options = {}) {
   if (media.mode !== undefined)
     lines.push(`${fieldIndent}mode: ${stringField("mode", media.mode)},`);
   if (media.fit !== undefined) lines.push(`${fieldIndent}fit: ${stringField("fit", media.fit)},`);
+  if (media.fill !== undefined)
+    lines.push(`${fieldIndent}fill: ${stringField("fill", media.fill)},`);
   if (media.animation !== undefined)
     lines.push(`${fieldIndent}animation: ${stringField("animation", media.animation)},`);
   if (media.overlay !== undefined)
     lines.push(`${fieldIndent}overlay: ${numberField("overlay", media.overlay)},`);
   if (media.volume !== undefined)
     lines.push(`${fieldIndent}volume: ${numberField("volume", media.volume)},`);
+  for (const key of ["audioIn", "audioOut", "audioFadeIn", "audioFadeOut"]) {
+    if (media[key] !== undefined)
+      lines.push(`${fieldIndent}${key}: ${numberField(key, media[key])},`);
+  }
+  if (media.duckUnderNarration !== undefined)
+    lines.push(`${fieldIndent}duckUnderNarration: ${media.duckUnderNarration === true},`);
+  if (media.duckLevel !== undefined)
+    lines.push(`${fieldIndent}duckLevel: ${numberField("duckLevel", media.duckLevel)},`);
   if (media.videoStartOffsetMs !== undefined)
     lines.push(
       `${fieldIndent}videoStartOffsetMs: ${numberField("videoStartOffsetMs", media.videoStartOffsetMs)},`,

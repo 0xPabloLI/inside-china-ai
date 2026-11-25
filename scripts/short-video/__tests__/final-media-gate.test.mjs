@@ -73,6 +73,7 @@ describe("layout classification", () => {
   it("treats the text-over-media layouts as media dependent", () => {
     expect([...MEDIA_DEPENDENT_LAYOUTS].sort()).toEqual([
       "media-bottom-bar",
+      "media-first",
       "media-led",
       "media-overlay",
       "media-split",

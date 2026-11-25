@@ -1,5 +1,143 @@
 # Changelog
 
+## [1.112.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.111.1...tanstack_start_ts-v1.112.0) (2026-11-24)
+
+
+### Features
+
+* **video:** enforce shadow-free cards and competition demos ([#1538](https://github.com/0xPabloLI/inside-china-ai/issues/1538)) ([e04f92f](https://github.com/0xPabloLI/inside-china-ai/commit/e04f92f867b8dc57f3eb8444c7815ba9e8817497))
+
+## [1.111.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.111.0...tanstack_start_ts-v1.111.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **video:** keep media cards free of frame scrim gradients ([#1535](https://github.com/0xPabloLI/inside-china-ai/issues/1535)) ([967a9c2](https://github.com/0xPabloLI/inside-china-ai/commit/967a9c2eebd312a1bb685270c8d91bd3898a3e0f)), closes [#1524](https://github.com/0xPabloLI/inside-china-ai/issues/1524)
+
+## [1.111.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.110.0...tanstack_start_ts-v1.111.0) (2026-11-24)
+
+
+### Features
+
+* **video:** 原片原声窗口与旁白 ducking ([#1533](https://github.com/0xPabloLI/inside-china-ai/issues/1533)) ([abcf797](https://github.com/0xPabloLI/inside-china-ai/commit/abcf7972feae6736ddb264d5a7786c1bb93befe9)), closes [#1524](https://github.com/0xPabloLI/inside-china-ai/issues/1524) [#1525](https://github.com/0xPabloLI/inside-china-ai/issues/1525)
+
+## [1.110.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.109.0...tanstack_start_ts-v1.110.0) (2026-11-24)
+
+
+### Features
+
+* **video:** media-first 版式——画面铺满画幅、文案减量 ([#1529](https://github.com/0xPabloLI/inside-china-ai/issues/1529)) ([cfcdf19](https://github.com/0xPabloLI/inside-china-ai/commit/cfcdf19e5a91f59da747e9145a4ac96d7862d706)), closes [#1524](https://github.com/0xPabloLI/inside-china-ai/issues/1524)
+
+## [1.109.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.108.0...tanstack_start_ts-v1.109.0) (2026-11-24)
+
+
+### Features
+
+* **render:** incremental Remotion renders by dirty scene ([#228](https://github.com/0xPabloLI/inside-china-ai/issues/228) ③) ([#1523](https://github.com/0xPabloLI/inside-china-ai/issues/1523)) ([0b573ab](https://github.com/0xPabloLI/inside-china-ai/commit/0b573abce81cc2304f3e7060bad00c1dc07cc55c))
+
+## [1.108.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.107.0...tanstack_start_ts-v1.108.0) (2026-11-24)
+
+
+### Features
+
+* **tts:** reuse a prebuilt site-packages dataset to skip cold pip install ([#1520](https://github.com/0xPabloLI/inside-china-ai/issues/1520)) ([#1521](https://github.com/0xPabloLI/inside-china-ai/issues/1521)) ([3dccb4b](https://github.com/0xPabloLI/inside-china-ai/commit/3dccb4bd592708349df0b8d9ae8f80d838f5f56f))
+
+## [1.107.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.106.0...tanstack_start_ts-v1.107.0) (2026-11-23)
+
+
+### Features
+
+* **tts:** reuse a warm Kaggle kernel for gate retries ([#1515](https://github.com/0xPabloLI/inside-china-ai/issues/1515)) ([#1518](https://github.com/0xPabloLI/inside-china-ai/issues/1518)) ([f21aa64](https://github.com/0xPabloLI/inside-china-ai/commit/f21aa64382166d6495e1d893557188f57bee14a5))
+
+## [1.106.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.105.0...tanstack_start_ts-v1.106.0) (2026-11-23)
+
+
+### Features
+
+* **tts:** step-1-tts 八子步计时，实测重试冷启占尾巴 58%（[#1514](https://github.com/0xPabloLI/inside-china-ai/issues/1514)） ([#1516](https://github.com/0xPabloLI/inside-china-ai/issues/1516)) ([ece93a4](https://github.com/0xPabloLI/inside-china-ai/commit/ece93a4c4c52b4110b262c3bb7675d9b99a46d80))
+
+## [1.105.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.104.0...tanstack_start_ts-v1.105.0) (2026-11-22)
+
+
+### Features
+
+* **video:** close [#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) with amber underline and topic profiles ([#1509](https://github.com/0xPabloLI/inside-china-ai/issues/1509)) ([1177d19](https://github.com/0xPabloLI/inside-china-ai/commit/1177d19b0e2c44d08ec636e199cb9c7b4c5c1a7c))
+
+## [1.104.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.103.0...tanstack_start_ts-v1.104.0) (2026-11-22)
+
+
+### Features
+
+* **short-video:** add underline legibility evidence and blind-review kit ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2) ([#1506](https://github.com/0xPabloLI/inside-china-ai/issues/1506)) ([e893794](https://github.com/0xPabloLI/inside-china-ai/commit/e89379417bf38a748c44b64f81765d3cb672a523))
+
+## [1.103.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.102.0...tanstack_start_ts-v1.103.0) (2026-11-22)
+
+
+### Features
+
+* **short-video:** explicit write-back for beat highlight ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2) ([#1503](https://github.com/0xPabloLI/inside-china-ai/issues/1503)) ([267503d](https://github.com/0xPabloLI/inside-china-ai/commit/267503ddaf75518434c823cc037ae02c711598f6))
+
+## [1.102.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.101.0...tanstack_start_ts-v1.102.0) (2026-11-22)
+
+
+### Features
+
+* **short-video:** screenAt bridge + reject dead highlight fields ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2) ([#1501](https://github.com/0xPabloLI/inside-china-ai/issues/1501)) ([f67006c](https://github.com/0xPabloLI/inside-china-ai/commit/f67006c7746e41eb6503c80a6f5ffdf275e56b84))
+
+## [1.101.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.100.0...tanstack_start_ts-v1.101.0) (2026-11-22)
+
+
+### Features
+
+* **short-video:** dry-run beat to highlight derivation ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2) ([#1499](https://github.com/0xPabloLI/inside-china-ai/issues/1499)) ([136de4e](https://github.com/0xPabloLI/inside-china-ai/commit/136de4ed50b244488583ff614a744976f8ad6e99))
+
+## [1.100.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.99.1...tanstack_start_ts-v1.100.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** semantic beat schema + validation for [#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S2 ([#1496](https://github.com/0xPabloLI/inside-china-ai/issues/1496)) ([2c3b0da](https://github.com/0xPabloLI/inside-china-ai/commit/2c3b0da128190d61ce757705265a02a69c13d405))
+
+
+### Performance Improvements
+
+* **remotion:** use &lt;Img&gt; for the primary image, 73s→55s on a real pack ([#1495](https://github.com/0xPabloLI/inside-china-ai/issues/1495)) ([bc65ca0](https://github.com/0xPabloLI/inside-china-ai/commit/bc65ca055225dc69b890e571ad68a986889d43d6))
+
+## [1.99.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.99.0...tanstack_start_ts-v1.99.1) (2026-11-21)
+
+
+### Performance Improvements
+
+* **short-video:** skip sourcing when the search plan is unchanged ([#228](https://github.com/0xPabloLI/inside-china-ai/issues/228)) ([#1491](https://github.com/0xPabloLI/inside-china-ai/issues/1491)) ([00b1fb4](https://github.com/0xPabloLI/inside-china-ai/commit/00b1fb475ac9c7c6b2a8a36b53fc99a0e739f310))
+
+## [1.99.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.98.0...tanstack_start_ts-v1.99.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** shot recipe cards derived from the render contract ([#733](https://github.com/0xPabloLI/inside-china-ai/issues/733) S1) ([#1488](https://github.com/0xPabloLI/inside-china-ai/issues/1488)) ([b66e561](https://github.com/0xPabloLI/inside-china-ai/commit/b66e5618096161845df8d6929d7a5eee1b402feb))
+
+## [1.98.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.97.0...tanstack_start_ts-v1.98.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** hook 版式选版判据 + 跨期反重复 ([#1480](https://github.com/0xPabloLI/inside-china-ai/issues/1480)) ([#1485](https://github.com/0xPabloLI/inside-china-ai/issues/1485)) ([796cd8f](https://github.com/0xPabloLI/inside-china-ai/commit/796cd8fc161a0301c968d3390ead84edfbf2f6f3))
+
+## [1.97.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.96.0...tanstack_start_ts-v1.97.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** industry context injection + MRL-2 fact gate ([#1479](https://github.com/0xPabloLI/inside-china-ai/issues/1479)) ([#1483](https://github.com/0xPabloLI/inside-china-ai/issues/1483)) ([7933168](https://github.com/0xPabloLI/inside-china-ai/commit/7933168401bce779bbfa4a08737e537e71d4e5e4))
+
+## [1.96.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.95.0...tanstack_start_ts-v1.96.0) (2026-11-21)
+
+
+### Features
+
+* **short-video:** land the industry knowledge data layer ([#1478](https://github.com/0xPabloLI/inside-china-ai/issues/1478)) ([#1481](https://github.com/0xPabloLI/inside-china-ai/issues/1481)) ([48da850](https://github.com/0xPabloLI/inside-china-ai/commit/48da85060ff41cd9f90e4bc3014c3f2d709bc13b))
+
 ## [1.95.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.94.5...tanstack_start_ts-v1.95.0) (2026-11-20)
 
 

@@ -41,6 +41,7 @@ import { postProcessBatch, getProsodyProfile, engineTtsText } from "./post-proce
 import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
+import { createControlChannel, materializeLiveBatch, startLogStream } from "./kaggle-live.mjs";
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -90,6 +91,11 @@ const KAGGLE_KERNEL_TEMPLATE = join(ROOT_DIR, "kaggle", "cosyvoice3_cuda_kernel.
 // compares it to the mount before installing. Read at push time, not baked
 // into the template, so the kernel can never carry a hand-copied copy.
 const KAGGLE_WHEELHOUSE_MANIFEST = join(ROOT_DIR, "kaggle", "wheelhouse-manifest.json");
+// #1520: the preinstalled site-packages set. The manifest exists only after the
+// dataset has been built and recorded; until then the template receives `{}`
+// and the kernel stays on the wheelhouse install, so this code is safe to land
+// before the dataset does.
+const KAGGLE_SITE_PACKAGES_MANIFEST = join(ROOT_DIR, "kaggle", "site-packages-manifest.json");
 // 30min RUNNING budget (#241: the 20min default tripped on slow torch/model
 // downloads even though pure inference is ~64s for a 10-scene batch; #250
 // keeps queue wait in a separate budget).
@@ -103,6 +109,25 @@ const KAGGLE_QUEUE_TIMEOUT_MS = parseInt(
   10,
 ); // 40 min QUEUED/waiting budget
 const KAGGLE_POLL_INTERVAL_MS = 15000; // 15s
+// Accelerator (#1520 acceptance): the Kaggle CLI exposes `--accelerator`, but
+// the metadata it writes stays `machine_shape: Gpu`; a request for
+// NvidiaTeslaP100 on 2026-11-23 still landed on a Tesla T4. Empty string
+// restores Kaggle's default accelerator.
+const KAGGLE_ACCELERATOR =
+  process.env.COSYVOICE3_KAGGLE_ACCELERATOR === undefined
+    ? "Gpu"
+    : process.env.COSYVOICE3_KAGGLE_ACCELERATOR;
+// Internet (#1520 acceptance): on 2026-11-23 an internet-enabled GPU kernel
+// stayed QUEUED >40 min while three metadata-identical probes with
+// `enable_internet: false` completed in under 90 s each (one of them mounted
+// every dataset the TTS kernel uses). The smoke run is fully dataset-backed,
+// so `COSYVOICE3_KAGGLE_INTERNET=0` lets it use the same no-internet lane.
+const KAGGLE_INTERNET =
+  process.env.COSYVOICE3_KAGGLE_INTERNET === undefined
+    ? true
+    : !["0", "false", "off", "no"].includes(
+        String(process.env.COSYVOICE3_KAGGLE_INTERNET).toLowerCase(),
+      );
 // Status-probe hardening (#808). `kaggle kernels status` reaches the network
 // through kaggle 2.2.4 -> kagglesdk, whose `KaggleHttpClient.call()` does
 // `self._session.send(request, **merge_environment_settings(...))` — that
@@ -1776,6 +1801,9 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
     stuckWindowMs = KAGGLE_STUCK_WINDOW_MS,
     recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
     logProbeTimeoutMs = KAGGLE_LOG_PROBE_TIMEOUT_MS,
+    // #1515: live sessions must stop waiting at RUNNING — COMPLETE is when
+    // the session ENDS, not when collection begins. Null = historical wait.
+    stopAtPhase = null,
   } = opts;
   const exec = deps.exec ?? defaultExec;
   const execFile = deps.execFile ?? defaultExecFile;
@@ -1970,6 +1998,13 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
       });
     }
 
+    if (stopAtPhase && phase === stopAtPhase) {
+      log(
+        `  ✓ Kaggle kernel reached ${String(stopAtPhase).toUpperCase()} — handing over to the live stream`,
+      );
+      return snapshot();
+    }
+
     if (phase === "complete") {
       log("  ✓ Kaggle kernel complete");
       return snapshot();
@@ -2044,6 +2079,189 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   // use. `TTS_SILENCE_FLOOR_MS` is the documented 250→300 downgrade lever.
   const silenceFloorMs = resolveSilenceFloorMs();
 
+  // ── #1515 live kernel session ──────────────────────────────────────────
+  // The model load is the 5–6 min tax. A live session keeps the kernel's
+  // child process alive after batch 1 and serves gate retries over a secret
+  // gist control channel; takes return as lossless FLAC over `kernels logs -f`.
+  // Live is ON for real CLI runs and OFF when tests inject `deps.exec` — the
+  // injection seam is exactly the "not a real Kaggle" signal, and keeping it
+  // that way means every existing batch test stays hermetic without edits.
+  const liveEnabled = deps.live ?? (deps.exec === undefined && process.env.TTS_KAGGLE_LIVE !== "0");
+  // Seams: tests inject a fake control channel / log stream / decoder; real
+  // runs use the implementations from ./kaggle-live.mjs.
+  const openControlChannel = deps.controlChannel ?? createControlChannel;
+  const openLogStream = deps.logStream ?? startLogStream;
+  const decodeLiveBatch = deps.materializeLiveBatch ?? materializeLiveBatch;
+  const liveIdleSec = positiveIntEnv("TTS_KAGGLE_LIVE_IDLE_SEC", 300);
+  const liveControlPollSec = positiveIntEnv("TTS_KAGGLE_LIVE_CONTROL_POLL_SEC", 10);
+  const liveRetryTimeoutMs = positiveIntEnv("TTS_KAGGLE_LIVE_RETRY_TIMEOUT_MS", 900000);
+  const liveStopWaitMs = positiveIntEnv("TTS_KAGGLE_LIVE_STOP_WAIT_MS", 90000);
+  /** @type {null | {kernelId:string, requestId:string, control:object, stream:object, tempDir:string, nextBatch:number}} */
+  let liveSession = null;
+
+  /**
+   * Verify + promote a staged batch (live stream or classic download).
+   *
+   * This is the one acceptance path: identity, coverage and per-scene wav
+   * integrity are checked before a single byte reaches `outputDir`, and the
+   * local loudness pass is metered as `tts-loudness` (#1514).
+   */
+  const promoteStagedBatch = async ({
+    downloadDir,
+    scenes: batchScenes,
+    requestId: runRequestId,
+    outputDir: audioDir,
+    hooks,
+  }) => {
+    const summaryPath = stagedSummaryPath(downloadDir);
+    if (!existsSync(summaryPath)) {
+      throw new Error("Kaggle kernel did not produce summary.json");
+    }
+    let summary;
+    try {
+      summary = JSON.parse(readFileSync(summaryPath, "utf-8"));
+    } catch (e) {
+      throw new Error(`Kaggle summary.json is not valid JSON: ${e.message}`);
+    }
+    verifyKaggleRunSummary(summary, { requestId: runRequestId, scenes: batchScenes });
+    const failed = summary.segments.filter((s) => s.error);
+    if (failed.length > 0) {
+      console.error(
+        `  ⚠️ ${failed.length} segments failed: ${failed.map((f) => `scene-${f.sceneId}`).join(", ")}`,
+      );
+    }
+    const promotable = summary.segments.filter((s) => !s.error);
+    for (const s of promotable) {
+      assertCompleteKernelWav(join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output), s.sceneId);
+    }
+
+    process.env.TTS_HIGHPASS = "0";
+    process.env.TTS_DENOISE = "0";
+    // The registry's retry staging always exists; a direct caller (acceptance
+    // driver / test) may hand a fresh path, and promotion is still the right
+    // place to create it.
+    mkdirSync(audioDir, { recursive: true });
+
+    const finalResults = [];
+    const postStartMs = performance.now();
+    try {
+      for (const s of promotable) {
+        const srcPath = containedPath(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output);
+        const destPath = containedPath(audioDir, s.output);
+        copyFileSync(srcPath, destPath);
+        const scene = batchScenes.find((sc) => sc.id === s.sceneId);
+        const prosody =
+          process.env.TTS_PROSODY === "1" && scene
+            ? getProsodyProfile(scene.refStyle || scene.visualType)
+            : null;
+        const { duration } = await postProcess(destPath, {
+          useSilenceFilter: true,
+          silenceFloorMs,
+          resample: true,
+          prosody,
+        });
+        finalResults.push({ sceneId: s.sceneId, audioPath: destPath, duration });
+        console.log(`  Scene ${s.sceneId}: ${duration.toFixed(2)}s`);
+      }
+    } finally {
+      hooks?.onSpan?.("tts-loudness", performance.now() - postStartMs);
+    }
+
+    if (finalResults.length === 0) {
+      throw new Error("No successful TTS results from Kaggle kernel");
+    }
+    return finalResults;
+  };
+
+  /** One gate/pacing retry served by the still-running kernel. */
+  const generateLiveRetry = async (scenes, outputDir, hooks) => {
+    const session = liveSession;
+    const nextBatch = session.nextBatch;
+    const speeds = {};
+    for (const s of scenes) speeds[String(s.id)] = resolveSceneSpeed(s);
+    console.log(
+      `  ♻️ [TTS Live] Reusing kernel ${session.kernelId} for batch ${nextBatch} ` +
+        `(${scenes.length} scene(s)) — no cold push`,
+    );
+    const startedMs = performance.now();
+    try {
+      await session.control.update({
+        requestId: session.requestId,
+        batch: nextBatch - 1,
+        action: "retry",
+        sceneIds: scenes.map((s) => s.id),
+        speeds,
+      });
+      const batch = await session.stream.waitForBatch(nextBatch, liveRetryTimeoutMs);
+      const liveDir = join(session.tempDir, "live", `batch-${nextBatch}`);
+      rmSync(liveDir, { recursive: true, force: true });
+      await decodeLiveBatch({
+        batch,
+        dir: liveDir,
+        exec: runCmd,
+        log: console.log,
+      });
+      const results = await promoteStagedBatch({
+        downloadDir: liveDir,
+        scenes,
+        requestId: session.requestId,
+        outputDir,
+        hooks,
+      });
+      session.nextBatch = nextBatch + 1;
+      console.log(
+        `  ✓ [TTS Live] batch ${nextBatch} returned in ` +
+          `${((performance.now() - startedMs) / 1000).toFixed(1)}s (incl. control propagation)`,
+      );
+      rmSync(liveDir, { recursive: true, force: true });
+      return results;
+    } catch (err) {
+      // A broken control/wait leaves a kernel nobody can address. Stop it
+      // now instead of letting the next gate attempt ride a dead session.
+      await closeLiveSession();
+      throw err;
+    }
+  };
+
+  /**
+   * Ask the kernel to exit and clean up the control gist.
+   *
+   * Deliberately does NOT block the pipeline on kernel exit: the stop patch
+   * needs ~27s to propagate and the kernel polls every 10s. Waiting here would
+   * add that to every green run and inflate `tts-verify`. The background
+   * waiter deletes the gist only after the kernel actually stops, otherwise a
+   * too-early delete would leave it idling to its timeout.
+   */
+  const closeLiveSession = async ({ background = true } = {}) => {
+    const session = liveSession;
+    if (!session) return;
+    liveSession = null;
+    try {
+      await session.control.update({
+        requestId: session.requestId,
+        batch: session.nextBatch - 1,
+        action: "stop",
+      });
+    } catch (err) {
+      console.warn(`  ⚠️ [TTS Live] stop command failed: ${err.message.split("\n")[0]}`);
+    }
+    const cleanup = async () => {
+      await session.stream.waitForExit(liveStopWaitMs);
+      session.stream.stop();
+      await session.control.close();
+      try {
+        rmSync(join(session.tempDir, "live"), { recursive: true, force: true });
+      } catch {
+        // fail-open: leftover batch dirs are harmless
+      }
+    };
+    if (background) {
+      void cleanup().catch(() => {});
+    } else {
+      await cleanup();
+    }
+  };
+
   return {
     name: "cosyvoice3-kaggle-cuda",
     info: `CosyVoice3-Kaggle-CUDA (P100, cloned from ${CV3_REF_AUDIO})`,
@@ -2061,7 +2279,12 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
     // not replay them. Also the seam the Quality Gate re-validates through.
     instructForScene: resolveInstructForScene,
 
-    async generate(scenes, outputDir) {
+    /** Registry calls this when the verification block exits (#1515). */
+    async endLiveSession() {
+      await closeLiveSession();
+    },
+
+    async generate(scenes, outputDir, hooks = {}) {
       // Kernel slug resolved per call (#267): env override > content-id
       // derivation (output/<pipelineId>/audio) > fail-fast. Never a shared
       // default — same slug overwrite, not queue (#250).
@@ -2070,6 +2293,14 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         contentId: deriveContentIdFromOutputDir(outputDir),
       });
       const kernelId = `${username}/${kernelSlug}`;
+
+      // A retry hands the engine a staging dir under the same audio dir, so
+      // `deriveContentIdFromOutputDir` strips the staging segment and lands on
+      // the SAME kernelId — that identity is the live-session key (#1515).
+      if (liveSession && liveSession.kernelId === kernelId) {
+        return generateLiveRetry(scenes, outputDir, hooks);
+      }
+
       const manifest = buildCV3CudaManifest(scenes);
 
       for (const s of scenes) {
@@ -2082,6 +2313,11 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
 
       // ── Prepare Kaggle kernel ──
       const template = readFileSync(KAGGLE_KERNEL_TEMPLATE, "utf-8");
+      const sitePackagesExpected = existsSync(KAGGLE_SITE_PACKAGES_MANIFEST)
+        ? readFileSync(KAGGLE_SITE_PACKAGES_MANIFEST, "utf-8").trim()
+        : "{}";
+      const sitePackagesSources =
+        sitePackagesExpected === "{}" ? [] : ["xPabloLI/cosyvoice3-site-packages"];
       const manifestJson = JSON.stringify(manifest);
       // Per-call identity (#420): the kernel echoes it into summary.json and
       // the download below is only accepted when that echo matches.
@@ -2092,11 +2328,22 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       );
       const heartbeatSec = positiveIntEnv("KERNEL_HEARTBEAT_SEC", DEFAULT_KERNEL_HEARTBEAT_SEC);
 
+      // The control gist must exist BEFORE the script is rendered (its raw URL
+      // is baked in). No gh / no gist => classic one-shot kernel, unchanged.
+      const control = liveEnabled
+        ? await openControlChannel({ exec: runCmd, sleep: deps.sleep, log: console.log })
+        : null;
+      let liveAttempt = null;
+
       const kernelScript = template
         .replaceAll("__MANIFEST_JSON__", manifestJson)
         .replaceAll("__REQUEST_ID__", requestId)
         .replaceAll("__KERNEL_WALL_CLOCK_BUDGET_SEC__", String(wallClockSec))
         .replaceAll("__KERNEL_HEARTBEAT_SEC__", String(heartbeatSec))
+        .replaceAll("__LIVE_MODE__", control ? "1" : "0")
+        .replaceAll("__CONTROL_URL__", control?.url ?? "")
+        .replaceAll("__LIVE_IDLE_TIMEOUT_SEC__", String(liveIdleSec))
+        .replaceAll("__LIVE_CONTROL_POLL_SEC__", String(liveControlPollSec))
         // #521: the expected wheelhouse, so the kernel can refuse a mount that
         // is not what this repo froze. Injected even when the run resolves to
         // the online path — the placeholder has to be gone either way, and the
@@ -2104,7 +2351,10 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         .replaceAll(
           "__EXPECTED_WHEELHOUSE__",
           readFileSync(KAGGLE_WHEELHOUSE_MANIFEST, "utf-8").trim(),
-        );
+        )
+        // #1520: the committed preinstalled set. `{}` when the repo has not
+        // published one yet; the kernel then disables the fast path.
+        .replaceAll("__EXPECTED_SITE_PACKAGES__", sitePackagesExpected);
 
       const tempDir = join(outputDir, ".kaggle-kernel");
       mkdirSync(tempDir, { recursive: true });
@@ -2120,7 +2370,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             kernel_type: "script",
             is_private: true,
             enable_gpu: true,
-            enable_internet: true,
+            enable_internet: KAGGLE_INTERNET,
             // cosyvoice3-wheels (#231): the frozen dependency wheelhouse. The
             // kernel installs from it with --no-index when mounted, so the
             // dependency set cannot drift under us and the install stops
@@ -2139,6 +2389,9 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
               "xPabloLI/cosyvoice3-model",
               "xPabloLI/cosyvoice3-wheels",
               "xPabloLI/cosyvoice3-wetext",
+              // #1520: only attached once the repo records the set; a source
+              // that does not exist yet makes `kernels push` fail outright.
+              ...sitePackagesSources,
             ],
             competition_sources: [],
             kernel_sources: [],
@@ -2154,20 +2407,29 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // Default policy is one Kaggle TTS job at a time; another own kernel
       // holding the slot is waited for, then refused. Set
       // COSYVOICE3_KAGGLE_EXCLUSIVE=0 only when queue-behind is intentional.
-      const preflightResult = await preflight(
-        kernelId,
-        {},
-        {
-          execFile: deps.execFile,
-          sleep: deps.sleep,
-          now: deps.now,
-          log: console.log,
-        },
-      );
+      let preflightResult;
+      let pushResult;
+      try {
+        preflightResult = await preflight(
+          kernelId,
+          {},
+          {
+            execFile: deps.execFile,
+            sleep: deps.sleep,
+            now: deps.now,
+            log: console.log,
+          },
+        );
 
-      // ── Push kernel (single push for the whole manifest, #241) ──
-      console.log(`  📤 Pushing Kaggle kernel (${manifest.length} segments, 1 push)...`);
-      const pushResult = await runCmd(`kaggle kernels push -p "${tempDir}" 2>&1`);
+        // ── Push kernel (single push for the whole manifest, #241) ──
+        console.log(`  📤 Pushing Kaggle kernel (${manifest.length} segments, 1 push)...`);
+        pushResult = await runCmd(
+          `kaggle kernels push -p "${tempDir}"${KAGGLE_ACCELERATOR ? ` --accelerator ${KAGGLE_ACCELERATOR}` : ""} 2>&1`,
+        );
+      } catch (err) {
+        if (control) await control.close();
+        throw err;
+      }
       const pushedVersion = parseKernelPushVersion(pushResult?.stdout ?? "");
       const pushedAt = new Date().toISOString();
       const attempt = {
@@ -2182,6 +2444,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         schemaVersion: 1,
         kernelId,
         ...attempt,
+        live: Boolean(control),
         preflight: {
           waitedMs: preflightResult.waitedMs,
           listOk: preflightResult.listOk,
@@ -2194,7 +2457,7 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         `  ✓ Kaggle kernel version ${pushedVersion ?? "unknown"} pushed (queue started ${pushedAt})`,
       );
 
-      // ── Poll status ──
+      // ── Wait for the kernel: live stream or classic COMPLETE+download ──
       console.log(
         `  ⏳ Waiting for Kaggle kernel (queue budget ${Math.round(KAGGLE_QUEUE_TIMEOUT_MS / 60000)}min, ` +
           `run timeout ${Math.round(KAGGLE_TIMEOUT_MS / 60000)}min)...`,
@@ -2202,96 +2465,124 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // poll-status.json: QUEUED/RUNNING phase + metering for background runs
       // (#250). attributionFile (#1354) makes a timeout collect status/log
       // evidence and phrase the error from the observed cause, not a guess.
-      await poll(kernelId, {
+      const pollOpts = {
         statusFile: containedPath(tempDir, "poll-status.json"),
         attributionFile: containedPath(tempDir, "kaggle-queue-attribution.json"),
         attempt,
-      });
+      };
+      let stagedDir = null;
+      let liveError = null;
 
-      // ── Download output into per-call staging (#420) ──
-      // The download target MUST be unique per call: `kaggle kernels output`
-      // skips files when a more recent local copy exists. That skip is not an
-      // error — in the installed CLI (2.2.4) kernels_output gates the fetch on
-      // `download_needed()` (kaggle/api/kaggle_api_extended.py:8232, gated at
-      // :6715), which returns False when the local size/date look current; the
-      // command then still exits 0, so the pipeline reads the old file while
-      // the download "succeeded". The legacy `.kaggle-kernel/kaggle-output`
-      // dir is deliberately not reused, overwritten or cleaned as routine
-      // self-heal — acceptance is proven by the identity checks below, not by
-      // directory cleanliness.
-      const downloadDir = join(tempDir, "downloads", requestId);
-      mkdirSync(downloadDir, { recursive: true });
-      console.log("  📥 Downloading Kaggle kernel output...");
-      // #581: one transient error mid-transfer must not void a paid GPU run —
-      // the takes that already landed are recovered per file, bounded. This
-      // only guarantees the staged files are present and intact; identity,
-      // coverage and integrity are still judged by the gates below, so a
-      // partial recovery can never be promoted as a complete batch.
-      await downloadKernelOutput({
-        kernelId,
-        downloadDir,
-        expectedScenes: scenes.map((s) => s.id),
-        runCmd,
-        sleep: deps.sleep,
-      });
-
-      // ── Verify run identity, coverage and per-scene file integrity ──
-      // Every check runs BEFORE any file reaches the audio directory: a stale,
-      // foreign or partial download must never mix into the approved takes.
-      const summaryPath = stagedSummaryPath(downloadDir);
-      if (!existsSync(summaryPath)) {
-        throw new Error("Kaggle kernel did not produce summary.json");
+      if (control) {
+        let stream = null;
+        try {
+          // Stop at RUNNING: in live mode COMPLETE is the END of the session,
+          // not the beginning of collection. Waiting for it here would sit
+          // through the idle window the host is supposed to control.
+          await poll(kernelId, { ...pollOpts, stopAtPhase: "running" });
+          stream = openLogStream({ kernelId, log: console.log });
+          liveAttempt = { stream };
+          const batch = await stream.waitForBatch(1, KAGGLE_TIMEOUT_MS);
+          const liveDir = join(tempDir, "live", "batch-1");
+          rmSync(liveDir, { recursive: true, force: true });
+          await decodeLiveBatch({
+            batch,
+            dir: liveDir,
+            exec: runCmd,
+            log: console.log,
+          });
+          stagedDir = liveDir;
+          liveSession = {
+            kernelId,
+            requestId,
+            control,
+            stream,
+            tempDir,
+            nextBatch: 2,
+          };
+          console.log("  ✓ [TTS Live] batch 1 received over the log stream — kernel kept alive");
+        } catch (err) {
+          liveError = err;
+          console.warn(
+            `  ⚠️ [TTS Live] session failed (${err.message.split("\n")[0]}) — ` +
+              "collecting the kernel the classic way",
+          );
+          if (stream) stream.stop();
+          try {
+            await control.update({ requestId, batch: 1, action: "stop" });
+          } catch {
+            // The kernel will hit its idle timeout; nothing else to do here.
+          }
+        }
       }
-      let summary;
+
+      if (!stagedDir) {
+        // ── Classic collection (live disabled, or live failed after push) ──
+        try {
+          await poll(kernelId, pollOpts);
+
+          // ── Download output into per-call staging (#420) ──
+          // The download target MUST be unique per call: `kaggle kernels output`
+          // skips files when a more recent local copy exists. That skip is not an
+          // error — in the installed CLI (2.2.4) kernels_output gates the fetch on
+          // `download_needed()` (kaggle/api/kaggle_api_extended.py:8232, gated at
+          // :6715), which returns False when the local size/date look current; the
+          // command then still exits 0, so the pipeline reads the old file while
+          // the download "succeeded". The legacy `.kaggle-kernel/kaggle-output`
+          // dir is deliberately not reused, overwritten or cleaned as routine
+          // self-heal — acceptance is proven by the identity checks below, not by
+          // directory cleanliness.
+          const downloadDir = join(tempDir, "downloads", requestId);
+          mkdirSync(downloadDir, { recursive: true });
+          console.log("  📥 Downloading Kaggle kernel output...");
+          // #581: one transient error mid-transfer must not void a paid GPU run —
+          // the takes that already landed are recovered per file, bounded. This
+          // only guarantees the staged files are present and intact; identity,
+          // coverage and integrity are still judged by the gates below, so a
+          // partial recovery can never be promoted as a complete batch.
+          await downloadKernelOutput({
+            kernelId,
+            downloadDir,
+            expectedScenes: scenes.map((s) => s.id),
+            runCmd,
+            sleep: deps.sleep,
+          });
+          stagedDir = downloadDir;
+        } catch (err) {
+          if (!liveSession && liveAttempt) {
+            liveAttempt.stream.stop();
+            await control?.close();
+            liveAttempt = null;
+          }
+          throw err;
+        }
+      }
+
+      if (liveError && liveAttempt) {
+        // Classic recovery succeeded; the live attempt was told to stop and
+        // must not linger as a half-open gist/follower.
+        liveAttempt.stream.stop();
+        await control?.close();
+        liveAttempt = null;
+      }
+
+      let finalResults;
       try {
-        summary = JSON.parse(readFileSync(summaryPath, "utf-8"));
-      } catch (e) {
-        throw new Error(`Kaggle summary.json is not valid JSON: ${e.message}`);
-      }
-      verifyKaggleRunSummary(summary, { requestId, scenes });
-      const failed = summary.segments.filter((s) => s.error);
-      if (failed.length > 0) {
-        console.error(
-          `  ⚠️ ${failed.length} segments failed: ${failed.map((f) => `scene-${f.sceneId}`).join(", ")}`,
-        );
-      }
-      const promotable = summary.segments.filter((s) => !s.error);
-      for (const s of promotable) {
-        assertCompleteKernelWav(join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output), s.sceneId);
-      }
-
-      // ── Post-process ──
-      process.env.TTS_HIGHPASS = "0";
-      process.env.TTS_DENOISE = "0";
-
-      const finalResults = [];
-      for (const s of promotable) {
-        const srcPath = join(downloadDir, KAGGLE_OUTPUT_SUBDIR, s.output);
-        const destPath = join(outputDir, s.output);
-        copyFileSync(srcPath, destPath);
-
-        // Rubberband prosody OFF by default: the user-approved P100 samples
-        // were plain instruct2 output. Pitch/tempo shifting audibly changes
-        // timbre (hook accent drift, CTA mismatch vs approved baseline).
-        // Opt back in with TTS_PROSODY=1; global pace stays available via
-        // TTS_ATEMPO (post-process.mjs) without touching pitch.
-        const scene = scenes.find((sc) => sc.id === s.sceneId);
-        const prosody =
-          process.env.TTS_PROSODY === "1" && scene
-            ? getProsodyProfile(scene.refStyle || scene.visualType)
-            : null;
-        const { duration } = await postProcess(destPath, {
-          useSilenceFilter: true,
-          silenceFloorMs,
-          resample: true,
-          prosody,
+        finalResults = await promoteStagedBatch({
+          downloadDir: stagedDir,
+          scenes,
+          requestId,
+          outputDir,
+          hooks,
         });
-        finalResults.push({ sceneId: s.sceneId, audioPath: destPath, duration });
-        console.log(`  Scene ${s.sceneId}: ${duration.toFixed(2)}s`);
-      }
-
-      if (finalResults.length === 0) {
-        throw new Error("No successful TTS results from Kaggle kernel");
+      } catch (err) {
+        if (liveSession) await closeLiveSession({ background: false });
+        throw err;
+      } finally {
+        if (!liveSession && liveAttempt && stagedDir) {
+          liveAttempt.stream.stop();
+          await control?.close();
+        }
       }
 
       // Staging is per-call scratch: drop it after successful promotion so
@@ -2299,11 +2590,16 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // Cleanup can never affect correctness — acceptance depends on the
       // requestId bound into summary.json, not on directory state.
       try {
-        rmSync(downloadDir, { recursive: true, force: true });
+        rmSync(stagedDir, { recursive: true, force: true });
       } catch {
         // fail-open: leftover staging is harmless
       }
 
+      if (liveError) {
+        // A successful classic recovery still ends the live attempt: the
+        // kernel was told to stop, so there is nothing left to reuse.
+        console.warn("  ⚠️ [TTS Live] classic recovery completed; live session is closed");
+      }
       return finalResults;
     },
   };

@@ -103,9 +103,8 @@ const CARD_CENTRE = {
   y: EVIDENCE_CARD.top + EVIDENCE_CARD.height / 2,
 };
 
-/** 40px inside the card's right/bottom edge: where the old frame scrim landed.
- * The pixel probe patch is 60px wide, so the centre must be ≥30px inside the
- * card or half the patch reads the black frame outside it. */
+/** Probe points 40px inside the card's right and bottom edges. The inset keeps
+ * the 60x60 patch wholly on the card; half the patch outside would read black. */
 const CARD_EDGE_INSET = 40;
 const CARD_RIGHT = {
   x: EVIDENCE_CARD.left + EVIDENCE_CARD.width - CARD_EDGE_INSET,
@@ -236,7 +235,7 @@ async function sampleAt(props, point = CANVAS_CENTRE) {
   return name;
 }
 
-/** Mean luminance of a patch; a flat scrim changes all three channels together. */
+/** Mean luminance of a patch. A flat scrim changes all three channels together. */
 function meanLuma(png, point) {
   const rgb = meanColourInPatch(png, point);
   return (rgb.r + rgb.g + rgb.b) / 3;
@@ -503,5 +502,50 @@ describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000
       ),
       "a card-mode scene must render the same crop the full-frame scene would",
     ).toBe("blue");
+  });
+});
+
+// ─── MediaCard must never receive the frame-scoped rail/lane gradients ───
+// A card is a bounded window. MediaBackground's frame scrim stops are
+// canvas-relative; inside the 820px card they land on the card's own right
+// and bottom edge and read as a drop shadow. The solid-white source makes
+// any directional darkening measurable; the frame-scoped control proves the
+// probe actually sees it.
+describe("MediaCard has no directional card-edge shadow", { timeout: 600_000 }, () => {
+  const baseProps = { asset: "image", source: "solid", overlay: 0.7 };
+
+  it("current card: right and bottom edges match the centre", async () => {
+    const png = PNG.sync.read(readFileSync(await still({ ...baseProps, wrap: "card" })));
+    const centre = meanLuma(png, CARD_CENTRE);
+    const right = meanLuma(png, CARD_RIGHT);
+    const bottom = meanLuma(png, CARD_BOTTOM);
+    console.log(
+      `[evidence] card scrim edge/centre: right ${right.toFixed(1)} / bottom ${bottom.toFixed(1)} / centre ${centre.toFixed(1)}`,
+    );
+    expect(right, "card right edge must not carry a frame-relative rail vignette").toBeGreaterThan(
+      centre * 0.97,
+    );
+    expect(
+      bottom,
+      "card bottom edge must not carry a frame-relative subtitle scrim",
+    ).toBeGreaterThan(centre * 0.97);
+  });
+
+  it("frame scope control: the old card geometry does darken both edges", async () => {
+    const png = PNG.sync.read(readFileSync(await still({ ...baseProps, wrap: "cardFrame" })));
+    const centre = meanLuma(png, CARD_CENTRE);
+    const right = meanLuma(png, CARD_RIGHT);
+    const bottom = meanLuma(png, CARD_BOTTOM);
+    console.log(
+      `[evidence] frame-scoped control edge/centre: right ${right.toFixed(1)} / bottom ${bottom.toFixed(1)} / centre ${centre.toFixed(1)}`,
+    );
+    expect(
+      right,
+      "the negative control must fail this ratio, otherwise the test is not measuring the scrim",
+    ).toBeLessThan(centre * 0.96);
+    expect(
+      bottom,
+      "the negative control must fail this ratio, otherwise the test is not measuring the scrim",
+    ).toBeLessThan(centre * 0.94);
   });
 });

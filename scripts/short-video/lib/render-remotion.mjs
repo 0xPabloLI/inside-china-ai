@@ -23,8 +23,12 @@ import {
   copyFileSync,
   statSync,
   rmSync,
+  rmdirSync,
+  readFileSync,
+  readdirSync,
 } from "fs";
-import { join, dirname, basename } from "path";
+import { createHash } from "crypto";
+import { join, dirname, basename, relative, isAbsolute } from "path";
 import { fileURLToPath } from "url";
 import { finalizeRenderedVideo } from "./post-process.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
@@ -35,10 +39,18 @@ import {
   buildRemotionRenderArgs,
   describeRenderFailure,
   formatRenderCommand,
+  manifestPathFor,
   propsPathFor,
   renderArtifactDir,
+  updateRenderManifest,
   writeRenderArtifacts,
 } from "./render-manifest.mjs";
+import { computeCompositionFingerprint } from "./render-composition.mjs";
+import {
+  INCREMENTAL_SCHEMA,
+  buildSceneFingerprints,
+  planIncrementalRender,
+} from "./render-incremental.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -234,6 +246,203 @@ export function warnOffsetUnverifiable(scene) {
   }
 }
 
+/** File-level sha256, or null when the file is unreadable. */
+function sha256File(path) {
+  try {
+    return createHash("sha256").update(readFileSync(path)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+/** All staged media a scene's pixels can depend on, as paths under public/assets. */
+function stagedMediaPaths(scene) {
+  const paths = [];
+  if (scene?.media?.path) paths.push(scene.media.path);
+  if (scene?.media?.backdrop?.path) paths.push(scene.media.backdrop.path);
+  if (scene?.avatar?.videoPath) paths.push(scene.avatar.videoPath);
+  return paths;
+}
+
+/**
+ * One digest over every staged media file a scene references. A missing file
+ * yields null — the scene then compares unequal to any recorded hash, which is
+ * the fail-safe direction (render it again).
+ */
+export function sceneMediaSha256(scene, publicAssetsDir) {
+  const paths = stagedMediaPaths(scene);
+  if (paths.length === 0) return null;
+  const entries = [];
+  for (const rel of paths.sort()) {
+    const sha = sha256File(join(publicAssetsDir, rel));
+    if (!sha) return null;
+    entries.push(`${rel}:${sha}`);
+  }
+  return createHash("sha256").update(entries.join("\n")).digest("hex");
+}
+
+/**
+ * Find the newest render of this pipeline whose cache is still usable.
+ *
+ * Read-only: a candidate must match the composition fingerprint and fps, and
+ * every segment it recorded must still exist. Only after all of that does the
+ * planner decide whether the *scene data* also matches. Segment paths are
+ * stored relative to the pipeline output dir, so a moved output folder still
+ * resolves.
+ *
+ * @param {{outputDir: string, compositionFingerprint: string, fps?: number, excludeVersion?: string|null}} input
+ * @returns {{version: string, manifestPath: string, manifest: object}|null}
+ */
+export function findIncrementalBase({
+  outputDir,
+  compositionFingerprint,
+  fps = 30,
+  excludeVersion = null,
+}) {
+  const root = join(outputDir, "render");
+  if (!existsSync(root)) return null;
+  const candidates = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === excludeVersion) continue;
+    const manifestPath = join(root, entry.name, "manifest.json");
+    if (!existsSync(manifestPath)) continue;
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      const inc = manifest.incremental;
+      if (!inc || inc.schema !== INCREMENTAL_SCHEMA) continue;
+      if (inc.fps !== fps || inc.compositionFingerprint !== compositionFingerprint) continue;
+      if (!Array.isArray(inc.segments) || inc.segments.length === 0) continue;
+      const allPresent = inc.segments.every((segment) => {
+        if (typeof segment.path !== "string" || segment.path.length === 0) return false;
+        return existsSync(isAbsolute(segment.path) ? segment.path : join(outputDir, segment.path));
+      });
+      if (!allPresent) continue;
+      candidates.push({ version: entry.name, manifestPath, manifest });
+    } catch {
+      // A corrupt manifest is not a reason to stop looking further back.
+    }
+  }
+  candidates.sort((a, b) => {
+    const at = a.manifest.createdAt ?? a.version;
+    const bt = b.manifest.createdAt ?? b.version;
+    return bt.localeCompare(at);
+  });
+  return candidates[0] ?? null;
+}
+
+/**
+ * Delete everything under a stale version directory except files a kept
+ * manifest still references. A newer incremental render can reuse an older
+ * version's part, so `rm -rf render/<old>/` would silently break its cache.
+ */
+function removeUnprotectedTree(dir, protectedFiles) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (protectedFiles.has(full)) continue;
+    if (entry.isDirectory()) {
+      removeUnprotectedTree(full, protectedFiles);
+    } else {
+      try {
+        unlinkSync(full);
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+  try {
+    if (readdirSync(dir).length === 0) rmdirSync(dir);
+  } catch {
+    /* best effort */
+  }
+}
+
+/**
+ * Keep the two newest cached versions per pipeline (#228 ③ decision 11).
+ *
+ * Only files this renderer wrote are candidates: part files under
+ * `render/<version>/` and `*-raw.mp4` at the pipeline root. Anything still
+ * referenced by a kept manifest is preserved even when its own version is old.
+ *
+ * @param {{outputDir: string, keep?: number, keepVersion?: string|null}} input
+ * @returns {{removed: string[]}}
+ */
+export function pruneRenderCache({ outputDir, keep = 2, keepVersion = null }) {
+  const root = join(outputDir, "render");
+  if (!existsSync(root)) return { removed: [] };
+
+  const entries = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const manifestPath = join(root, entry.name, "manifest.json");
+    if (!existsSync(manifestPath)) continue;
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      const segments = manifest.incremental?.segments;
+      if (!Array.isArray(segments) || segments.length === 0) continue;
+      entries.push({ version: entry.name, dir: join(root, entry.name), manifest });
+    } catch {
+      continue;
+    }
+  }
+  entries.sort((a, b) => {
+    const at = a.manifest.createdAt ?? a.version;
+    const bt = b.manifest.createdAt ?? b.version;
+    return bt.localeCompare(at);
+  });
+
+  const keepSet = new Set(entries.slice(0, keep).map((entry) => entry.version));
+  if (keepVersion) keepSet.add(keepVersion);
+
+  const protectedFiles = new Set();
+  for (const entry of entries) {
+    if (!keepSet.has(entry.version)) continue;
+    for (const segment of entry.manifest.incremental.segments) {
+      protectedFiles.add(isAbsolute(segment.path) ? segment.path : join(outputDir, segment.path));
+    }
+  }
+
+  const removed = [];
+  for (const entry of entries) {
+    if (keepSet.has(entry.version)) continue;
+    let protectedInDir = false;
+    for (const segment of entry.manifest.incremental.segments) {
+      const abs = isAbsolute(segment.path) ? segment.path : join(outputDir, segment.path);
+      if (protectedFiles.has(abs)) {
+        protectedInDir = true;
+        continue;
+      }
+      const rel = relative(outputDir, abs);
+      if (rel.startsWith("..") || isAbsolute(rel)) continue;
+      const allowed = rel.startsWith("render/") || /-raw\.mp4$/.test(abs);
+      if (!allowed || !existsSync(abs)) continue;
+      try {
+        unlinkSync(abs);
+        removed.push(rel);
+      } catch {
+        /* best effort */
+      }
+    }
+    if (protectedInDir) {
+      removeUnprotectedTree(entry.dir, protectedFiles);
+      if (!existsSync(entry.dir)) removed.push(relative(outputDir, entry.dir));
+      continue;
+    }
+    try {
+      rmSync(entry.dir, { recursive: true, force: true });
+      removed.push(relative(outputDir, entry.dir));
+    } catch {
+      /* best effort */
+    }
+  }
+  return { removed };
+}
+
 /**
  * Render a video using Remotion.
  *
@@ -376,6 +585,75 @@ export function renderRemotion({
 
   // ── 3. Calculate total duration in frames (from timeline.mjs — single source of truth) ──
   const totalFrames = durations.reduce((sum, d) => sum + sceneClipFrames(d), 0);
+  const fps = 30;
+
+  // ── 3b. Incremental plan ──
+  // Everything below this line is a pure decision made from inputs that already
+  // exist on disk. The cache lookup only reads manifests; a plan that cannot
+  // prove every reused frame is byte-identical falls back to a full render.
+  const composition = computeCompositionFingerprint({ remotionDir: REMOTION_DIR });
+  const audioSha256 = {};
+  audioPaths.forEach((path, index) => {
+    const id = scenes[index]?.id ?? index + 1;
+    audioSha256[id] = sha256File(path.replace("file://", ""));
+  });
+  const mediaSha256 = {};
+  for (const scene of sanitizedScenes) {
+    mediaSha256[scene.id] = sceneMediaSha256(scene, publicAssetsDir);
+  }
+  const sceneFingerprints = buildSceneFingerprints({
+    scenes: sanitizedScenes,
+    durations,
+    audioSha256,
+    mediaSha256,
+  });
+  const forceFull = process.env.SHORT_VIDEO_FORCE_FULL_RENDER === "1";
+  const base = forceFull
+    ? null
+    : findIncrementalBase({
+        outputDir,
+        compositionFingerprint: composition.fingerprint,
+        fps,
+        excludeVersion: version,
+      });
+  const plan = planIncrementalRender({
+    previous: forceFull ? null : (base?.manifest.incremental ?? null),
+    props,
+    sceneFingerprints,
+    compositionFingerprint: composition.fingerprint,
+    fps,
+  });
+  const mode = forceFull ? "full" : plan.mode;
+  if (forceFull) plan.reason = "SHORT_VIDEO_FORCE_FULL_RENDER=1";
+
+  if (mode === "full") {
+    console.log(`  🎬 Full render (${plan.reason ?? "cold cache"}): ${totalFrames} frames`);
+  } else if (mode === "noop") {
+    console.log(`  ♻️ Inputs unchanged — 0 frames rasterized, re-finalize only`);
+  } else {
+    console.log(
+      `  ♻️ Incremental: reuse ${plan.stats.reusedFrames}/${totalFrames} frames, ` +
+        `render ${plan.stats.dirtyFrames} across scene(s) ${plan.stats.dirtyScenes.join(", ")}`,
+    );
+  }
+
+  const incrementalRecord = {
+    schema: INCREMENTAL_SCHEMA,
+    mode,
+    reason: plan.reason ?? null,
+    fallbackReason: mode === "full" ? (plan.reason ?? null) : null,
+    compositionFingerprint: composition.fingerprint,
+    fps,
+    totalFrames: plan.totalFrames,
+    scenes: plan.timeline.map((entry, index) => ({
+      ...entry,
+      fingerprint: sceneFingerprints[index]?.fingerprint ?? null,
+      audioSha256: audioSha256[entry.sceneId] ?? null,
+      mediaSha256: mediaSha256[entry.sceneId] ?? null,
+    })),
+    segments: [],
+    baseManifest: base?.manifestPath ?? null,
+  };
 
   // ── 4. Render via CLI ──
   const filePrefix = subject && subject !== pipelineId ? `${subject}-${pipelineId}` : pipelineId;
@@ -383,12 +661,11 @@ export function renderRemotion({
   const finalPath = join(outputDir, `${filePrefix}${versionSuffix}-short.mp4`);
   const rawPath = join(outputDir, `${filePrefix}${versionSuffix}-raw.mp4`);
 
-  console.log(`  🎬 Rendering ${scenes.length} scenes via Remotion (${totalFrames} frames)...`);
-
   // Props go to disk, not into the command line: one line per render used to
   // carry 8KB of JSON, and a failure kept only 200 characters of it (see
   // render-manifest.mjs for the layout and why).
   const artifactDir = renderArtifactDir(outputDir, version);
+  const manifestPath = manifestPathFor(artifactDir);
   const renderArgs = buildRemotionRenderArgs({
     rawPath,
     propsPath: propsPathFor(artifactDir),
@@ -408,42 +685,117 @@ export function renderRemotion({
     audioBasenames: audioPaths.map((p) => basename(p.replace("file://", ""))),
   };
 
-  const { manifestPath } = writeRenderArtifacts({
+  writeRenderArtifacts({
     outputDir,
     version,
     props,
     pipelineId,
     contentDir,
     audioDir: join(outputDir, "audio"),
-    rawPath,
+    rawPath: mode === "full" ? rawPath : null,
     finalPath,
     subtitlesPath,
     bgmPath,
     subject,
     command: renderArgs,
     finalize,
+    incremental: forceFull ? null : incrementalRecord,
   });
   const commandLine = formatRenderCommand(renderArgs);
   console.log(`  📄 Render artifacts: ${manifestPath}`);
 
-  try {
-    // argv array, no shell: the props path is the only path that reaches here,
-    // and quoting is no longer load-bearing for correctness.
-    execFileSync(renderArgs[0], renderArgs.slice(1), {
-      cwd: REMOTION_DIR,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-  } catch (e) {
-    const stderr = e.stderr?.toString() ?? "";
-    // The structured gate failure sits on the LAST TextFitError line; head-
-    // truncating stderr buries it under per-frame browser console noise
-    // (burned a debugging session on the _gate-smoke run).
-    const fitError = [...stderr.matchAll(/\[TextFitError\] (\{.*\})/g)].pop()?.[1];
-    const detail = fitError ?? stderr.slice(-800);
-    throw new Error(describeRenderFailure({ detail, commandLine, manifestPath }));
-  }
+  const segments = [];
+  if (mode === "full") {
+    try {
+      // argv array, no shell: the props path is the only path that reaches
+      // here, and quoting is no longer load-bearing for correctness.
+      execFileSync(renderArgs[0], renderArgs.slice(1), {
+        cwd: REMOTION_DIR,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (e) {
+      const stderr = e.stderr?.toString() ?? "";
+      // The structured gate failure sits on the LAST TextFitError line; head-
+      // truncating stderr buries it under per-frame browser console noise
+      // (burned a debugging session on the _gate-smoke run).
+      const fitError = [...stderr.matchAll(/\[TextFitError\] (\{.*\})/g)].pop()?.[1];
+      const detail = fitError ?? stderr.slice(-800);
+      throw new Error(describeRenderFailure({ detail, commandLine, manifestPath }));
+    }
+    console.log(`  ✅ Remotion render complete: ${rawPath}`);
+  } else if (mode === "noop") {
+    // Nothing to rasterize: the previous manifest's segments are this run's
+    // segments, byte for byte.
+    segments.push(
+      ...plan.segments.map((segment) => ({
+        path: segment.path,
+        startFrame: segment.startFrame,
+        endFrame: segment.endFrame,
+        generation: segment.generation ?? 0,
+        timelineStartFrame: segment.timelineStartFrame,
+        timelineEndFrame: segment.timelineEndFrame,
+      })),
+    );
+  } else if (mode === "incremental") {
+    const partsDir = join(artifactDir, "parts");
+    mkdirSync(partsDir, { recursive: true });
+    const baseGeneration = Math.max(
+      0,
+      ...(base?.manifest.incremental.segments ?? []).map((segment) => segment.generation ?? 0),
+    );
+    let partIndex = 0;
 
-  console.log(`  ✅ Remotion render complete: ${rawPath}`);
+    for (const segment of plan.segments) {
+      if (segment.kind === "reuse") {
+        segments.push({
+          path: segment.path,
+          startFrame: segment.startFrame,
+          endFrame: segment.endFrame,
+          generation: segment.generation ?? 0,
+          timelineStartFrame: segment.timelineStartFrame,
+          timelineEndFrame: segment.timelineEndFrame,
+        });
+        continue;
+      }
+
+      const frames = segment.timelineEndFrame - segment.timelineStartFrame;
+      const partAbs = join(partsDir, `part-${String(partIndex).padStart(3, "0")}.mp4`);
+      partIndex += 1;
+      const partArgs = [
+        ...buildRemotionRenderArgs({ rawPath: partAbs, propsPath: propsPathFor(artifactDir) }),
+        // Remotion's range is inclusive; our segment ends are exclusive.
+        `--frames=${segment.timelineStartFrame}-${segment.timelineEndFrame - 1}`,
+      ];
+      try {
+        execFileSync(partArgs[0], partArgs.slice(1), {
+          cwd: REMOTION_DIR,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+      } catch (e) {
+        const stderr = e.stderr?.toString() ?? "";
+        const fitError = [...stderr.matchAll(/\[TextFitError\] (\{.*\})/g)].pop()?.[1];
+        const detail = fitError ?? stderr.slice(-800);
+        throw new Error(
+          describeRenderFailure({
+            detail,
+            commandLine: formatRenderCommand(partArgs),
+            manifestPath,
+          }),
+        );
+      }
+      segments.push({
+        path: relative(outputDir, partAbs),
+        startFrame: 0,
+        endFrame: frames,
+        generation: baseGeneration + 1,
+        timelineStartFrame: segment.timelineStartFrame,
+        timelineEndFrame: segment.timelineEndFrame,
+      });
+      console.log(
+        `  🎞️  Rendered frames ${segment.timelineStartFrame}–${segment.timelineEndFrame - 1} → ${basename(partAbs)}`,
+      );
+    }
+  }
 
   // ── 5. Finalize in a single ffmpeg pass (#198) ──
   // The former chain ran up to 4 sequential passes over the same mp4
@@ -453,8 +805,19 @@ export function renderRemotion({
   // into one -filter_complex pass; the head drift is measured on the RAW
   // output (audio decode only — post-processing preserves timestamps) so the
   // trim rides in the single encode instead of costing its own re-encode.
+  const finalizeSegments =
+    mode === "full"
+      ? null
+      : segments.map((segment) => ({
+          path: isAbsolute(segment.path) ? segment.path : join(outputDir, segment.path),
+          startFrame: segment.startFrame,
+          endFrame: segment.endFrame,
+        }));
+
   finalizeRenderedVideo({
-    videoPath: rawPath,
+    videoPath: mode === "full" ? rawPath : null,
+    segments: finalizeSegments,
+    fps,
     assPath: finalize.assPath,
     bgmPath: finalize.bgmPath,
     outputPath: finalPath,
@@ -472,6 +835,35 @@ export function renderRemotion({
     if (finalize.deleteRawAfter && existsSync(rawPath)) unlinkSync(rawPath);
   } catch {}
 
+  // Record the segments this run produced, then prune caches beyond the last
+  // two versions. A forced full render deliberately writes no cache.
+  const recordedSegments =
+    mode === "full"
+      ? existsSync(rawPath)
+        ? [
+            {
+              path: relative(outputDir, rawPath),
+              startFrame: 0,
+              endFrame: totalFrames,
+              generation: 0,
+            },
+          ]
+        : []
+      : segments;
+  if (!forceFull) {
+    incrementalRecord.segments = recordedSegments;
+    updateRenderManifest(manifestPath, {
+      // Keep the path even after the raw file is pruned: replay re-renders the
+      // raw from props, and the manifest must still describe what it rendered.
+      rawPath: mode === "full" ? rawPath : null,
+      incremental: incrementalRecord,
+    });
+    const pruned = pruneRenderCache({ outputDir, keep: 2, keepVersion: version });
+    if (pruned.removed.length > 0) {
+      console.log(`  🧹 Pruned ${pruned.removed.length} stale render artifact(s)`);
+    }
+  }
+
   // ── 6. Get final duration ──
   // argv-safe shared probe (#319 OCR video batch scan): finalPath carries
   // subject/pipelineId, so it must never reach a shell string.
@@ -486,5 +878,11 @@ export function renderRemotion({
     rmSync(publicAudioDir, { recursive: true, force: true });
   } catch {}
 
-  return { path: finalPath, duration: finalDuration };
+  const repairSegments = recordedSegments.map((segment) => ({
+    path: isAbsolute(segment.path) ? segment.path : join(outputDir, segment.path),
+    startFrame: segment.startFrame,
+    endFrame: segment.endFrame,
+  }));
+
+  return { path: finalPath, duration: finalDuration, mode, segments: repairSegments };
 }

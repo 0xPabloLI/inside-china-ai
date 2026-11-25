@@ -1,23 +1,21 @@
 /**
  * MediaCard scrim contract.
  *
- * Regression source: 2026-11-15 (#1375) gave MediaBackground frame-scoped
- * bottom and rail gradients whose stops are calibrated for the 1080×1920
- * canvas. MediaCard was left on the default "frame" scope, so those stops
- * re-scaled into the card's own 820×594 box and painted a dark band on its
- * right and bottom edges — read as a drop shadow (reported 2026-11-22).
+ * Regression source: a bounded media card was left on MediaBackground's
+ * default "frame" scrim scope. Those gradient stops are calibrated for the
+ * 1080×1920 canvas; inside an 820px card they re-scale into the card and paint
+ * a dark band on its right and bottom edges — read as a drop shadow.
  *
- * MediaCard is a band, not the full frame. This guard keeps a future refactor
- * from silently dropping the explicit element scope again.
+ * This is the fast source gate; the pixel gate lives in
+ * media-focus-render.test.mjs and measures a solid-white card edge against
+ * its centre. Both are required: this one fails before a render starts, the
+ * pixel one catches a gradient that reappears through another layer.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const CARD_PATH = join(
-  process.cwd(),
-  "scripts/short-video/remotion/src/components/MediaCard.tsx",
-);
+const CARD_PATH = join(process.cwd(), "scripts/short-video/remotion/src/components/MediaCard.tsx");
 
 describe("MediaCard scrim scope", () => {
   it("passes the element scrim scope to MediaBackground", () => {

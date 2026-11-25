@@ -21,6 +21,7 @@ import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs"
 // the inverse direction so a spelled CTA number and a digit dataPoints entry
 // compare equal without a second lexicon.
 import { numericAnchors } from "./normalize-tts-text.mjs";
+import { validateSceneBeats } from "./semantic-beats.mjs";
 // One spelling list for Step 0.5 and this advisory: whatever the auto-fix
 // annotates is exactly what the verify-time net stops flagging.
 import { findCurrencySpellings, hasNearbyUsd } from "./normalize-currency.mjs";
@@ -44,6 +45,9 @@ import {
   TARGET_KEYWORDS,
   KNOWN_COMPANIES,
 } from "./tiktok-rules.mjs";
+// Hook layout selection (#1480): the criteria live in their own leaf module so
+// the Stage 3 CLI and this advisory share one implementation.
+import { evaluateHookLayout } from "./hook-layout.mjs";
 
 // Numeric thresholds: profile is the single source (tiktok-rules.mjs no
 // longer re-exports them — #219 T02 Middle-Man removal).
@@ -76,6 +80,7 @@ import {
 } from "./focus-light.mjs";
 import { sceneClipFrames } from "./timeline.mjs";
 import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs";
+import { runIndustryFactChecks } from "./industry-facts.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
 import { mediaRoleOf, MEDIA_ROLE, MEDIA_ROLES } from "./media-role.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
@@ -493,6 +498,41 @@ export function checkHookVisualPriority(scenes, meta = {}) {
       fix: `Use a 0.5-1.5s teaser from that clip in scene 1-2, or add meta.hookVisualPriorityReason explaining why the clip cannot open (spoiler / fact mismatch / rights).`,
     },
   ];
+}
+
+/**
+ * Hook layout selection (#1480): does the pack's opening layout fit what the
+ * opening fact can carry? Research §6 (industry-knowledge-layer-2026-11.md)
+ * rules for number-led / claim-led / media-led, judged by lib/hook-layout.mjs.
+ *
+ * Advisory on purpose: taste-adjacent selection is a Stage 3 editorial gate
+ * (scripts/short-video/hook-layout.mjs, where the cross-pack run is also
+ * judged), not a CI block.
+ */
+function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
+  const evaluated = evaluateHookLayout(scenes?.[0], {
+    scenes,
+    meta,
+    industryContext: opts.industryContext ?? null,
+    sceneDurations: opts.sceneDurations,
+  });
+  if (evaluated.findings.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: "Hook layout selection",
+        detail: `版式 ${evaluated.layout}，其硬前提成立`,
+      },
+    ];
+  }
+  return evaluated.findings.map((finding) => ({
+    level: finding.level === "fail" ? "fail" : "warn",
+    category: "Hook",
+    check: "Hook layout selection",
+    detail: `[${finding.code}] ${finding.detail}`,
+    fix: finding.fix,
+  }));
 }
 
 /**
@@ -1929,12 +1969,45 @@ function checkTextConcatenation(scenes) {
  */
 const VALID_LAYOUTS = [
   "hero-center",
+  "media-first",
   "media-bottom-bar",
   "media-split",
   "media-overlay",
   "stacked-cards",
   "cta",
 ];
+/**
+ * Semantic beats contract (#733 S2) — opt-in. Scenes without `beats` are
+ * skipped, so the existing corpus is unaffected; a pack that adopts the
+ * schema gets the same fail-closed checks as the standalone CLI.
+ */
+function checkSemanticBeats(scenes) {
+  const results = [];
+  for (const scene of scenes) {
+    if (scene?.beats === undefined || scene?.beats === null) continue;
+    const { ok, errors } = validateSceneBeats(scene);
+    if (ok) {
+      results.push({
+        level: "pass",
+        category: "Structure",
+        check: `Scene ${scene.id} semantic beats`,
+        detail: `${scene.beats.length} beat(s) anchored and in-vocabulary`,
+      });
+      continue;
+    }
+    for (const error of errors) {
+      results.push({
+        level: "fail",
+        category: "Structure",
+        check: `Scene ${scene.id} semantic beats`,
+        detail: `${error.code}: ${error.message}`,
+        fix: "Fix scene.beats to match the #733 S2 contract (see docs/specs/spec-semantic-beats.md)",
+      });
+    }
+  }
+  return results;
+}
+
 function checkLayoutField(scenes) {
   const results = [];
   for (const scene of scenes) {
@@ -2845,7 +2918,7 @@ export function checkMediaOptOutDeprecation(scenes) {
  * before the layout dispatch, so the picture fills the frame with only the
  * source label on top — evidence stays readable there, whatever the layout.
  */
-function isTextFirstLayoutScene(scene) {
+export function isTextFirstLayoutScene(scene) {
   if (scene.media?.mode === "fullscreen") return false;
   return resolveRenderLayout(scene) === "stacked-cards" || scene.visualType === "contrast";
 }
@@ -3008,6 +3081,89 @@ export function checkLayoutMediaRouting(scenes) {
  * `allowsContainFit` is the same predicate the allocator uses, so the writer
  * and the gate cannot drift apart.
  */
+/**
+ * media-first contract (#1524).
+ *
+ * The layout exists to let a 16:9 source fill the frame without cropping the
+ * subject or showing letterbox bars, and to shrink the copy by VOLUME (fewer
+ * rows), not by type size. Those are four declarations the template cannot
+ * infer, so preflight checks them explicitly:
+ *   - media present (the band is the layout),
+ *   - role evidence (decorative/ambient pictures are routed elsewhere),
+ *   - fit "contain" + fill "blur" (the pair that removes black bars without
+ *     cropping; either alone reproduces the problem this ticket fixes),
+ *   - no per-row copy longer than the 32-character comfort line.
+ */
+export function checkMediaFirstContract(scenes) {
+  const CHECK = "Media-first layout contract";
+  const CATEGORY = "Media";
+  const results = [];
+  for (const scene of scenes || []) {
+    if (scene?.visualType !== "narrative" || scene?.layout !== "media-first") continue;
+    const where = `Scene ${scene.id}`;
+    if (!scene.media) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: layout "media-first" has no media — the picture IS the layout`,
+        fix: 'Bind media (evidence), or use "media-bottom-bar" for a text-led beat.',
+      });
+      continue;
+    }
+    if (mediaRoleOf(scene) !== MEDIA_ROLE.EVIDENCE) {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: media-first picture is not evidence (role "${mediaRoleOf(scene)}") — it would fall back to the bounded card path at render`,
+        fix: 'Promote the picture to evidence (mediaRole: "evidence" + source), or move the beat to another layout.',
+      });
+    }
+    if (scene.media.fit !== "contain") {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: media-first requires fit "contain" (got "${scene.media.fit ?? "cover"}") — cover crops the sides of a 16:9 source, which is the defect the layout exists to avoid`,
+        fix: 'Add fit: "contain" and fill: "blur".',
+      });
+    }
+    if (scene.media.fill !== "blur") {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: media-first requires fill "blur" — a contained picture without it leaves visible letterbox bars`,
+        fix: 'Add fill: "blur" beside fit: "contain".',
+      });
+    }
+    if (scene.media.mode === "card") {
+      results.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `${where}: mode "card" is not honored by media-first — the card branch only exists in media-bottom-bar / hook`,
+        fix: 'Drop mode:"card", or move the beat to media-bottom-bar.',
+      });
+    }
+    const copy = scene.texts || {};
+    for (const key of ["company", "result"]) {
+      const value = copy[key];
+      if (typeof value === "string" && value.trim().length > 32) {
+        results.push({
+          level: "warn",
+          category: CATEGORY,
+          check: CHECK,
+          detail: `${where}: texts.${key} is ${value.trim().length} chars — media-first is a short-copy layout (comfort line 32); move the detail into voiceover or drop it`,
+          fix: "Shorten the row; do not shrink the type.",
+        });
+      }
+    }
+  }
+  return results;
+}
+
 export function checkContainFitBand(scenes) {
   const CHECK = "contain fit has a band";
   const CATEGORY = "Media";
@@ -3553,6 +3709,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkMediaDensityPreflight(scenes, { meta }),
     ...checkTextConcatenation(scenes),
     ...checkLayoutField(scenes),
+    ...checkSemanticBeats(scenes),
     ...checkTemplateContract(scenes),
     ...checkInfoSpec(scenes),
     ...checkChartPinContract(scenes),
@@ -3560,6 +3717,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkInstructCoverage(scenes, opts),
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaFieldSchema(scenes),
+    ...checkMediaFirstContract(scenes),
     ...checkSearchHintsSchema(scenes, claimPhrases),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),
@@ -3570,6 +3728,11 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkFocusLight(scenes),
     ...checkBrollPromptDimensions(scenes),
     ...checkCurrencyDualAnnotation(scenes),
+    ...runIndustryFactChecks(scenes, {
+      meta,
+      today: opts.today,
+      context: opts.industryContext,
+    }),
     ...avatarResults.filter((r) => r.check !== AVATAR_USAGE_CHECK),
   ];
 
@@ -3579,6 +3742,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const EDITORIAL_RUNNERS = [
     () => checkHookCompellingElement(scenes),
     () => checkHookVisualPriority(scenes, meta),
+    () => checkHookLayoutSelection(scenes, opts, meta),
     () => checkHookSentenceFamily(scenes),
     () => checkHookDuration(scenes, opts),
     () => checkShareWorthyData(scenes),

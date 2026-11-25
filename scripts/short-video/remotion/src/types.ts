@@ -48,6 +48,14 @@ export interface MediaField {
   fit?: "cover" | "contain"; // default "cover" — how to place landscape media in 9:16
   /** Solid matte behind a contained picture's letterbox (CSS color). Match the source's own edge so the card frame does not read as a dark shadow. */
   matteColor?: string;
+  /**
+   * #1524: fill behind a contained picture. `"blur"` paints a blurred,
+   * cover-cropped copy of the same source across the container, so a 16:9
+   * source sits at full width with no letterbox and no subject crop.
+   * Only legal with `fit: "contain"`, and currently only on `media-first` —
+   * the scene-data schema and preflight enforce both.
+   */
+  fill?: "blur";
   /** @deprecated Replaced by protectedRegions from detectFocus() in Phase 2. Existing scene-data values still render, but new auto-analysis no longer writes this field. */
   focus?: "top" | "center" | "bottom"; // default "center" — crop focus when fit is "cover"
   /** #1040: normalized [0,1] CSS object-position ratio (0 = left/top, 0.5 = centre, 1 = right/bottom) — NOT a source-space point. `objectPositionFor` maps it straight to `${x * 100}%`; producers convert via crop-decision.mjs `sourceFocusToObjectPosition`. Overrides deprecated `focus` enum when present. Set by selectBestCrop(). */
@@ -56,6 +64,25 @@ export interface MediaField {
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
   overlay?: number;
   volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
+  /**
+   * #1525: scene-relative audio window, seconds. `audioIn` starts the source
+   * sound at that scene time; `audioOut` stops it. Both default to the scene
+   * edges, so omitting them keeps the pre-#1525 whole-scene behaviour. The
+   * source is still the same clip selected by `videoStartOffsetMs`; this gates
+   * what the viewer hears, not which frames play.
+   */
+  audioIn?: number;
+  audioOut?: number;
+  /** #1525: seconds of fade at the audio window edges; default 0.25 each. */
+  audioFadeIn?: number;
+  audioFadeOut?: number;
+  /**
+   * #1525: lower this clip's source audio while the scene has narration.
+   * `duckLevel` is the multiplier (0–1, default 0.25); requires
+   * `duckUnderNarration: true` because silent-by-default is the safer choice.
+   */
+  duckUnderNarration?: boolean;
+  duckLevel?: number;
   /**
    * Controls the sub-720p upscale safety net. `false` opts out entirely (set by
    * the B-roll stage — Tier A clips are 480×832 by design). `"resample"` keeps

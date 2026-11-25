@@ -119,8 +119,8 @@ describe("checkTemplateContract (kimi-ipo violation replay)", () => {
       scene(2, "narrative", "media-bottom-bar", {
         company: "OPEN WEIGHTS DAY ONE",
         action: "SHIP IT",
-        result: "FREE",
-        highlight: { field: "company", text: "OPEN WEIGHTS" },
+        result: "FREE SHIPPING",
+        highlight: { field: "result", text: "FREE" },
       }),
       scene(5, "data", "hero-center", { stat: "$1.4B", statLabel: "MARK" }),
     ]);

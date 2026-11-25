@@ -85,6 +85,20 @@ try {
 } catch {}
 const pipelineId = meta?.pipelineId || contentDir.replace(/\//g, "-");
 
+// #253 S2: the pack's industry-context.json (written by industry-context.mjs)
+// rides along so the MRL-2 fact gate reuses the same entity list the writer saw.
+// The ledger itself is re-read live by the gate — this file is never trusted as
+// the fact source.
+const INDUSTRY_CONTEXT_PATH = join(__dirname, "content", contentDir, "industry-context.json");
+let industryContext = null;
+if (existsSync(INDUSTRY_CONTEXT_PATH)) {
+  try {
+    industryContext = JSON.parse(readFileSync(INDUSTRY_CONTEXT_PATH, "utf8"));
+  } catch {
+    // unreadable copy: the gate still runs off the live ledger
+  }
+}
+
 const run = preMode
   ? // --pre judges the authored state; no run has written anything yet, and a
     // leftover run must not stand in for it (#1305).
@@ -413,6 +427,7 @@ const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, {
   longForm,
   meta,
   sceneDurations,
+  industryContext,
 });
 
 // Passing checks collapse to one line per category: the gate is read for what
@@ -535,6 +550,21 @@ if (scenesWithMedia.length > 0) {
   for (const row of report.rows) {
     if (row.level === "pass") pass("VideoFit", row.check, row.detail);
     else fail("VideoFit", row.check, row.detail, row.fix);
+  }
+}
+// ─── Competition demo gate (shared: pre-render + post-render) ───
+// 2026-11-23 user ruling: event/hackathon/awards coverage must carry the
+// work itself, not only stage photos. Docs alone did not prevent a pack from
+// shipping stills-only; this gate makes the omission visible before render.
+{
+  const { checkCompetitionDemo } = await import("./lib/competition-demo.mjs");
+  const report = checkCompetitionDemo({ scenes, meta });
+  console.log("\n🏁 Competition Demo");
+  console.log("─".repeat(50));
+  for (const row of report.rows) {
+    if (row.level === "pass") pass("CompetitionDemo", row.check, row.detail);
+    else if (row.level === "warn") warn("CompetitionDemo", row.check, row.detail, row.fix);
+    else fail("CompetitionDemo", row.check, row.detail, row.fix);
   }
 }
 

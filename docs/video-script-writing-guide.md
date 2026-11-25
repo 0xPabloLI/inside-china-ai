@@ -393,6 +393,24 @@ CTA 公式：`[Action Verb] + [What They Get]`
 2. **跨 scene 逐字复用**：多条 scene 用同一句 prompt（复用等于放弃适配层）。每条 prompt 必须围绕**本 scene 自己的主体**重写。
 3. **手写 negative / brand**：`no text`、`no watermark`、品牌底色等由代码注入，手写属重复或覆盖。
 
+### 可选：语义拍（`scene.beats`）
+
+需要机器可读的“这一句在语义上是什么”时，给 scene 加 `beats`（契约见 `docs/specs/spec-semantic-beats.md`）：
+
+```js
+beats: [
+  { id: "cost-drop", at: "cut task cost 62%", role: "delta", weight: "main" },
+  { id: "baseline", at: "$4.43", role: "baseline", weight: "sub" },
+],
+```
+
+- `at` 必须是 `voiceover` 里**只出现一次**的精确子串；重复短语补上下文。
+- `role` 用 26 词新闻词表（CLI `semantic-beats --roles` 可列）；一个 scene 最多一个 `main`。
+- 口播与屏幕不同词时，给 `main` 加 `screenAt: { field, text }`，显式声明要标注的屏幕片段；`field` 只能是 `narrative.result/action` 或 `hook.hookText`。
+- 先跑 `semantic-beats --highlight --content <slug>` 看提案；确认后加 `--write` 才把派生行写进 Scene Data，默认不写盘。
+- 不写 `beats` 的包不受影响；写了就进 pre-render gate，非法即 fail-closed。
+- 选版式仍走 `shot-recipes.mjs`，`beats` 不携带 layout / recipeId。
+
 ---
 
 ## Step 7: 运行 MRL-2 自审
@@ -442,16 +460,25 @@ CTA 公式：`[Action Verb] + [What They Get]`
 
 素材标注不要写进 voiceover（TTS 会读出来，scene-rules B13 会 FAIL）。VLM 判的是**画面主体是不是 claim 要的那类东西**（公司 / 产品 / 人物 / 地点 / 物体），不要求拍出旁白里的抽象事件（融资、战略调整、招聘计划）；外语界面文字不算负面证据，官方中文 UI 截图反而是强证据。40–59 分属 borderline，会再跑一次「画面主体」二度校验，`match` 才准入；分数缺失或解析失败记 UNAVAILABLE，属工具问题、先修 analyzer 而不是换图。宁缺毋滥：scene 保持纯 CSS 是合法结果（见 `docs/content-pipeline.md` → 8b）。
 
-**版式与素材职责（Stage 3 必填实践，#761）**：`narrative/stacked-cards` 与 `contrast/hero-center` 是**文本优先版式**——`scene.media` 只作为全幅暗化背景垫在文字块下面，证据类素材（图表、表格、页面截图、必须看清的官方图）放进去会被卡片或对比栏遮住，等于没给。因此这两个版式**禁止声明 `assetNeed`，也禁止绑定 `media.evidence: true`**；preflight 的 `Text-first layout media routing` 会直接 FAIL，并给出三选一修法。需要证据的拍必须路由到有独立媒体视窗的版式：`narrative` 用 `media-bottom-bar` / `media-split` / `media-overlay`，整屏素材用 `visualType: "fullscreen"` 或 `media.mode: "fullscreen"`（后者绕过版式，文字只剩 source 标注）。只要氛围的拍删掉 `assetNeed`、绑定一张 stock/实拍背景（或保持纯 CSS）即可；确定不要素材就**同时**删掉 `assetNeed` 并写 `media: null`——只写 `media: null` 不解除门禁。判据是「这一拍是否真的要让观众读清一张图」，不是素材文件名听起来像不像图表。
+**版式与素材职责（Stage 3 必填实践，#761）**：`narrative/stacked-cards` 与 `contrast/hero-center` 是**文本优先版式**——`scene.media` 只作为全幅暗化背景垫在文字块下面，证据类素材（图表、表格、页面截图、必须看清的官方图）放进去会被卡片或对比栏遮住，等于没给。因此这两个版式**禁止声明 `assetNeed`，也禁止绑定 `media.evidence: true`**；preflight 的 `Text-first layout media routing` 会直接 FAIL，并给出三选一修法。需要证据的拍必须路由到有独立媒体视窗的版式：`narrative` 用 `media-first` / `media-bottom-bar` / `media-split` / `media-overlay`，整屏素材用 `visualType: "fullscreen"` 或 `media.mode: "fullscreen"`（后者绕过版式，文字只剩 source 标注）。只要氛围的拍删掉 `assetNeed`、绑定一张 stock/实拍背景（或保持纯 CSS）即可；确定不要素材就**同时**删掉 `assetNeed` 并写 `media: null`——只写 `media: null` 不解除门禁。判据是「这一拍是否真的要让观众读清一张图」，不是素材文件名听起来像不像图表。
 
-**contain 只写在有带的版式上（Stage 3 必填实践，#1075）**：`media.fit: "contain"` 的语义是「整幅保留、画面坐在文字条上」，只有在**有 contain 带**的地方成立——`narrative` 的 `media-bottom-bar`、`hook`，以及 `media.mode: "fullscreen"`（整幅画面、没有文字块压在上面，居中 letterbox 合法）。info-card / context / contrast，以及 `narrative` 的 `media-split` / `media-overlay` / `stacked-cards` 都在全幅容器里把画面垫在文字块下面：contain 会让画面 letterbox 到文字块以下、扎进字幕带。preflight 的 `contain fit has a band` 对这类组合直接 FAIL，修法与上一条同形（改 `cover`、把拍路由到 `media-bottom-bar`、或走 `fullscreen`）。自动取材同样受约束：VLM 给出的 contain 判定落在无带版式时会降级为 `cover`，并在产线日志里打一条降级告警——画面仍出，只是被裁。
+**contain 只写在有带的版式上（Stage 3 必填实践，#1075）**：`media.fit: "contain"` 的语义是「整幅保留、画面坐在文字条上」，只有在**有 contain 带**的地方成立——`narrative` 的 `media-bottom-bar` / `media-first`、`hook`，以及 `media.mode: "fullscreen"`（整幅画面、没有文字块压在上面，居中 letterbox 合法）。info-card / context / contrast，以及 `narrative` 的 `media-split` / `media-overlay` / `stacked-cards` 都在全幅容器里把画面垫在文字块下面：contain 会让画面 letterbox 到文字块以下、扎进字幕带。preflight 的 `contain fit has a band` 对这类组合直接 FAIL，修法与上一条同形（改 `cover`、把拍路由到 `media-bottom-bar`、或走 `fullscreen`）。自动取材同样受约束：VLM 给出的 contain 判定落在无带版式时会降级为 `cover`，并在产线日志里打一条降级告警——画面仍出，只是被裁。
+
+**media-first：画面优先、文案减量（Stage 3 选版，2026-11-24 #1524）**：当一拍的主角是一条 16:9 的证据片（冠军作品、预告片、官方演示），必须整幅看清、不能裁主体，而文案只剩一句结果时，用 `narrative` + `layout: "media-first"`。画面铺满整幅 0–1920：16:9 完整画面停在上三分之一（约 300–908），同源 blur 填满其余区域；文案块只有 3 行最多 256px，压在 950–1206 的平色条上（无渐变、无阴影）；字幕仍在 1236–1420，1420–1920 留给平台 UI。硬前提：`mediaRole: "evidence"`、`fit: "contain"`、`fill: "blur"` 三件套同时写——`fill: "blur"` 用同一素材的模糊副本填满 contain 留下的空间，既不出黑边也不裁主体；`texts` 只允许 `company` / `result` / `source`（`action` / `context` / `badge` 会 FAIL），单行超过 32 字符报警。它是「文案内容变少」，不是「同样多的字缩小字号」：需要四行叙事或 badge 的拍请留在 `media-bottom-bar`。
+
+**有界媒体面禁止方向性 scrim（Stage 3 硬规则，2026-11-24）**：`MediaCard`、证据带、`media-split` 的单侧窗口都是「有界媒体面」，画面四周必须干净。`MediaBackground` 的 `frame` scrim 是给整幅画布背景用的：它的右侧 rail 渐变和底部长条渐变按 1080×1920 定位，缩进 820px 卡片后就会落在卡片自己的右缘和底缘，看起来就是给素材加了阴影。所有有界媒体面必须使用 `scrimScope="element"`（只保留均匀的平色 `overlay`），只有铺满整幅的背景才允许 `frame`。这条不是靠记忆：`media-card-scrim-contract.test.mjs` 在源码层锁定 `MediaCard` 的 element 范围，`media-focus-render` 用纯白素材采样卡片中心/右缘/底缘，任何方向性渐变会让 CI 的 Pixel render contracts 变红。
+
+
+**原片原声窗口（Stage 3 音频，#1525）**：外部证据片本身有对白或音乐时，`media` 可以开口子而不是整段静音：`volume` 设原片电平（保留原声通常写 `1`），`audioIn` / `audioOut` 是**相对这一拍开头**的秒数，只在这段窗口内出声；`audioFadeIn` / `audioFadeOut` 默认 0.25s，避免硬切爆音。窗口只控制听感，不改变 `videoStartOffsetMs` 决定的画面起点。旁白在场时若要让原声退后，写 `duckUnderNarration: true`，`duckLevel` 是压低后的倍数（默认 0.25，0 等于该段静音）；没有旁白的纯原片拍不要写 duck。原片里的对白与配乐若已混成一条轨，管线不做 stem 分离，只能整条压低；原片是音乐驱动时优先直接停掉项目 BGM（默认不加 BGM 的项目则无需处理），避免两层音乐打架。
+
+**镜头配方卡（Stage 3 选版入口，#733 S1）**：渲染层能画 22 种 `visualType/layout` 组合，过去只能从 `scenes/` 组件里逐个反推这一拍该用哪种。现在这套组合有可寻址的卡面：`node scripts/short-video/shot-recipes.mjs --list` 列出 22 张（含何时用、硬前提、别用它），`--card <visualType/layout>` 看单张的文本槽、文本优先/contain 带属性与真实样张，`--check` 校验卡面齐全、样张在真实包里确实渲染该组合。卡面的 id、文本槽与版式属性都从 `REMOTION_SLOT_MAP` / `resolveRenderLayout` / #761 / #1075 的判据派生，改渲染契约不补卡面会直接 `--check` 红；只有编辑说明是手写的。两张 hook 卡只登记渲染契约，开场选哪版仍走 `hook-layout` 的四条判据（#1480），不在卡面里重复。语义拍（SHOTBOOK 式拍层）不在这一层，属 #733 S2。
 
 **mediaStrategy 约定（Stage 3 默认实践，#355）**：**不需要逐 scene 选策略**。省略 `mediaStrategy`（或沿用旧值 `"asset"`）就走统一兜底链：采购（stock video 优先）→ 复用/upscale → 生成（默认 T2I + ken-burns；写了 `aiVideo.prompt` 且视频预算允许时 T2V）→ 纯版式。链上生成默认**每次运行 4 个场景 / 1 条 T2V**，且必须先出 plan、由用户确认后才花 GPU（`--approve-auto`）。字段只作覆盖：`"source-only"`（只采购、绝不生成，旧 `"asset"` 的语义）、`"b-roll"` / `"ai-image"`（跳过采购直接生成）、`"asset-then-broll"` / `"asset-then-ai-image"`（先采购、落空再按指定形态生成）。显式生成策略必须配 prompt，字段随策略分派——T2I 两值用 `aiImage.prompt`（6 维），其余用 `aiVideo.prompt`（8 维）；链上自动生成的静图 prompt 依次取自 `aiImage.prompt` / `assetNeed` / voiceover，所以把 `assetNeed` 写具体也等于给生成 rung 一个更好的主体。preflight 的 **B-roll strategy contract** 只校验显式值：未知值 FAIL、显式生成缺 prompt FAIL；省略 `mediaStrategy` 不再 WARN。
 
 **截图证据约定（Stage 3 素材选项，2026-10-14 用户裁决）**：某个 scene 的断言建立在某个具体公开页面上时——官方变更日志、当事人帖子、第三方归档、监管文件——该 scene 的素材就是这个页面的**真实截图**：「谁主张、谁出示」。它是素材菜单里的一项，不是优先规则：非证据 scene（分析、对比、收尾）照旧走 CSS 或 stock，用不用截图由 Agent 按脚本判断。真实截图不重构、不伪造产品页面；示意图只在明确风格化时使用，且不与截图混用。
 
 - **语言规范**：能用英文就用英文——站点有英文 UI 或帖子有英文原文时，截图必须落在英文形态上（帖子要先切回原文再截，见下）。站点只有中文时（无英文路由、无语言开关），中文界面截图直接采用，不需要为截图去改账号设置。这是生产规范，不是偏好。
-- **抓取**：**默认走 `capture-evidence-shot.mjs`**（Playwright + 系统 Chrome，用 `EVIDENCE_CAPTURE_CHANNEL` / `EVIDENCE_CAPTURE_EXECUTABLE` 指定浏览器）。它只适用于公开页面；需要登录态、站点经验或页面交互时，才退回 `web-access` CDP（自动化 profile）手动路径——手动路径先读站点经验（`~/.cache/web-access/site-patterns/<domain>.md`），没有就按通用模式操作并把验证过的事实写回去。
+- **抓取**：**默认走 `capture-evidence-shot.mjs`**（Playwright + 系统 Chrome，用 `EVIDENCE_CAPTURE_CHANNEL` / `EVIDENCE_CAPTURE_EXECUTABLE` 指定浏览器）。它只适用于公开页面；需要登录态、站点经验或页面交互时，才退回 `web-access` CDP（自动化 profile）手动路径——手动路径先读站点经验（`~/.cache/web-access/site-patterns/<domain>.md`，本机有就读），没有就按通用模式操作并把验证过的事实写回去。
 - **隔离与裁切**：确定性路径由 `selector` 隔离目标元素，工具按元素边界加 `padding` 裁切并记录 `rect` / `clip`；不要手动隐藏兄弟节点，也不要按固定高度裁切。只有手动路径才需要隐藏浏览者界面元素（导航、译文行、悬浮按钮）并回到页面顶部，裁切点落在元素边界上——卡片高度差异很大，按固定高度裁切必然把配图或视频切一半。
 - **确定性捕获**：截图配方写进 `content/<slug>/evidence-captures.json`（纯数据文件，不是模块），按 scene id 键控 `url` / `selector` / `padding` / `viewport` / `deviceScaleFactor` / `waitUntil` / `timeoutMs`，不要手写几何。最小形状：`{ "3": { "url": "https://…", "selector": "table" } }`，其余字段取默认值（padding 16 / scale 2 / viewport 1280×900 / waitUntil load / timeout 30000ms）；未知字段直接报错，不会静默忽略。配方里的 url / selector / deviceScaleFactor 会与 scene-data 已声明的 provenance 对账，不一致即拒绝；one-off 捕获后把同一组 url / selector 写进 JSON，否则 `--check` 会报 no capture recipe。`media.evidence: true` 的 scene 没有配方条目就是缺口：pack 模式与 `--check` 都以 exit 1 报「no capture recipe」，历史预合成图用 `composed: true` 声明豁免。新页面先跑 `node scripts/short-video/capture-evidence-shot.mjs --url <http(s)> --selector <sel> --output scripts/short-video/content/<slug>/assets/<name>.png`（`--output` 相对当前工作目录解析，不是相对 pack）取得第一份 provenance block，粘进 scene-data 的 `media.provenance`，并设 `media.evidence: true`。
 - **重捕获与校验**：`node scripts/short-video/capture-evidence-shot.mjs --content <slug> [--scene <id>]` 只补缺失文件；`--force` 全量重截；`--check` 不开浏览器，只校验文件字节与已声明几何。漂移检测只在 producer 真正运行时发生（文件缺失，或显式 `--force`）：已存在的文件在 final gate 只与它自己的声明对账（`clip × scale` vs 实际像素），不会重新打开页面——要确认实时页面是否已经变了，必须 `--force`。Stage 1.5a 在 stock sourcing 之前运行，`media.evidence: true` 的 scene 永不回退到 stock；一份坏配方只报错并继续捕获其余 scene，不会拖垮整批。
