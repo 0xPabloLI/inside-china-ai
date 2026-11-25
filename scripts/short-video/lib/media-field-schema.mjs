@@ -25,7 +25,6 @@ export const MEDIA_FIELD_KEYS = new Set([
   "cropFocus", // #1040: [0,1] CSS object-position ratio, not a source-space point
   "source",
   "animation",
-  "overlay",
   "volume",
   "audioIn", // #1525: scene-relative source-audio window, seconds
   "audioOut",
@@ -55,6 +54,13 @@ export const BACKDROP_FIELD_KEYS = new Set([
   "railVignette", // #156: opt out of the frame-level action-rail vignette (backdrop only)
   "upscale",
 ]);
+
+/**
+ * Keys that existed before the 2026-11-25 root rule and are now read by
+ * nothing. They are accepted as no-ops so an old pack does not fail over a
+ * dead field; there is no renderer path that consumes them.
+ */
+const LEGACY_MEDIA_FIELD_KEYS = new Set(["overlay"]);
 
 /**
  * Guidance for an unknown media key, shared with the patch writer so both
@@ -92,7 +98,9 @@ export function checkMediaFieldSchema(scenes) {
       continue;
     }
 
-    const unknown = Object.keys(media).filter((key) => !MEDIA_FIELD_KEYS.has(key));
+    const unknown = Object.keys(media).filter(
+      (key) => !MEDIA_FIELD_KEYS.has(key) && !LEGACY_MEDIA_FIELD_KEYS.has(key),
+    );
     if (unknown.length > 0) {
       results.push({
         level: "fail",

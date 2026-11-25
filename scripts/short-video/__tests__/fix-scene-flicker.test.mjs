@@ -2,7 +2,7 @@
  * Fix Scene Flicker (Double Fade) — TDD tests
  *
  * Tests the source-level contract for MediaBackground opacity envelope,
- * video volume independence, and overlay behavior after the fix.
+ * and video volume independence after the fix.
  *
  * Scenarios S1–S9 map to the spec's Behavioral Scenarios matrix.
  * See: docs/archive/spec-fix-scene-flicker.md
@@ -116,24 +116,6 @@ describe("S4: Video volume — independent exit fade envelope", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-describe("S5: Overlay envelope — retained exit dim", () => {
-  it("overlayOpacity still has 4-stop envelope with outStart", () => {
-    const content = readFile("components/MediaBackground.tsx");
-
-    // The overlayOpacity uses interpolate with 4-stop envelope
-    // Extract the section around overlayOpacity
-    const overlaySection = content.match(
-      /const overlayOpacity\s*=\s*preset\s*===\s*"none"\s*\?\s*overlay\s*:\s*interpolate\(([\s\S]*?)\)\s*;/,
-    );
-    expect(overlaySection).toBeTruthy();
-    expect(overlaySection[1]).toMatch(/outStart/);
-    expect(overlaySection[1]).toMatch(/totalFrames/);
-    // Output should include overlay * 0.3
-    expect(overlaySection[1]).toMatch(/overlay\s*\*\s*0\.3/);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════
 //  S6: Preset-specific transforms still reference outStart
 // ═══════════════════════════════════════════════════════════════
 describe("S6: Preset transforms — outStart still used", () => {
@@ -198,22 +180,5 @@ describe("S8: Short scenes — clamping behavior", () => {
 
     expect(content).toMatch(/Math\.min\(timing\.in,\s*duration\s*\/\s*2\)/);
     expect(content).toMatch(/Math\.min\(timing\.out,\s*duration\s*\/\s*2\)/);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════
-//  S9: Overlay — independent from media opacity
-// ═══════════════════════════════════════════════════════════════
-describe("S9: Overlay — independent envelope from media opacity", () => {
-  it("overlayOpacity uses its own interpolate, not the media opacity variable", () => {
-    const content = readFile("components/MediaBackground.tsx");
-
-    // overlayOpacity should be its own interpolate call, not referencing `opacity`
-    const overlayMatch = content.match(
-      /const overlayOpacity\s*=\s*preset\s*===\s*"none"\s*\?\s*overlay\s*:\s*interpolate\(/,
-    );
-    expect(overlayMatch).toBeTruthy();
-    // Should not be simply `opacity`
-    expect(overlayMatch[0]).not.toMatch(/=\s*opacity/);
   });
 });

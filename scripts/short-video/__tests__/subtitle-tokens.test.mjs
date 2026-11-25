@@ -76,7 +76,7 @@ describe("renderAss style row", () => {
       "Style: Default,Helvetica Neue,68," +
       "&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000," +
       "-1,0,0,0,100,100,0,0,1,3,0,2," +
-      "110,250,500,1";
+      "110,250,400,1";
     expect(styleRow()).toBe(expected);
   });
 
@@ -111,7 +111,7 @@ describe("renderAss style row", () => {
       "Style: Default,Helvetica Neue,68," +
         "&H00FF8B4D,&H00F5F5F5,&H66000000,&H66000000," +
         "0,0,0,0,90,110,2,5,3,4,2,5," +
-        "110,250,500,1",
+        "110,250,400,1",
     );
   });
 });

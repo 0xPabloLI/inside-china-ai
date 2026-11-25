@@ -470,12 +470,9 @@ describe(
       // colour). It cannot see the strip moving UP — that would leave this
       // window on canvas ground — which is why probe 2 exists.
       //
-      // Probe 2 — the band's bottom third (y 900-930): the frame-level lane
-      // stop in MediaBackground sits at 66.8% of whatever element it paints,
-      // so a band-mounted picture used to get a 0.75 scrim over exactly this
-      // region (66.8% of 619 → y ~823 downward). scrimScope="element" is what
-      // removes it; this window FAILS if the flat-dim path regresses to the
-      // canvas-relative gradient.
+      // Probe 2 — the band's bottom third (y 900-930): media is never dimmed
+      // (2026-11-25), so this window must stay as bright as the centre. It
+      // fails if any old overlay/scrim path comes back.
       //
       // Probe 3 — the band centre: the picture is actually VISIBLE (guards
       // against "passing" by rendering nothing at all).
@@ -505,15 +502,19 @@ describe(
       expect(strip.r, JSON.stringify(strip)).toBeLessThan(45);
       expect(strip.g, JSON.stringify(strip)).toBeLessThan(45);
       expect(strip.b, JSON.stringify(strip)).toBeLessThan(45);
-      // Band centre and bottom third: the contained picture (0.15 dims it, but
-      // testsrc2 is saturated — the mean stays bright and colourful). The
+      // Band centre and bottom third: the contained picture is undimmed
+      // (testsrc2 is saturated, so the mean stays bright and colourful). The
       // bottom window is the one the old canvas-relative lane stop darkened.
       for (const [label, x, y] of [
         ["centre", 450, 690],
         ["bottom third", 450, 900],
       ]) {
         const band = meanAt(x, y, 60, 60);
-        expect(band.r + band.g + band.b, `${label} ${JSON.stringify(band)}`).toBeGreaterThan(180);
+        // 2026-11-25: the strip starts higher (994), so the contained photo
+        // is 576px tall instead of 619; its bottom-third mean is 179.07 on
+        // the generated fixture. 170 still separates "undimmed" from the old
+        // scrim (which sat below 120).
+        expect(band.r + band.g + band.b, `${label} ${JSON.stringify(band)}`).toBeGreaterThan(170);
       }
     });
   },

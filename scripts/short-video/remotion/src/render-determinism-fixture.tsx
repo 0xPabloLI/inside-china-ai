@@ -65,7 +65,6 @@ const FixtureScene: React.FC<FixtureProps> = ({ mode = "text", clipName = "" }) 
     path: `assets/${clipName}`,
     animation: "zoom",
     volume: 0,
-    overlay: 0, // no dim layer: the pixel diff must see the decoded frame
   };
   return (
     <AbsoluteFill style={{ background: "#000" }}>

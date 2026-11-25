@@ -17,7 +17,6 @@ import { SlideUp, ScaleIn, StampIn } from "../components/animations/entrance";
 import { SPACING, ANNOTATION, CANVAS, COLOR, accentColorFor } from "../components/shared";
 import { NumberPulse, ScanSweep } from "../components/animations/loops";
 import { MediaBackground } from "../components/MediaBackground";
-import { MediaScrims } from "../components/MediaScrims";
 import { MediaCard } from "../components/MediaCard";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
@@ -33,7 +32,7 @@ import { HookMediaLed } from "./HookMediaLed";
 import { renderableMedia } from "../../../lib/media-role.mjs";
 
 /**
- * The hook's media band: `{ top, height, scrimBottom }` in canvas px.
+ * The hook's media band: `{ top, height }` in canvas px.
  *
  * cover → the whole frame. That is what makes the hook punchy, and it is the
  * long-standing default.
@@ -51,18 +50,17 @@ import { renderableMedia } from "../../../lib/media-role.mjs";
  * past the complexity ceiling the incremental lint enforces on changed files.
  *
  * @param media - `scene.media` (null when the scene is CSS-only)
- * @returns the band's top edge, height, and the y its scrims should fade to
+ * @returns the band's top edge and height
  */
 const hookMediaBand = (
   media: { fit?: string } | null | undefined,
-): { top: number; height: number; scrimBottom: number } => {
+): { top: number; height: number } => {
   if (media?.fit !== "contain") {
-    return { top: 0, height: CANVAS.height, scrimBottom: CANVAS.height };
+    return { top: 0, height: CANVAS.height };
   }
   return {
     top: SAFE_ZONES.top,
     height: CONTAIN_MEDIA_BOTTOM - SAFE_ZONES.top,
-    scrimBottom: CONTAIN_MEDIA_BOTTOM,
   };
 };
 
@@ -188,10 +186,6 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
                   containAlign="bottom"
                 />
               </div>
-              {/* The scrims are what hold the action rail and the subtitle gap
-                under the frame gate's brightness limit for daylight footage —
-                see the MEDIA_BAND note in lib/safe-zones.mjs. */}
-              <MediaScrims mediaBottom={hookBand.scrimBottom} />
             </>
           ))}
         {/* Background layers — #1215 (2026-11-15) retired the 60px grid and

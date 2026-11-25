@@ -1,7 +1,7 @@
 /**
  * FullscreenMedia — full-screen media presentation without text overlay.
  *
- * Renders only the image/video (via MediaBackground with overlay forced to 0)
+ * Renders only the image/video (via MediaBackground, which never dims media)
  * plus an optional source attribution label. No Slot layout, no BrandBar,
  * no on-screen text. Subtitles are burned in via ASS (not handled here).
  *

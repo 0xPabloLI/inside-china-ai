@@ -1,8 +1,8 @@
 /**
  * DataScene — big stat reveal with source attribution.
- * CSS-first. A declared `scene.media` may render as a dimmed full-bleed
- * background behind the stat (LingSante re-cut, 2026-11-24); without it the
- * frame stays the original pure-CSS layout.
+ * CSS-first. A declared `scene.media` may render as a full-bleed background
+ * behind the stat (LingSante re-cut, 2026-11-24); without it the frame stays
+ * the original pure-CSS layout. The media keeps its own brightness (#1541).
  * Scene 3 in the Unitree video (8,288× oversubscribed).
  *
  * Light (#738): the stat is the protagonist and lands with a white flash; the
@@ -23,13 +23,6 @@ import { ChartFrame } from "../components/topology";
 import { ChartPanel, ChartRenderer } from "../components/charts";
 import { normalizeInfoSpec } from "../../../lib/info-grammar.mjs";
 import { resolveRenderLayout } from "../../../lib/text-slots.mjs";
-
-/** DataScene media dim: explicit overlay wins, otherwise the 0.62 evidence default. */
-const normalizeMediaOverlay = (media: SceneData["media"]): number => {
-  const declared = Number(media?.overlay);
-  const value = Number.isFinite(declared) ? declared : 0.62;
-  return Math.min(Math.max(value, 0), 1);
-};
 
 /** Resolve a scene media path to a static file URL, preserving the assets/ prefix. */
 const assetSrc = (path: string): string =>
@@ -59,7 +52,6 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
   const layout = resolveRenderLayout(scene);
   const chartSrc = chartSrcFor(layout, scene.media);
   const mediaSrc = mediaSrcFor(scene.media);
-  const mediaOverlay = normalizeMediaOverlay(scene.media);
   const yearSource = layout === "year-source" && Boolean(txt.stat) && Boolean(txt.subtext);
 
   if (yearSource) {
@@ -447,14 +439,6 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
               objectPosition: "center",
               filter: "blur(2px)",
               transform: "scale(1.04)",
-            }}
-          />
-          <div
-            aria-hidden
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: `rgba(5, 7, 15, ${mediaOverlay})`,
             }}
           />
         </>

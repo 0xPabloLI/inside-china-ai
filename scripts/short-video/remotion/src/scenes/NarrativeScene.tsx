@@ -4,13 +4,13 @@
  * Dispatches by `scene.layout` field into 5 variants:
  *   - media-first: picture owns the content band, compact copy overlaid at the
  *     bottom (see MEDIA_FIRST in lib/safe-zones.mjs; #1524)
- *   - media-bottom-bar: full-bleed media to the subtitle lane, text over a
- *     gradient scrim (see MEDIA_BAND in lib/safe-zones.mjs)
+ *   - media-bottom-bar: full-bleed media to the content bottom, text over its
+ *     own opaque MediaTextPanel (see MEDIA_BAND in lib/safe-zones.mjs)
  *   - media-split: media left half, text right half
  *   - media-overlay: fullscreen media, text overlay top+bottom
- *   - stacked-cards: text-first cards; `scene.media` renders as a dimmed
- *     full-bleed background behind them (ambient only — evidence is routed to
- *     the media-window layouts by #761)
+ *   - stacked-cards: text-first cards; `scene.media` renders as a full-bleed
+ *     background behind them without dimming (ambient only — evidence is
+ *     routed to the media-window layouts by #761)
  *
  * Each variant has its own entrance animation pattern and uses
  * SPACING tokens and Interactive.Div on company/result.
@@ -30,7 +30,6 @@ import {
 } from "../components/animations/entrance";
 import { SPACING, SAFE_ZONES, CANVAS, ANNOTATION, COLOR } from "../components/shared";
 import {
-  CONTAIN_MEDIA_BOTTOM,
   mediaBottomBarHeightFor,
   mediaBottomBarTopFor,
   mediaFirstBarHeightFor,
@@ -38,7 +37,7 @@ import {
   MEDIA_FIRST,
   MEDIA_BAND,
 } from "../../../lib/safe-zones.mjs";
-import { MediaScrims } from "../components/MediaScrims";
+import { MediaTextPanel } from "../components/MediaTextPanel";
 import { MediaBackground } from "../components/MediaBackground";
 import { MediaCard } from "../components/MediaCard";
 import { Camera } from "../components/Camera";
@@ -46,6 +45,7 @@ import { TextGate } from "../components/text-gate";
 import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 import { mediaRoleOf, MEDIA_ROLE } from "../../../lib/media-role.mjs";
+import { compactMediaTexts, isCompactMediaScene } from "../../../lib/media-copy.mjs";
 
 type Layout =
   "media-first" | "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
@@ -206,6 +206,11 @@ export const NarrativeScene: React.FC<{
 
   // ─── Layout dispatch ───
   const hasMedia = !!scene.media;
+  // A picture that owns the frame is the page: a small brand lockup laid over
+  // it covers the exact evidence the viewer came for. Keep the lockup for
+  // text-only pages and bounded cards; drop it when media is full-bleed.
+  const hasFullBleedMedia =
+    hasMedia && !(scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.CARD);
 
   const renderLayout = () => {
     // #1524: media-first is evidence-only. The picture owns the content band
@@ -240,16 +245,21 @@ export const NarrativeScene: React.FC<{
     // bottom edge IS this bar's top edge, so the two cannot drift apart.
     // The bar height is per scene (2026-10-24): a scene that declares fewer
     // rows gets a shorter bar, so its text block starts lower in the frame.
-    const textBarHeight = mediaBottomBarHeightFor(txt);
-    const textBarTop = mediaBottomBarTopFor(txt);
+    //
+    // 2026-11-25: a full-bleed evidence page renders only its two highest-signal
+    // rows. The picture owns the page; four rows of caption were pushing it up
+    // and crowding the subtitle lane. A card/page capture keeps its full block.
+    const compact = isCompactMediaScene(scene);
+    const displayTexts = compact ? compactMediaTexts(txt) : txt;
+    const textBarHeight = mediaBottomBarHeightFor(displayTexts);
+    const textBarTop = mediaBottomBarTopFor(displayTexts);
     return (
       <>
-        {/* Media fills the frame down to the subtitle lane (2026-10-25), not
-            just to the text bar. The picture used to stop at textBarTop and
-            the rest of the frame was opaque panel, which put the composition's
-            weight in the top half. The scrims below are what keep a full-bleed
-            band inside the frame gate's rail and subtitle-gap limits — see the
-            MEDIA_BAND note in lib/safe-zones.mjs. Card mode keeps its own
+        {/* Media owns the band above the text bar. On a contain binding the
+            picture's bottom edge IS textBarTop (2026-11-25): the two regions
+            never overlap, even when the copy runs to four rows. A cover
+            binding fills the content band and the text bar gets its own opaque
+            panel; the picture itself is never dimmed. Card mode keeps its own
             geometry: it renders a page capture, not a full-bleed picture. */}
         {hasMedia &&
           (scene.media!.mode === "card" || mediaRole === MEDIA_ROLE.CARD ? (
@@ -260,15 +270,15 @@ export const NarrativeScene: React.FC<{
                 style={{
                   position: "absolute",
                   // contain → the picture's own band, hung on the text bar
-                  // (CONTAIN_MEDIA_BOTTOM, with containAlign="bottom" passed
-                  // below — MediaBackground defaults to centring, #1075).
+                  // (textBarTop, with containAlign="bottom" passed below —
+                  // MediaBackground defaults to centring, #1075).
                   // cover → the full-bleed band, unchanged.
                   top: scene.media!.fit === "contain" ? SAFE_ZONES.top : 0,
                   left: 0,
                   right: 0,
                   height:
                     scene.media!.fit === "contain"
-                      ? CONTAIN_MEDIA_BOTTOM - SAFE_ZONES.top
+                      ? textBarTop - SAFE_ZONES.top
                       : MEDIA_BAND.bottom,
                   overflow: "hidden",
                 }}
@@ -278,33 +288,17 @@ export const NarrativeScene: React.FC<{
                   duration={duration}
                   contentDir={contentDir}
                   containAlign="bottom"
-                  // The band is an element-mounted picture, not a full frame:
-                  // the frame-relative lane stop and rail vignette would land
-                  // inside the picture and read as a shadow (2026-11-23 user
-                  // report on the CapCut winner demo). One flat `overlay` is
-                  // the only dim this layout gets.
-                  scrimScope="element"
                 />
               </div>
-              {/* The scrims are what keep a full-bleed band inside the frame
-                  gate's rail and subtitle-gap limits — see the MEDIA_BAND note
-                  in lib/safe-zones.mjs. A contained picture stops at
-                  CONTAIN_MEDIA_BOTTOM, so its scrim does too: darkening the
-                  empty letterbox below it would only dim bare background. */}
-              <MediaScrims
-                mediaBottom={
-                  scene.media!.fit === "contain" ? CONTAIN_MEDIA_BOTTOM : MEDIA_BAND.bottom
-                }
-                panelTop={MEDIA_BAND.scrimTop}
-                // Copy lives in the panel below, not over the top of the
-                // picture. A top fade here is a shadow with no job.
-                topScrim={false}
-              />
+              {/* Copy always gets its own opaque surface. On contain the
+                  picture already ends at textBarTop; on cover this covers its
+                  lower part. Neither mode dims the picture. */}
+              <MediaTextPanel top={textBarTop} bottom={MEDIA_BAND.bottom} />
             </>
           ))}
-        {/* Text block anchored to the safe zone bottom (y=1150), drawn over the
-            picture. No panel background: the bottom scrim already guarantees
-            contrast, and an opaque bar would undo the full-bleed band. */}
+        {/* Text block anchored to the safe zone bottom (y=1150), drawn on the
+            opaque panel above. The picture keeps its own brightness; the text
+            gets its own surface. */}
         <Camera visualType="narrative" duration={duration}>
           <div
             data-text-container
@@ -325,18 +319,26 @@ export const NarrativeScene: React.FC<{
               borderTop: `2px solid ${glowColor === "red" ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
             }}
           >
-            <SlideUpFromBottom delay={0.2} duration={0.5}>
-              <CompanyText variant="media-bottom-bar" />
-            </SlideUpFromBottom>
-            <SlideUp delay={0.4} duration={0.5}>
-              <ActionText variant="media-bottom-bar" />
-            </SlideUp>
-            <StampIn delay={0.6} duration={0.5}>
-              <ResultText variant="media-bottom-bar" />
-            </StampIn>
-            <FadeIn delay={0.8} duration={0.5}>
-              <SourceText variant="media-bottom-bar" />
-            </FadeIn>
+            {displayTexts.company && (
+              <SlideUpFromBottom delay={0.2} duration={0.5}>
+                <CompanyText variant="media-bottom-bar" />
+              </SlideUpFromBottom>
+            )}
+            {displayTexts.action && (
+              <SlideUp delay={0.4} duration={0.5}>
+                <ActionText variant="media-bottom-bar" />
+              </SlideUp>
+            )}
+            {displayTexts.result && (
+              <StampIn delay={0.6} duration={0.5}>
+                <ResultText variant="media-bottom-bar" />
+              </StampIn>
+            )}
+            {displayTexts.source && (
+              <FadeIn delay={0.8} duration={0.5}>
+                <SourceText variant="media-bottom-bar" />
+              </FadeIn>
+            )}
           </div>
         </Camera>
       </>
@@ -349,11 +351,12 @@ export const NarrativeScene: React.FC<{
   // width with `fit:"contain"` + `fill:"blur"`, so the subject is never cropped
   // and no black bar is visible; `containAlign="upper"` drops the picture into
   // the top third, leaving the blurred fill below it for the copy and the
-  // subtitle lane. No gradient vignettes: the standing rule is no shadow on
-  // media, so contrast comes from the flat copy plate, not a scrim.
+  // subtitle lane. No gradient vignettes and no dim layer: media is never
+  // darkened, so contrast comes from the flat copy plate.
   const MediaFirst: React.FC = () => {
-    const blockHeight = mediaFirstBarHeightFor(txt);
-    const blockTop = mediaFirstBarTopFor(txt);
+    const displayTexts = compactMediaTexts(txt);
+    const blockHeight = mediaFirstBarHeightFor(displayTexts);
+    const blockTop = mediaFirstBarTopFor(displayTexts);
     return (
       <>
         {hasMedia && (
@@ -363,7 +366,6 @@ export const NarrativeScene: React.FC<{
               duration={duration}
               contentDir={contentDir}
               containAlign="upper"
-              scrimScope="element"
             />
           </div>
         )}
@@ -402,15 +404,21 @@ export const NarrativeScene: React.FC<{
                 // not a gradient over the picture.
               }}
             >
-              <SlideUpFromBottom delay={0.2} duration={0.5}>
-                <CompanyText variant="media-first" />
-              </SlideUpFromBottom>
-              <StampIn delay={0.4} duration={0.5}>
-                <ResultText variant="media-first" />
-              </StampIn>
-              <FadeIn delay={0.6} duration={0.5}>
-                <SourceText variant="media-first" />
-              </FadeIn>
+              {displayTexts.company && (
+                <SlideUpFromBottom delay={0.2} duration={0.5}>
+                  <CompanyText variant="media-first" />
+                </SlideUpFromBottom>
+              )}
+              {displayTexts.result && (
+                <StampIn delay={0.4} duration={0.5}>
+                  <ResultText variant="media-first" />
+                </StampIn>
+              )}
+              {displayTexts.source && (
+                <FadeIn delay={0.6} duration={0.5}>
+                  <SourceText variant="media-first" />
+                </FadeIn>
+              )}
             </div>
           </Camera>
         )}
@@ -503,6 +511,9 @@ export const NarrativeScene: React.FC<{
             flexDirection: "column",
             gap: SPACING.sm,
             overflow: "hidden",
+            background: COLOR.canvas,
+            outline: `${SPACING.xl}px solid ${COLOR.canvas}`,
+            borderRadius: 12,
           }}
         >
           <FadeIn delay={0.2} duration={0.5}>
@@ -550,12 +561,9 @@ export const NarrativeScene: React.FC<{
             display: "flex",
             flexDirection: "column",
             gap: SPACING.sm,
-            // No panel: on a bright demo frame the old gradient box read as
-            // a hard-edged grey shadow. A soft inherited text shadow keeps
-            // the type legible on light and dark frames without a rectangle.
-            background: "none",
-            padding: `${SPACING.xl}px ${SPACING["2xl"]}px`,
-            textShadow: "0 2px 10px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9)",
+            background: COLOR.canvas,
+            borderRadius: 12,
+            outline: `${SPACING.xl}px solid ${COLOR.canvas}`,
             overflow: "hidden",
           }}
         >
@@ -638,7 +646,7 @@ export const NarrativeScene: React.FC<{
                   padding: SPACING["2xl"],
                   border: `2px solid ${i === 0 ? "rgba(77,139,255,0.2)" : "rgba(245,158,11,0.2)"}`,
                   borderRadius: 12,
-                  background: "rgba(10,10,20,0.6)",
+                  background: COLOR.canvas,
                 }}
               >
                 {/* Cards read label/value from the contract fields: card 0 shows
@@ -681,8 +689,13 @@ export const NarrativeScene: React.FC<{
           templates. Until #1215 the background layers were painted after
           renderLayout(), i.e. on top of the text. */}
       <Glow color={glowColor} />
-      <BrandBar />
+      {/* media-overlay puts copy in the top band, so there the brand bar must
+          stay behind the layout. Every other layout paints the lockup LAST so
+          text cannot bury it — except when a full-bleed picture owns the
+          frame, where the lockup is omitted instead of covering the evidence. */}
+      {scene.layout === "media-overlay" && <BrandBar />}
       {renderLayout()}
+      {scene.layout !== "media-overlay" && !hasFullBleedMedia && <BrandBar />}
     </div>
   );
 };

@@ -6,7 +6,7 @@
  * below still apply to whatever lands). Two gates judge it: preflight
  * (`scene-rules.mjs` → `checkHookMediaContract`, before sourcing) and the
  * final media gate (`final-media-gate.mjs`, after sourcing/generation). Both
- * must apply the same fit/overlay/source contract — render-only / rerender /
+ * must apply the same fit/source contract — render-only / rerender /
  * realign-render only see the latter, so a `fit:"contain"` hook must not slip
  * through there.
  *
@@ -43,11 +43,6 @@ export function checkHookMediaQuality(media, context = {}) {
   const warnings = [];
   const m = media ?? {};
   const isMediaLed = context.layout === HOOK_MEDIA_LED_LAYOUT;
-  // Contain in media-led draws NO text over the picture, so the lower bound
-  // that protects hero-center's number has nothing to protect here — the
-  // sourcing seam writes 0.15 on purpose. Cover keeps the full [0.4, 0.9]
-  // band: its text rows sit on the footage.
-  const mediaLedContain = isMediaLed && m.fit === "contain";
 
   // "cover" keeps the 9:16 frame filled and stays the default; an omitted fit
   // is valid because the renderer defaults to cover. "contain" was a FAILURE
@@ -83,34 +78,6 @@ export function checkHookMediaQuality(media, context = {}) {
       detail:
         'media-led hook declares mode:"card" — the evidence card spans y 300-986 and the layout draws its badge/subject rows over that range',
       fix: 'Drop mode:"card" (media-led renders the picture in its own band), or use layout:"hero-center" for a card hook',
-    });
-  }
-
-  // A missing overlay uses the renderer's 0.7 default; an explicit value
-  // outside the legibility band risks the bigNumber/numberLabel text.
-  //
-  // media-led + contain is the exception on the LOWER bound only: no text is
-  // drawn over the picture there, and the sourcing seam writes 0.15 on purpose
-  // (MEDIA_LED_DIM.contain). Warning about it would condemn the exact value the
-  // pipeline wrote, with a fix that undoes the layout. The upper bound still
-  // applies — past 0.9 the picture stops being the protagonist.
-  const overlayMin = mediaLedContain ? 0 : 0.4;
-  if (
-    m.overlay !== undefined &&
-    m.overlay !== null &&
-    (typeof m.overlay !== "number" ||
-      !Number.isFinite(m.overlay) ||
-      m.overlay < overlayMin ||
-      m.overlay > 0.9)
-  ) {
-    warnings.push({
-      check: "Hook media overlay",
-      detail: mediaLedContain
-        ? `Hook media overlay ${m.overlay} is outside [0, 0.9] — the picture is the protagonist here and the scrim only dims it`
-        : `Hook media overlay ${m.overlay} is outside [0.4, 0.9] — bigNumber/numberLabel legibility is at risk`,
-      fix: mediaLedContain
-        ? "Set overlay at or below 0.9 (media-led contain draws no text over the picture; the sourcing seam writes 0.15)"
-        : "Set overlay between 0.4 and 0.9 (the renderer defaults to 0.7 when omitted)",
     });
   }
 

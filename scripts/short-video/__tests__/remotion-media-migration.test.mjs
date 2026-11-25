@@ -56,13 +56,12 @@ describe("T2: MediaBackground uses @remotion/media", () => {
     expect(content).toMatch(/effects\??\s*:/);
   });
 
-  it("MediaBackground primary media stays below the dim overlay (#201)", () => {
+  it("MediaBackground keeps DOM-order stacking and no dim layer (#201)", () => {
     const content = readFile("components/MediaBackground.tsx");
     // #201 regression (bd8fa2c): a positive zIndex on the primary media lifted
-    // it above the dim overlay, so cover media hit right-rail/subtitle-gap
-    // safe-zone brightness checks. Stacking must remain DOM-order based:
-    // backdrop < primary media < overlay. Text layers (zIndex 10+) live in
-    // the scene components, not here.
+    // it above the old dim overlay. The overlay is gone (2026-11-25), but the
+    // media stack still stays DOM-order based: backdrop < primary media.
+    // Text layers (zIndex 10+) live in the scene components, not here.
     expect(content).not.toMatch(/zIndex:\s*\d/);
   });
 });

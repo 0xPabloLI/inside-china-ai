@@ -44,14 +44,12 @@ const BASE_VIDEO: MediaField = {
   path: `assets/${MEDIA_ZOOM_FIXTURE_VIDEO}`,
   animation: "none",
   volume: 0,
-  overlay: 0, // no dim layer: pixel diffs must isolate the geometry
 };
 
 const BASE_IMAGE: MediaField = {
   type: "image",
   path: `assets/${MEDIA_ZOOM_FIXTURE_IMAGE}`,
   animation: "none",
-  overlay: 0,
 };
 
 const FixtureScene: React.FC<FixtureProps> = ({ scenario = "zoom", asset = "video" }) => {

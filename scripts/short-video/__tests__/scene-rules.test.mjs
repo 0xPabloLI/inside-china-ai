@@ -87,7 +87,6 @@ const validScenes = [
       type: "image",
       path: "assets/bg.jpg",
       fit: "cover",
-      overlay: 0.5,
       source: "test",
     },
   },
@@ -1403,7 +1402,6 @@ describe("checkHookMediaContract", () => {
     type: "image",
     path: "assets/bg.jpg",
     fit: "cover",
-    overlay: 0.5,
     source: "official page",
   };
 
@@ -1511,25 +1509,6 @@ describe("checkHookMediaContract", () => {
     }
   });
 
-  it("WARNS when the explicit overlay is outside 0.4-0.9", () => {
-    for (const overlay of [0.2, 0.39, 0.91, 1]) {
-      const result = checkHookMediaContract([hook({ media: { ...cleanMedia, overlay } })]);
-      const warns = result.filter((r) => r.level === "warn");
-      expect(warns, `overlay ${overlay}`).toHaveLength(1);
-      expect(warns[0].check).toContain("overlay");
-    }
-  });
-
-  it("accepts the inclusive overlay bounds 0.4 and 0.9 (and a missing overlay)", () => {
-    for (const overlay of [0.4, 0.9, undefined]) {
-      const media = { ...cleanMedia };
-      if (overlay === undefined) delete media.overlay;
-      const result = checkHookMediaContract([hook({ media })]);
-      expect(result, `overlay ${overlay}`).toHaveLength(1);
-      expect(result[0].level).toBe("pass");
-    }
-  });
-
   it("WARNS when manually bound media has no source", () => {
     const media = { ...cleanMedia };
     delete media.source;
@@ -1576,27 +1555,6 @@ describe("checkHookMediaContract", () => {
     const result = checkHookMediaContract([hook({ layout: "media-led", mediaOptOut: true })]);
     expect(result[0].level).toBe("fail");
     expect(result[0].fix).toContain("mediaOptOut");
-  });
-
-  it("media-led accepts an overlay of 0.15 on a contain binding, and keeps the [0.4,0.9] band for cover", () => {
-    const contain = hook({
-      layout: "media-led",
-      media: { ...cleanMedia, fit: "contain", overlay: 0.15 },
-    });
-    expect(checkHookMediaContract([contain]).filter((r) => r.level === "warn")).toHaveLength(0);
-    const cover = hook({
-      layout: "media-led",
-      media: { ...cleanMedia, fit: "cover", overlay: 0.15 },
-    });
-    const warns = checkHookMediaContract([cover]).filter((r) => r.level === "warn");
-    expect(warns).toHaveLength(1);
-    expect(warns[0].check).toContain("overlay");
-    // The upper bound still applies to contain: past 0.9 the picture is gone.
-    const tooDark = hook({
-      layout: "media-led",
-      media: { ...cleanMedia, fit: "contain", overlay: 0.95 },
-    });
-    expect(checkHookMediaContract([tooDark]).filter((r) => r.level === "warn")).toHaveLength(1);
   });
 
   it('media-led FAILS on mode:"card" — the evidence card spans the badge/subject rows', () => {
@@ -1868,7 +1826,7 @@ describe("checkLayoutMediaRouting (#761)", () => {
     expect(
       findings([
         narrative({
-          media: { type: "image", path: "assets/dc.jpg", source: "PEXELS", overlay: 0.7 },
+          media: { type: "image", path: "assets/dc.jpg", source: "PEXELS" },
         }),
       ]),
     ).toEqual([]);

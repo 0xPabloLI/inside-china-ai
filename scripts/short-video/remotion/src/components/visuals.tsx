@@ -73,24 +73,38 @@ export const BrandBar: React.FC = () => (
       gap: 16,
     }}
   >
-    <CanvasImage
-      src={staticFile("assets/china-ai-news-mark-video.svg")}
-      // objectFit is load-bearing, not decoration: <CanvasImage> renders a
-      // <canvas> sized to the artwork's natural pixels, and a canvas defaults
-      // to object-fit: fill — so a square box squashes this 648×420 mark.
-      // See __tests__/canvas-image-fit-contract.test.mjs.
-      style={{ width: 48, height: 48, objectFit: "contain" }}
-    />
-    <span
+    <div
       style={{
-        fontSize: 24,
-        fontWeight: 900,
-        color: COLOR.text,
-        letterSpacing: "3px",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        // The lockup can land on a bright frame (the CapCut demo is a white
+        // tree on snow). This is a text plate, not a picture scrim: it covers
+        // only the mark and the wordmark, never the footage around them.
+        background: "rgba(8,8,18,0.78)",
+        padding: "6px 16px 6px 8px",
+        borderRadius: 10,
       }}
     >
-      CHINA <span style={{ color: COLOR.brand }}>AI</span> NEWS
-    </span>
+      <CanvasImage
+        src={staticFile("assets/china-ai-news-mark-video.svg")}
+        // objectFit is load-bearing, not decoration: <CanvasImage> renders a
+        // <canvas> sized to the artwork's natural pixels, and a canvas defaults
+        // to object-fit: fill — so a square box squashes this 648×420 mark.
+        // See __tests__/canvas-image-fit-contract.test.mjs.
+        style={{ width: 48, height: 48, objectFit: "contain" }}
+      />
+      <span
+        style={{
+          fontSize: 24,
+          fontWeight: 900,
+          color: COLOR.text,
+          letterSpacing: "3px",
+        }}
+      >
+        CHINA <span style={{ color: COLOR.brand }}>AI</span> NEWS
+      </span>
+    </div>
     <span
       style={{
         marginLeft: "auto",
@@ -99,6 +113,7 @@ export const BrandBar: React.FC = () => (
         color: COLOR.textMuted,
         letterSpacing: "2px",
         padding: "5px 12px",
+        background: "rgba(8,8,18,0.78)",
         border: "1px solid rgba(255,255,255,0.25)",
         borderRadius: 6,
       }}

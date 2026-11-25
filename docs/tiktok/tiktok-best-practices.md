@@ -184,9 +184,13 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 
 ### Caption 和 Hashtag
 
-- **Caption ≤ 2,200 chars（API）**。前置一行理由让人读或评论。Caption 支撑视频，不替代它。
+- **Caption ≤ 2,200 chars（API）**。这是平台上限，不是读者上限；feed 只露首屏那一段，后面折进 “more”。
+- **首屏（第一条可见行）≤ 100 chars，硬上限 150。** 2026-09 的实测口径：TikTok 在约 70–100 chars 处折叠（[postlia](https://postlia.com/blog/tiktok-caption-length)、[1kreach](https://1kreach.com/blog/caption-first-lines-2026-125-character-preview-decides-anyone-reads)）。钩子、主体、最重要的数字必须在折线前说完。
+- **正文（hashtag 行之前）≤ 200 chars，硬上限 300。** 50–150 是短文案甜区，150–500 适合教程/解释；新闻类默认走短文案（[typecount](https://typecount.com/blog/tiktok-caption-character-limit)）。长尾搜索价值交给标题、hashtag 和置顶评论，不靠正文堆。需要长说明时，先写短首屏，再用换行分段，不要写成一块 400 字的墙。
 - **3-5 个 hashtag，混合 reach**。1 个大类、1-2 个 niche 定义、1-2 个视频特定。堆砌在 2026 无效。
 - **Caption 可以引导评论。** Caption 里的具体问题（"哪个让你最惊讶？"）赚取评论线程，反馈触达。
+
+> **门禁（2026-11-25 起）**：`generate-caption.mjs` / `verify-video.mjs` 对 `createdAt ≥ 2026-11-25` 的新包执行硬门：首屏 >150 或正文 >300 = FAIL；100/200 以上只 WARN。旧包按 `createdAt` 豁免，不追溯改已验收 caption。判定器只有一个：`scripts/short-video/lib/caption-readability.mjs`。
 
 ### Hashtag 策略（2026-08-08 调研定稿，2026-08-25 更新）
 
@@ -670,6 +674,7 @@ Hashtag 策略的数据来源分**运行时**（每周趋势扫描 + 单条视�
 | B7  | AI 词汇           | 任何黑名单词（~40 个，见 `tiktok-rules.mjs`） | ✅ 代码                                  |
 | B8  | 商业披露          | commercialContent=true 但品牌标志均 false     | 发布时 API 设置                          |
 | B9  | 死板收尾          | 以"thanks for watching"/"subscribe"结尾       | ✅ 代码                                  |
+| B10 | Caption 可读性    | 首屏 >150 chars 或正文 >300 chars（新包）     | ✅ caption-readability + verify-video B6 |
 
 ### Warning（标记修复建议，不 fail）
 
@@ -684,6 +689,7 @@ Hashtag 策略的数据来源分**运行时**（每周趋势扫描 + 单条视�
 | W7     | CTA 堆叠        | 3 个或更多行动号召                 | ✅ 代码（WARN）                     |
 | W8     | viewerSetting   | 未设，或在未审核 App 上声称 public | 发布时设置                          |
 | W9     | 无主要目标      | 同时追完成率+收藏+评论+分享        | ✅ 代码（WARN，>2 goal signals）    |
+| W10    | Caption 软上限  | 首屏 >100 chars 或正文 >200 chars  | ✅ 代码（WARN，新包硬门在 150/300） |
 
 ### 评分
 

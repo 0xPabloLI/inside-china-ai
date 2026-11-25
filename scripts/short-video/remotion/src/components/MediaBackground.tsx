@@ -26,7 +26,6 @@ import type { EffectsProp } from "remotion";
 import { Video } from "@remotion/media";
 import { interpolate, secToFrames, clamp, easeOutExpo } from "./shared";
 import { resolveMediaAudio, videoVolumeAt } from "../../../lib/audio-envelope.mjs";
-import { railVignetteGradient } from "../../../lib/safe-zones.mjs";
 import type { MediaField } from "../types";
 import { useNarrationActive } from "./narration-context";
 
@@ -54,41 +53,6 @@ interface Props {
    * keeps the picture off the burned-subtitle lane.
    */
   containAlign?: ContainAlign;
-  /**
-   * Which scrims this element draws (#media-led, 2026-11-15).
-   *
-   * `"frame"` (default) is the full-frame contract: the subtitle-lane stop at
-   * 66.8–67.6% and the action-rail vignette, both calibrated in CANVAS
-   * percentages because the element spans the canvas.
-   *
-   * `"element"` is for a picture mounted inside a BAND. Those two gradients
-   * re-scale to whatever element they are painted on: in the media-led hook's
-   * 820×619 band at (60, 410) the 0.75 lane stop lands at the band's own
-   * y 823 (a 0.75 scrim over the picture's bottom third) and the rail ramp
-   * crosses the band's right edge — darkening the exact focal content the
-   * layout exists to expose. A band therefore gets a flat dim at `overlay`
-   * and no lane/rail gradients at all; neither region is inside the band.
-   *
-   * Bounded surfaces (MediaCard, evidence bands, media-split windows) MUST
-   * pass `"element"`. `"frame"` is only for a background that genuinely spans
-   * the 1080×1920 canvas. Getting this wrong paints a directional shadow over
-   * the picture's right and bottom edge; the source + pixel gates live in
-   * `__tests__/media-card-scrim-contract.test.mjs` and
-   * `__tests__/media-focus-render.test.mjs`.
-   */
-  scrimScope?: "frame" | "element";
-  /**
-   * Force the action-rail vignette on a band-mounted picture (#1524).
-   *
-   * `scrimScope:"element"` suppresses both frame gradients, which is right for
-   * a band that sits inside the content column — but media-first's band spans
-   * the full canvas width all the way down to the content bottom, so the rail
-   * region IS inside it. Without this switch a bright 16:9 frame leaves the
-   * rail at luminance 88 (gate limit 80).
-   */
-  railVignette?: boolean;
-  /** Peak alpha for the rail vignette; defaults to RAIL_VIGNETTE.alpha. */
-  railAlpha?: number;
 }
 
 /** Vertical anchor for a contained picture inside its container. */
@@ -134,33 +98,6 @@ const resolvePreset = (
 };
 
 /**
- * The dim layer's background for a scrim scope (#media-led, 2026-11-15).
- *
- * `"frame"` keeps the two-stop gradient whose bottom stop protects the subtitle
- * lane; `"element"` (a picture mounted in a band) gets the flat dim only, since
- * those stops are canvas-relative and would land inside the band.
- */
-const dimBackgroundFor = (
-  scope: "frame" | "element",
-  overlay: number,
-  overlayOpacity: number,
-): string =>
-  scope === "element"
-    ? `rgba(10, 10, 20, ${overlayOpacity})`
-    : `linear-gradient(to bottom,
-            rgba(10, 10, 20, ${overlayOpacity}) 0%,
-            rgba(10, 10, 20, ${overlayOpacity}) 66.8%,
-            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 67.6%,
-            rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 100%)`;
-
-/** Whether the frame-level action-rail vignette applies to this element. */
-const drawsRailVignette = (
-  scope: "frame" | "element",
-  overlay: number,
-  media: { backdrop?: { railVignette?: boolean } },
-): boolean => scope === "frame" && overlay > 0 && media.backdrop?.railVignette !== false;
-
-/**
  * CSS `object-position` for the media element.
  *
  * #1040: `cropFocus.{x,y}` is already a normalized CSS object-position ratio,
@@ -178,7 +115,7 @@ const drawsRailVignette = (
  * contrast background, an evidence card, fullscreen — centres it (#1075).
  * Before #1075 every container bottom-anchored, so a contain picture in a
  * full-frame scene landed at y 1312–1920, under the burned subtitles
- * (SUBTITLE_LANE_TOP 1328): the "画面被塞到字幕带下面" report.
+ * (SUBTITLE_LANE_TOP was then 1328, now 1336): the "画面被塞到字幕带下面" report.
  *
  * Extracted from the component body: inlining this pushed `MediaBackground`
  * past the complexity ceiling the incremental lint enforces on changed files.
@@ -285,9 +222,6 @@ export const MediaBackground: React.FC<Props> = ({
   duration,
   effects,
   containAlign = "center",
-  scrimScope = "frame",
-  railVignette,
-  railAlpha,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -304,7 +238,6 @@ export const MediaBackground: React.FC<Props> = ({
   const preset = resolvePreset(media.animation, media.type);
 
   const timing = TIMING[preset];
-  const overlay = media.mode === "fullscreen" ? 0 : (media.overlay ?? 0.7);
   const totalFrames = secToFrames(duration);
   const inFrames = secToFrames(Math.min(timing.in, duration / 2));
   const outFrames = secToFrames(Math.min(timing.out, duration / 2));
@@ -369,10 +302,12 @@ export const MediaBackground: React.FC<Props> = ({
     inset: 0,
     width: "100%",
     height: "100%",
-    // No zIndex here: stacking must stay DOM-order based (backdrop < primary
-    // < dim overlay). A positive zIndex lifts the media above the overlay and
-    // safe-zone brightness checks fail (#201). The backdrop-branch primary is
-    // a regular <Img> for the same reason — CanvasImage would paint below <Video>.
+    // No zIndex here: stacking must stay DOM-order based (backdrop < primary).
+    // Media never draws a dim overlay or vignette any more (#1540): every
+    // contrast layer is a separate opaque text surface, so a positive zIndex
+    // here would only lift the media above those surfaces. The backdrop-branch
+    // primary is a regular <Img> for the same reason — CanvasImage would paint
+    // below <Video>.
     //
     // NO objectFit HERE — it is a PROP on @remotion/media's <Video>, and the
     // component ignores it in `style` (it logs "Use the `objectFit` prop
@@ -414,23 +349,11 @@ export const MediaBackground: React.FC<Props> = ({
   // pay for a second decode without changing a pixel the viewer can name.
   const showFillBlur = isContain && media.fill === "blur" && !media.backdrop;
 
-  // Overlay also fades in/out slightly for smoother transitions
-  const overlayOpacity =
-    preset === "none"
-      ? overlay
-      : interpolate(
-          frame,
-          [0, inFrames * 0.5, outStart, totalFrames],
-          [0, overlay, overlay, overlay * 0.3],
-          clamp,
-        );
-
   // ─── #156 backdrop layer ───
   // A generated clip rendered BENEATH the primary media (visible where the
   // primary doesn't cover the frame — e.g. contained charts, strips).
   // Muted by contract; opacity held below 1 so the motion layer never
-  // competes with the primary media for attention. The primary media's
-  // overlay div (rendered above both) still governs text contrast.
+  // competes with the primary media for attention.
   const BACKDROP_OPACITY = 0.5;
   const backdropPath = media.backdrop
     ? staticFile(
@@ -445,10 +368,6 @@ export const MediaBackground: React.FC<Props> = ({
       {showBrandedMatte && !showFillBlur && (
         <AbsoluteFill
           style={{
-            // A dark default matte reads as a shadow whenever the contained
-            // source is light (white chart, pale product shot). The scene can
-            // name the source's edge colour instead, so the letterbox
-            // disappears into the picture rather than framing it in black.
             background:
               media.matteColor ?? "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
             opacity,
@@ -504,72 +423,6 @@ export const MediaBackground: React.FC<Props> = ({
           effects={effects}
           trimBefore={trimBefore}
           loop
-        />
-      )}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          // #1305 follow-up: a single flat scrim cannot serve both jobs. At the
-          // old 0.7 the picture was invisible; at 0.55 the picture reads but the
-          // subtitle gap does too — measured 23.3% bright pixels in y 1298–1328
-          // against a 5% ceiling (`BRIGHT_RATIO_FAIL`), a hard frame-analysis
-          // failure.
-          //
-          // The stop is tied to the content edge, not a fraction of the frame:
-          // 66.8%..67.6% of 1920 is y 1283..1298, i.e. a 15px ramp that lands
-          // on the gap's top edge. Anything that starts higher eats into a
-          // contained picture's visible box (y 656..1263, `#1075`) and the
-          // focus-anchor render contract reads it as a cropped image.
-          //
-          // The bottom stop reads the configured `overlay`, not the animated
-          // `overlayOpacity`, so the exit fade cannot brighten the lane. It
-          // tops out at 0.75 (not 0.88): a `bottom`-anchored contained picture
-          // sits INSIDE the lane (y 1313..1919, #1075) and the focus-anchor
-          // contract still has to classify its colour — past ~0.8 the palette
-          // read collapses and the picture audits as absent.
-          //
-          // `overlay: 0` means "no dim layer" and is honoured literally: the
-          // render contracts drive a pure-colour fixture through this component
-          // and a floor there would recolour it.
-          //
-          // scrimScope "element" (a band-mounted picture) keeps only the flat
-          // dim: the lane stop below is canvas-relative and would land inside
-          // the band at its own 66.8%.
-          background: dimBackgroundFor(scrimScope, overlay, overlayOpacity),
-          transition: "background 0.3s",
-        }}
-      />
-      {/* Action-rail vignette — the horizontal half of the same fix the bottom
-          stop above is the vertical half of.
-
-          #1305 dropped the flat scrim from 0.7 to 0.55 so the picture would
-          read again, which handed the TikTok action rail back its brightness:
-          measured on minimax-h3-image scene 2 the rail went to 607/3550 =
-          17.1% bright pixels against a 5% ceiling (`BRIGHT_RATIO_FAIL`) —
-          a hard frame-analysis failure — while the same frame had passed at
-          0.7. No single flat alpha serves both jobs, exactly as no single
-          bottom stop did.
-
-          Geometry lives in RAIL_VIGNETTE (lib/safe-zones.mjs) with the
-          measurements: a plateau from the rail's left edge, not MediaScrims'
-          smoothstep, because the smoothstep's ramp is spent inside the region
-          the gate samples.
-
-          Static alpha, gated on `overlay > 0`: the animated `overlayOpacity`
-          would let the exit fade brighten the rail back up, and `overlay: 0`
-          means "no dim layer" — a pure-colour fixture must stay untouched
-          (render contracts). */}
-      {(railVignette ?? drawsRailVignette(scrimScope, overlay, media)) && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            // Full-frame element on purpose: the gradient's stops are
-            // canvas-relative, so a `left: rampStartX` element would scale the
-            // ramp into its own 230px width and land it at x≈1031.
-            background: railVignetteGradient(railAlpha),
-          }}
         />
       )}
     </>

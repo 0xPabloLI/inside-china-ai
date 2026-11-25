@@ -27,6 +27,10 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
+import {
+  auditCaptionReadability,
+  shouldEnforceCaptionReadability,
+} from "./lib/caption-readability.mjs";
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
@@ -307,9 +311,7 @@ if (!preMode) {
   }
 
   if (checkTikTok) {
-    const ceiling = Number.isFinite(meta?.scenePlan?.maxDurationSec)
-      ? meta.scenePlan.maxDurationSec
-      : tiktokProfile.thresholds.maxDurationSec;
+    const ceiling = tiktokProfile.thresholds.maxDurationSec;
     if (duration <= ceiling) {
       pass("Duration", `TikTok duration (≤${ceiling}s, content-driven)`, `${duration.toFixed(1)}s`);
     } else if (duration <= 600) {
@@ -358,6 +360,7 @@ console.log("\n📝 Scene Data Checks");
 console.log("─".repeat(50));
 
 let scenes, seriesMeta;
+let contentMetadata = null;
 let sceneSource = "scene-data.mjs";
 // #1305: prefer the resolved snapshot in post-render mode. A malformed or
 // empty file is not fatal — fall through to the authored state rather than
@@ -390,6 +393,7 @@ try {
   const mod = await import(`file://${SCENE_DATA_PATH}`);
   if (!scenes) scenes = mod.scenes || mod.default?.scenes;
   seriesMeta = mod.seriesMeta || null;
+  contentMetadata = mod.metadata || mod.default?.metadata || null;
 } catch (e) {
   fail("Scene Data", "scene-data.mjs loads", e.message, "Fix syntax errors in scene-data.mjs");
   if (!scenes) {
@@ -426,6 +430,7 @@ if (!preMode && existsSync(SCENE_DURATIONS_PATH)) {
 const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, {
   longForm,
   meta,
+  metadata: contentMetadata,
   sceneDurations,
   industryContext,
 });
@@ -552,6 +557,31 @@ if (scenesWithMedia.length > 0) {
     else fail("VideoFit", row.check, row.detail, row.fix);
   }
 }
+
+// ─── Demo cut provenance (shared: pre-render + post-render) ───
+// A contest pack can "have a demo" and still ship the wrong 8 seconds of it.
+// meta.demoCuts fixes the chosen window to the scene, and this gate makes the
+// choice survive re-renders instead of living in an agent's memory.
+{
+  const { checkDemoCuts } = await import("./lib/demo-cut.mjs");
+  const report = checkDemoCuts({
+    scenes,
+    meta,
+    contentDirAbs: CONTENT_DIR_ABS,
+    repoRoot: join(__dirname, "..", ".."),
+    fileExists: existsSync,
+  });
+  if (report.rows.length > 0) {
+    console.log("\n🎞️ Demo Cut Provenance");
+    console.log("─".repeat(50));
+    for (const row of report.rows) {
+      if (row.level === "pass") pass("DemoCut", row.check, row.detail);
+      else if (row.level === "warn") warn("DemoCut", row.check, row.detail, row.fix);
+      else fail("DemoCut", row.check, row.detail, row.fix);
+    }
+  }
+}
+
 // ─── Competition demo gate (shared: pre-render + post-render) ───
 // 2026-11-23 user ruling: event/hackathon/awards coverage must carry the
 // work itself, not only stage photos. Docs alone did not prevent a pack from
@@ -933,38 +963,43 @@ if (!preMode && results.fail.length === 0) {
           `${captionContent.length} chars`,
         );
       }
+
+      // The platform maximum is the API's limit, not the reader's. Check the
+      // assembled caption here too, so a hand-edited caption cannot bypass the
+      // generator's readability gate. Pre-2026-11-25 packs are grandfathered.
+      const readability = auditCaptionReadability(captionContent);
+      if (shouldEnforceCaptionReadability(meta)) {
+        const fails = readability.issues.filter((issue) => issue.level === "fail");
+        if (fails.length > 0) {
+          fail(
+            "Caption",
+            `[${profile.platform}] Caption readability`,
+            fails.map((issue) => issue.message).join("; "),
+            "Put the hook in the first 100 chars (hard 150) and keep the body under 200 (hard 300)",
+          );
+        } else {
+          pass(
+            "Caption",
+            `[${profile.platform}] Caption readability`,
+            `body ${readability.metrics.bodyChars}, first block ${readability.metrics.previewChars}`,
+          );
+        }
+      } else if (readability.issues.length > 0) {
+        warn(
+          "Caption",
+          `[${profile.platform}] Caption readability (grandfathered pack)`,
+          readability.issues.map((issue) => issue.message).join("; "),
+          "Shorten the body when this caption is next regenerated",
+        );
+      }
     }
   } catch (e) {
     fail(
       "Caption",
       "Caption generation succeeded",
       e.message,
-      `Check scene-data.mjs for issues that cause invalid caption (title > ${TITLE_MAX_CHARS}, caption > ${CAPTION_MAX_CHARS}, or hashtag count out of range)`,
+      `Check scene-data.mjs for issues that cause invalid caption (title > ${TITLE_MAX_CHARS}, caption > ${CAPTION_MAX_CHARS}, hashtag count out of range, or first block/body over the readability caps)`,
     );
-  }
-}
-
-// ─── Post-render: push caption + hashtags to IM (#1530) ───
-// Best-effort by design: an unreachable chat channel must never flip a green
-// verification red. notify-caption.mjs exits 0 on send failure itself; this
-// catch covers crashes (missing module, bad args) the same way.
-if (!preMode && results.fail.length === 0) {
-  console.log("\n📲 Pushing caption + hashtags...");
-  try {
-    const notifyArgs = [join(__dirname, "notify-caption.mjs"), "--content", contentDir];
-    if (run?.runId) notifyArgs.push("--run", run.runId);
-    execFileSync(process.execPath, notifyArgs, { stdio: "inherit" });
-  } catch (e) {
-    if (args.includes("--require-notify") || process.env.NOTIFY_REQUIRED === "1") {
-      fail(
-        "Notify",
-        "Caption push succeeded",
-        e.message,
-        "Fix FEISHU_BOT_WEBHOOK / network, or drop NOTIFY_REQUIRED to downgrade this to a warning",
-      );
-    } else {
-      console.warn(`⚠️  [Notify] caption push skipped: ${e.message}`);
-    }
   }
 }
 

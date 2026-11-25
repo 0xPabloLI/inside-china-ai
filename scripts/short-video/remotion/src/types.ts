@@ -62,7 +62,6 @@ export interface MediaField {
   cropFocus?: { x: number; y: number }; // default undefined → falls back to `focus` enum
   source?: string;
   animation?: "fade" | "ken-burns" | "slide" | "zoom" | "none";
-  overlay?: number;
   volume?: number; // 0-1, default 0.08 (≈ -22dB). Video only; images have no audio.
   /**
    * #1525: scene-relative audio window, seconds. `audioIn` starts the source
@@ -105,8 +104,8 @@ export interface MediaField {
   /**
    * #156 backdrop layer: a generated clip rendered BENEATH the primary
    * media (visible where the primary doesn't cover the frame). Muted by
-   * contract (volume 0); the primary media's overlay dims it, so text
-   * contrast is preserved. Written by the b-roll orchestrator when a
+   * contract (volume 0); the primary media renders at its own brightness,
+   * never through a dim layer. Written by the b-roll orchestrator when a
    * scene that already has media wins generation.
    */
   backdrop?: {
@@ -255,7 +254,7 @@ export interface SceneData {
   media?: MediaField | null;
   /**
    * What the picture is FOR (2026-11-18, revised 2026-11-19). `evidence` keeps
-   * the full-bleed band; `background` fills the frame behind the text scrims;
+   * the full-bleed band; `background` fills the frame behind the opaque text panels;
    * `card` is the bounded 820×686 window. Omitted → `media.evidence === true`
    * decides, everything else defaults to background. `decorative` is a legacy
    * alias for card.
