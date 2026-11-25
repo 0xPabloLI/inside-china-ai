@@ -83,6 +83,7 @@ import { MEDIA_DEPENDENT_LAYOUTS, NO_MEDIA_TYPES } from "./final-media-gate.mjs"
 import { runIndustryFactChecks } from "./industry-facts.mjs";
 import { checkMediaFieldSchema } from "./media-field-schema.mjs";
 import { mediaRoleOf, MEDIA_ROLE, MEDIA_ROLES } from "./media-role.mjs";
+import { isCompactMediaScene, mediaCopyRowCount, MEDIA_COPY_LIMIT } from "./media-copy.mjs";
 import { skipsMediaSourcing, sceneClaimPhrases, isUsableSearchHints } from "./claim-keywords.mjs";
 import {
   MEDIA_STRATEGIES,
@@ -3064,6 +3065,40 @@ export function checkMediaFirstContract(scenes) {
   return results;
 }
 
+/**
+ * Media-page copy density (2026-11-25 user ruling).
+ *
+ * A full-bleed evidence page is a picture with a short caption, not a four-row
+ * article. New packs are capped at two rows; the template also compacts the
+ * rendered block, so a legacy pack that is re-rendered cannot silently pay for
+ * rows it no longer shows. Old packs are grandfathered by meta.createdAt so a
+ * re-run of an already shipped package is not retroactively failed.
+ */
+export function checkMediaCopyDensity(scenes, { meta } = {}) {
+  const CHECK = "Media page copy density";
+  const CATEGORY = "Media";
+  const results = [];
+  const createdAt = typeof meta?.createdAt === "string" ? meta.createdAt.slice(0, 10) : "";
+  const enforcementFrom = "2026-11-25";
+  const enforce = !createdAt || createdAt >= enforcementFrom;
+
+  for (const scene of scenes || []) {
+    if (!isCompactMediaScene(scene)) continue;
+    const rows = mediaCopyRowCount(scene.texts);
+    if (rows <= MEDIA_COPY_LIMIT) continue;
+    if (!enforce) continue;
+    const present = ["company", "result", "action", "source"].filter((key) => scene.texts?.[key]);
+    results.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Scene ${scene.id}: ${rows} copy rows (${present.join("/")}); a full-bleed evidence page reads as one picture plus 1–2 lines`,
+      fix: "Keep company + result; move action/source into voiceover or the TikTok caption. The renderer already drops the extra rows.",
+    });
+  }
+  return results;
+}
+
 export function checkContainFitBand(scenes) {
   const CHECK = "contain fit has a band";
   const CATEGORY = "Media";
@@ -3618,6 +3653,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkAssetNeedAnnotation(scenes),
     ...checkMediaFieldSchema(scenes),
     ...checkMediaFirstContract(scenes),
+    ...checkMediaCopyDensity(scenes, { meta }),
     ...checkSearchHintsSchema(scenes, claimPhrases),
     ...checkMediaStrategyContract(scenes),
     ...checkMediaOptOutDeprecation(scenes),

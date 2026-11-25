@@ -45,6 +45,7 @@ import { TextGate } from "../components/text-gate";
 import { TextGroupGate } from "../components/text-group-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 import { mediaRoleOf, MEDIA_ROLE } from "../../../lib/media-role.mjs";
+import { compactMediaTexts, isCompactMediaScene } from "../../../lib/media-copy.mjs";
 
 type Layout =
   "media-first" | "media-bottom-bar" | "media-split" | "media-overlay" | "stacked-cards";
@@ -244,8 +245,14 @@ export const NarrativeScene: React.FC<{
     // bottom edge IS this bar's top edge, so the two cannot drift apart.
     // The bar height is per scene (2026-10-24): a scene that declares fewer
     // rows gets a shorter bar, so its text block starts lower in the frame.
-    const textBarHeight = mediaBottomBarHeightFor(txt);
-    const textBarTop = mediaBottomBarTopFor(txt);
+    //
+    // 2026-11-25: a full-bleed evidence page renders only its two highest-signal
+    // rows. The picture owns the page; four rows of caption were pushing it up
+    // and crowding the subtitle lane. A card/page capture keeps its full block.
+    const compact = isCompactMediaScene(scene);
+    const displayTexts = compact ? compactMediaTexts(txt) : txt;
+    const textBarHeight = mediaBottomBarHeightFor(displayTexts);
+    const textBarTop = mediaBottomBarTopFor(displayTexts);
     return (
       <>
         {/* Media owns the band above the text bar. On a contain binding the
@@ -312,18 +319,26 @@ export const NarrativeScene: React.FC<{
               borderTop: `2px solid ${glowColor === "red" ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
             }}
           >
-            <SlideUpFromBottom delay={0.2} duration={0.5}>
-              <CompanyText variant="media-bottom-bar" />
-            </SlideUpFromBottom>
-            <SlideUp delay={0.4} duration={0.5}>
-              <ActionText variant="media-bottom-bar" />
-            </SlideUp>
-            <StampIn delay={0.6} duration={0.5}>
-              <ResultText variant="media-bottom-bar" />
-            </StampIn>
-            <FadeIn delay={0.8} duration={0.5}>
-              <SourceText variant="media-bottom-bar" />
-            </FadeIn>
+            {displayTexts.company && (
+              <SlideUpFromBottom delay={0.2} duration={0.5}>
+                <CompanyText variant="media-bottom-bar" />
+              </SlideUpFromBottom>
+            )}
+            {displayTexts.action && (
+              <SlideUp delay={0.4} duration={0.5}>
+                <ActionText variant="media-bottom-bar" />
+              </SlideUp>
+            )}
+            {displayTexts.result && (
+              <StampIn delay={0.6} duration={0.5}>
+                <ResultText variant="media-bottom-bar" />
+              </StampIn>
+            )}
+            {displayTexts.source && (
+              <FadeIn delay={0.8} duration={0.5}>
+                <SourceText variant="media-bottom-bar" />
+              </FadeIn>
+            )}
           </div>
         </Camera>
       </>
@@ -339,8 +354,9 @@ export const NarrativeScene: React.FC<{
   // subtitle lane. No gradient vignettes and no dim layer: media is never
   // darkened, so contrast comes from the flat copy plate.
   const MediaFirst: React.FC = () => {
-    const blockHeight = mediaFirstBarHeightFor(txt);
-    const blockTop = mediaFirstBarTopFor(txt);
+    const displayTexts = compactMediaTexts(txt);
+    const blockHeight = mediaFirstBarHeightFor(displayTexts);
+    const blockTop = mediaFirstBarTopFor(displayTexts);
     return (
       <>
         {hasMedia && (
@@ -388,15 +404,21 @@ export const NarrativeScene: React.FC<{
                 // not a gradient over the picture.
               }}
             >
-              <SlideUpFromBottom delay={0.2} duration={0.5}>
-                <CompanyText variant="media-first" />
-              </SlideUpFromBottom>
-              <StampIn delay={0.4} duration={0.5}>
-                <ResultText variant="media-first" />
-              </StampIn>
-              <FadeIn delay={0.6} duration={0.5}>
-                <SourceText variant="media-first" />
-              </FadeIn>
+              {displayTexts.company && (
+                <SlideUpFromBottom delay={0.2} duration={0.5}>
+                  <CompanyText variant="media-first" />
+                </SlideUpFromBottom>
+              )}
+              {displayTexts.result && (
+                <StampIn delay={0.4} duration={0.5}>
+                  <ResultText variant="media-first" />
+                </StampIn>
+              )}
+              {displayTexts.source && (
+                <FadeIn delay={0.6} duration={0.5}>
+                  <SourceText variant="media-first" />
+                </FadeIn>
+              )}
             </div>
           </Camera>
         )}

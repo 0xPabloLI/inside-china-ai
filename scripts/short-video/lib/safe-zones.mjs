@@ -17,7 +17,7 @@
  * the canvas is split into NON-OVERLAPPING bands — content must never enter
  * the burned-subtitle lane, and nothing may enter the TikTok UI zones:
  *
- *   content (≤ y=1298, x∈[60,880]) → gap → subtitle lane (y=1328-1420, 92px,
+ *   content (≤ y=1206, x∈[60,880]) → gap → subtitle lane (y=1336-1520, 184px,
  *   x∈[110,830]) → clean margin → TikTok caption UI (y≈1676 measured)
  *
  * Invariants are test-locked in __tests__/safe-zones.test.mjs.
@@ -38,7 +38,7 @@ export const SAFE_ZONES = {
   /** Right margin = 200 → content right edge x=880, clearing the action rail */
   right: 200,
   /**
-   * Content bottom edge = 1920 − 622 = 1298 — ABOVE the subtitle lane.
+   * Content bottom edge = 1920 − 714 = 1206 — ABOVE the subtitle lane.
    *
    * 770 → 710 → 611 → 622. The 2026-10-29 second pass took it to 611 because
    * the first (710 → content bottom 1210) moved the stack 60px, which is 3% of
@@ -49,8 +49,9 @@ export const SAFE_ZONES = {
    * here, so this edge also fixes the contained picture's bottom edge (see
    * CONTAIN_MEDIA_BOTTOM): a 16:9 source at 1080 wide is 608px tall, so pushing
    * this value lower walks the picture's top down until the bar's own height
-   * starts eating it. 1298 puts a 3-row scene's picture at y 418-1026 and its
-   * caption block at 1034-1298, with 30px still clear of the lane.
+   * starts eating it. 1206 puts a compact two-row media page's text bar at
+   * 1005-1206 (the legacy four-row shape at 894-1206), with a 16:9 contain
+   * picture above it and 130px clear of the lane at 1336.
    *
    * 611 → 622 (#1228, 2026-11-11): raising the cue to 68px grew its reserved
    * lane 81 → 92px. The cue's bottom edge is fixed at marginV 500, so the lane
@@ -62,11 +63,18 @@ export const SAFE_ZONES = {
    * neighbour instead of flashing. The extra 92px comes out of the content
    * band, same as the 11px above, and the 30px gap is kept unchanged.
    *
+   * 2026-11-25 user review: the lane moved from 1236–1420 to 1336–1520. The
+   * cue bottom moves 1420 → 1520 (marginV 500 → 400); the content edge and the
+   * 714 total are unchanged. The 100px comes out of the gap, not the picture:
+   * the old 30px gap became 130px, which is the breathing room the user asked
+   * for between copy and burned subtitles. The measured TikTok caption top is
+   * still y≈1676, leaving 156px under the new lane.
+   *
    * Everything below this line is reservation, not picture:
-   *   30px  declared content → lane gap        (1206 → 1236)
-   *  184px  the lane's full reservation         (1236 → 1420)
-   *  500px the lane's bottom offset, marginV    (1420 → 1920)
-   * 30 + 184 + 500 = 714.
+   *  130px  declared content → lane gap        (1206 → 1336)
+   *  184px  the lane's full reservation         (1336 → 1520)
+   *  400px  the lane's bottom offset, marginV    (1520 → 1920)
+   * 130 + 184 + 400 = 714.
    */
   bottom: 714,
   /** Content must stay at least this many px from the left edge */
@@ -92,7 +100,7 @@ export const SAFE_ZONES = {
 export const MEDIA_BOTTOM_BAR = {
   /** Text bar height ceiling — the four-row stack (company/action/result/source). */
   textBarHeight: 312,
-  /** Text bar top edge on the canvas (y = 1298 − 312 = 986). */
+  /** Text bar top edge on the canvas (y = 1206 − 312 = 894). */
   textBarTop: CANVAS.height - SAFE_ZONES.bottom - 312,
   /**
    * Measured rendered height of each row, in px. These are the numbers the
@@ -244,8 +252,8 @@ export const EVIDENCE_CARD = {
  * reach the rail. Our karaoke cues can be up to 720px wide (≈4 words at 68px),
  * which would be occluded if centered.
  *
- * marginV places the cue BOTTOM edge at 1920 − 500 = 1420; the lane reserves
- * height for one line of 68px text (with 1.35 line-height safety factor).
+ * marginV places the cue BOTTOM edge at 1920 − 400 = 1520; the lane reserves
+ * height for two lines of 68px text (184px, with 1.35 line-height safety).
  *
  * Recalibrated 2026-10-24 from a measured TikTok Studio preview. The old
  * marginV 570 put the lane at y 1188-1350 and cleared the caption UI by 150px
@@ -253,13 +261,13 @@ export const EVIDENCE_CARD = {
  * screenshot estimate. Measuring the real preview DOM with this pack's own
  * 1166-character caption in place (`.meta-data` inside `.video-overlay-container`,
  * the element that carries the username and the first caption lines) puts the
- * caption block's top edge at canvas y ≈ 1676. The lane now sits at 1328-1420
- * (#1228 raised the cue 60 → 68px, growing the reserved band 81 → 92px):
- * still 256px clear of the measured caption top, and 30px clear of the
+ * caption block's top edge at canvas y ≈ 1676. The lane now sits at 1336-1520
+ * (2026-11-25 moved marginV 500 → 400):
+ * still 156px clear of the measured caption top, and 130px clear of the
  * content band, while the cue reads noticeably lower in frame.
  *
  * The 60-70% "best readability" band from the vSubtitle/Blitzcut research is
- * deliberately exceeded (1420/1920 = 74%): that band is a guideline for
+ * deliberately exceeded (1520/1920 = 79.2%): that band is a guideline for
  * canvas-centred native captions, and this lane is left-shifted to the content
  * band's centre, where the action rail no longer crowds it. The binding
  * constraint is the caption UI, and the measurement says there is room.
@@ -268,18 +276,17 @@ export const SUBTITLE_LANE = {
   /**
    * ASS MarginV — subtitle bottom edge distance from the canvas bottom.
    *
-   * Held at 500 after testing 608 on 2026-10-28. Moving the cue UP does close
-   * the measured 267px gap to the text bar, but it does so by spending the one
-   * thing the user asked to keep: "this lane reads noticeably lower in frame"
-   * (2026-10-24) is a deliberate choice, and 608 also dragged the lane out of
-   * the lower third (1420/1920 = 74% → 1312/1920 = 68%) and onto the content
-   * band's own edge.
+   * 500 → 400 on 2026-11-25. The user review asked for the cue to sit lower,
+   * under a picture that already carries little copy; the 100px comes out of
+   * the content-to-lane gap (30 → 130), not the content band or the picture.
+   * The measured TikTok caption top is y≈1676, so 1520 still leaves 156px.
    *
-   * The gap is closed from the other end instead — SAFE_ZONES.bottom 770 → 611
-   * moves the content stack DOWN, which takes the text-bar-to-cue gap from
-   * 267px to 30px without touching the cue's position at all.
+   * Before this, 500 was held after testing 608 on 2026-10-28 — moving the cue
+   * UP closed the text-bar gap by spending the "noticeably lower in frame"
+   * decision. The 2026-11-25 move goes the other way and keeps the same
+   * 714px content bottom, so the picture does not give up height.
    */
-  marginV: 500,
+  marginV: 400,
   /**
    * ASS font size (Helvetica Neue Bold).
    *
@@ -304,8 +311,9 @@ export const SUBTITLE_LANE = {
    * spent where it was never spent before: on rescue merges.
    *
    * The switch is not just a style constant: SUBTITLE_LANE_TOP moves with it
-   * (1328 → 1236) and SAFE_ZONES.bottom follows (622 → 714), so the content
-   * band gives back exactly the lane's 92px. The gate reads this value via
+   * (1328 → 1236 on #230; 1236 → 1336 on 2026-11-25) while SAFE_ZONES.bottom
+   * stays 714, so the content band gives back exactly the lane's 92px and the
+   * lower 100px comes out of the gap. The gate reads this value via
    * `maxLines`, so a cue that wraps to a third line still fails the run.
    */
   maxLines: 2,
@@ -330,10 +338,10 @@ export const SUBTITLE_LANE = {
   marginR: 250,
 };
 
-/** Subtitle lane bottom edge on the canvas, in px (y = 1420). */
+/** Subtitle lane bottom edge on the canvas, in px (y = 1520). */
 export const SUBTITLE_LANE_BOTTOM = CANVAS.height - SUBTITLE_LANE.marginV;
 
-/** Subtitle lane top edge, in px (y = 1328) — one line, ceiling-rounded so
+/** Subtitle lane top edge, in px (y = 1336) — two lines, ceiling-rounded so
  *  the reserved height NEVER drops below fontSize × lineHeight × maxLines. */
 export const SUBTITLE_LANE_TOP =
   CANVAS.height -
@@ -350,14 +358,14 @@ export const SUBTITLE_LANE_TOP =
  * 2026-10-24 unitree render the content centroid sat at y≈685 against a frame
  * centre of 960, and the user read the result as "内容整体还是太偏上了".
  *
- * The band now runs to the content band's bottom edge (y=1298), so the picture
- * occupies 67.6% of the frame instead of 43-53%. 2026-11-25: the text is drawn
+ * The band now runs to the content band's bottom edge (y=1206), so the picture
+ * occupies 62.8% of the frame instead of 43-53%. 2026-11-25: the text is drawn
  * on its own opaque panel below the picture, not on a gradient scrim over it.
  * Media is never dimmed — the old right vignette and bottom scrim are deleted,
  * and `MediaTextPanel` covers exactly the text bar from its top edge down.
  *
- * The band deliberately stops at 1298 rather than at the subtitle lane top
- * (1328): see the `bottom` note below for the measured reason (the source's own
+ * The band deliberately stops at 1206 rather than at the subtitle lane top
+ * (1336): see the `bottom` note below for the measured reason (the source's own
  * bottom-corner captions would land in the FAIL-only subtitle gap).
  */
 export const MEDIA_BAND = {
@@ -365,19 +373,17 @@ export const MEDIA_BAND = {
    * Media bottom edge — the content band's own bottom limit, NOT the subtitle
    * lane top.
    *
-   * The taller value (SUBTITLE_LANE_TOP, 1258) was measured and rejected: a
-   * 16:9 source cover-cropped into a 1080xH band shows its full height, so a
+   * A 16:9 source cover-cropped into a 1080xH band shows its full height, so a
    * caption burned into the source's bottom-left corner lands at source y
-   * 1005-1050 → canvas y 0.93H-0.97H. At H=1298 that is y 1207-1259 — inside
-   * the content band, above the FAIL-only subtitle gap (now 1298-1328), and
+   * 1005-1050 → canvas y 0.93H-0.97H. At H=1206 that is y 1122-1170 — inside
+   * the content band, above the FAIL-only subtitle gap (now 1206-1336), and
    * outside the action rail (x 51-858 vs the rail's x≥880) — so it survives as
-   * evidence, with 39px of headroom before the gap begins. A taller band, H
-   * ≥1350, would push the same caption into the gap and the frame gate would
+   * evidence, with 36px of headroom before the gap begins. A taller band, H
+   * ≥1336, would push the same caption into the gap and the frame gate would
    * read it as content; that ceiling is what fixes this value.
    *
-   * H tracks SAFE_ZONES.bottom, so the 770 → 611 change above grew the band
-   * from 1150 to 1309 (60% → 68.2% of the frame); #1228's 611 → 622 took it to
-   * 1298 (67.6%).
+   * H tracks SAFE_ZONES.bottom. The current 714 (content bottom 1206) comes
+   * from the 2026-11-25 lane move: 130px gap + 184px lane + 400px marginV.
    *
    * 2026-11-25: there are no scrim/vignette fields left. Media is never
    * dimmed; a text bar gets its own opaque panel (`MediaTextPanel`).

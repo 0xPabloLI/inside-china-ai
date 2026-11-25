@@ -27,7 +27,7 @@ import {
  *     still clearing the action rail, which is the whole point of the change.
  *
  * The 1080×1920 canvas is split into non-overlapping bands:
- *   content (down to y=1206) → gap → subtitle lane (y=1236-1420, 184px)
+ *   content (down to y=1206) → gap → subtitle lane (y=1336-1520, 184px)
  *   → clean margin → TikTok caption UI (y≥1500 worst case).
  *
  * These tests lock the chain so the consumers — scene content
@@ -53,8 +53,8 @@ const TIKTOK_CAPTION_TOP = 1620;
 describe("region separation (single source of truth)", () => {
   it("content band, subtitle lane and TikTok UI are strictly ordered", () => {
     expect(contentBottomEdge).toBe(1206);
-    expect(laneTop).toBe(1236);
-    expect(laneBottom).toBe(1420);
+    expect(laneTop).toBe(1336);
+    expect(laneBottom).toBe(1520);
     // strict ordering: content < lane top < lane bottom < TikTok caption UI
     expect(contentBottomEdge).toBeLessThan(laneTop);
     expect(laneTop).toBeLessThan(laneBottom);
@@ -66,11 +66,11 @@ describe("region separation (single source of truth)", () => {
     // vSubtitle/Blitzcut research recommends for canvas-centred native
     // captions (2026-10-24 user decision: push the cue down while it still
     // clears the caption UI). That band's ceiling is 0.71 × 1920 = 1363;
-    // this lane bottoms at 1420 = 74%. The caption UI is the binding
+    // this lane bottoms at 1520 = 79.2%. The caption UI is the binding
     // constraint and the measurement above says there is room.
     expect(laneTop / CANVAS.height).toBeGreaterThanOrEqual(0.6);
     expect(laneBottom / CANVAS.height).toBeGreaterThan(0.71);
-    expect(laneBottom / CANVAS.height).toBeLessThanOrEqual(0.75);
+    expect(laneBottom / CANVAS.height).toBeLessThanOrEqual(0.8);
   });
 
   it("leaves a gap between content and the subtitle lane", () => {
@@ -95,8 +95,8 @@ describe("region separation (single source of truth)", () => {
 
   it("keeps subtitles clear of the worst-case TikTok caption zone", () => {
     // Measured caption top y≈1676 with a long caption; the 1620 floor leaves
-    // 200px of clearance below the lane.
-    expect(TIKTOK_CAPTION_TOP - laneBottom).toBeGreaterThanOrEqual(200);
+    // 100px of clearance below the 1520 lane (156px to the measured top).
+    expect(TIKTOK_CAPTION_TOP - laneBottom).toBeGreaterThanOrEqual(100);
   });
 
   it("sits between TikTok native size and the 72px ceiling (68px, ≈3.5%)", () => {
@@ -110,7 +110,7 @@ describe("region separation (single source of truth)", () => {
   it("uses left-shifted asymmetric margins to clear the action rail", () => {
     expect(SUBTITLE_LANE.marginL).toBe(110);
     expect(SUBTITLE_LANE.marginR).toBe(250);
-    expect(SUBTITLE_LANE.marginV).toBe(500);
+    expect(SUBTITLE_LANE.marginV).toBe(400);
     // marginL + maxWidth + marginR = canvas width (invariant)
     expect(SUBTITLE_LANE.marginL + SUBTITLE_LANE.maxWidth + SUBTITLE_LANE.marginR).toBe(
       CANVAS.width,
@@ -193,19 +193,18 @@ describe("evidence card (#663, #848)", () => {
  */
 describe("media band (full-bleed footage)", () => {
   it("stops at the content band's bottom edge, never at the subtitle lane", () => {
-    // The taller value (SUBTITLE_LANE_TOP, 1258) was measured and rejected: a
-    // 16:9 source cover-cropped into a 1080xH band shows its full height, so a
-    // caption burned into the source's bottom-left corner lands at source y
-    // 1005-1050 → canvas y 0.93H-0.97H. H=1298 puts it at y 1207-1259 — inside
-    // the content band, 39px clear of the FAIL-only gap. A taller band walks it
-    // into that gap (SUBTITLE_LANE_TOP, 1328, would put it at 1235-1288 and the
+    // A 16:9 source cover-cropped into a 1080xH band shows its full height, so
+    // a caption burned into the source's bottom-left corner lands at source y
+    // 1005-1050 → canvas y 0.93H-0.97H. H=1206 puts it at y 1122-1170 — inside
+    // the content band, 36px clear of the FAIL-only gap. A taller band walks it
+    // into that gap (SUBTITLE_LANE_TOP, 1336, would put it at 1243-1297 and the
     // band's own edge at the gap's start), where the frame gate reads it as
     // content and fails; media is never dimmed to hide it.
     expect(MEDIA_BAND.bottom).toBe(1206);
     expect(MEDIA_BAND.bottom).toBe(CANVAS.height - SAFE_ZONES.bottom);
     expect(MEDIA_BAND.bottom).toBeLessThan(SUBTITLE_LANE_TOP);
     // the whole FAIL-only gap stays empty, which is what the gate measures
-    expect(SUBTITLE_LANE_TOP - MEDIA_BAND.bottom).toBe(30);
+    expect(SUBTITLE_LANE_TOP - MEDIA_BAND.bottom).toBe(130);
   });
 
   it("grows the picture from the old text bar top to 62.8% of the frame", () => {
