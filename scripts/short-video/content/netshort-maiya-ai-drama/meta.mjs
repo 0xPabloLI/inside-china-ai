@@ -21,14 +21,7 @@ export const meta = {
       "Revenue is a third-party estimate, not an audited figure. Cheap AI production does not guarantee a hit; the hit rate is still a lottery, and one breakout does not make a repeatable factory.",
     storyType: "phenomenon",
   },
-  topics: [
-    "china-ai",
-    "ai-short-drama",
-    "netshort",
-    "maiya-media",
-    "tiktok",
-    "micro-drama",
-  ],
+  topics: ["china-ai", "ai-short-drama", "netshort", "maiya-media", "tiktok", "micro-drama"],
   keyEntities: {
     companies: ["netshort", "maiya-media"],
     people: [],

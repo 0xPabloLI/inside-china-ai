@@ -24,6 +24,25 @@ import { ChartPanel, ChartRenderer } from "../components/charts";
 import { normalizeInfoSpec } from "../../../lib/info-grammar.mjs";
 import { resolveRenderLayout } from "../../../lib/text-slots.mjs";
 
+/** DataScene media dim: explicit overlay wins, otherwise the 0.62 evidence default. */
+const normalizeMediaOverlay = (media: SceneData["media"]): number => {
+  const declared = Number(media?.overlay);
+  const value = Number.isFinite(declared) ? declared : 0.62;
+  return Math.min(Math.max(value, 0), 1);
+};
+
+/** Resolve a scene media path to a static file URL, preserving the assets/ prefix. */
+const assetSrc = (path: string): string =>
+  staticFile(path.startsWith("assets/") ? path : `assets/${path}`);
+
+/** Chart card media, only when the resolved layout renders a chart card. */
+const chartSrcFor = (layout: string, media: SceneData["media"]): string | null =>
+  layout === "chart-card" && media?.path ? assetSrc(media.path) : null;
+
+/** DataScene full-bleed media source. */
+const mediaSrcFor = (media: SceneData["media"]): string | null =>
+  media?.path ? assetSrc(media.path) : null;
+
 export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
   scene,
   duration,
@@ -38,21 +57,9 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
     extrapolateRight: "clamp",
   });
   const layout = resolveRenderLayout(scene);
-  const chartSrc =
-    layout === "chart-card" && scene.media?.path
-      ? staticFile(
-          scene.media.path.startsWith("assets/") ? scene.media.path : `assets/${scene.media.path}`,
-        )
-      : null;
-  const mediaSrc = scene.media?.path
-    ? staticFile(
-        scene.media.path.startsWith("assets/") ? scene.media.path : `assets/${scene.media.path}`,
-      )
-    : null;
-  const mediaOverlay = Math.min(
-    Math.max(Number.isFinite(Number(scene.media?.overlay)) ? Number(scene.media?.overlay) : 0.62, 0),
-    1,
-  );
+  const chartSrc = chartSrcFor(layout, scene.media);
+  const mediaSrc = mediaSrcFor(scene.media);
+  const mediaOverlay = normalizeMediaOverlay(scene.media);
   const yearSource = layout === "year-source" && Boolean(txt.stat) && Boolean(txt.subtext);
 
   if (yearSource) {

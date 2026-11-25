@@ -23,8 +23,7 @@ export const scenes = [
       volume: 0,
       upscale: false,
     },
-    voiceover:
-      "Suno's new music videos are powered by a Chinese model.",
+    voiceover: "Suno's new music videos are powered by a Chinese model.",
     texts: {
       badge: "CHINA AI",
       subject: "SUNO VISUALS",
@@ -195,8 +194,7 @@ export const scenes = [
     narrativeRole: "T-Tell",
     arcRole: "release",
     media: null,
-    voiceover:
-      "The model is Chinese. The stage is global. Would you watch an AI music video?",
+    voiceover: "The model is Chinese. The stage is global. Would you watch an AI music video?",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

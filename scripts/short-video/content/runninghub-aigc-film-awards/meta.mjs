@@ -33,14 +33,7 @@ export const meta = {
       "A prize is not a theatrical release. One winning film has started feature development, but distribution, audience and a sustainable budget model are still unproven.",
     storyType: "event",
   },
-  topics: [
-    "china-ai",
-    "runninghub",
-    "aigc-film",
-    "ai-video",
-    "film-production",
-    "long-form",
-  ],
+  topics: ["china-ai", "runninghub", "aigc-film", "ai-video", "film-production", "long-form"],
   keyEntities: {
     companies: ["runninghub", "haima-cloud", "nebula-awards"],
     people: ["liu-cixin", "chen-qiufan"],

@@ -23,8 +23,7 @@ export const scenes = [
       volume: 0,
       upscale: false,
     },
-    voiceover:
-      "A former DeepSeek project lead just put a 125B agent on a 12GB graphics card.",
+    voiceover: "A former DeepSeek project lead just put a 125B agent on a 12GB graphics card.",
     texts: {
       badge: "DEEPSEEK ALUMNI",
       subject: "LINGER",
@@ -179,8 +178,7 @@ export const scenes = [
     narrativeRole: "T-Tell",
     arcRole: "release",
     media: null,
-    voiceover:
-      "The personal agent race is moving onto your laptop. Would you run one locally?",
+    voiceover: "The personal agent race is moving onto your laptop. Would you run one locally?",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

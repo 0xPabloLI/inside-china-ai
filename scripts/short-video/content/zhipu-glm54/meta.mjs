@@ -21,14 +21,7 @@ export const meta = {
       "There is no official model card or independent benchmark. The 1M badge is unexplained, and reported context specs conflict: 1M on the plan, 200K in one report. Treat the marketing claims as claims, not measured results.",
     storyType: "release",
   },
-  topics: [
-    "china-ai",
-    "zhipu",
-    "glm-5-4",
-    "coding-plan",
-    "large-language-model",
-    "multimodal",
-  ],
+  topics: ["china-ai", "zhipu", "glm-5-4", "coding-plan", "large-language-model", "multimodal"],
   keyEntities: {
     companies: ["zhipu-ai"],
     people: ["li-zixuan"],

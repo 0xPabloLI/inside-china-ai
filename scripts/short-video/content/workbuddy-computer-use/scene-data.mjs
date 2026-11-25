@@ -24,8 +24,7 @@ export const scenes = [
       volume: 0,
       upscale: false,
     },
-    voiceover:
-      "Tencent's WorkBuddy can now click, type and scroll inside your apps. No API.",
+    voiceover: "Tencent's WorkBuddy can now click, type and scroll inside your apps. No API.",
     texts: {
       badge: "CHINA AI · TENCENT",
       subject: "WORKBUDDY",
@@ -246,8 +245,7 @@ export const scenes = [
     arcRole: "release",
     retentionMechanism: "loop-closure",
     media: null,
-    voiceover:
-      "Would you hand an AI your mouse? Follow China AI News for more.",
+    voiceover: "Would you hand an AI your mouse? Follow China AI News for more.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

@@ -67,8 +67,7 @@ export const scenes = [
     arcRole: "initial",
     retentionMechanism: null,
     media: null,
-    voiceover:
-      "More than fifteen hundred entries. One hundred sixteen finalists. Fifteen winners.",
+    voiceover: "More than fifteen hundred entries. One hundred sixteen finalists. Fifteen winners.",
     texts: {
       label: "FROM ENTRY TO AWARD",
       subtext: "CHINA AI · 1,500+ → 116 → 15 · RUNNINGHUB / 36KR",

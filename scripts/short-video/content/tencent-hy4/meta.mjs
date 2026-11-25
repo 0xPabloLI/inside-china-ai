@@ -22,14 +22,7 @@ export const meta = {
       "The benchmark chart is Tencent's own, the model still trails top closed models on hard research and coding tests, and the license is Tencent Hy License 1.0, derived from Apache 2.0 but not Apache: Section 10 requires a separate written license for large MaaS businesses above the revenue or MAU thresholds, and internal use is exempt. The AMA answers were relayed by 36Kr.",
     storyType: "release",
   },
-  topics: [
-    "china-ai",
-    "tencent",
-    "hy4",
-    "open-weights",
-    "mixture-of-experts",
-    "reddit-ama",
-  ],
+  topics: ["china-ai", "tencent", "hy4", "open-weights", "mixture-of-experts", "reddit-ama"],
   keyEntities: {
     companies: ["tencent"],
     people: ["yao_shunyu"],

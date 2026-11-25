@@ -55,8 +55,7 @@ const COLAB_GPU = process.env.COSYVOICE3_COLAB_GPU || "T4";
 
 /** Optional non-interactive model cache: a tar/zip archive on Drive or any URL. */
 const COLAB_MODEL_CACHE_URL = process.env.COSYVOICE3_COLAB_MODEL_CACHE_URL || "";
-const COLAB_MODEL_CACHE_GDRIVE_ID =
-  process.env.COSYVOICE3_COLAB_MODEL_CACHE_GDRIVE_ID || "";
+const COLAB_MODEL_CACHE_GDRIVE_ID = process.env.COSYVOICE3_COLAB_MODEL_CACHE_GDRIVE_ID || "";
 
 /** Locate the Colab CLI without assuming PATH (it installs under ~/.local/bin). */
 export function resolveColabBin(deps = {}) {

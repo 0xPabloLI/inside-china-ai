@@ -21,14 +21,7 @@ export const meta = {
       "The benchmark scores are vendor-run and have no independent third-party verification. Real-room robustness, cross-robot transfer and long-horizon reliability are the harder tests.",
     storyType: "release",
   },
-  topics: [
-    "china-ai",
-    "huawei-cloud",
-    "cloudrobo",
-    "embodied-ai",
-    "world-model",
-    "ascend",
-  ],
+  topics: ["china-ai", "huawei-cloud", "cloudrobo", "embodied-ai", "world-model", "ascend"],
   keyEntities: {
     companies: ["huawei-cloud", "cloudrobo"],
     people: ["wu-xiaodong"],

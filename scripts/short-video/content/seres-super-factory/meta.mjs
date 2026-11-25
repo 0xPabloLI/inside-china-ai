@@ -21,14 +21,7 @@ export const meta = {
       "A lighthouse factory is a government designation, not an independent audit. Seres has not published uptime, defect rate or cost per vehicle, so the operational proof is still missing.",
     storyType: "event",
   },
-  topics: [
-    "china-ai",
-    "embodied-ai",
-    "humanoid-robot",
-    "seres",
-    "aito",
-    "smart-factory",
-  ],
+  topics: ["china-ai", "embodied-ai", "humanoid-robot", "seres", "aito", "smart-factory"],
   keyEntities: {
     companies: ["seres", "aito", "huawei"],
     people: [],

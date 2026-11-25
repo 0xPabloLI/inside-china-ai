@@ -485,12 +485,7 @@ async function collectFromApi(source, keyword) {
 
   console.log(`  🔌 Trying API direct-connect for ${source.label}...`);
 
-  const maxAttempts =
-    1 +
-    Math.max(
-      api.retriesOnTimeout ?? 0,
-      api.retriesOnNetworkError ?? 1,
-    );
+  const maxAttempts = 1 + Math.max(api.retriesOnTimeout ?? 0, api.retriesOnNetworkError ?? 1);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {

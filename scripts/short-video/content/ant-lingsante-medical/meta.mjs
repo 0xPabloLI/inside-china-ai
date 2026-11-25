@@ -21,14 +21,7 @@ export const meta = {
       "The benchmark numbers and user counts are company-reported. This is a triage, evidence and workflow tool, not a diagnosis. Clinician oversight, liability and real-world error rates remain the hard tests.",
     storyType: "release",
   },
-  topics: [
-    "china-ai",
-    "medical-ai",
-    "lingsante",
-    "ant-group",
-    "afu",
-    "open-source",
-  ],
+  topics: ["china-ai", "medical-ai", "lingsante", "ant-group", "afu", "open-source"],
   keyEntities: {
     companies: ["ant-group", "ant-ling"],
     people: [],

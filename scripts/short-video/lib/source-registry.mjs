@@ -79,7 +79,6 @@ try {
   dns.setDefaultResultOrder("ipv4first");
 } catch {}
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -2430,8 +2429,7 @@ function makeWechatAccountGoogleFallback(label, query = `"${label}"`) {
   // byline (verified with 字节跳动技术团队). The label-only query still
   // anchors on the account name and lets the China-AI filter do the rest.
   return {
-    url: () =>
-      `https://www.google.com/search?q=${encodeURIComponent(query)}&tbs=qdr:y`,
+    url: () => `https://www.google.com/search?q=${encodeURIComponent(query)}&tbs=qdr:y`,
     articleScript: SHARED_GOOGLE_SITE_SEARCH_SCRIPT,
   };
 }

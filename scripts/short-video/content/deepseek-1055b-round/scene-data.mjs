@@ -149,8 +149,7 @@ export const scenes = [
       animation: "none",
       overlay: 0.0,
     },
-    voiceover:
-      "State investors put in more than one fifth. That is a different kind of money.",
+    voiceover: "State investors put in more than one fifth. That is a different kind of money.",
     texts: {
       company: "STATE CAPITAL",
       action: "MORE THAN 1/5",

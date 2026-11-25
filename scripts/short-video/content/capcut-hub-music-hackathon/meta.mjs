@@ -33,14 +33,7 @@ export const meta = {
       "The event proves a production path, not a finished art form. The roundtable said the hard parts remain music sync, a coherent story and human taste; the tool only removes the technical barrier.",
     storyType: "event",
   },
-  topics: [
-    "china-ai",
-    "capcut",
-    "jianying",
-    "ai-music-video",
-    "hackathon",
-    "live-visuals",
-  ],
+  topics: ["china-ai", "capcut", "jianying", "ai-music-video", "hackathon", "live-visuals"],
   keyEntities: {
     companies: ["capcut", "waytoagi", "ace-con"],
     people: [],

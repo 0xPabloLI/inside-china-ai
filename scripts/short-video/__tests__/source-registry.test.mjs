@@ -132,9 +132,7 @@ describe("Wechat RSS sources", () => {
   it("keeps an account-specific Google fallback for a failed public feed", () => {
     for (const source of publicFeeds) {
       expect(source.googleSiteFallback).toBeTruthy();
-      expect(source.googleSiteFallback.url()).toContain(
-        encodeURIComponent(`"${source.label}"`),
-      );
+      expect(source.googleSiteFallback.url()).toContain(encodeURIComponent(`"${source.label}"`));
     }
   });
 

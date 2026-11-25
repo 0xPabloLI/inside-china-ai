@@ -21,15 +21,7 @@ export const meta = {
       "The speed, cost and benchmark numbers are Agnes's own or run under its settings; the project is a developer preview, MHS device integration is still an official plugin in progress, and ordinary plugins are not sandboxed.",
     storyType: "phenomenon",
   },
-  topics: [
-    "china-ai",
-    "agnes",
-    "agent",
-    "agent-stack",
-    "sys1",
-    "open-source",
-    "ale-benchmark",
-  ],
+  topics: ["china-ai", "agnes", "agent", "agent-stack", "sys1", "open-source", "ale-benchmark"],
   keyEntities: {
     companies: ["agnes-ai"],
     people: [],

@@ -182,8 +182,7 @@ export const scenes = [
     arcRole: "release",
     retentionMechanism: "loop-closure",
     media: null,
-    voiceover:
-      "China's car factories are now robot factories. Follow China AI News.",
+    voiceover: "China's car factories are now robot factories. Follow China AI News.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

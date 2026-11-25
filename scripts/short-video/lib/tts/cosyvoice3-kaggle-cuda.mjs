@@ -1336,15 +1336,12 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
       }
       snapshot = {
         ...refreshed,
-        target:
-          refreshed.target.phase === "unknown" ? snapshot.target : refreshed.target,
+        target: refreshed.target.phase === "unknown" ? snapshot.target : refreshed.target,
       };
       otherHolders = snapshot.holders.filter((h) => !sameRef(h.ref, kernelId));
       waitedMs = now() - started;
       if (otherHolders.length > 0) {
-        const still = otherHolders
-          .map((h) => `${h.ref} (${h.phase.toUpperCase()})`)
-          .join(", ");
+        const still = otherHolders.map((h) => `${h.ref} (${h.phase.toUpperCase()})`).join(", ");
         log(
           `  ⏳ [Kaggle] Slot precheck: ${still} still active ` +
             `(${fmtDuration(waitedMs)}/${fmtDuration(waitBudgetMs)})`,
@@ -1352,9 +1349,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
       }
     }
     if (otherHolders.length > 0) {
-      const still = otherHolders
-        .map((h) => `${h.ref} (${h.phase.toUpperCase()})`)
-        .join(", ");
+      const still = otherHolders.map((h) => `${h.ref} (${h.phase.toUpperCase()})`).join(", ");
       throw new Error(
         `Kaggle slot precheck: own kernel ${still} is still holding the single ` +
           `free-tier GPU session after ${fmtDuration(waitedMs)}. Default Kaggle ` +

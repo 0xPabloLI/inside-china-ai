@@ -10,8 +10,7 @@ export const meta = {
   // Hook uses the official Suno Visuals hero clip as evidence media.
   videoFit: 5,
   videoFitFormat: "demo-led",
-  videoFitHook:
-    "Official Suno Visuals hero clip at 0s, then H3 and MiniMax text overlays by 1s.",
+  videoFitHook: "Official Suno Visuals hero clip at 0s, then H3 and MiniMax text overlays by 1s.",
   videoFitEvidence:
     "assets/hero.mp4 7.3s + assets/showcase-pink-fluff.mp4 10.0 counted seconds + assets/showcase-sphere-girl.mp4 10.0 counted seconds = 27.3 counted seconds; stills: feature-vision-1778.jpg, feature-edit-1778.jpg, feature-share-1778.jpg, hero.jpg; hook is hero.mp4 with mediaRole evidence.",
   storySpine: {
@@ -21,15 +20,7 @@ export const meta = {
       "Suno has not disclosed the commercial terms of the MiniMax relationship. H3 Move is a Suno-tuned model, not raw H3, and MiniMax's open release leaves the H3-Context-IR preprocessing system hosted rather than open.",
     storyType: "phenomenon",
   },
-  topics: [
-    "china-ai",
-    "suno",
-    "visuals",
-    "minimax",
-    "h3",
-    "music-video",
-    "open-source",
-  ],
+  topics: ["china-ai", "suno", "visuals", "minimax", "h3", "music-video", "open-source"],
   keyEntities: {
     companies: ["suno", "minimax"],
     people: ["jack-brody"],

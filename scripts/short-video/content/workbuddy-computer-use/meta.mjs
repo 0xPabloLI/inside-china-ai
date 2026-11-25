@@ -11,7 +11,8 @@ export const meta = {
   // so the hook renderer actually draws it (not a background role it would drop).
   videoFit: 5,
   videoFitFormat: "demo-led",
-  videoFitHook: "WorkBuddy desktop app task list with the cursor at the task composer (assets/workbuddy-demo-app.mp4)",
+  videoFitHook:
+    "WorkBuddy desktop app task list with the cursor at the task composer (assets/workbuddy-demo-app.mp4)",
   videoFitEvidence:
     "assets/workbuddy-demo-app.mp4 4.0s + assets/workbuddy-demo-task.mp4 10.0s + assets/workbuddy-demo-doc.mp4 10.0s = 24 counted seconds; 5 usable stills (setup, permission, browser search, Xiaohongshu, capability comparison); hook uses the WorkBuddy app clip and is mediaRole:evidence.",
   storySpine: {

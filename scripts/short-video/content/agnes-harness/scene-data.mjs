@@ -24,8 +24,7 @@ export const scenes = [
       volume: 0,
       upscale: false,
     },
-    voiceover:
-      "China's Agnes now runs a 9B judgment model inside an open agent stack.",
+    voiceover: "China's Agnes now runs a 9B judgment model inside an open agent stack.",
     texts: {
       badge: "CHINA AI",
       subject: "AGNES",

@@ -60,8 +60,7 @@ export const scenes = [
     narrativeRole: "A",
     retentionMechanism: "open-loop",
     media: null,
-    voiceover:
-      "Phai-A1 is a 35-billion-parameter mixture of experts. Its weights are open today.",
+    voiceover: "Phai-A1 is a 35-billion-parameter mixture of experts. Its weights are open today.",
     texts: {
       badge: "THE FIRST MODEL",
       company: "35B MOE",
@@ -206,11 +205,7 @@ export const metadata = {
   title: "A 35B Model That Runs on One RTX 3090",
   description:
     "Phancy Group, formerly Fourth Paradigm, released Phai-A1: a 35B MoE coding model with a 1M-token context, open weights, and a claim that it runs 8-10x faster on one RTX 3090. Phai-M1 makes 15-second 720p video with sound in about three minutes.",
-  commentHook:
-    "A 35B model on one RTX 3090. Would you run it locally, or wait for the M1 weights?",
+  commentHook: "A 35B model on one RTX 3090. Would you run it locally, or wait for the M1 weights?",
   trendingChecked: true,
-  sources: [
-    "https://phai.phanthy.com/?lang=en",
-    "https://www.qbitai.com/2026/11/511071.html",
-  ],
+  sources: ["https://phai.phanthy.com/?lang=en", "https://www.qbitai.com/2026/11/511071.html"],
 };

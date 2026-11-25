@@ -24,15 +24,7 @@ export const meta = {
       "One trading day is not a trend. The AI selloff began before Anthropic's debut, and Anthropic still reported a 2025 operating loss of $8.06 billion. The repricing thesis is an interpretation, not a confirmed causal link.",
     storyType: "phenomenon",
   },
-  topics: [
-    "china-ai",
-    "anthropic",
-    "ipo",
-    "minimax",
-    "zhipu",
-    "hong-kong",
-    "ai-valuation",
-  ],
+  topics: ["china-ai", "anthropic", "ipo", "minimax", "zhipu", "hong-kong", "ai-valuation"],
   keyEntities: {
     companies: ["anthropic", "minimax", "zhipu", "hang-seng-tech"],
     people: [],

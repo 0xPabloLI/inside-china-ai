@@ -143,8 +143,7 @@ export const scenes = [
     narrativeRole: "T-Tell",
     arcRole: "release",
     media: null,
-    voiceover:
-      "If the leader cannot hold the premium, who can?",
+    voiceover: "If the leader cannot hold the premium, who can?",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

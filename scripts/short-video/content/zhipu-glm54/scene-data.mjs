@@ -24,8 +24,7 @@ export const scenes = [
       animation: "none",
       overlay: 0.45,
     },
-    voiceover:
-      "Zhipu just put GLM-5.4 into Coding Plan: native multimodal, and a 1M badge.",
+    voiceover: "Zhipu just put GLM-5.4 into Coding Plan: native multimodal, and a 1M badge.",
     texts: {
       badge: "CHINA AI · ZHIPU",
       subject: "GLM-5.4",
@@ -146,8 +145,7 @@ export const scenes = [
     arcRole: "release",
     retentionMechanism: "loop-closure",
     media: null,
-    voiceover:
-      "GLM-5.4 is already shipping in Coding Plan. Follow China AI News for the receipts.",
+    voiceover: "GLM-5.4 is already shipping in Coding Plan. Follow China AI News for the receipts.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

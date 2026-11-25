@@ -438,9 +438,10 @@ describe("MediaCard scrim stays inside the card", { timeout: 600_000 }, () => {
     expect(right, "card right edge must not carry a frame-relative rail vignette").toBeGreaterThan(
       centre * 0.97,
     );
-    expect(bottom, "card bottom edge must not carry a frame-relative subtitle scrim").toBeGreaterThan(
-      centre * 0.97,
-    );
+    expect(
+      bottom,
+      "card bottom edge must not carry a frame-relative subtitle scrim",
+    ).toBeGreaterThan(centre * 0.97);
   });
 
   it("frame scope control: the old card geometry does darken both edges", async () => {
@@ -460,7 +461,6 @@ describe("MediaCard scrim stays inside the card", { timeout: 600_000 }, () => {
       "the negative control must fail this ratio, otherwise the test is not measuring the scrim",
     ).toBeLessThan(centre * 0.94);
   });
-
 });
 
 describe("contained media uses the declared matte colour", { timeout: 600_000 }, () => {

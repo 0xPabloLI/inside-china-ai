@@ -449,7 +449,8 @@ export const MediaBackground: React.FC<Props> = ({
             // source is light (white chart, pale product shot). The scene can
             // name the source's edge colour instead, so the letterbox
             // disappears into the picture rather than framing it in black.
-            background: media.matteColor ?? "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
+            background:
+              media.matteColor ?? "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
             opacity,
           }}
         />

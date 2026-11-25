@@ -182,8 +182,7 @@ export const scenes = [
     arcRole: "release",
     retentionMechanism: "loop-closure",
     media: null,
-    voiceover:
-      "Ant put five medical models inside a 150-million-user app. Follow China AI News.",
+    voiceover: "Ant put five medical models inside a 150-million-user app. Follow China AI News.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",
