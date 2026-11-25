@@ -74,6 +74,19 @@ competitionDemo: {
 
 门禁只接受带具体 `reason` 的 gap；写 `status: "accepted-gap"` 但不写原因仍 FAIL。Demo 的 `media.source` 缺 URL/账号/奖项状态时 WARN，提醒归属必须写已证实的信息。
 
+### Stage 0 Demo 切段卡（2026-11-25 用户裁决）
+
+“有 Demo”不等于“Demo 好看”。同一部长片，切 0–8s 可能只是片头虚影，切 34–42s 才是作品本身；窗口只存在一次执行记录里，下一次重渲就会漂移。所有比赛类内容的 Demo 镜头按下面的卡执行。
+
+1. **源必须是带音轨的完整片**：把完整片留在 `scripts/short-video/output/external-demos/`（或 `content/<slug>/assets/` 的 source 子目录），记录 `ffprobe` 的时长与 audio stream。**禁止**把已裁好的无声 `*-band.mp4` 当作 Demo 源；band 只是背景垫片，不是作品证据。
+2. **先看片，再定切点**：用 `lib/cut-detect.mjs` 的 `detectCuts()`（ffmpeg scene 0.15）拿真实镜头切点，并按 2s 间隔抽帧看 contact sheet。切点只取实测值，不用“感觉差不多”。
+3. **选段规则**：6–8s，起止落在镜头切点上；第一帧不能是黑场、台标、模糊转场或纯标题卡；段内至少有一个可读主体/作品画面稳定 ≥2s；不要从动作中间切断。音乐视觉选作品画面（例如完整构图、可读文字），电影/预告选人物或叙事镜头，不选只有日历、片头 Logo 的静帧。
+4. **原声是证据的一部分**：源有音轨时，选段内至少保留 2–4 秒清晰原声（整段不与旁白重叠就整段保留）；旁白重叠时让旁白停顿或 `duckUnderNarration` 压到 ≤ -18dB，不能把 Demo 一律 `volume: 0`。只有舞台/人群/环境 b-roll 允许 `audio: "silent"`。
+5. **落盘成可检查的切段卡**：`meta.demoRequired: true`，`meta.demoCuts[sceneId]` 记录 `source`、`sourceDurationSec`、`startSec`、`endSec`、`why`（必须写“画面上是什么 + 为什么不是别的段”）、`audio`、`derivedAsset`。`derivedAsset` 必须是 scene 实际播放的文件。
+6. **门禁**：`verify-video --pre` 的 `Demo Cut Provenance` 检查。缺记录、窗口超出源时长、时长不在 4–10s、`audio:"source"` 却 `volume:0`、scene 与 `derivedAsset` 不一致，全部 FAIL；`startSec: 0` 只 WARN，提醒确认片头不是标题/模糊。
+
+**示例（当前两包）**：CapCut 取完整片 `34–42s` 树段（不是 0–8s 的片头虚影）；RunningHub 取 120s trailer 的 `20–28s` 人物段（不是 0–10s 的静音日历）。两条都保留原声，并在 `meta.mjs` 留下 `demoCuts`。
+
 
 ### Stage 0 核实规范：权威报告与一手信源（#266）
 

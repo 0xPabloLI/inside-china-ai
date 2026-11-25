@@ -197,6 +197,18 @@ When the scene has 2–12 known values and the relationship is magnitude / ranki
 
 This is not only a spelling rule: the 2026-11-17 L1 blind review (6 pairs, one rater, descriptive) preferred the native chart **5 / legacy 0 / tie 1**, with clarity **6.67 vs 5.50**. `lib/info-layout-preference.mjs` encodes that result, `preferredDataLayout()` exposes the policy, and `auditInfoLayoutPreference` adds a named advisory when a data scene still uses `chart-card`. Advisory only — it never overrides `checkInfoSpec` or blocks a legal render.
 
+#### Competition demo cuts: choose once, record it
+
+A contest pack's demo is evidence, not a background bed. Do not cut from an already-trimmed silent `*-band.mp4`; cut from the full clip with its talk track.
+
+1. Run `ffprobe` on the full source, detect shot boundaries with `lib/cut-detect.mjs` `detectCuts()` (scene 0.15), and pull frames every 2s. Read the frames before choosing.
+2. Pick 6–8s on real cut points. Frame one must not be a black frame, logo, title card or blurred transition; keep one readable work shot stable for ≥2s; do not cut mid-action.
+3. Keep at least 2–4s of clear source audio inside the window (keep the whole 6–8s when narration does not overlap). If narration overlaps, pause it or set `duckUnderNarration` at ≤ -18dB; never set `volume: 0` for a music visual or film trailer.
+4. Record `meta.demoRequired: true` and `meta.demoCuts[sceneId]` (`source`, `sourceDurationSec`, `startSec`, `endSec`, `why`, `audio`, `derivedAsset`). `why` names the shot and the rejected alternative, e.g. “34–42s tree artwork; 0–8s is a blurred intro”.
+5. `verify-video --pre` now runs `Demo Cut Provenance`: missing record, wrong window, window outside source, `audio:"source"` with `volume:0`, or scene/`derivedAsset` mismatch all FAIL. A `startSec: 0` cut only WARNs, so confirm the first frames are not title/blur.
+
+Full rule and examples: `docs/content-pipeline.md` → Stage 0 “Demo 切段卡”.
+
 ### 3. Run the pipeline
 
 ```bash

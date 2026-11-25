@@ -535,6 +535,30 @@ if (scenesWithMedia.length > 0) {
   pass("Media", "No media backgrounds (all CSS)", "");
 }
 
+// ─── Demo cut provenance (shared: pre-render + post-render) ───
+// A contest pack can "have a demo" and still ship the wrong 8 seconds of it.
+// meta.demoCuts fixes the chosen window to the scene, and this gate makes the
+// choice survive re-renders instead of living in an agent's memory.
+{
+  const { checkDemoCuts } = await import("./lib/demo-cut.mjs");
+  const report = checkDemoCuts({
+    scenes,
+    meta,
+    contentDirAbs: CONTENT_DIR_ABS,
+    repoRoot: join(__dirname, "..", ".."),
+    fileExists: existsSync,
+  });
+  if (report.rows.length > 0) {
+    console.log("\n🎞️ Demo Cut Provenance");
+    console.log("─".repeat(50));
+    for (const row of report.rows) {
+      if (row.level === "pass") pass("DemoCut", row.check, row.detail);
+      else if (row.level === "warn") warn("DemoCut", row.check, row.detail, row.fix);
+      else fail("DemoCut", row.check, row.detail, row.fix);
+    }
+  }
+}
+
 // ─── Competition demo gate (shared: pre-render + post-render) ───
 // 2026-11-23 user ruling: event/hackathon/awards coverage must carry the
 // work itself, not only stage photos. Docs alone did not prevent a pack from
