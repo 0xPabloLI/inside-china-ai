@@ -347,7 +347,7 @@ After all automated checks pass, the agent generates a complete publishing packa
 
 **Agent generates** (from scene-data content):
 
-- **Caption** (≤2,200 chars): topic summary + SEO keywords ("China AI" / "DeepSeek") + one specific ask + 3-5 hashtags at the end
+- **Caption** (platform cap 2,200 chars; feed-readable cap is much smaller): put the hook in the **first visible line ≤100 chars** (hard 150), keep the body before hashtags **≤200** (hard 300), include SEO keywords ("China AI" / "DeepSeek") + one specific ask + 3-5 hashtags at the end. New packs (`meta.createdAt ≥ 2026-11-25`) fail `generate-caption` / `verify-video` B6 above the hard caps; older packs are warned.
   - Broad: `#chinaai #ai #technews`
   - Niche: `#deepseek #chinatech`
   - Don't: `#fyp #foryou` (too generic)
@@ -363,7 +363,8 @@ After all automated checks pass, the agent generates a complete publishing packa
 ✅ Automated checks: ALL PASSED (0 failures)
 
 📝 Agent-generated (copy these into TikTok):
-  Caption: [agent writes full caption here, ≤2200 chars]
+  Caption: [first line = hook, ≤100 chars]
+           [optional 1 short supporting line; body ≤200 total]
   Hashtags: #chinaai #deepseek #ai #technews #chinatech
   Title: [agent writes title here, ≤60 chars]
   Hook pattern: P1a Result-First (goal: completion)

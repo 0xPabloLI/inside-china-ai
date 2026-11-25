@@ -698,6 +698,8 @@ node scripts/short-video/verify-video.mjs --tiktok  # 全量合规检查 = MRL-3
 ```
 
 > Post-render 全部检查 PASS 后，verify-video.mjs 自动生成各平台发布包到 `output/{pipelineId}/publish/{platform}/`（内核产物原地不动），并按各平台 Profile 的 caption 上限逐平台校验（#219 T02）。
+>
+> **Caption 可读性门（2026-11-25 起）**：新包按首屏/正文硬门校验，旧包按 `createdAt` 豁免、不追溯改已验收 caption。规则、阈值和判定器见 `scripts/short-video/lib/caption-readability.mjs` 与 `docs/tiktok/tiktok-best-practices.md` → Caption 和 Hashtag。
 
 > **Verify-retry loop**（`lib/verify-retry.mjs`）：Step 6 字幕验证失败后，自动分类失败类型并尝试对应修复。每次修复后重新验证，只接受严格减少 error 数的修复，否则回滚。`--max-retries N`（默认 2）控制重试上限。两类情况**不消耗重试预算**、一次 verify 后直接 fail-closed（#818）：分类不可重试（`unknown` / `audio-sync-skipped` / `subtitle-alignment`，各自带原因入日志），或修复根本没跑成（返回 `success:false` 或抛异常——磁盘未变，复验只会得到同一份报告）。详见 `docs/archive/spec-verify-retry-loop.md`。
 

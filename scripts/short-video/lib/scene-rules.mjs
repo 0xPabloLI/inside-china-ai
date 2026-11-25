@@ -22,6 +22,10 @@ import { hasInstructStyle, validateInstructSignature } from "./tts/instruct.mjs"
 // compare equal without a second lexicon.
 import { numericAnchors } from "./normalize-tts-text.mjs";
 import { validateSceneBeats } from "./semantic-beats.mjs";
+import {
+  auditCaptionReadability,
+  shouldEnforceCaptionReadability,
+} from "./caption-readability.mjs";
 // One spelling list for Step 0.5 and this advisory: whatever the auto-fix
 // annotates is exactly what the verify-time net stops flagging.
 import { findCurrencySpellings, hasNearbyUsd } from "./normalize-currency.mjs";
@@ -3616,6 +3620,52 @@ export function checkAvatarContract(scenes) {
   return results;
 }
 
+/**
+ * Caption readability, checked at pre-render time from metadata.description.
+ *
+ * The assembled caption (with CTA + hashtags) is measured again by
+ * generate-publish-package; this check catches the common cause early — a
+ * manually written metadata.description that is a 400-char wall. New packs
+ * fail; packs created before 2026-11-25 are grandfathered and warned so an
+ * already-accepted caption is not invalidated retroactively.
+ *
+ * @param {object|null} seriesMeta - metadata from scene-data.mjs
+ * @param {{meta?: object|null}} [opts]
+ * @returns {Array<object>}
+ */
+export function checkCaptionReadability(seriesMeta, { meta = null } = {}) {
+  const description =
+    typeof seriesMeta?.description === "string" ? seriesMeta.description.trim() : "";
+  if (description.length === 0) return [];
+
+  const audit = auditCaptionReadability(description);
+  if (audit.issues.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Caption",
+        check: "Caption readability",
+        detail: `body ${audit.metrics.bodyChars}, first block ${audit.metrics.previewChars}`,
+      },
+    ];
+  }
+
+  const enforce = shouldEnforceCaptionReadability(meta);
+  const fails = audit.issues.filter((issue) => issue.level === "fail");
+  const level = enforce && fails.length > 0 ? "fail" : "warn";
+  return [
+    {
+      level,
+      category: "Caption",
+      check: "Caption readability",
+      detail: audit.issues.map((issue) => issue.message).join("; "),
+      fix:
+        "Rewrite metadata.description: put the hook in the first 100 chars " +
+        "(hard 150), keep the body under 200 (hard 300); hashtags stay 3-5.",
+    },
+  ];
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const avatarResults = checkAvatarContract(scenes);
@@ -3631,6 +3681,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkNoEmDashes(scenes),
     ...checkHookDiffersFromText(scenes),
     ...checkSEOKeywords(scenes),
+    ...checkCaptionReadability(opts.metadata ?? seriesMeta, { meta }),
     ...checkSourceAttribution(scenes),
     ...checkVoiceoverWordCount(scenes, opts),
     ...checkOneBreath(scenes),

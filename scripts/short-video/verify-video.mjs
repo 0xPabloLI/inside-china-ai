@@ -27,6 +27,10 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
+import {
+  auditCaptionReadability,
+  shouldEnforceCaptionReadability,
+} from "./lib/caption-readability.mjs";
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
@@ -356,6 +360,7 @@ console.log("\n📝 Scene Data Checks");
 console.log("─".repeat(50));
 
 let scenes, seriesMeta;
+let contentMetadata = null;
 let sceneSource = "scene-data.mjs";
 // #1305: prefer the resolved snapshot in post-render mode. A malformed or
 // empty file is not fatal — fall through to the authored state rather than
@@ -388,6 +393,7 @@ try {
   const mod = await import(`file://${SCENE_DATA_PATH}`);
   if (!scenes) scenes = mod.scenes || mod.default?.scenes;
   seriesMeta = mod.seriesMeta || null;
+  contentMetadata = mod.metadata || mod.default?.metadata || null;
 } catch (e) {
   fail("Scene Data", "scene-data.mjs loads", e.message, "Fix syntax errors in scene-data.mjs");
   if (!scenes) {
@@ -424,6 +430,7 @@ if (!preMode && existsSync(SCENE_DURATIONS_PATH)) {
 const sceneResults = runAllSceneDataChecks(scenes, seriesMeta, {
   longForm,
   meta,
+  metadata: contentMetadata,
   sceneDurations,
   industryContext,
 });
@@ -940,13 +947,42 @@ if (!preMode && results.fail.length === 0) {
           `${captionContent.length} chars`,
         );
       }
+
+      // The platform maximum is the API's limit, not the reader's. Check the
+      // assembled caption here too, so a hand-edited caption cannot bypass the
+      // generator's readability gate. Pre-2026-11-25 packs are grandfathered.
+      const readability = auditCaptionReadability(captionContent);
+      if (shouldEnforceCaptionReadability(meta)) {
+        const fails = readability.issues.filter((issue) => issue.level === "fail");
+        if (fails.length > 0) {
+          fail(
+            "Caption",
+            `[${profile.platform}] Caption readability`,
+            fails.map((issue) => issue.message).join("; "),
+            "Put the hook in the first 100 chars (hard 150) and keep the body under 200 (hard 300)",
+          );
+        } else {
+          pass(
+            "Caption",
+            `[${profile.platform}] Caption readability`,
+            `body ${readability.metrics.bodyChars}, first block ${readability.metrics.previewChars}`,
+          );
+        }
+      } else if (readability.issues.length > 0) {
+        warn(
+          "Caption",
+          `[${profile.platform}] Caption readability (grandfathered pack)`,
+          readability.issues.map((issue) => issue.message).join("; "),
+          "Shorten the body when this caption is next regenerated",
+        );
+      }
     }
   } catch (e) {
     fail(
       "Caption",
       "Caption generation succeeded",
       e.message,
-      `Check scene-data.mjs for issues that cause invalid caption (title > ${TITLE_MAX_CHARS}, caption > ${CAPTION_MAX_CHARS}, or hashtag count out of range)`,
+      `Check scene-data.mjs for issues that cause invalid caption (title > ${TITLE_MAX_CHARS}, caption > ${CAPTION_MAX_CHARS}, hashtag count out of range, or first block/body over the readability caps)`,
     );
   }
 }

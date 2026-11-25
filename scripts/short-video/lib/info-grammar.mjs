@@ -621,7 +621,7 @@ export function validateInfoSpec(info, context = {}) {
   }
 
   if (!text(texts?.source)) {
-    push(errors, "info.source", "native charts require texts.source (the attribution line)");
+    push(errors, "texts.source", "native charts require texts.source (the attribution line)");
   }
   if (!text(texts?.label) && !candleHook) {
     push(warnings, "info.title", "no texts.label — the chart has no claim heading");
@@ -656,12 +656,17 @@ export function checkInfoSpec(scenes) {
       layout,
     });
     for (const error of verdict.errors) {
+      const field =
+        error.path ||
+        (error.code.startsWith("info.") || error.code.startsWith("texts.")
+          ? error.code
+          : `info.${error.code}`);
       results.push({
         level: "fail",
         category: "Structure",
         check: `Scene ${scene.id} info spec`,
         detail: error.message,
-        fix: `Fix scene.info ${error.path || error.code} in scene-data (or use a text-side topology)`,
+        fix: `Fix scene.${field} in scene-data (or use a text-side topology)`,
       });
     }
     for (const warning of verdict.warnings) {
