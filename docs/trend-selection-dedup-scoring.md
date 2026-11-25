@@ -77,6 +77,7 @@ node scripts/short-video/used-topics.mjs --json --out /tmp/used.json
 - `assetEvidence`：官方 demo/产品页 URL，或 `none`。4-5 分没有 URL 不算数。
 - `format`（视频形态）：`demo-led` / `chart-led` / `data-reveal` / `explainer` / `text-led`。
 - `hook`：一句话写前 1-2 秒给观众看什么。写不出来，分数上限 2。
+- 制作阶段（#1542）：包内有 motion clip 时，第一段必须落在 scene 1–2；完整 demo 仍留 payoff。不能前置时在 `meta.hookVisualPriorityReason` 写理由，MRL-2 只报 editorial。
 
 `format` 是选题阶段的画面抓手，不替代 `skills/short-video-pipeline/SKILL.md` 的新闻形式判断；最终形式仍按该 skill 的 Decision framework 决定。对应关系：
 

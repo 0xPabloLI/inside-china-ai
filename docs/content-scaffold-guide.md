@@ -38,6 +38,8 @@ export const meta = {
   pipelineId: "my-article", // Used for output directory: output/my-article/
   title: "My Article Title", // Display name
   article: "my-article-slug", // Website article slug (for reference)
+  // Optional: why the strongest motion clip cannot open in scene 1-2 (#1542)
+  // hookVisualPriorityReason: "The demo reveals the payoff; the hook uses its key frame.",
   // For series:
   // seriesId: "my-series",
   // partNumber: 1,
@@ -81,6 +83,7 @@ export const scenes = [
 - No em/en/double dashes (`—`, `–`, `--`)
 - No AI vocabulary (leverage, delve, harness, etc.)
 - Hook (Scene 1) must execute a hook family: declare `hookFamily` (`result-first` / `contrarian-claim` / `curiosity-gap` / `pattern-interrupt` / `authority-breakdown` / `list-promise`) and write that shape. Undeclared hooks pass when they hit any family marker or a strong word; a bare product nameplate (`V4.1`) does not count as a number (#1289)
+- Motion-first ordering (#1542): if the pack binds a motion clip, its first use must land in scene 1-2. Keep the full demo in the payoff; use a 0.5-1.5s teaser or key frame in the hook, or declare `meta.hookVisualPriorityReason`. The check is editorial only.
 - ≥2 scenes mention sources
 - "China", "AI", and main subject each appear in ≥2 scenes
 - **Media density**: at least `min(2, 可承载画面的场次)` scenes must carry `media`; `data` / `stat-reveal` / `cta` cannot draw media and `hook` is manually curated, so neither counts as capable. A pack of nothing but those is exempt. Preflight only warns (`Media density (pre-generation)`) because the media is produced inside the run; the block is at Step 1.6, after sourcing and generation (#1296)

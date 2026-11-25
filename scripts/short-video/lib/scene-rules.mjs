@@ -444,6 +444,99 @@ function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
   }));
 }
 
+const HOOK_VISUAL_PRIORITY_CHECK = "Hook visual priority";
+
+function sceneHasBoundMedia(scene) {
+  return Boolean(scene?.media?.path && scene?.media?.type);
+}
+
+function sceneHasBoundMotion(scene) {
+  return sceneHasBoundMedia(scene) && scene.media.type === "video";
+}
+
+function sceneIsCta(scene) {
+  return scene?.visualType === "cta" || scene?.sceneType === "cta";
+}
+
+/**
+ * Editorial check (#1542): the strongest available motion clip should open the
+ * video, not sit until the payoff. This is deliberately advisory: "attractive"
+ * is a judgment call, and a motion clip can be a bad hook when it spoils the
+ * reveal or contradicts the opening claim. A package may keep the clip behind
+ * scenes 1-2 only when `meta.hookVisualPriorityReason` records why.
+ */
+export function checkHookVisualPriority(scenes, meta = {}) {
+  const hook = scenes?.[0] ?? null;
+  if (!hook) return [];
+
+  const hookHasMedia = sceneHasBoundMedia(hook);
+  const hookHasMotion = sceneHasBoundMotion(hook);
+  // The hook renderer drops background/card media: a declared clip that is not
+  // evidence is still a text-only first frame in the delivered video (#299).
+  const hookRendersMotion = hookHasMotion && mediaRoleOf(hook) === MEDIA_ROLE.EVIDENCE;
+
+  if (hookRendersMotion) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: HOOK_VISUAL_PRIORITY_CHECK,
+        detail: `scene ${hook.id ?? 1}: motion clip ${hook.media.path}`,
+      },
+    ];
+  }
+
+  // Scene 2 counts as "front": the rule is hook / first two scenes, not hook
+  // alone. Only ignore CTA media — a CTA clip cannot carry the opening.
+  const laterMotion = scenes
+    .slice(2)
+    .filter((scene) => !sceneIsCta(scene) && sceneHasBoundMotion(scene));
+
+  if (laterMotion.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: HOOK_VISUAL_PRIORITY_CHECK,
+        detail: hookHasMotion
+          ? "hook declares video but it is not renderable evidence; no stronger motion bound after scene 2"
+          : "no motion clip bound after scene 2",
+      },
+    ];
+  }
+
+  const reason =
+    typeof meta?.hookVisualPriorityReason === "string" ? meta.hookVisualPriorityReason.trim() : "";
+
+  if (reason) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: HOOK_VISUAL_PRIORITY_CHECK,
+        detail: `hook keeps motion after scene 2 with declared reason: ${reason}`,
+      },
+    ];
+  }
+
+  const firstLater = laterMotion[0];
+  const hookState = hookHasMedia
+    ? hookHasMotion
+      ? "a video that the hook renderer drops (mediaRole is not evidence)"
+      : "a still image"
+    : "text-only";
+
+  return [
+    {
+      level: "warn",
+      category: "Hook",
+      check: HOOK_VISUAL_PRIORITY_CHECK,
+      detail: `scene ${hook.id ?? 1} opens on ${hookState}; the first motion clip is scene ${firstLater.id ?? "?"}`,
+      fix: `Use a 0.5-1.5s teaser from that clip in scene 1-2, or add meta.hookVisualPriorityReason explaining why the clip cannot open (spoiler / fact mismatch / rights).`,
+    },
+  ];
+}
+
 /**
  * First sentence of a hook, terminator included. Splitting on `[.!?]` alone
  * would cut decimals ("V4.1", "1.3 billion") — only a terminator followed by
@@ -3729,6 +3822,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const EDITORIAL_RUNNERS = [
     () => checkHookCompellingElement(scenes),
     () => checkHookLayoutSelection(scenes, opts, meta),
+    () => checkHookVisualPriority(scenes, meta),
     () => checkHookSentenceFamily(scenes),
     () => checkHookDuration(scenes, opts),
     () => checkShareWorthyData(scenes),
