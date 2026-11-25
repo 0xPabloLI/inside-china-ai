@@ -185,8 +185,8 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
     // completeness check accepts (it matches names and versions, not platform
     // tags) and that then fail on Kaggle.
     const group5 = buildGroup(5);
-    expect(group5).toContain('uname -s');
-    expect(group5).toContain("!= \"Linux\"");
+    expect(group5).toContain("uname -s");
+    expect(group5).toContain('!= "Linux"');
   });
 
   it("a rerun clears the output directory before downloading", () => {
@@ -252,7 +252,9 @@ describe("kernel pins are covered by the wheelhouse (#231)", () => {
   });
 
   it("the completeness check fails loudly when there is no torch wheel", () => {
-    const { ok, output } = runCompletenessCheck(COMPLETE_WHEELS.filter((w) => !w.startsWith("torch-")));
+    const { ok, output } = runCompletenessCheck(
+      COMPLETE_WHEELS.filter((w) => !w.startsWith("torch-")),
+    );
     expect(ok).toBe(false);
     expect(output).toContain("no torch wheel");
   });

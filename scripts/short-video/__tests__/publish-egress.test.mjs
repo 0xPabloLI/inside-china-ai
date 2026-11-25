@@ -138,18 +138,18 @@ describe("evaluateEgress", () => {
     expect(verdict.level).toBe("block");
   });
 
-  it("uses SG as the documented default region", () => {
+  it("uses HK as the documented default region", () => {
     const verdict = evaluateEgress({
       expectedRegion: undefined,
-      trace: parseCloudflareTrace("ip=1.2.3.4\nloc=SG\ncolo=SIN\n"),
+      trace: parseCloudflareTrace("ip=1.2.3.4\nloc=HK\ncolo=HKG\n"),
       publish: true,
     });
-    expect(DEFAULT_EXPECTED_REGION).toBe("SG");
-    expect(verdict.expectedRegion).toBe("SG");
+    expect(DEFAULT_EXPECTED_REGION).toBe("HK");
+    expect(verdict.expectedRegion).toBe("HK");
     expect(verdict.level).toBe("ok");
   });
 
-  it("throws on a malformed expected region instead of falling back to SG", () => {
+  it("throws on a malformed expected region instead of falling back to the default", () => {
     expect(() =>
       evaluateEgress({
         expectedRegion: "SGP",
