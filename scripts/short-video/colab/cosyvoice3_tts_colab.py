@@ -141,9 +141,8 @@ def try_model_cache():
                 raise ValueError("COSYVOICE3_COLAB_MODEL_CACHE_URL must be an http(s) URL")
             log(f"fetching model cache from URL: {MODEL_CACHE_URL}")
             # Operator-supplied staging URL; scheme and host presence are checked above.
-            urllib.request.urlretrieve(  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-                MODEL_CACHE_URL, MODEL_CACHE_ARCHIVE
-            )
+            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            urllib.request.urlretrieve(MODEL_CACHE_URL, MODEL_CACHE_ARCHIVE)
         else:
             log(f"fetching model cache from Google Drive id: {MODEL_CACHE_GDRIVE_ID}")
             run([sys.executable, "-m", "gdown", "--id", MODEL_CACHE_GDRIVE_ID, "-O", MODEL_CACHE_ARCHIVE])
