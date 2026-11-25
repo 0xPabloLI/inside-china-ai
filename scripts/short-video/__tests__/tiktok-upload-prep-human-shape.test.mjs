@@ -235,7 +235,7 @@ describe("the driver's input shape", () => {
     expect(source).toContain("SHA-256");
     expect(source).not.toContain("/setFiles?target=");
     expect(source).not.toContain("setFiles failed");
-    expect(source).toContain('picker: picked.mode');
+    expect(source).toContain("picker: picked.mode");
     expect(source).toContain("openMode: picked.openMode");
     expect(source).toContain("hashVerified: picked.hashVerified");
   });

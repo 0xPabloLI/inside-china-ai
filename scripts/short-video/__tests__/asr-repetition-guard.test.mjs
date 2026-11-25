@@ -123,7 +123,8 @@ describe("collapseRepetition", () => {
   it("collapses a run whose period does not align with the n-gram", () => {
     // "Stay in the corner." ×23 (p=4, 92 words) — 7E6i3E-fsj4. The old rule
     // collapsed only stride-3-aligned blocks and missed it.
-    const text = "Ball can't go. " + Array(23).fill("Stay in the corner.").join(" ") + " Watch out.";
+    const text =
+      "Ball can't go. " + Array(23).fill("Stay in the corner.").join(" ") + " Watch out.";
     const out = collapseRepetition(text);
     expect(out).toContain("Stay in the corner. [重复×23已收敛]");
     expect(out.startsWith("Ball can't go. Stay in the corner. [")).toBe(true);
@@ -182,7 +183,8 @@ describe("Python ↔ JS equivalence", () => {
     "One is red, " + Array(9).fill("one is red").join(", ") + ".",
     Array(12).fill("아").join(" ") + " 끝",
     "The End For more information, visit www.fema.org " +
-      Array(8).fill("Thank you.").join(" ") + " tail",
+      Array(8).fill("Thank you.").join(" ") +
+      " tail",
   ];
 
   it("matches the Python reference on every vector", () => {
