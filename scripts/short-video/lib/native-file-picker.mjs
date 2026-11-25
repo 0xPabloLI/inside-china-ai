@@ -19,8 +19,8 @@
  * Boundaries:
  *   - macOS only; this is the machine the publish path runs on.
  *   - Requires Accessibility permission for the process running Node (System
- *     Events keystrokes). A missing permission fails closed with an actionable
- *     message; it is not retried into a `setFiles` fallback.
+ *     Events UI scripting). A missing permission fails closed with an
+ *     actionable message; it is not retried into a `setFiles` fallback.
  *   - The app is addressed by PID, not by name, because several Chrome
  *     instances can be open at once.
  *

@@ -77,8 +77,7 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 结果写在 `output/{content}/publish/tiktok/publish-log.jsonl`（每步一行 JSON，含 `step: "review"` 与 `reviewed`）。运行时自检：`node scripts/short-video/human-input-selftest.mjs`（断言页面收到的每个事件都是 trusted，且粘贴事件为 trusted）。
 
 **反检测姿态（#1181 追加，2026-11-13）**：原则是让**真实 Chrome** 保持真实，而不是往页面里打补丁。
-
-- **已加**：固定自动化 profile（`~/chrome-tiktok-profile`、端口 9229）+ 真实 Chrome（UA/语言/platform/时区天然一致）；human-like 输入（Bézier 移动、可信按下、真实剪贴板粘贴、抖动等待）；发布 session 不发 `Runtime.enable`/`Page.enable`；每步 1.5–4.5s 抖动；运行开始后用 `FINGERPRINT_PROBE` 读取 `navigator.webdriver`、UA/platform/语言/时区并写入 `publish-log.jsonl` 的 `fingerprint` 行。**#1288 追加**：停留/滚动/输入的带内分布、进入路径预热、profile 级节奏节流（见下）。
+- **已加**：固定自动化 profile（`~/chrome-tiktok-profile`、端口 9229）+ 真实 Chrome（UA/语言/platform/时区天然一致）；human-like 输入（Bézier 移动、可信按下、真实剪贴板粘贴、原生文件面板、抖动等待）；发布 session 不发 `Runtime.enable`/`Page.enable`；每步 1.5–4.5s 抖动；运行开始后用 `FINGERPRINT_PROBE` 读取 `navigator.webdriver`、UA/platform/语言/时区并写入 `publish-log.jsonl` 的 `fingerprint` 行。**#1288 追加**：停留/滚动/输入的带内分布、进入路径预热、profile 级节奏节流（见下）。
 - **未加（原因）**：`navigator.webdriver` 的脚本抹除（无 `--enable-automation` 时本就是 `false`；注入 getter 本身是可检测补丁）；UA/时区覆盖（`Emulation.*` 是更明显的 CDP 痕迹，还会与 WebGL/platform 矛盾）；WebGL/canvas 伪造（重度且更容易露馅）。
 - **复验**：`grep '"step":"fingerprint"' output/*/publish/tiktok/publish-log.jsonl`，或按 `scripts/short-video/lib/cdp-fingerprint.mjs` 顶部的 curl 命令在页面内直接读。
 

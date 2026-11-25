@@ -244,7 +244,7 @@ else:
 
 1. **文档**：本文件 + `DOCS-INDEX.md` 指针。
 2. **门禁**：egress block、review abort、run lock、5–10 分钟节流。
-3. **输入**：trusted clipboard paste + typed fallback。
+3. **输入**：trusted clipboard paste；`--type-caption` 只做显式调试。
 4. **测试**：human-input selftest 进 CI；空草稿 smoke。
 5. **Canary**：只跑一条空草稿，不自动发布；通过后再用于真实内容。
 
