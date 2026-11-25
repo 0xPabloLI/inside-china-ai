@@ -58,7 +58,7 @@ export const BACKDROP_FIELD_KEYS = new Set([
  * nothing. They are accepted as no-ops so an old pack does not fail over a
  * dead field; there is no renderer path that consumes them.
  */
-export const LEGACY_MEDIA_FIELD_KEYS = new Set(["overlay"]);
+const LEGACY_MEDIA_FIELD_KEYS = new Set(["overlay"]);
 
 /**
  * Guidance for an unknown media key, shared with the patch writer so both
