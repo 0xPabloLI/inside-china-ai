@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.113.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.112.1...tanstack_start_ts-v1.113.0) (2026-11-25)
+
+
+### Features
+
+* **short-video:** add hook visual priority editorial check ([#1542](https://github.com/0xPabloLI/inside-china-ai/issues/1542)) ([#1544](https://github.com/0xPabloLI/inside-china-ai/issues/1544)) ([cf17355](https://github.com/0xPabloLI/inside-china-ai/commit/cf17355263ebe97e04db1832d46307ebc34a3209))
+
 ## [1.112.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.112.0...tanstack_start_ts-v1.112.1) (2026-11-25)
 
 
