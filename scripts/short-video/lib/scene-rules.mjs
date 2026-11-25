@@ -412,12 +412,6 @@ export function checkHookCompellingElement(scenes) {
   ];
 }
 
-const HOOK_VISUAL_PRIORITY_CHECK = "Hook visual priority";
-
-function sceneHasBoundMedia(scene) {
-  return Boolean(scene?.media?.path && scene?.media?.type);
-}
-
 function sceneHasBoundMotion(scene) {
   return sceneHasBoundMedia(scene) && scene.media.type === "video";
 }
@@ -538,6 +532,12 @@ function checkHookLayoutSelection(scenes, opts = {}, meta = null) {
     detail: `[${finding.code}] ${finding.detail}`,
     fix: finding.fix,
   }));
+}
+
+const HOOK_VISUAL_PRIORITY_CHECK = "Hook visual priority";
+
+function sceneHasBoundMedia(scene) {
+  return Boolean(scene?.media?.path && scene?.media?.type);
 }
 
 /**
@@ -3828,8 +3828,8 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   // reach pass/warn/fail, so they can't block a render or inflate the gate.
   const EDITORIAL_RUNNERS = [
     () => checkHookCompellingElement(scenes),
-    () => checkHookVisualPriority(scenes, meta),
     () => checkHookLayoutSelection(scenes, opts, meta),
+    () => checkHookVisualPriority(scenes, meta),
     () => checkHookSentenceFamily(scenes),
     () => checkHookDuration(scenes, opts),
     () => checkShareWorthyData(scenes),

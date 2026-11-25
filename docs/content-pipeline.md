@@ -615,12 +615,9 @@ Hook 是开头的 4.5–5 秒（目标带，见上节「hook 时长口径」）�
 
 ### 开场视觉优先级（#1542，editorial）
 
-短视频的第一个画面决定划走率。默认规则：**当前包只要绑定了 motion clip，第一段就必须落在 scene 1–2**；完整 demo/payoff 仍可留在中后段，但 hook 至少要用它的 0.5–1.5s teaser 或关键帧，不能把唯一的高动态素材藏到 scene 3 以后。包内有多段视频时，优先把最有动势的一段放前面。
+包内只要绑定了 motion clip，第一段必须出现在 scene 1–2。hook 用该 clip 的 0.5–1.5s teaser / 关键帧，完整 demo 仍留 payoff；若第一段视频只能放在 scene 3+，写 `meta.hookVisualPriorityReason`（剧透 / 事实不匹配 / 版权或原声限制）。`videoFit = 3` 且包内没有视频素材时，静图 hook 合法。
 
-- `checkHookVisualPriority` 在 `🧭 Editorial Suggestions` 报 `Hook visual priority`：hook 是静图/纯文字，而第一段视频只在 scene 3+ 出现时，输出一条非阻断建议。
-- 例外必须写 `meta.hookVisualPriorityReason`（一句话：剧透、事实不匹配、版权/原声限制等）；写了理由该项转 clean，但理由要能被 HITL 复核。
-- `videoFit =3` 且确实没有视频素材时，静图 hook 合法；一旦包里有可用 motion clip，仍按本节前置或写理由。
-- 只适用于增量包；已发布成片不回溯重剪。
+判定由 `scene-rules.mjs` 的 `checkHookVisualPriority` 执行：只进 `🧭 Editorial Suggestions`，不进退出码。适用增量包，不回溯已发布成片。
 
 ### Hook 承诺-画面对账（#1206）
 
@@ -665,7 +662,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | 编辑建议（advisory） | 需要品味/上下文/世界知识，**不进退出码、不算 WARN** | `🧭 Editorial Suggestions` 区块 |
 | Agent 判断项         | 机器无法判定，Agent 自评                            | HITL 报告                       |
 
-机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、开场视觉优先级、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
+机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、开场视觉优先级（#1542）、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
 
 **行业事实门（#1479 S2）**：`runIndustryFactChecks` 在 gate bucket 里，对提及账本职实体的句子判三类——总参/激活混用、端侧档对旗舰档、stale 事实现在时（无 `as of`），以及无法溯源的量表数字；FAIL 行给出检查名与 FIX。事实由 `industry-knowledge.json` live 读取，`content/<dir>/industry-context.json` 只提供实体列表，不作为事实源。
 

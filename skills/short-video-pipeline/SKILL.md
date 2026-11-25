@@ -142,11 +142,12 @@ Full fill-in-the-blank templates (P1a-P6b): `docs/research/tiktok-hook-patterns-
 - [ ] Last scene (CTA) has **loop-close**: ends on a line that recontextualizes the opening for natural rewatch
 - [ ] One clear ask per video (save / comment / follow), not stacked CTAs
 - [ ] Rotate patterns across videos — avoid using the same pattern 3+ times in a row
+- [ ] **Motion-first ordering (#1542)**: if the pack binds a motion clip, its first use lands in scene 1-2; full demo stays for the payoff, or `meta.hookVisualPriorityReason` declares why not
 - [ ] If no template fits the story, write your own hook — just pass the preflight checks above
 
 **Hook-first design**: The first 1 second must be visually striking — bold text, breaking news badge, or large number on screen. The first 3 seconds determine 70% of completion rate; the hook segment itself targets 4.5–5s (`docs/content-pipeline.md` → hook 时长口径). Do not waste the openers on logos or slow fades.
 
-**Motion-first ordering (#1542)**: If the package binds a motion clip anywhere, its first appearance must be scene 1–2. A clip that only appears from scene 3+ raises the editorial `Hook visual priority` warning; keep it there only with `meta.hookVisualPriorityReason`. The full demo still belongs in the payoff — the hook uses a 0.5–1.5s teaser.
+**Motion-first ordering (#1542)**: the strongest available motion clip should open the video, not sit until the payoff. If the pack binds one, its first use must land in scene 1–2: use a 0.5–1.5s teaser or key frame in the hook, and keep the full demo for the payoff. If the clip cannot open (spoiler / fact mismatch / rights), declare `meta.hookVisualPriorityReason`; `checkHookVisualPriority` reports this as editorial advice only.
 
 #### Hook Anatomy: Three-Layer Open + Timing Budget
 

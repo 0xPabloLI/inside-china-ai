@@ -301,6 +301,8 @@ media: {
 
 预绑定的 `media` 优先，且不会被自动补位覆盖。
 
+**开场顺序（#1542）**：包内只要绑定了 motion clip，第一段必须出现在 scene 1–2；hook 用该 clip 的 0.5–1.5s teaser / 关键帧，完整 demo 仍留 payoff。确实不能前置时在 `meta.mjs` 写 `hookVisualPriorityReason`（剧透 / 事实不匹配 / 版权或原声限制）；MRL-2 只报 editorial，不阻断渲染。
+
 **可读性**：素材不再压暗，也没有 `overlay` 字段可写。文字要么放在独立文字带/实色面板上，要么不与素材同框。`fit` 只接受 `cover`（缺省）与 `contain`（`fill`/`none`/拼错值 preflight FAIL）。hook 与正文同构：正文声明多数为 contain 的 pack，hook 也用 contain；未声明正文 `fit` 的 pack，hook 按自身源宽高比取 contain/cover（#963，口径见 `docs/media-asset-management.md` → 第三方横屏素材的默认构图）。不要设置 `mode: "fullscreen"` 来让大字压住满屏素材：fullscreen 只用于「整屏画面 + 只有 source 标注」的拍。
 
 **素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 目前只有 7 条、RAG 只能搜到这 7 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
