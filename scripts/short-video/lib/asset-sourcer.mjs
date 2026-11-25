@@ -66,7 +66,6 @@ import { execFileSync } from "child_process";
 import { ALL_SOURCES, SOURCE_ATTRIBUTIONS, SUPPORTED_YTDLP_PLATFORMS } from "./source-registry.mjs";
 import { brollSectionSpec } from "./media-window.mjs";
 import { VALID_FITS } from "./media-bg.mjs";
-import { overlayForScene, overlayForVisualType } from "./media-overlay.mjs";
 import { allowsContainFit, hasContainBand } from "./text-slots.mjs";
 import {
   getCachedSearchResults,
@@ -932,7 +931,7 @@ const CONTENT_KIND_PREFERENCE = {
  *
  * @param {Object} asset - { type, contentKind? }
  * @param {Array} scenes - Scene data array
- * @returns {{ sceneId: number, animation: string, overlay: number } | null}
+ * @returns {{ sceneId: number, animation: string, plannedFit?: string } | null}
  */
 export function recommendScene(asset, scenes) {
   // Determine preferred visualType from contentKind (P1-1 fix)
@@ -953,34 +952,24 @@ export function recommendScene(asset, scenes) {
     // hook composes to `contain`, and it re-runs the seam on the resolved fit.
     const animation = selectAnimationForAsset(asset);
 
-    // #1305: the scrim comes from the shared table, not a local copy — these
-    // two seams used to carry identical hardcoded numbers by coincidence.
-    // overlayForScene (not overlayForVisualType) so a media-led hook gets the
-    // fit's own dim (0.15 contain / 0.5 cover) instead of the text-over-picture
-    // 0.5 for both. The fit is not bound yet at recommendation time, so it is
-    // resolved here the same way the allocator will — passing the scene without
-    // one would reproduce the very 0.5 the contain layout must not get.
+    // 2026-11-25: recommendations no longer carry an overlay. Media is never
+    // dimmed at the render stage; a layout that needs copy over footage must
+    // move the copy onto its own opaque surface.
     if (vt === "hook") {
       const fit = plannedHookFit(asset, scenes);
-      return {
-        sceneId: scene.id,
-        animation,
-        overlay: overlayForScene({ ...scene, media: { fit } }),
-      };
+      return { sceneId: scene.id, animation, plannedFit: fit };
     }
     if (vt === "narrative") {
-      return { sceneId: scene.id, animation, overlay: overlayForVisualType("narrative") };
+      return { sceneId: scene.id, animation };
     }
     if (vt === "info-card") {
-      return { sceneId: scene.id, animation, overlay: overlayForVisualType("info-card") };
+      return { sceneId: scene.id, animation };
     }
     if (vt === "quote") {
-      return { sceneId: scene.id, animation, overlay: overlayForVisualType("quote") };
+      return { sceneId: scene.id, animation };
     }
     if (vt === "context" || vt === "contrast") {
-      // #1030: these visualTypes are NOT in NO_MEDIA_TYPES, so the old
-      // `return null` silently excluded them from recommendations.
-      return { sceneId: scene.id, animation, overlay: overlayForVisualType(vt) };
+      return { sceneId: scene.id, animation };
     }
     return null;
   }
@@ -1493,11 +1482,6 @@ export function assignAssetsToScenes(assets, scenes, opts = {}) {
       // A talking head keeps its own motion (`none`); charts, screenshots and
       // contained images stay still (`fade`); cover stills keep ken-burns.
       media.animation = selectAnimationForAsset(asset, media.fit);
-      // #1305: scrim from the shared table, now that the fit is final. A local
-      // ternary here drifted from `recommendScene` the moment either side
-      // changed; scene-level (not type-level) so a media-led hook writes the
-      // dim of the fit it actually renders.
-      media.overlay = overlayForScene({ ...target, media });
       if (asset.cropFocus) media.cropFocus = asset.cropFocus;
       // chartEntry's upscale opt-out must survive into scene.media — the
       // render-stage safety net reads media.upscale, not the entry (#1382:
@@ -4297,7 +4281,7 @@ export async function main(args = process.argv.slice(2), options = {}) {
       if (rec) {
         asset.recommendedScene = rec.sceneId;
         asset.recommendedAnimation = rec.animation;
-        asset.recommendedOverlay = rec.overlay;
+        if (rec.plannedFit) asset.recommendedFit = rec.plannedFit;
       }
       // Build attribution
       asset.attribution = buildAttribution(asset.source || asset.from, asset);

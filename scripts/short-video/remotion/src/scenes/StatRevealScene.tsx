@@ -193,9 +193,8 @@ export const StatRevealScene: React.FC<{
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       {/* Ambient media layer (media-density pass, 2026-11-14): the number
-          stays the protagonist — the background is dimmed by the stat-reveal
-          entry in lib/media-overlay.mjs (0.65, same as info-card) and the
-          focus light + white flash on the number read on top of it. */}
+          stays the protagonist. 2026-11-25: the background is not dimmed —
+          media renders at its own brightness. */}
       {scene.media && (
         <MediaBackground media={scene.media} duration={duration} contentDir={contentDir} />
       )}

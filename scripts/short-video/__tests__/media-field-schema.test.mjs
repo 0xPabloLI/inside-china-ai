@@ -42,7 +42,6 @@ describe("media field schema (#836)", () => {
         path: "assets/x.png",
         source: "official page",
         animation: "fade",
-        overlay: 0.7,
         fit: "contain",
       }),
     ]);

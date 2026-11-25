@@ -378,7 +378,7 @@ describe("contain anchor follows the container (#1075)", { timeout: 600_000 }, (
     expect(bottom).toBeLessThanOrEqual(1266);
     // Not a lane assertion anymore: since #230 the lane reserves two lines
     // (top 1236), so a centred full-frame picture legitimately sits under a
-    // wrapped cue — burned subtitles overlay media by design (gradient scrim).
+    // wrapped cue — burned subtitles sit below the picture by design.
     // The centre of the frame is picture, not letterbox.
     expect(await sampleAt(props)).toBe("lime");
   });
@@ -437,47 +437,30 @@ describe("MediaCard passes focus through to MediaBackground", { timeout: 600_000
   });
 });
 
-// ─── MediaCard must never receive the frame-scoped rail/lane gradients ───
-// A card is a bounded window. MediaBackground's frame scrim stops are
-// canvas-relative; inside the 820px card they land on the card's own right
-// and bottom edge and read as a drop shadow. The solid-white source makes
-// any directional darkening measurable; the frame-scoped control proves the
-// probe actually sees it.
-describe("MediaCard has no directional card-edge shadow", { timeout: 600_000 }, () => {
-  const baseProps = { asset: "image", source: "solid", overlay: 0.7 };
-
-  it("current card: right and bottom edges match the centre", async () => {
-    const png = PNG.sync.read(readFileSync(await still({ ...baseProps, wrap: "card" })));
+// ─── MediaCard must not dim the picture ───
+// A card is a bounded window. 2026-11-25 root rule: media is never dimmed. The
+// solid-white source makes any remaining overlay measurable: centre, right and
+// bottom must all stay at the same near-white value.
+describe("MediaCard does not dim the picture", { timeout: 600_000 }, () => {
+  it("card: centre, right and bottom stay white", async () => {
+    const png = PNG.sync.read(
+      readFileSync(await still({ asset: "image", source: "solid", wrap: "card" })),
+    );
     const centre = meanLuma(png, CARD_CENTRE);
     const right = meanLuma(png, CARD_RIGHT);
     const bottom = meanLuma(png, CARD_BOTTOM);
     console.log(
-      `[evidence] card scrim edge/centre: right ${right.toFixed(1)} / bottom ${bottom.toFixed(1)} / centre ${centre.toFixed(1)}`,
+      `[evidence] card luma: right ${right.toFixed(1)} / bottom ${bottom.toFixed(1)} / centre ${centre.toFixed(1)}`,
     );
-    expect(right, "card right edge must not carry a frame-relative rail vignette").toBeGreaterThan(
-      centre * 0.97,
-    );
-    expect(
-      bottom,
-      "card bottom edge must not carry a frame-relative subtitle scrim",
-    ).toBeGreaterThan(centre * 0.97);
-  });
-
-  it("frame scope control: the old card geometry does darken both edges", async () => {
-    const png = PNG.sync.read(readFileSync(await still({ ...baseProps, wrap: "cardFrame" })));
-    const centre = meanLuma(png, CARD_CENTRE);
-    const right = meanLuma(png, CARD_RIGHT);
-    const bottom = meanLuma(png, CARD_BOTTOM);
-    console.log(
-      `[evidence] frame-scoped control edge/centre: right ${right.toFixed(1)} / bottom ${bottom.toFixed(1)} / centre ${centre.toFixed(1)}`,
-    );
-    expect(
-      right,
-      "the negative control must fail this ratio, otherwise the test is not measuring the scrim",
-    ).toBeLessThan(centre * 0.96);
-    expect(
-      bottom,
-      "the negative control must fail this ratio, otherwise the test is not measuring the scrim",
-    ).toBeLessThan(centre * 0.94);
+    for (const [name, value] of [
+      ["centre", centre],
+      ["right", right],
+      ["bottom", bottom],
+    ]) {
+      expect(
+        value,
+        `card ${name} must stay near-white: media is never dimmed`,
+      ).toBeGreaterThanOrEqual(250);
+    }
   });
 });

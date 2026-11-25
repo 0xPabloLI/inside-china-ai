@@ -162,7 +162,6 @@ const CONTRAST_MEDIA_SCENE: SceneData = {
     path: SCENE_GATE_PHOTO,
     animation: "none",
     source: "PEXELS",
-    overlay: 0.7,
   },
 };
 
@@ -186,17 +185,11 @@ const MEDIA_LED_CONTAIN_SCENE: SceneData = {
     fit: "contain",
     animation: "none",
     source: "FIXTURE",
-    // No `overlay` on purpose: the renderer's fit-based fallback
-    // (mediaLedDimFor → 0.15 contain / 0.5 cover) is the path most likely to
-    // rot silently, so the baselines must exercise it rather than a
-    // hand-written value.
   },
   texts: {
     badge: "BREAKING ANALYSIS",
     subject: "QWEN3.8 FLASH",
     bigNumber: "-80%",
-    numberLabel: "SINCE JUNE PEAK",
-    source: "HKEX CLOSE, NOV 12",
   },
 };
 
@@ -259,8 +252,6 @@ const MEDIA_LED_CANDLE_SCENE: SceneData = {
     badge: "HKEX LISTING",
     subject: "ZHIPU",
     bigNumber: "-85%",
-    numberLabel: "SINCE JUNE PEAK",
-    source: "HKEX CLOSE, NOV 12",
   },
 };
 

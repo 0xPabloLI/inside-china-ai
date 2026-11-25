@@ -273,8 +273,6 @@ export function formatMediaObject(media, propertyIndent = "  ", options = {}) {
     lines.push(`${fieldIndent}fill: ${stringField("fill", media.fill)},`);
   if (media.animation !== undefined)
     lines.push(`${fieldIndent}animation: ${stringField("animation", media.animation)},`);
-  if (media.overlay !== undefined)
-    lines.push(`${fieldIndent}overlay: ${numberField("overlay", media.overlay)},`);
   if (media.volume !== undefined)
     lines.push(`${fieldIndent}volume: ${numberField("volume", media.volume)},`);
   for (const key of ["audioIn", "audioOut", "audioFadeIn", "audioFadeOut"]) {

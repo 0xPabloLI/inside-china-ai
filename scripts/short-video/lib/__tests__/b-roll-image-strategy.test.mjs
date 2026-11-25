@@ -192,7 +192,7 @@ describe("runBrollStage image strategy (#155)", () => {
       upscale: false,
     });
     expect(scenes[0].media.volume).toBeUndefined();
-    expect(scenes[0].media.overlay).toBe(0.55); // #1305: shared scrim table, same as video
+    expect(scenes[0].media.overlay).toBeUndefined(); // 2026-11-25: media is never dimmed
   });
 
   test("the VLM gate claim uses the RAW aiImage.prompt (assetNeed), never the composed one", async () => {

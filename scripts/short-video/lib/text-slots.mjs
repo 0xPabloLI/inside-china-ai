@@ -560,6 +560,9 @@ export const REMOTION_SLOT_MAP = {
     // a scene-level field (scene-rules, final-media-gate and the b-roll
     // orchestrator all read scene.mediaOptOut), not a text (decision 66).
     "media-bottom-bar": {
+      // `action` is legal copy, but a full-bleed evidence page compacts the
+      // rendered block to company + result (lib/media-copy.mjs). Card/backdrop
+      // pages keep the four-row block.
       rendered: ["company", "action", "result"],
       control: ["highlight"],
       optional: ["source"],

@@ -147,6 +147,27 @@ describe("buildPublishPackage", () => {
     expect(pkg.violations).toHaveLength(1);
     expect(pkg.violations[0]).toContain("chinaai.news");
   });
+
+  it("fails a new pack whose caption is too long for the feed (2026-11-25 gate)", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: { ...METADATA, description: "A".repeat(389) },
+      meta: { ...META, createdAt: "2026-11-25" },
+    });
+    expect(pkg.metadataJson.captionReadability.bodyChars).toBeGreaterThan(300);
+    expect(pkg.metadataJson.captionReadability.previewChars).toBeGreaterThan(150);
+    expect(pkg.violations.some((v) => v.includes("Caption readability"))).toBe(true);
+  });
+
+  it("grandfathers the same long caption on a pre-2026-11-25 pack", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: { ...METADATA, description: "A".repeat(389) },
+      meta: { ...META, createdAt: "2026-11-23" },
+    });
+    expect(pkg.metadataJson.captionReadability.ok).toBe(false);
+    expect(pkg.violations).toEqual([]);
+  });
 });
 
 describe("writePublishPackage + generatePublishPackages", () => {

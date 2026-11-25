@@ -12,16 +12,15 @@
  *   y 220-298   kicker badge pill
  *   y 306-402   subject row (optional logo + 64px name)
  *   y 410-1029  media band — `fit: "contain"` gives the picture a 820×619
- *               box (x 60-880); `cover` fills the frame and only the text
- *               rows sit on it, over scrims
+ *               box (x 60-880); `cover` fills the frame. Media is never
+ *               dimmed; text rows sit outside the band or on their own
+ *               opaque surface.
  *   y 1037-1298 text strip — number (locked 110px, no circle annotation: the
  *               annotation belongs to the hero-center protagonist, and here
  *               the picture is the protagonist), numberLabel, source
  *
- * The dim follows the FIT (lib/media-overlay.mjs → MEDIA_LED_DIM): 0.15 for the
- * contain band, where no text is drawn on the picture, and hook's 0.5 for
- * cover, where the badge and subject rows sit on the footage. The renderer
- * applies it as a fallback because only the sourcing seams write `overlay`.
+ * 2026-11-25 root rule: `MediaBackground` has no `overlay` / `scrimScope`
+ * capability at all. The former MEDIA_LED_DIM table is gone.
  *
  * The number is deliberately `lockFontSize`d below the bigNumber contract's
  * 150px floor: the strip's vertical budget cannot hold a 150px line plus the
@@ -40,12 +39,11 @@ import { useFocusLight } from "../components/focus-light";
 import { SlideUp, StampIn } from "../components/animations/entrance";
 import { SPACING, CANVAS, COLOR, accentColorFor } from "../components/shared";
 import { MediaBackground } from "../components/MediaBackground";
+import { MediaTextPanel } from "../components/MediaTextPanel";
 import { ChartPanel, ChartRenderer } from "../components/charts";
-import { MediaScrims } from "../components/MediaScrims";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 import { hookSubjectTextWidth } from "../../../lib/text-slots.mjs";
-import { mediaLedDimFor } from "../../../lib/media-overlay.mjs";
 import { MEDIA_LED, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 
 /** Content-box width of the contain media band (SAFE_ZONES left/right). */
@@ -70,13 +68,11 @@ export const HookMediaLed: React.FC<{
   // rendering undefined (#1375 review — accepted-but-ignored steering).
   const numberColor = accentColorFor(txt.color, COLOR.amber);
 
-  // The dim belongs to the FIT, not to whichever seam wrote the media object
-  // (#1305, 2026-11-15): sourcing writes it, but a hand-bound file and a
-  // generated frame reach this renderer without that write. `overlay` written
-  // by an author still wins.
-  const media = scene.media
-    ? { ...scene.media, overlay: scene.media.overlay ?? mediaLedDimFor(scene.media) }
-    : null;
+  // Media is never dimmed (2026-11-25 root rule). The contain branch puts the
+  // picture in its own band; the cover branch fills the frame but carries no
+  // contrast scrim. A layout that needs copy over footage must move the copy to
+  // its own opaque surface instead of darkening the picture.
+  const media = scene.media ?? null;
 
   // Contain: the picture owns [mediaTop .. strip.top - 8]; the 8px gap keeps
   // the picture's bottom edge clear of the strip's first text row.
@@ -124,28 +120,21 @@ export const HookMediaLed: React.FC<{
                 overflow: "hidden",
               }}
             >
-              {/* scrimScope "element": the lane stop and rail vignette are
-                canvas-relative and re-scale inside this 820×619 box — they
-                would darken the picture's own bottom third and right edge,
-                i.e. the focal content this layout exists to show. Neither
-                region is inside the band. */}
-              <MediaBackground
-                media={media}
-                duration={duration}
-                contentDir={contentDir}
-                scrimScope="element"
-              />
+              {/* The picture owns this band and is never dimmed; every text
+                row sits outside it. */}
+              <MediaBackground media={media} duration={duration} contentDir={contentDir} />
             </div>
           ) : (
             <>
               <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
                 <MediaBackground media={media} duration={duration} contentDir={contentDir} />
               </div>
-              {/* Cover: the badge and subject rows sit ON the footage, so the
-                scrim bed (top band + bottom ramp) is what holds them — the
-                same contract as hero-center's cover band, whose 0.5 dim
-                `cover` inherits from MEDIA_LED_DIM. */}
-              <MediaScrims mediaBottom={CANVAS.height} />
+              {/* Cover puts the strip ON the footage; give the copy its own
+                  opaque surface instead of darkening the picture. */}
+              <MediaTextPanel
+                top={MEDIA_LED.strip.top}
+                bottom={MEDIA_LED.strip.top + MEDIA_LED.strip.height}
+              />
             </>
           ))
         )}
@@ -212,7 +201,7 @@ export const HookMediaLed: React.FC<{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "flex-start",
           }}
         >
           {txt.bigNumber && (

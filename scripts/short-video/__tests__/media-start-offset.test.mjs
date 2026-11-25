@@ -154,11 +154,10 @@ describe(
       const offset = await still("offset-5000", 15);
       const count = diffCount(baseline, offset);
       // testsrc2 content moves continuously; a 5s source-time shift changes
-      // the frame substantially. The default 0.7 overlay dim multiplies
-      // media pixels by 0.3, so channel diffs are compressed — the observed
-      // count at this threshold is ~73k of 2.07M pixels (bright pattern
-      // regions); anything in the tens of thousands proves the source time
-      // shifted (identical frames would differ in 0).
+      // the frame substantially. Media is undimmed now, so channel diffs are
+      // even stronger than the old 0.7-overlay measurements; anything in the
+      // tens of thousands proves the source time shifted (identical frames
+      // would differ in 0).
       expect(count).toBeGreaterThan(50_000);
     });
 
