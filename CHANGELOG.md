@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.112.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.112.0...tanstack_start_ts-v1.112.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **video:** remove media dimming at the render root ([#1540](https://github.com/0xPabloLI/inside-china-ai/issues/1540)) ([#1541](https://github.com/0xPabloLI/inside-china-ai/issues/1541)) ([db424c2](https://github.com/0xPabloLI/inside-china-ai/commit/db424c235fc59e6ae895ab6d4c37c8126b0c30e1))
+
 ## [1.112.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.111.1...tanstack_start_ts-v1.112.0) (2026-11-24)
 
 
