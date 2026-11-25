@@ -132,7 +132,7 @@ describe("tiktok-rules.mjs sync invariants", () => {
     expect(THRESHOLDS.maxDurationSec).toBe(70);
     expect(THRESHOLDS.maxVoiceoverWords).toBe(175);
     expect(THRESHOLDS.maxOneBreathWords).toBe(25);
-    expect(THRESHOLDS.minScenes).toBe(6);
+    expect(THRESHOLDS.minScenes).toBe(3);
     expect(THRESHOLDS.maxScenes).toBe(10);
     expect(THRESHOLDS.hookTextOverlapFailThreshold).toBe(0.8);
     expect(THRESHOLDS.hookTextOverlapWarnThreshold).toBe(0.5);

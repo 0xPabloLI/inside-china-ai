@@ -363,6 +363,19 @@ describe("runFrameAnalysis", () => {
     expect(topResult.level).toBe("warn");
   });
 
+  it("skips the right rail for media-bottom-bar, where the panel owns the rail", () => {
+    const buf = bufferWithRect(CANVAS.width, CANVAS.height, {
+      xStart: 900,
+      xEnd: 1050,
+      yStart: 700,
+      yEnd: 1200,
+    });
+    const results = runFrameAnalysis(buf, SAFE_ZONES, { skipRightRail: true });
+    const rail = results.find((r) => r.check === "Right safe zone clear (action rail)");
+    expect(rail.level).toBe("pass");
+    expect(rail.detail).toContain("not applicable");
+  });
+
   it("detects all-black frame", () => {
     const buf = solidBuffer(CANVAS.width, CANVAS.height, 0, 0, 0);
     const results = runFrameAnalysis(buf, SAFE_ZONES);

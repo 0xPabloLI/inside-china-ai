@@ -268,6 +268,7 @@ node scripts/short-video/cohort-report.mjs --map 7705731246604799252=unitree-h2x
 ## Hashtag 库维护
 
 > Hashtag 效果追踪（上面）和 Hashtag 库更新是一个闭环：追踪告诉你哪些 tag 有效/有害，库更新把结论固化到代码和文档中。
+> 每条视频的标签角色与选择顺序见 `docs/tiktok/hashtag-playbook.md`；本节只管“数据回流到池”的季度/触发式维护。
 
 ### 统一循环
 

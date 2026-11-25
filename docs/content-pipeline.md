@@ -30,7 +30,7 @@
 
 **入口 3（无输入）**：`search-sources --trend` → Agent 从 `trending-topics.json` 选话题 → 走入口 2 路线
 
-> **选题报告（#203 + videoFit）**：选话题前先按 `docs/trend-selection-dedup-scoring.md` 的去重、0-10 评分与按类阈值过滤；达到阈值的 topic 再标 `videoFit`（0-5，第一方画面能否在 1-2 秒内展示核心结果）及 §4 要求的 `assetEvidence`/`format`/`hook`，并输出 **News-first**（0-10 分降序，同分看 videoFit）和 **Video-ready**（videoFit 降序）两条列表，写到 `scripts/short-video/output/topic-selection.md`。`videoFit` 不折进 0-10 分；判据见该文档 §4。
+> **选题报告（#203 + videoFit）**：选话题前先按 `docs/trend-selection-dedup-scoring.md` 的去重、0-10 评分与按类阈值过滤；达到阈值的 topic 再标 `videoFit`（0-5，**按可获取的人物/企业/产品/数据等实体素材潜力计分**，官方 demo/产品页/发布会/人物照/图表/本地实体库都算，不要求已落盘）及 §4 要求的 `assetReady`/`assetEvidence`/`format`/`hook`，并输出 **News-first**（0-10 分降序，同分看 videoFit）和 **Video-ready**（videoFit 降序；入选为 videoFit≥3 且 assetReady=0，表示可备料）两条列表，写到 `scripts/short-video/output/topic-selection.md`。`videoFit` 不折进 0-10 分；生产库存分用 `lib/video-fit.mjs --content <slug>` 复核，判据见该文档 §4/§4.1。
 
 > **Evidence 模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）保留但不接入管线。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。非阻塞审计可通过 `research-pipeline.mjs --audit-only` 手动触发（Issue #61）。
 >
@@ -47,8 +47,21 @@ Stage 0 的「素材集合」不只有全文与媒体 URL。进入 Stage 1 前�
 3. **缺口预取**：对每个「本轮必需 + 库内无命中」的实体/概念，从官方或一手渠道预取 **1–2 条**（公司 logo/代表图、人物典型照、产品/术语图、主题特定画面）。只预取本轮素材里点名过的对象，不做整题批量下载。
 4. **入库与质量底线**：全局可复用的素材放 `scripts/short-video/assets/` 并写 `catalog.yml`（description / keywords / source / license / width / height）；短边 <720p 不入全局库——包内素材交给媒体轨 1.5b 的 `autoUpscaleIfNeeded`（`lib/media-track.mjs`；`upscale: false` 完全跳过，`upscale: "resample"` 换成确定性 Lanczos 重采样——图表/截图这类带字形的素材必须走这条，Real-ESRGAN 会改写字形并丢 tile），或换高清源。写完先跑 `npm run lint:catalog` 核对声明尺寸与盘上实测（不符即红；文件缺失/probe 失败只警告），再执行 `node scripts/rag/index.mjs`（索引前跑同一校验，内容错误时拒绝写入）。
 5. **回填账本**：新增素材满足的缺口执行 `node scripts/short-video/asset-gaps.mjs --satisfy <gap-id|need 子串> --by <catalog 路径>`。
+6. **视频素材必须先落盘再定 videoFit（2026-11-20 起强制）**：凡是候选 `videoFit ≥4` 或 `format: demo-led` 的 topic，进入视频轨前必须把至少 1 段（5 分要求 2 段）真实第一方/授权 mp4 下载到 `content/<slug>/assets/`，并用 `ffprobe` 记录时长；同时落 ≥3 张（5 分要求 ≥4 张）真实静图。然后运行 `node scripts/short-video/lib/video-fit.mjs --content <slug>` 读实测分。只有官方 URL、DOM 里看到 `<video>`、或 `assetEvidence` 写官网首页，都不算素材，分数上限 2。hook 还在 scene 里必须标 `mediaRole:"evidence"`：hook 渲染器只画 evidence，background/card 会被丢弃，首帧回到纯文字。DOM 抽不到时查 `films.js`、播放器配置、页面 bundle 的真实视频清单，不能以「页面没有 `<video>`」收工。
 
-**完成标准**：预获取清单逐条给出 `reuse` / `prefetch` / `accepted-gap` 三态之一；`accepted-gap` 写明原因（许可、平台限制、结构性稀缺，见 #186）。静默跳过 = 未完成本步。
+**完成标准**：预获取清单逐条给出 `reuse` / `prefetch` / `accepted-gap` 三态之一；`accepted-gap` 写明原因（许可、平台限制、结构性稀缺，见 #186）。静默跳过 = 未完成本步。候选为 `videoFit ≥4` 时，另需给出 `video-fit.mjs` 的实测输出；声明分高于实测 = 未完成 Stage 0，preflight 会直接 FAIL。生产 preflight 对 `assetFit ≥3` 也要求非 CTA 场次媒体覆盖 ≥60%；`assetFit ≥4` 再叠加 hook evidence 与动态素材使用。
+
+### Stage 0 比赛类内容：Demo 必选（2026-11-23 用户裁决）
+
+赛事、黑客松、颁奖礼、benchmark contest 这类内容，**获奖/参赛作品 Demo 是必选素材，不是可选装饰**。舞台照只能证明“办过”，Demo 才能证明“做成了什么”。
+
+1. **至少 1 段真实作品片段**：优先获奖片/冠军片，其次入围片、官方预告、展映片段。落到 `content/<slug>/assets/`，`ffprobe` 记时长；没有可剪片段时写 `accepted-gap`，原因必须具体（抓取失败、只有图片、版权不可用），不能静默跳过。
+2. **搜索渠道顺序**：官方活动页/官方视频号 → 抖音、快手、B站、YouTube 的官方或作者账号 → 媒体报道内嵌视频 → 现场素材。抖音分享页用 `yt-dlp` 取源流；图片仍走素材搜索/官方图库。
+3. **归属只写已证实的**：只有官方明确“作品—奖项—团队”对应时才写“冠军/一等奖”。对应关系未确认时写“获奖作品”“入围作品”“参赛预告”，不能把参赛预告说成获奖片，也不能凭剪辑猜团队。
+4. **剪进 payoff/peak 场景**：hook 用舞台、结果数字或奖杯；Demo 放中段证据位，不要拿它当纯背景。保留作者署名/水印时不要裁掉。**原声按内容角色处理（2026-11-23 用户裁决）**：音乐视觉、电影对白、现场演唱这类声音本身就是作品的一部分，保留 2–4 秒原声窗口，旁白在该窗口让位或压到 -18 dB 以下；纯舞台/人群/环境 b-roll 才默认静音。不要把所有外部片段一律 `volume: 0`，也不要让原声盖着旁白从头响到尾。
+5. **落盘字段**：`media.source` 写清 URL、账号、日期、奖项状态；`videoFit` 只按已落盘、已确认的素材计分，不用“可能获奖”的片段抬分。
+
+**完成标准**：赛事包里能指出“第几场、哪段、来源 URL、奖项状态”；如果只有参赛预告，报告里明确写“参赛预告，非获奖 Demo”。
 
 ### Stage 0 核实规范：权威报告与一手信源（#266）
 
@@ -87,6 +100,8 @@ Agent 从 Stage 0 的 `discovery.json` 和素材中提炼查询词（话题关�
 - 融入公司背景上下文（如公司名出现时带入已有背景）
 - 可选在文章中添加交叉引用（如 markdown link 到已有文章 slug）
 - 不持久化查询结果——即时参考，不是管线状态
+
+> **首次报道实体（2026-11-20 起强制）**：Stage 0 查 `docs/refs/entity-registry.yaml` 与 `scripts/short-video/lib/data/company-relations.json`。公司/模型第一次进入管线时，先在两处 SSOT 收录，再在 Stage 3 首现场景给一句定位（who + where + why it matters）。已有报道历史的实体不重复讲背景；`howToPresent()` 的低认知度实体必须带母公司或前身。规则与示例见 `docs/research/company-relations.md` →「首次报道实体的收录与背景」。
 
 Stage 0 完成后，文章轨与视频轨基于同一素材集合并行推进：视频脚本不是文章翻译，也不等待文章公开。MRL-1 和 MRL-2 自审通过后不暂停；MRL-2 之后若实质改写了 Step 0 已确认的台词，按 MRL-2 的「改动回流守卫」补一次确认（条件触发，正常路径不发生）。人工确认点是 **HITL 内容包审阅**：用户同时审阅文章 draft、scene-data 与视频成品；确认后才公开文章、上传附件并发布 TikTok。
 
@@ -298,6 +313,7 @@ Agent 在生成 scene-data 前，先运行分集评估器。评估器输出 `rec
 Step 0 报告里同时给出 hook 一句 voiceover 和一句独立可理解论证（陌生观众听这一句，能否听懂发生了什么），再给分集结论。**报告发出后暂停**，等用户确认角度后才写 scene-data。
 
 - 完成标准：报告含 hook 一句 + 独立可理解论证 + **该 hook 的四轴自评（Hook 合格判据，评审端）** + **全片脚本预览表**（每个 scene 一行，voiceover / texts / 预估秒数 / 计划素材四列填全，见下），且用户已确认。未给 hook 就写完整 scene-data = 未完成本步。
+- **视觉优先级（#1542）**：预览表的「计划素材」列必须让包内第一段 motion clip 落在 scene 1–2；不能前置时，报告里写一句可复核理由，并落进 `meta.hookVisualPriorityReason`。
 
 #### 全片脚本预览表（#949）
 
@@ -347,6 +363,8 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 8. **写 `scene-data.mjs`** — 逐 scene 写入 scene-data（新建 content dir 时见 `docs/content-scaffold-guide.md`）。**素材密度是门不是建议（#1296）**：`checkMediaDensity` 要求「可承载画面的场次」（排除 `data` / `stat-reveal` / `cta` 与人工策展的 `hook`）里至少 `min(2, 场次数)` 场带 `media`。**它不在 preflight 拦截**——preflight 跑在 Step 1.5 之前，而画面是这一趟跑出来的（采购 → 生成），在那里判 FAIL 会死锁；preflight 只报 `Media density (pre-generation)` 警告，硬拦截在 **Step 1.6**（生成之后、渲染之前）。2026-11-13 三条视频全空，就是 17/37 个包零画面却一路绿灯的结果。每个 scene 的 `media` 字段必须匹配 Step 4 确定的素材要求——未手工指定 media 的 scene 写 `assetNeed`（**密度门的达标路径**，也决定 VLM 判据）与 `searchHints`（可选，具体→泛化，最多 4 条）；不写也不会失去认领：asset-sourcer 会从 voiceover 派生 claim（#354）。asset-sourcer 按 claim 做 per-scene 搜索 + VLM 相关性审查 + 跨内容复用上限，采购按 **stock video 优先**（#355 D1a；见 `docs/video-script-writing-guide.md` → assetNeed / searchHints 约定）。**不再需要逐 scene 选 `mediaStrategy`**（#355）：缺省/`"asset"` 走同一条兜底链——采购（视频优先）→ 复用/upscale → 生成（默认 T2I 快路径；有 `aiVideo.prompt` 且视频预算允许时 T2V）→ 纯版式。只有需要覆盖时才写：`"source-only"`（只采购、绝不生成）、`"b-roll"` / `"ai-image"`（跳过采购直接生成、必须配 8 维 `aiVideo.prompt` / 6 维 `aiImage.prompt`）、`"asset-then-broll"` / `"asset-then-ai-image"`（先采购、落空再按指定形态生成）。链上自动生成的静图 prompt 依次取自 `aiImage.prompt` / `assetNeed` / voiceover；显式生成策略仍必须手写 prompt。字段契约、模板、预算与 HITL 见 `docs/video-production-runbook.md` → B-roll Generation 与 AI Image (T2I) generation。落盘时若实质改写了 Step 0 已确认的台词、数字或 scene 组成，按 MRL-2 的「改动回流守卫」先给用户看改动行。
    8b. **VLM stock 图片相关性评判** — scene-data 写完后，对每个 `media.type === "image"` 的场景运行 VLM 相关性评判：`node scripts/short-video/evaluate-stock-relevance.mjs --content <dir>`。判据与 asset-sourcer 分配时**同一个**：claim 取 scene 的 `assetNeed`；8b 只评已绑定 `media` 的场景，这类场景不经 sourcing（#354 的 voiceover 派生只针对未绑定 media 的场景），缺省时依次退回 `aiImage.prompt` / `aiVideo.prompt` / texts，不是另拼一套文案。结论分四态：**PASS**（首评 ≥ 60）；**PASS (second-pass)**（40–59 的 borderline 经二次「画面主体」校验返回 `match`，报告中 `relevance` 仍记首评分数）；**FAIL**（low，或 borderline 的二次校验 `no_match`/失败）；**UNAVAILABLE**（无分数：分析失败或解析失败，属工具问题，先修 analyzer/引擎，不要靠换图）。**完成标准**：没有 FAIL 与 UNAVAILABLE。整包**没有一张可准入**（`Verdict: unsatisfiable`——分数存在但都过不了准入规则；只是首评上限低于阈值、却有 borderline 经二次校验放行时仍是 `satisfiable`）时，按「判据不可满足」处理——改用 `mediaStrategy: "b-roll"` / 纯版式承载，或在 `metadata.stockRelevanceExemption` 写一条**落仓库、随代码 review** 的豁免（字符串=整包；对象 `{ reason, scenes? }`，省略 `scenes` 即整包，也可给单个 scene id 或数组；非法 id 会被丢弃并告警，不会静默放宽成整包），而不是继续换图直到有一张过线。脚本无论结论如何仍以 0 退出（8b 的完成标准要不要接硬门禁、接在哪一层，是独立决策，见 #294）。**#1353 evergreen 分流**：claim 先经规则分类（`lib/claim-kind.mjs`，news=带时间锚/事件词，evergreen=无任何时间性线索；误判只向 news 倾斜、代价为零）。evergreen 且能识别视觉原型（chart/skyline/data center 等 12 个，`lib/visual-archetypes.mjs`）的场景，query 从 tokenizer 改为 `entity + archetype`（如 `DeepSeek data center`；writer `searchHints` 仍最优先）；相关性别问从「画面是否呈现事件」放宽为「画面主体是否对得上」——本脚本与 asset-sourcer 分配同样传入场景的 claimKind，首评低分段（40 以下）的候选也可经二遍主体 `match` 准入，台账记 `evergreen-subject`（`lib/relevance-verdict.mjs`）；**UNAVAILABLE（无分数）不分 kind 一律保持关闭**——那是工具结果，不是「问错了问题」，补救靠修 analyzer/引擎而非二遍。分类判 news 时行为与现状完全一致。
    8b-2. **股价/指数 K 线 chart 资产（可选；HKEX 日线改走原生 K 线，见 8b-5）** — 叙事里讲股价/指数/跌幅、且**不在 HKEX 日线口径**（非港股、盘中、需要 chart-img drawings 标注）的 scene，写 `chart: { entity: "zhipu", range?: "6M", interval?: "1D", theme?: "dark" }`（entity 用 key 或别名；`theme` 缺省即 `dark`，显式写别的值会多占一个缓存槽与一次免费额度）而不是 `assetNeed`：sourcing 最前置会用 CHART-IMG（TradingView 真实行情截图）按 `scripts/short-video/config/chart-symbols.json` 的映射取 K 线 PNG，经 relevance-verdict `chart-pin` **直接准入（免 VLM 打分）**，失败退回常规采购链。entity 必须在映射表内——scene-data 不接受自由文本 symbol（裸代码会解析到错误标的）。映射表缺实体就先加一行（key + 完整 `EXCHANGE:SYMBOL` + 别名）。**要在图上标出峰值、跌幅或方向时写 `chart.annotations`**（#1378）：数组条目**原样**进 chart-img 的 `drawings`，形状是 `{ name, input }`——图形种类写在 `name`（**没有 `type` 字段**），坐标写在 `input`；2026-11-15 实测可用三种：`{ name: "Horizontal Line", input: { price } }`、`{ name: "Trend Line", input: { startDatetime, startPrice, endDatetime, endPrice } }`（`Datetime` 后缀必需，写 `startTime`/`points` 会 422 并回显真实键名）、`{ name: "Arrow Mark Down", input: { datetime, price } }`，`override` 可带 `lineColor`/`lineWidth`。BASIC 档 studies+drawings 合计 ≤3，**第 4 条会让该场景失败并退回常规采购链**（不是静默少画一条）；标注不同即视为不同的图，不共用一次 fetch、也不共用文件名。800×600 下水平线与趋势线清晰可读，箭头叠在末几根蜡烛上不易辨认——要靠箭头讲「跌到哪」时改用水平线。需 `CHART_IMG_API_KEY`（.env.local，免费档 50 次/日、800×600、水印即归档、港股行情延迟约 15 分钟——延迟标的的 credit 会注明 "delayed quote"，不要拿它讲「此刻价格」）。**hook 上用 K 线时配 `layout: "media-led"`**（见 8b-3）。港股日线的默认路径已不是这条：写 `info.chart: "candle"` + `bake:quotes`，无水印、无 15 分钟延迟、无 API 额度（8b-5）。
+
+   **窗口与粒度是两件事（2026-11-23 用户裁决）**：`chart.range` 是 x 轴窗口，`chart.interval` 是窗口内的 K 线粒度。单日叙事必须写 `range: "1D"` + `interval: "15m"` 或 `"1h"`；禁止 `range: "1D"` + `interval: "1D"`，那只有一根日 K，画不出日内路径。多日趋势才用 `interval: "1D"` 配合多日 `range`。`validateChartPin` 已把 `1D/1D` 判 FAIL；价格/涨跌场景必须绑定 `chart` 或 `info.chart: "candle"`，不能只靠 `stat-reveal` 的数字代替 K 线。完整“每个价格场景必须有图”的扫描仍是待接的硬门，不能因为 `1D/1D` 已拦就当成全部完成。
    8b-3. **hook 排版：`layout: "media-led"`（素材为主角，2026-11-15 用户裁决）** — hero-center hook 把 bigNumber（240px）压在媒体正中央——适合「合成封面镜头」，但 K 线、产品 demo 这类「素材本身即钩子」的场景会挡住焦点（zhipu 包实测：`-80%` 正好盖住 K 线的 6 月峰值）。hook 声明 `layout: "media-led"` 后层级反转：媒体带独占画面主体（contain 在 y 410-1029 的 820×619 带、cover 铺满全帧），文字全部退到图片不占的区间（顶部 badge + subject 行、底部 y 1037-1298 文字条：数字锁 110px + numberLabel + source，无圆圈标注）。几何常量在 `lib/safe-zones.mjs` → `MEDIA_LED`；slot 契约 `hook.media-led.*`（`lib/text-slots.mjs`）。约束：**只支持 number-led**（hookText/revealText/stats 未注册，写了合同报错；`color` 仍是控制字段，但在这里作用于底部数字条而不是 claim 文案，缺省 amber）；**不支持 `mode: "card"`**（证据卡跨 y 300-986，会压住 badge/subject 行，合同直接 FAIL）；**`media: null` / `mediaOptOut` 也 FAIL**（与「素材为主角」自相矛盾）——唯一例外是 `info.chart: "candle"`（原生 K 线就是主角，见 8b-5），而「暂时还没有 media」只 WARN——chart pin / assetNeed / 生成策略都在 preflight 之后才落盘，最终由 Step 1.6 的 final media gate 强制文件存在。scrim 随 fit 定：contain 0.15、cover 0.5（`lib/media-overlay.mjs` → `MEDIA_LED_DIM`；渲染层对未写 overlay 的手绑/生成素材同样兜底）。渲染组件 `remotion/src/scenes/HookMediaLed.tsx`；像素契约在 `scene-gate-render.test.mjs`（strip 角 + 媒体带下三分之一采样，证明文字条不压图、画面不被画框级压暗层盖住）。
    8b-4. **原生数据镜头：`scene.info` + `layout: "chart"`（#1398）** — 当镜头要讲的是「2–12 个已知数值之间的关系」，用原生 SVG 图表，不要去找一张近似截图。写法：`visualType: "data"`、`layout: "chart"`、`info: { relationship, chart?, data: [{ label, value, value2?, ... }], unit, highlight?, time?, baseline?, sort?, decimals?, axisLabels? }`；`texts.label` 是图表标题/claim，`texts.subtext` 是读法，`texts.source` 必填。完整示例与关系→图型表见 `docs/specs/spec-information-layout-v2.md` §1–2；设计几何与样式见 `docs/conventions/visual-design-loop.md` → 原生信息图表。
 
@@ -366,6 +384,20 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
    8d. **素材缺口回流账本（必须执行）** — 本轮 sourcing 结束后运行 `node scripts/short-video/asset-gaps.mjs --record --content <dir>`。它从 scene-data + `output/<dir>/media-patch.json` + 8b 的 `stock-relevance-report.json` + Stage 4 的 `b-roll-report.json` 推导「声明了 `assetNeed` 却没有素材」的场景，把工具失败、内容判决与「落空后改走生成」分开归因（原因码与边界见 `docs/media-asset-management.md` §2「素材缺口账本」），并入 `knowledge/asset-gaps.json`。**8b 的豁免只说明「本包可以不带这张图」，不等于素材库已有**——缺口保持 open，直到 Stage 0 真正入库并 `--satisfy`；因不可满足而把 `mediaStrategy` 改成 `b-roll` 也不会抹掉记录（8b 报告仍在）。下一轮 Stage 0 的预获取优先级由本账本决定。**完成标准**：命令输出 `Recorded N gap(s)` 或 `No asset gaps recorded`（后者也必须真的跑过）。
 
 9. **检查 TikTok Creative Center trending 标签（必须执行）** — 通过 web-access skill 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`，检查所有类别的 trending 标签。如果发现与视频内容高度相关的 trending 标签，记录到 scene-data 的 `metadata.trendingHashtags` 字段中。`generate-caption.mjs` 会自动将这些标签纳入候选。如果没有相关的 trending 标签（当前常态），在 scene-data 的 metadata 中注明 `trendingChecked: true` 即可。此步骤为**必须执行**（不是可选）。详见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节。也可用 `node scripts/short-video/snapshot-trending.mjs --keywords "keyword1,keyword2"` 自动执行。
+
+   9a. **写 Tag 前跑流量门禁（必须执行，不可静默跳过）** — 顺序固定为「snapshot 检查 → 门禁 → 写标签」，不是并列关系：完成上面的 Creative Center 检查（手动打开页面，或 `snapshot-trending.mjs` 出快照）之后，在把标签定稿写进 `meta.mjs.hashtags`、或交给 `deriveHashtags()` 自动推导之前，必须先跑门禁：
+
+   ```bash
+   node scripts/short-video/tag-preflight.mjs --content <slug>
+   ```
+
+   发布前强校验加 `--strict`（阻断项按严格口径判 FAIL）：
+
+   ```bash
+   node scripts/short-video/tag-preflight.mjs --content <slug> --strict
+   ```
+
+   **完成标准**：命令行输出 `PASS` 或 `PASS(warn)` 才算本步完成；退出码语义、逐项检查与降级口径见 `docs/tiktok/tiktok-best-practices.md` → Hashtag 策略章节「写 Tag 前门禁」。每条 WARN 都必须在本轮记录处理结论，三选一：① 刷新标签池；② 补调研（`node scripts/short-video/research-hashtags.mjs --live` 属付费渠道，需用户批准）；③ 接受 entity/brand 标签无聚合数据（grade C 仅存在性验证，允许保留）。门禁未跑、或 WARN 没有结论记录，视同本步未完成——这不是可选步骤，静默跳过 = 未完成。
 
 ### 素材 → 视频的节奏适配
 
@@ -390,7 +422,7 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 
 **hook 前 3 秒密度**：核心价值必须在 hook 前 3 秒点出（Meta 研究：前 3 秒传达核心价值 → 完播 +47%）。hook 不堆铺垫句。能量曲线方向（#252 调研）：hook 应是全片能量峰值、语速不慢于正文，中段衰减是流失点，cta 结尾加速属正常模式。**3s 是价值交付点，不是 hook 段长度**——hook 段本身的目标时长是 4.5–5s（口径见下节）。
 
-**参考体量区间（非门禁，#263 裁决）**：2026-11-09 用户裁决「duration follows the content — no minimum, no pad-to-target」之后，管线里**没有档位**——全片时长由每个场景的 TTS 实测音频长度累加（`lib/timeline.mjs`），70s 只是 advisory 上限（`verify-video --tiktok`：≤70s PASS / 70–600s WARN 提示拆集 / >600s FAIL，后者是 TikTok 10 分钟上传限）。下表**只用于选题时估体量**，不参与 `verify-video` 判定，也不是写稿配额：写多了自然变长，写少了自然变短。
+**参考体量区间（非门禁，#263 裁决）**：2026-11-09 用户裁决「duration follows the content — no minimum, no pad-to-target」之后，管线里**没有全局档位**——全片时长由每个场景的 TTS 实测音频长度累加（`lib/timeline.mjs`），70s 只是默认上限（`verify-video --tiktok`：≤70s PASS / 70–600s WARN 提示拆集 / >600s FAIL，后者是 TikTok 10 分钟上传限）；内容包可用 `meta.scenePlan` 把上限改短或改长。下表**只用于选题时估体量**，不参与 `verify-video` 判定，也不是写稿配额：写多了自然变长，写少了自然变短。
 
 | 题材形态                            | 参考体量 | 参考 VO                                   |
 | ----------------------------------- | -------- | ----------------------------------------- |
@@ -398,7 +430,17 @@ hook 之后紧随一张覆盖全部 scene 的预览表。TTS 按 batch 计费—
 | 标准解读（一个事件 + 2–3 个数据点） | ≈55–65s  | ≈140–160 词                               |
 | 生态拆解（多主体 / 多环节）         | ≈75s+    | 走拆集（`pt1`/`pt2`）或显式 `--long-form` |
 
-**唯一的写稿硬门**是 `checkVoiceoverWordCount`（`lib/scene-rules.mjs:863`）：全片 VO 合计 >175 词默认 FAIL，`--long-form` 降级为 WARN。175 是 70s × 2.5 wps 的换算值，**是上限不是目标**。
+**时长相关的写稿硬门**是 `checkVoiceoverWordCount`（`lib/scene-rules.mjs:867`）：全片 VO 合计 >175 词默认 FAIL，`--long-form` 降级为 WARN。175 是 70s × 2.5 wps 的换算值，**是上限不是目标**。
+
+**按内容声明的 `scenePlan`（2026-11-22）**：默认的 3–10 场（典型 6–8） / 175 词 / 70s 是**默认门**，不是每个题材的配额。内容包可以在 `meta.mjs` 声明 `scenePlan`，覆盖当前包自己的结构门：`{ minScenes, maxScenes, maxVoiceoverWords, maxDurationSec }`。建议档位：
+
+| 题材形态 | scenePlan |
+| --- | --- |
+| 单点快讯（一条发布 / 一次更新） | `{ minScenes: 3, maxScenes: 5, maxVoiceoverWords: 100, maxDurationSec: 45 }` |
+| 标准解读（一个事件 + 2–3 个数据点） | 不声明，沿用默认 3–10（典型 6–8） / 175 / 70 |
+| 生态拆解（多主体 / 多环节） | `{ minScenes: 8, maxScenes: 10, maxVoiceoverWords: 175, maxDurationSec: 70 }`，超出走拆集 |
+
+`checkSceneCount` / `checkVoiceoverWordCount` / `verify-video --tiktok` 都先读 `meta.scenePlan`，没有再回落全局。这样 4 场、38s 的突发新闻可以合法通过，而标准深读不会被误压成短讯；场景数仍由故事脊线决定，不按 7–8 场凑数。
 
 **词密度预算（Stage 3 拦截，#252）**：行业高 WPM 靠写稿密度而非 TTS 拉速（1.2× 上限），在写稿阶段拦截比生成后重抽省远程 GPU 耗时。EN 场景自检公式：`词数 / 预估秒数`（预估秒数按该场景画面时长）。**基线预估 > 2.9 词/秒（≈175 WPM）→ 拦截并删减冗余词后再过 MRL-2**；**目标仍为 2.4-2.5 词/秒（#786 不改）**。**速度带 ≠ 密度预算**：2.9 词/秒是「写稿上限」（超过即要求删词），165 WPM 是「成片声学目标」（由停顿裁剪 + 倍率补差实现）；写稿目标**不随**声学目标一起上移——把两者同时推高会双重挤压理解资源（Rodero 2016：速度越高、可承载的信息密度必须越低），且本票没有「快则减速」支路，写密了只能越界（详见 `docs/research/speech-density-pacing-2026-10.md` 与 #786 的实测：现有文案密度下三包已落在 172-175 WPM）。理由：场景基线密度差异大（实测 127-214 WPM）时，任何静态倍率都必然把高基线场景推出上限——预算在源头抹平基线差异，残余交给 TTS 闭环。
 
@@ -516,6 +558,15 @@ Hook 是开头的 4.5–5 秒（目标带，见上节「hook 时长口径」）�
 
 已有包迁移口径：hook 没有媒体**且没有生成策略**的包，下一次预检会 FAIL；带生成策略的包预检只 WARN，由最终 media gate 判定落地文件是否可用。hook 若写了已废弃的 `mediaOptOut: true` 且没有媒体，预检直接 FAIL——改用 `media: null` 显式豁免。
 
+### 开场视觉优先级（#1542，editorial）
+
+短视频的第一个画面决定划走率。默认规则：**当前包只要绑定了 motion clip，第一段就必须落在 scene 1–2**；完整 demo/payoff 仍可留在中后段，但 hook 至少要用它的 0.5–1.5s teaser 或关键帧，不能把唯一的高动态素材藏到 scene 3 以后。包内有多段视频时，优先把最有动势的一段放前面。
+
+- `checkHookVisualPriority` 在 `🧭 Editorial Suggestions` 报 `Hook visual priority`：hook 是静图/纯文字，而第一段视频只在 scene 3+ 出现时，输出一条非阻断建议。
+- 例外必须写 `meta.hookVisualPriorityReason`（一句话：剧透、事实不匹配、版权/原声限制等）；写了理由该项转 clean，但理由要能被 HITL 复核。
+- `videoFit =3` 且确实没有视频素材时，静图 hook 合法；一旦包里有可用 motion clip，仍按本节前置或写理由。
+- 只适用于增量包；已发布成片不回溯重剪。
+
 ### Hook 承诺-画面对账（#1206）
 
 `verify-video` 与帧分析只判**布局**（安全区、对比度、媒体是否存在），从不判「hook 说的和画面里的是不是一回事」。2026-10-25 的 unitree 剪辑就是反例：`IT LIFTS A CAR.` 压在夜景救援片段上，全部机检通过，缺陷只能靠人工读帧发现。本节补这一层。
@@ -559,7 +610,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 | 编辑建议（advisory） | 需要品味/上下文/世界知识，**不进退出码、不算 WARN** | `🧭 Editorial Suggestions` 区块 |
 | Agent 判断项         | 机器无法判定，Agent 自评                            | HITL 报告                       |
 
-机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
+机检门只保留机械不变量：结构、模板契约、媒体几何、字幕/成片、schema、预算与合规黑名单。**编辑建议**覆盖 hook 数字/强词锚点、开场视觉优先级、数据点密度、循环闭合、开环/中断/闭环声明、行长度节奏、CTA 堆叠、单一目标、文本宽度预算、去 AI 词、口语化开场、dead closer、问候语、币种双标注、头像使用策略——这些项**不阻断**，Agent 仍须在 HITL 报告里逐条自评。完整清单与阈值见 `scene-rules.mjs` 的 `gateChecks` / `EDITORIAL_RUNNERS`；hook 四轴的判据见 Stage 3 → Hook 文案句式（#278，写稿端）与 Hook 合格判据（#752，评审端；轴 4 由 #1231 增补）。分类依据与逐项处置见 #763 交付评论。
 
 **币种双标注（Step 0.5 自动补 + 回检硬门禁，#1415 / 2026-11-18）**：`lib/normalize-currency.mjs` 在 TTS 之前把人民币/港币金额补成 `$X (原写法)`。支持 `¥1200` / `￥1,200` / `12.4 billion yuan` / `0.39 yuan`（裸数字，无 magnitude 词）/ `67.7B RMB` / `3,500 亿元` / `3500 亿人民币` / `120 万元` / `500 万人民币` / `500 人民币` / `1,200 元`，港币侧 `HK$454` / `80B HKD` / `2,526 Hong Kong dollars` / `2,980 港币`；中文数字（「三亿五千万」）与英文拼写数字（「thirty nine fen」）不自动转换，回检会把它们标为 unfixable 并拦下。汇率**每个生成音频的 run 取一次**（`open.er-api.com`，8s 超时）：成功把 rates / source / providerTime / fetchedAt 写进 `meta.currencyRates`、落盘 `output/<id>/currency-rates.json`，并打一行 `live` 日志；失败回退 `0.14` / `0.13`（`fallback: true` + `fallback` 警告），绝不中断渲染。`render-only` / `rerender` / `realign-render` / `tts-only` 复用该文件里的 rates（文件缺失则用常量），不再新取，保证与音频对齐时的文本逐字一致。回检 `checkCurrencyDualAnnotation` 在 **gate bucket** 里（`check` 名 `Currency dual-annotation (CNY/HKD → USD)`，与 Step 0.5 共用同一份写法扫描），只报第一处金额与总处数，**任何未换算的人民币/港币写法都会让 preflight 失败并挡住 TTS 与渲染**；它判的是写稿原文，Step 0.5 的补写发生在运行时，两者不矛盾。`--skip-preflight` 仍可绕过，但属于已知例外，不是默认路径。边界：前方 30 字符内已有 `$` 就不重复标注；汇率变动后要换数字，必须重跑生成音频的那一轮（`main` / `rerender-full`），只重渲染不改音频。
 
@@ -569,7 +620,7 @@ Agent 写完每集 `content/<dir>/scene-data.mjs` 后，运行 MRL-2 自审循�
 
 镜头里的**光**另有判据（`checkFocusLight`，#738）：两层光（主角柔光 / 3–6 帧白闪）、主角必带光、一帧内重点 ≤1、转移灭灯 8 帧。主角由模板显式声明（`lib/focus-light.mjs` 的 `LIGHT_PLANS`，不作自动判定）；某镜的主角字段没声明 → **WARN**（镜头没有受光主体，整帧平掉），plan 本身违反预算 → **FAIL**（渲染端 `resolveLightTimeline()` 抛同一个错）。全屏 media 镜头不判（画面就是主体）。背景 corner tint 是底色、不是光，也是唯一保留的全场景装饰：画框结构线于 2026-11-14 随 `#1215` PR-A 退役，60px 网格与扫描线纹理于 2026-11-15 因实测仅贡献 ≤2/255 亮度级一并退役（源码契约见 `__tests__/decorative-layer-contrast.test.mjs`）。规则与来源见 `docs/conventions/visual-design-loop.md` → 主角光。
 
-**画面角色（`mediaRole`，2026-11-18 裁决 B，2026-11-19 细分三档）**：`mediaRole: "evidence" | "background" | "card"` 决定画面能占多少版面。**evidence** 保留全屏/媒体带；**background** 铺满画面、垫在文字条与 scrim 之下（默认给 AI 生成图、stock、泛用插画，避免卡片悬在空黑里像贴纸）；**card** 只进有界卡片窗（`MediaCard`，820×686），给“有完整主体、不能被裁、但不是证据”的图。hook 只认 evidence，background/card 一律不渲染（text-first）。字段可省：省略时 `media.evidence === true` 判为 evidence，其余一律 background。显式 `card`/legacy `decorative` 与 `evidence:true` 矛盾、或在 `media-led` hook 上挂非 evidence，都会被 `checkMediaRoleContract` FAIL。重要性无法只靠元数据判断：真实第一方素材写 `mediaRole: "evidence"` 提升，需要完整主体的写 `"card"`。
+**画面角色（`mediaRole`，2026-11-18 裁决 B，2026-11-19 细分三档）**：`mediaRole: "evidence" | "background" | "card"` 决定画面能占多少版面。**evidence** 保留全屏/媒体带；**background** 铺满画面、垫在文字条与 scrim 之下（默认给 AI 生成图、stock、泛用插画，避免卡片悬在空黑里像贴纸）；**card** 只进有界卡片窗（`MediaCard`，820×594），给“有完整主体、不能被裁、但不是证据”的图。hook 只认 evidence，background/card 一律不渲染（text-first）。字段可省：省略时 `media.evidence === true` 判为 evidence，其余一律 background。显式 `card`/legacy `decorative` 与 `evidence:true` 矛盾、或在 `media-led` hook 上挂非 evidence，都会被 `checkMediaRoleContract` FAIL。重要性无法只靠元数据判断：真实第一方素材写 `mediaRole: "evidence"` 提升，需要完整主体的写 `"card"`。**contain 的 letterbox 用 `media.matteColor` 填图源边缘色**（浅色图表填白、深色 UI 填黑、产品图取底色）；不填会落回暗色 matte，在白底图上重新变成“阴影”。卡片自身的 scrim 固定 `scrimScope="element"`，不得回到 frame 级轨道/字幕渐变。
 
 `media` 对象另有一条 schema 检查（`lib/media-field-schema.mjs`，check 名以 `Media field schema:` 开头，#836）：**未知键即 FAIL**（拼错 `evidnce` 不会静默关掉 evidence 强制）、`evidence` 只接受 `true`/`false`/`null`、`evidence: true` 必须同时声明 `provenance`、声明了 `provenance` 就先跑 `validateProvenance()`（clip ⊇ rect）。允许的键集合是 `remotion/src/types.ts` 里 `MediaField` 的 .mjs 镜像，两边由单测钉住——加字段必须同改两处。
 
@@ -691,7 +742,7 @@ MRL-3 通过后，Agent **暂停**，执行以下步骤：
 
    > 备选音源（仅当用户点名要别的音乐）：CC-BY BGM 池 `lib/bgm.mjs` → `selectBGM`，混流用 `mix-bgm.mjs`；TikTok 曲库别的曲子改 `--sound` / `--sound-owner` 参数。
 
-   **发布前的输入形态（#1013，2026-10-30 起；#1288 加固 2026-11-13）**：脚本的每一步输入都按人类形态走——Bézier 轨迹、逐字可信输入、带内分布采样、进入路径预热（3–8 条 feed item）与 profile 级节奏节流（每日 ≤3 次、间隔 ≥90min，失败重跑不计数）。`--no-warmup` / `--no-throttle` / `--paste-caption` / `--skip-review` 是显式退出口；每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`。细节、日志读法与三项判据的离线复演见 `docs/manual-ops.md`「发布前的输入形态」与「行为分布与节奏节流」。
+   **发布前的输入形态（#1013，2026-10-30 起；#1288 加固 2026-11-13；2026-11-19 收紧）**：脚本的每一步输入都按人类形态走——Bézier 轨迹、真实系统剪贴板 + 可信 `Cmd+V`（失败重试一次后中止，不再自动逐字输入）、带内分布采样、进入路径预热（3–8 条 feed item）与 profile 级节奏节流（每日 ≤3 次、间隔 5–10min，失败重跑不计数）。视频文件不再走 CDP `setFiles`：脚本点击可见触发元素，打开真实 macOS NSOpenPanel，在 Go to folder 里写入绝对路径并点 Open，页面回读文件名/字节数/SHA-256 与本地指纹比对，任一不一致即中止。`--no-warmup` / `--type-caption` 是显式退出口；`--no-throttle` / `--skip-review` 已移除。每一步（含「已审阅」判定）追加到 `output/{id}/publish/tiktok/publish-log.jsonl`。细节、日志读法与三项判据的离线复演见 `docs/manual-ops.md`「发布前的输入形态」与「行为分布与节奏节流」，契约见 `docs/tiktok/humanization-contract.md`。
 
 9. **等待用户公开** — 草稿存好后，Agent 报告草稿位置并把「公开」这一步交给用户（#1181：自动路径只到草稿，公开点击由人做）。不要替用户点发布，也不要在 HITL 里二次确认配乐。
 
@@ -727,7 +778,7 @@ node scripts/short-video/publish-tiktok.mjs --video <video-path> --content <pipe
 
 > **公开点击归人（#1181 裁决 2026-11-13）**：CDP 网页路径降级为「仅存草稿」——自动路径只把成片存成 Studio 草稿，**公开那一下由用户人工点击**。`--publish` 会在打开浏览器前非零退出并指向 `--save-draft`；不做全退役（AIGC、挂 sound、音量、草稿全部保留）。依据是时序事实：两条 CDP 发布（10/25、11/1）0 播放发生在前，11/8 App 发布 438 播放发生在后，间隔 7 天，且 0 播放时账号已运行约 6 周——排除「新号冷启动」。裁决**不**宣称网页通道已被证明降权（11/12 评论指出的样本混杂仍成立），只是取可逆的一侧。
 >
-> **出口地理探测（#964，降级后为警告）**：上传前脚本在自动化浏览器里探测出口国家，与 `--expect-region`（默认 `SG`）比对；不一致、探测超时或 `loc=XX` 现在只警告（不阻断，因为不再自动公开）。2026-10-25 的首条 CDP 发布出口在东京（Zouter/AS205548），随后 0 播放——警告会点名这个风险，因为用户就在同一标签页里点公开。
+> **出口地理探测（#964；2026-11-19 起硬门禁）**：上传前脚本在自动化浏览器里探测出口国家，与 `--expect-region`（默认 `HK`，自动化 profile 的实测落地）比对；不一致、探测超时或 `loc=XX` 在打开上传页前直接中止。2026-10-25 的首条 CDP 发布出口在东京（Zouter/AS205548），随后 0 播放——门禁就是为了在草稿交到操作者手里之前抓住这种漂移。
 >
 > **覆盖差（#964）**：脚本结束时按 profile 的 `manualGuide.steps` 打印 ✅ 自动完成 / 🔁 网页替代 / ⏳ 待执行 / ⚠️ 未覆盖。`publish` 现在固定记为「未覆盖——公开由人工完成」；草稿会丢掉已挂 music（`draft-lost`）。Location 记为「两条路都没做」（历史成功的手动发布也未填，用户 2026-11-01 确认），in-app editing 为 App 专有，置顶评论与首小时互动为发布后手机补做。
 

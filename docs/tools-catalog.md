@@ -10,9 +10,9 @@
 
 本文件分两层：**项目层在前（唯一权威），通用层在后（跨项目储备）**。ADR-0021 于 2026-11-14 修订为「不新建同级 `tool-catalog` 仓」，两层因此同处本文件、靠顺序与小节标题区分。
 
-| 层 | 内容 | 权威性 | 谁改 |
-| --- | --- | --- | --- |
-| **项目层** | 场景→工具、已接线工具、任务决策表、Pipeline API、逐项吸收结论 | **唯一权威**：Tavily 硬规则等执行约束只认这一层 | 本项目 ticket |
+| 层         | 内容                                                           | 权威性                                                                                                   | 谁改                             |
+| ---------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| **项目层** | 场景→工具、已接线工具、任务决策表、Pipeline API、逐项吸收结论  | **唯一权威**：Tavily 硬规则等执行约束只认这一层                                                          | 本项目 ticket                    |
 | **通用层** | 候选 skills、视频 skill 储备、评估流程、安全审计工具、条目模板 | 参考储备，不构成本项目的执行约束（**例外**：「条目准入」把评估流程与安全审计采纳为强制门禁，见第一部分） | 任何引用方；新增条目只需工具画像 |
 
 四条硬规则：
@@ -28,42 +28,42 @@
 
 > 本表覆盖两层，仅作定位索引；「对本项目价值」列是项目侧视角，通用层行写的是本项目怎么用它，不改变其通用属性。
 
-| 工具                                         | 分类                      | 免费            | 状态                 | 对本项目价值                                                   |
-| -------------------------------------------- | ------------------------- | --------------- | -------------------- | -------------------------------------------------------------- |
-| `web-access`                                 | 联网/抓取                 | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
-| Cloudflare trace                             | 诊断/网络                 | ✅              | ✅ 已集成            | ⭐ 发布出口门禁（#964）                                       |
-| `web-deep-research`                          | 深度研究                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
-| `web_fetch` (内置)                           | 联网/抓取                 | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
-| Context7 MCP                                 | 技术文档查询              | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ 技术事实验证                                            |
-| Tavily MCP                                   | AI 搜索                   | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ fallback 链末位（硬规则在项目层，本文件唯一权威）       |
-| mcp-search-bridge                            | 搜索（Grok）              | 按用量          | ✅ 已集成            | ⭐⭐ X/Twitter+全网                                            |
-| `search-sources.mjs`                         | 趋势发现（中文平台）      | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                    |
-| SearXNG（自托管）                            | 搜索（metasearch）        | ✅ 自托管       | ✅ 已集成            | ⭐⭐⭐ 快速优先层，零限额                                      |
-| Jina Reader API                              | 联网/抓取                 | ✅ 1M tokens/月 | ✅ 已集成(MCP)       | ⭐⭐⭐ URL→Markdown                                            |
-| `pdf-parse` (npm)                            | 文档解析                  | ✅              | ✅ 已集成            | ⭐⭐ 够用                                                      |
-| Firecrawl `parse`                            | 文档解析                  | 注册免费        | 📋 待评估            | ⭐⭐⭐ 补充                                                    |
-| Firecrawl `scrape`                           | 联网/抓取                 | 注册免费        | 📋 待评估            | ⭐⭐ 英文站                                                    |
-| Firecrawl 其他功能                           | 多种                      | 注册免费        | ❌ 不推荐            | ⭐ 不如现有                                                    |
-| last30days-skill                             | 趋势发现（西方社媒+学术） | ✅              | ✅ 已集成(安全⚠️)    | ⭐⭐⭐ 核心                                                    |
-| `we-mp-rss`（自建）                          | 微信 RSS（自建）          | ✅ 自托管       | ✅ 已部署（本地）    | ⭐⭐ 动察Beating 直连 feed                                     |
-| vercel-labs/agent-skills                     | 开发/部署                 | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ Vercel+React                                            |
-| emilkowalski/skills (emil-design-eng)        | UI/动画                   | ✅              | 📋 备选(安全✅)      | ⭐⭐ motion/细节                                               |
-| guizang-ppt-skill                            | 演示文稿                  | ✅              | 📋 待评估(安全⚠️)    | ⭐ 备用                                                        |
-| vercel-labs/agent-browser                    | 浏览器自动化              | ✅              | 📋 待评估(安全⚠️)    | ⭐⭐ CDP替代                                                   |
-| anthropics/skills (frontend-design)          | UI设计                    | ✅              | ✅ 已集成            | ⭐⭐ 新模板美学                                                |
-| runcomfy-agent-skills (30 skills)            | AI媒体                    | ✅              | 📋 备选(安全✅)      | ⭐⭐⭐ 数字人/B-roll                                           |
-| VoltAgent/awesome-agent-skills               | 目录索引                  | ✅              | 📖 参考              | 查用目录                                                       |
-| ComposioHQ/awesome-claude-skills             | 目录索引                  | ✅              | 📖 参考              | 查用目录                                                       |
-| pbakaus/impeccable (24 commands)             | 视觉设计                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 视觉打磨                                                |
-| leonxlnx/taste-skill (design-taste-frontend) | 设计推理                  | ✅              | 📋 备选(安全✅)      | ⭐ 设计决策                                                    |
-| public-apis/public-apis                      | API 资源索引              | ✅              | 📖 参考              | 📖 查免费 API                                                  |
-| AutoVio                                      | 自动视频生成              | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                        |
-| Pixelle-Video                                | 自动视频生成              | 最低档 ✅ 0 元  | 📖 只读（停更）      | ⭐⭐ 同类竞品：接口形态与版式清单可学，代码不引入              |
-| VoiceStudio                                  | 音频/TTS 聚合器（参考）   | ✅ 自托管       | 📖 参考（不采用）    | ⭐ GUI 试听底层引擎情感效果                                    |
-| awesome-claude-video-skills (索引)            | 视频 Skill 储备           | ✅              | 📖 参考              | 180 repo 索引，按能力域收录 35 个见专节（project-agnostic）      |
-| zenstory-ai/video-recap-skills                | 视频→中文解说 recap        | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 管线同构对标                                          |
-| sharon-laicc/viral-video-decomposer           | 爆款拉片/竞品基准          | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ → #300                                                |
-| remotion-dev/skills                           | Remotion 官方 skill        | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 已用 Remotion                                          |
+| 工具                                         | 分类                      | 免费            | 状态                 | 对本项目价值                                                |
+| -------------------------------------------- | ------------------------- | --------------- | -------------------- | ----------------------------------------------------------- |
+| `web-access`                                 | 联网/抓取                 | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                 |
+| Cloudflare trace                             | 诊断/网络                 | ✅              | ✅ 已集成            | ⭐ 发布出口门禁（#964）                                     |
+| `web-deep-research`                          | 深度研究                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                 |
+| `web_fetch` (内置)                           | 联网/抓取                 | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                 |
+| Context7 MCP                                 | 技术文档查询              | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ 技术事实验证                                         |
+| Tavily MCP                                   | AI 搜索                   | ✅ 1,000/月     | ✅ 已集成            | ⭐⭐⭐ fallback 链末位（硬规则在项目层，本文件唯一权威）    |
+| mcp-search-bridge                            | 搜索（Grok）              | 按用量          | ✅ 已集成            | ⭐⭐ X/Twitter+全网                                         |
+| `search-sources.mjs`                         | 趋势发现（中文平台）      | ✅              | ✅ 已集成            | ⭐⭐⭐ 核心                                                 |
+| SearXNG（自托管）                            | 搜索（metasearch）        | ✅ 自托管       | ✅ 已集成            | ⭐⭐⭐ 快速优先层，零限额                                   |
+| Jina Reader API                              | 联网/抓取                 | ✅ 1M tokens/月 | ✅ 已集成(MCP)       | ⭐⭐⭐ URL→Markdown                                         |
+| `pdf-parse` (npm)                            | 文档解析                  | ✅              | ✅ 已集成            | ⭐⭐ 够用                                                   |
+| Firecrawl `parse`                            | 文档解析                  | 注册免费        | 📋 待评估            | ⭐⭐⭐ 补充                                                 |
+| Firecrawl `scrape`                           | 联网/抓取                 | 注册免费        | 📋 待评估            | ⭐⭐ 英文站                                                 |
+| Firecrawl 其他功能                           | 多种                      | 注册免费        | ❌ 不推荐            | ⭐ 不如现有                                                 |
+| last30days-skill                             | 趋势发现（西方社媒+学术） | ✅              | ✅ 已集成(安全⚠️)    | ⭐⭐⭐ 核心                                                 |
+| `we-mp-rss`（自建）                          | 微信 RSS（自建）          | ✅ 自托管       | ✅ 已部署（本地）    | ⭐⭐ 动察Beating 直连 feed                                  |
+| vercel-labs/agent-skills                     | 开发/部署                 | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ Vercel+React                                         |
+| emilkowalski/skills (emil-design-eng)        | UI/动画                   | ✅              | 📋 备选(安全✅)      | ⭐⭐ motion/细节                                            |
+| guizang-ppt-skill                            | 演示文稿                  | ✅              | 📋 待评估(安全⚠️)    | ⭐ 备用                                                     |
+| vercel-labs/agent-browser                    | 浏览器自动化              | ✅              | 📋 待评估(安全⚠️)    | ⭐⭐ CDP替代                                                |
+| anthropics/skills (frontend-design)          | UI设计                    | ✅              | ✅ 已集成            | ⭐⭐ 新模板美学                                             |
+| runcomfy-agent-skills (30 skills)            | AI媒体                    | ✅              | 📋 备选(安全✅)      | ⭐⭐⭐ 数字人/B-roll                                        |
+| VoltAgent/awesome-agent-skills               | 目录索引                  | ✅              | 📖 参考              | 查用目录                                                    |
+| ComposioHQ/awesome-claude-skills             | 目录索引                  | ✅              | 📖 参考              | 查用目录                                                    |
+| pbakaus/impeccable (24 commands)             | 视觉设计                  | ✅              | ✅ 已集成            | ⭐⭐⭐ 视觉打磨                                             |
+| leonxlnx/taste-skill (design-taste-frontend) | 设计推理                  | ✅              | 📋 备选(安全✅)      | ⭐ 设计决策                                                 |
+| public-apis/public-apis                      | API 资源索引              | ✅              | 📖 参考              | 📖 查免费 API                                               |
+| AutoVio                                      | 自动视频生成              | ✅ 自托管       | ❌ 不采用（NC 许可） | ⭐ 分镜 prompt 结构参考                                     |
+| Pixelle-Video                                | 自动视频生成              | 最低档 ✅ 0 元  | 📖 只读（停更）      | ⭐⭐ 同类竞品：接口形态与版式清单可学，代码不引入           |
+| VoiceStudio                                  | 音频/TTS 聚合器（参考）   | ✅ 自托管       | 📖 参考（不采用）    | ⭐ GUI 试听底层引擎情感效果                                 |
+| awesome-claude-video-skills (索引)           | 视频 Skill 储备           | ✅              | 📖 参考              | 180 repo 索引，按能力域收录 35 个见专节（project-agnostic） |
+| zenstory-ai/video-recap-skills               | 视频→中文解说 recap       | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 管线同构对标                                         |
+| sharon-laicc/viral-video-decomposer          | 爆款拉片/竞品基准         | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ → #300                                               |
+| remotion-dev/skills                          | Remotion 官方 skill       | ✅              | 📋 待评估(安全✅)    | ⭐⭐⭐ 已用 Remotion                                        |
 
 ---
 
@@ -82,7 +82,7 @@
 | 场景                | 工具                                                                                   |
 | ------------------- | -------------------------------------------------------------------------------------- |
 | 技术文档            | Context7 MCP                                                                           |
-| 事实查询 / URL 抓取 | 按项目层「Tavily MCP — fallback 链硬规则」执行（本文件唯一权威）                      |
+| 事实查询 / URL 抓取 | 按项目层「Tavily MCP — fallback 链硬规则」执行（本文件唯一权威）                       |
 | 深度研究            | `web-deep-research` skill（触发词："deep research"、"调研"、"comprehensive analysis"） |
 | 趋势发现            | `search-sources.mjs` / `last30days` skill / mcp-search-bridge（X）                     |
 
@@ -135,7 +135,7 @@
   last30days --emit=json → JSON（西方社媒 + 学术，API）
   Agent 读两个 JSON → 交叉比对 → 选 topic → 写文章 → 做视频
   ```
-  交叉比对执行固定的四步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）；④ 对达到阈值的 topic 标 `videoFit`（0-5，第一方画面能否在 1-2 秒内展示核心结果）与 `assetEvidence`/`format`/`hook`，并输出 **News-first**（同分看 `videoFit`）/ **Video-ready** 两条列表。`videoFit` 不折进 0-10 分，判据见该文档 §4。产物须为每条留痕：去重组归属 + 0-10 分数 + `videoFit` + `assetEvidence` + `format` + `hook` + 理由。
+  交叉比对执行固定的四步（#203，机制与 prompt 见 [trend-selection-dedup-scoring.md](trend-selection-dedup-scoring.md)）：① 同事件判定去重（同一现实事件才合并，不确定保留，fail-open）；② 0-10 评分 rubric；③ 按类阈值过滤（tech-news 7.0 / tech-blog 4.0）；④ 对达到阈值的 topic 标 `videoFit`（0-5，按可获取的人物/企业/产品/图表等实体素材潜力计分）与 `assetReady`/`assetEvidence`/`format`/`hook`，并输出 **News-first**（同分看 `videoFit`）/ **Video-ready**（videoFit≥3 且 assetReady=0，表示可备料）两条列表。`videoFit` 不折进 0-10 分，生产库存分用 `lib/video-fit.mjs` 复核，判据见该文档 §4/§4.1。产物须为每条留痕：去重组归属 + 0-10 分数 + `videoFit` + `assetReady` + `assetEvidence` + `format` + `hook` + 理由。
 - **mcp-search-bridge**：X 搜索的 MCP fallback（Grok 有原生 X/Twitter 数据访问），也是 5 个西方源的主要搜索方式。配置在 `.env.local` 的 `SEARCH_BASE_URL`/`SEARCH_API_KEY`/`SEARCH_MODEL`。安装在 `~/mcp-search-bridge/`
 - **Fallback 链**：CDP → googleSiteFallback (Google site: 搜索) → mcpFallback (mcp-search-bridge/Grok)
 - **何时用**：做视频前找话题，或文章前找中文平台趋势
@@ -370,10 +370,10 @@
 
 ### 同类目其他条目（正文各自留原位，此处只做索引）
 
-| 对象 | 判据落点 | 正文位置 |
-| --- | --- | --- |
-| AutoVio | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突） | 第一部分「待评估 / 可选（项目耦合）」→ AutoVio |
-| MoneyPrinterTurbo | 库存视频优先路线的**已吸收结论**（搜索方向/分辨率匹配、同源去重、sequential 选段） | `docs/research/repo-survey-tracking.md` §A |
+| 对象              | 判据落点                                                                           | 正文位置                                       |
+| ----------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------- |
+| AutoVio           | ❌ 不采用（PolyForm Noncommercial + 维护停滞 + 生成式虚构与事实性冲突）            | 第一部分「待评估 / 可选（项目耦合）」→ AutoVio |
+| MoneyPrinterTurbo | 库存视频优先路线的**已吸收结论**（搜索方向/分辨率匹配、同源去重、sequential 选段） | `docs/research/repo-survey-tracking.md` §A     |
 
 ---
 
@@ -411,15 +411,15 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 
 这些 API 有固定搜索结构，加进去后每次搜索自动调用，值得写进代码。
 
-| API          | Auth   | 集成到                                 | 端点                                            | 补充什么                                     | 状态      |
-| ------------ | ------ | -------------------------------------- | ----------------------------------------------- | -------------------------------------------- | --------- |
-| DataCube AI  | No     | source-registry WESTERN_SOURCES        | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言                     | ✅ 已集成 |
+| API          | Auth   | 集成到                                 | 端点                                            | 补充什么                                            | 状态      |
+| ------------ | ------ | -------------------------------------- | ----------------------------------------------- | --------------------------------------------------- | --------- |
+| DataCube AI  | No     | source-registry WESTERN_SOURCES        | `https://www.datacubeai.space/feed.xml?lang=en` | 每日 AI 行业新闻，8 语言                            | ✅ 已集成 |
 | Noozra       | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://noozra.com/api/search?q=`              | 200+ RSS 源新闻头条，100 req/天（`NOOZRA_API_KEY`） | ✅ 已集成 |
-| GNews        | apiKey | source-registry WESTERN_SOURCES        | `https://gnews.io/api/v4/search`                | 新闻搜索，多语言，100 req/天                 | ✅ 已集成 |
-| Currents     | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search`    | 实时全球新闻，200 req/天                     | ✅ 已集成 |
-| OpenAlex     | No     | source-registry WESTERN_SOURCES        | `https://api.openalex.org/works`                | 学术作品开放目录（2.4 亿作品）               | ✅ 已集成 |
-| CORE         | No     | source-registry WESTERN_SOURCES        | `https://api.core.ac.uk/v3/search/works/`       | 开放获取论文（2.6 亿+），5 req/10s，无需注册 | ✅ 已集成 |
-| Lorem Picsum | No     | asset-sourcer API_SOURCES              | `https://picsum.photos/`                        | Unsplash 随机图，fallback 占位图             | ✅ 已集成 |
+| GNews        | apiKey | source-registry WESTERN_SOURCES        | `https://gnews.io/api/v4/search`                | 新闻搜索，多语言，100 req/天                        | ✅ 已集成 |
+| Currents     | apiKey | source-registry GENERAL_SEARCH_SOURCES | `https://api.currentsapi.services/v1/search`    | 实时全球新闻，200 req/天                            | ✅ 已集成 |
+| OpenAlex     | No     | source-registry WESTERN_SOURCES        | `https://api.openalex.org/works`                | 学术作品开放目录（2.4 亿作品）                      | ✅ 已集成 |
+| CORE         | No     | source-registry WESTERN_SOURCES        | `https://api.core.ac.uk/v3/search/works/`       | 开放获取论文（2.6 亿+），5 req/10s，无需注册        | ✅ 已集成 |
+| Lorem Picsum | No     | asset-sourcer API_SOURCES              | `https://picsum.photos/`                        | Unsplash 随机图，fallback 占位图                    | ✅ 已集成 |
 
 ### B 类：按需使用（Agent 研究时手动调用，不常驻代码）
 
@@ -474,7 +474,7 @@ React 前端性能审查              → vercel-labs/agent-skills（待安装�
 - **费用**：免费（无 key、无配额）
 - **端点**：`https://www.cloudflare.com/cdn-cgi/trace`
 - **做什么**：通过自动化浏览器返回 `ip=` / `loc=` / `colo=`，用于「上传前出口国家探测」——发布链先测出口 IP，再与目标区比对
-- **本项目用例**：实测某次 CDP 发布在东京出口下发出后 0 播放；探测在与目标区（默认 SG）不一致或无法判定时告警。项目侧自动路径只存草稿，所以是告警而非阻断
+- **本项目用例**：实测某次 CDP 发布在东京出口下发出后 0 播放；2026-11-19 起 gate 在打开上传页前对 mismatch / timeout / `loc=XX` 直接阻断，默认期望区域按自动化 profile 的实测落地 `HK`（SG 入口、HK 落地）。
 - **何时用**：只由发布门禁与竞品采集的出口门调用；不是内容抓取源
 - **替代方案**：无（必须在同一浏览器里测量，shell 代理与 Chrome 出口不一定是同一条路）
 - **调查/验证日期**：2026-11-01（#964）
@@ -657,13 +657,13 @@ firecrawl parse ./report.pdf -Q "DeepSeek 的估值是多少？"    # 问答模�
 
 #### 不推荐的功能
 
-| 功能                               | 原因                                                    |
-| ---------------------------------- | ------------------------------------------------------- |
-| `firecrawl search`                 | 不如 CDP 登录态趋势源，免费额度只有 250 次/月           |
-| `firecrawl interact`               | 云端浏览器无登录态，不如本地 CDP                        |
-| `firecrawl crawl/map`              | 免费额度 1000 页/月对整站抓取太少                       |
-| `firecrawl monitor`                | 持续消耗 credits，免费额度不够长期用                    |
-| `firecrawl-deep-research` workflow | 与 `web-deep-research` 重叠且方法论更浅                 |
+| 功能                               | 原因                                          |
+| ---------------------------------- | --------------------------------------------- |
+| `firecrawl search`                 | 不如 CDP 登录态趋势源，免费额度只有 250 次/月 |
+| `firecrawl interact`               | 云端浏览器无登录态，不如本地 CDP              |
+| `firecrawl crawl/map`              | 免费额度 1000 页/月对整站抓取太少             |
+| `firecrawl monitor`                | 持续消耗 credits，免费额度不够长期用          |
+| `firecrawl-deep-research` workflow | 与 `web-deep-research` 重叠且方法论更浅       |
 
 #### MCP 集成（可选）
 

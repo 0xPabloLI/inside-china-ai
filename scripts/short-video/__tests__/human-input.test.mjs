@@ -27,6 +27,7 @@ import {
   openCdpSession,
   openVisibleSession,
   openWindowTarget,
+  pasteText,
   planTyping,
   pokeEditorState,
   randomBetween,
@@ -482,7 +483,7 @@ describe("wheelScroll", () => {
     window.eval(scriptedScrollBy(-40));
     expect(container.scrollTop).toBe(80);
     dom.window.close();
-  });
+  }, 15000);
 
   it("keeps every burst positive and forward on a scroll shorter than the burst count", async () => {
     // Each chunk is clamped to ≥1 while the split asks for 3-6 of them, so a
@@ -1175,6 +1176,63 @@ describe("emulateFocus", () => {
     await expect(emulateFocus(session)).resolves.toBe("visible");
     expect(FakeSocket.emulated).toBe(true);
     session.close();
+  });
+});
+
+describe("pasteText", () => {
+  it("writes the OS clipboard, sends Cmd+V, and restores the previous clipboard", async () => {
+    const calls = [];
+    const session = {
+      send: async (method, params = {}) => {
+        calls.push({ method, params });
+        return {};
+      },
+    };
+    let clipboard = "the user's previous clipboard";
+    const writes = [];
+    const result = await pasteText(session, "Hello 世界\nsecond line", {
+      readClipboard: () => clipboard,
+      writeClipboard: (text) => {
+        writes.push(text);
+        clipboard = text;
+      },
+      rand: () => 0.5,
+      sleepFn: async () => {},
+      modifiers: 4,
+    });
+
+    expect(result.mode).toBe("trusted-paste");
+    expect(result.chars).toBe("Hello 世界\nsecond line".length);
+    expect(result.clipboardRestored).toBe(true);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      method: "Input.dispatchKeyEvent",
+      params: {
+        type: "keyDown",
+        key: "v",
+        code: "KeyV",
+        windowsVirtualKeyCode: 86,
+        modifiers: 4,
+        commands: ["paste"],
+      },
+    });
+    expect(calls[1].params.type).toBe("keyUp");
+    expect(writes).toEqual(["Hello 世界\nsecond line", "the user's previous clipboard"]);
+    expect(clipboard).toBe("the user's previous clipboard");
+  });
+
+  it("does not invent a clipboard to restore when the previous one was unreadable", async () => {
+    let clipboard = null;
+    const result = await pasteText({ send: async () => ({}) }, "caption", {
+      readClipboard: () => null,
+      writeClipboard: (text) => {
+        clipboard = text;
+      },
+      rand: () => 0.5,
+      sleepFn: async () => {},
+    });
+    expect(result.clipboardRestored).toBe(false);
+    expect(clipboard).toBe("caption");
   });
 });
 

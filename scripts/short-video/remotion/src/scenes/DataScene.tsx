@@ -1,6 +1,8 @@
 /**
  * DataScene — big stat reveal with source attribution.
- * Pure CSS, no media background.
+ * CSS-first. A declared `scene.media` may render as a dimmed full-bleed
+ * background behind the stat (LingSante re-cut, 2026-11-24); without it the
+ * frame stays the original pure-CSS layout.
  * Scene 3 in the Unitree video (8,288× oversubscribed).
  *
  * Light (#738): the stat is the protagonist and lands with a white flash; the
@@ -42,6 +44,15 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
           scene.media.path.startsWith("assets/") ? scene.media.path : `assets/${scene.media.path}`,
         )
       : null;
+  const mediaSrc = scene.media?.path
+    ? staticFile(
+        scene.media.path.startsWith("assets/") ? scene.media.path : `assets/${scene.media.path}`,
+      )
+    : null;
+  const mediaOverlay = Math.min(
+    Math.max(Number.isFinite(Number(scene.media?.overlay)) ? Number(scene.media?.overlay) : 0.62, 0),
+    1,
+  );
   const yearSource = layout === "year-source" && Boolean(txt.stat) && Boolean(txt.subtext);
 
   if (yearSource) {
@@ -276,7 +287,7 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
                 position: "absolute",
                 left: 60,
                 right: 200,
-                bottom: 210,
+                bottom: 714,
                 display: "flex",
                 justifyContent: "center",
               }}
@@ -416,13 +427,47 @@ export const DataScene: React.FC<{ scene: SceneData; duration: number }> = ({
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      {mediaSrc && (
+        <>
+          <Img
+            src={mediaSrc}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center",
+              filter: "blur(2px)",
+              transform: "scale(1.04)",
+            }}
+          />
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: `rgba(5, 7, 15, ${mediaOverlay})`,
+            }}
+          />
+        </>
+      )}
       <BrandBar />
 
       <Camera visualType="data" duration={duration}>
         <Slot variant="hero">
           {txt.stat && (
             <StampIn delay={0.2} duration={0.5}>
-              <TextGate sceneId={sceneId} slotId="data.hero-center.stat">
+              <TextGate
+                sceneId={sceneId}
+                slotId="data.hero-center.stat"
+                // Five-character stats (e.g. "66.03") fill the 820px band at
+                // the 240px preferred size and leave the gate 13px above its
+                // container. Lock them to 216px — still above the 180px floor
+                // and inside the same visual weight — so the stat cannot
+                // vertical-overflow after the entrance settles.
+                lockFontSize={String(txt.stat).length >= 5 ? 216 : undefined}
+              >
                 {(fontSize) => (
                   <Interactive.Div
                     name="stat"

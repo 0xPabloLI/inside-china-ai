@@ -38,9 +38,9 @@
       "label": "TikTok 官方网页 /tag/{tag} 页内嵌 challenge/detail 接口（statsV2 计数器）",
       "urlTemplate": "https://www.tiktok.com/tag/{tag}/",
       "apiTemplate": "https://www.tiktok.com/api/challenge/detail/?challengeName={tag}",
-      "accessedAt": "2026-11-21",
+      "accessedAt": "2026-11-22",
       "method": "browser",
-      "note": "在已登录浏览器页面上下文内 fetch 官方公开接口，复用会话 cookie，未绕过登录、未使用签名规避；viewsText/postsText 由原始整数按 K/M/B/T 换算展示，原始整数见 views/posts 字段。"
+      "note": "2026-11-22 在已登录自动化 profile 的 /tag/{tag} 页面上下文内 fetch 官方公开接口；复用会话 cookie，未绕过登录、未使用签名规避。本轮复核 10 个在用标签，views/posts 已写回各 tag 的 sampledAt/notes。"
     },
     {
       "id": "hashtagradar",
@@ -63,17 +63,17 @@
     {
       "tag": "#ainews",
       "kind": "traffic",
-      "views": 666340183,
-      "posts": 85933,
-      "avgViewsPerPost": 7754,
-      "viewsText": "666M",
-      "postsText": "85.8K",
+      "views": 666519044,
+      "posts": 86000,
+      "avgViewsPerPost": 7750,
+      "viewsText": "667M",
+      "postsText": "86K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/ainews/",
-      "notes": "Primary: TikTok /tag/ainews page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. AI news traffic tag; second sample confirms 2026-11-21 official value. Old 68.7M/8.9K repo value is a stale 2026-08 cache, not a 10x overnight jump. Official 2026-11-22: 666.3M views / 85.9K posts."
+      "notes": "Primary: TikTok /tag/ainews page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. AI news traffic tag; second sample confirms 2026-11-21 official value. Old 68.7M/8.9K repo value is a stale 2026-08 cache, not a 10x overnight jump. Official 2026-11-22: 666.3M views / 85.9K posts. Login-state live recheck 2026-11-22T11:11:11Z: 666519044 views / 86000 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#technews",
@@ -138,17 +138,17 @@
     {
       "tag": "#chinaai",
       "kind": "niche",
-      "views": 41124156,
-      "posts": 3332,
-      "avgViewsPerPost": 12342,
+      "views": 41127291,
+      "posts": 3321,
+      "avgViewsPerPost": 12384,
       "viewsText": "41M",
       "postsText": "3.3K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/chinaai/",
-      "notes": "Primary: TikTok /tag/chinaai page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. China AI topic tag; second sample confirms 2026-11-21 official value."
+      "notes": "Primary: TikTok /tag/chinaai page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. China AI topic tag; second sample confirms 2026-11-21 official value. Login-state live recheck 2026-11-22T11:11:11Z: 41127291 views / 3321 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#futuretech",
@@ -183,32 +183,32 @@
     {
       "tag": "#opensource",
       "kind": "traffic",
-      "views": 568160530,
-      "posts": 83563,
-      "avgViewsPerPost": 6799,
-      "viewsText": "568M",
-      "postsText": "83.6K",
+      "views": 569683423,
+      "posts": 83923,
+      "avgViewsPerPost": 6788,
+      "viewsText": "570M",
+      "postsText": "84K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-21T13:59:50.332Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/opensource/",
-      "notes": "Primary: TikTok /tag/opensource page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-21T13:59:50.332Z. 趋势：免费渠道未取得近 7/30 天时间序列，trend 置 null；仅有本轮单点计数，新旧对比见本备注。"
+      "notes": "Primary: TikTok /tag/opensource page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-21T13:59:50.332Z. 趋势：免费渠道未取得近 7/30 天时间序列，trend 置 null；仅有本轮单点计数，新旧对比见本备注。 Login-state live recheck 2026-11-22T11:11:11Z: 569683423 views / 83923 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#deepseek",
       "kind": "brand",
-      "views": 3189042587,
-      "posts": 130017,
-      "avgViewsPerPost": 24528,
+      "views": 3189495637,
+      "posts": 130079,
+      "avgViewsPerPost": 24520,
       "viewsText": "3.2B",
-      "postsText": "129.9K",
+      "postsText": "130K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/deepseek/",
-      "notes": "Primary: TikTok /tag/deepseek page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. DeepSeek company tag; second sample confirms 2026-11-21 official value. Used for the Linger founder lineage, not a DeepSeek product event."
+      "notes": "Primary: TikTok /tag/deepseek page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. DeepSeek company tag; second sample confirms 2026-11-21 official value. Used for the Linger founder lineage, not a DeepSeek product event. Login-state live recheck 2026-11-22T11:11:11Z: 3189495637 views / 130079 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#chatgpt",
@@ -363,17 +363,17 @@
     {
       "tag": "#zhipu",
       "kind": "entity",
-      "views": 10233675,
+      "views": 10233895,
       "posts": 2764,
-      "avgViewsPerPost": 3702,
-      "viewsText": null,
-      "postsText": null,
+      "avgViewsPerPost": 3703,
+      "viewsText": "10M",
+      "postsText": "2.8K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/zhipu/",
-      "notes": "Primary: TikTok /tag/zhipu page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Zhipu AI company tag; upgraded from existence-only grade C to official grade A on 2026-11-22."
+      "notes": "Primary: TikTok /tag/zhipu page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Zhipu AI company tag; upgraded from existence-only grade C to official grade A on 2026-11-22. Login-state live recheck 2026-11-22T11:11:11Z: 10233895 views / 2764 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#glm",
@@ -573,17 +573,17 @@
     {
       "tag": "#minimax",
       "kind": "brand",
-      "views": 2557063192,
-      "posts": 44017,
-      "avgViewsPerPost": 58093,
+      "views": 2557169407,
+      "posts": 44028,
+      "avgViewsPerPost": 58081,
       "viewsText": "2.6B",
-      "postsText": "44.0K",
+      "postsText": "44K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/minimax/",
-      "notes": "Primary: TikTok /tag/minimax page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. MiniMax company tag; second sample confirms 2026-11-21 official value."
+      "notes": "Primary: TikTok /tag/minimax page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. MiniMax company tag; second sample confirms 2026-11-21 official value. Login-state live recheck 2026-11-22T11:11:11Z: 2557169407 views / 44028 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#doubao",
@@ -693,32 +693,32 @@
     {
       "tag": "#suno",
       "kind": "brand",
-      "views": 5985153476,
-      "posts": 1245459,
-      "avgViewsPerPost": 4806,
-      "viewsText": null,
-      "postsText": null,
+      "views": 5986709443,
+      "posts": 1245458,
+      "avgViewsPerPost": 4807,
+      "viewsText": "6.0B",
+      "postsText": "1.2M",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/suno/",
-      "notes": "Primary: TikTok /tag/suno page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Suno music platform; official tag count on 2026-11-22. Broad tag; pair with #sunoai."
+      "notes": "Primary: TikTok /tag/suno page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Suno music platform; official tag count on 2026-11-22. Broad tag; pair with #sunoai. Login-state live recheck 2026-11-22T11:11:11Z: 5986709443 views / 1245458 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#sunoai",
       "kind": "brand",
-      "views": 743232395,
-      "posts": 200207,
-      "avgViewsPerPost": 3712,
-      "viewsText": null,
-      "postsText": null,
+      "views": 743421211,
+      "posts": 200335,
+      "avgViewsPerPost": 3711,
+      "viewsText": "743M",
+      "postsText": "200K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/sunoai/",
-      "notes": "Primary: TikTok /tag/sunoai page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Suno AI product tag; official tag count on 2026-11-22."
+      "notes": "Primary: TikTok /tag/sunoai page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Suno AI product tag; official tag count on 2026-11-22. Login-state live recheck 2026-11-22T11:11:11Z: 743421211 views / 200335 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#minimaxh3",
@@ -738,17 +738,17 @@
     {
       "tag": "#anthropic",
       "kind": "brand",
-      "views": 783203468,
-      "posts": 93418,
-      "avgViewsPerPost": 8384,
-      "viewsText": null,
-      "postsText": null,
+      "views": 785163112,
+      "posts": 93664,
+      "avgViewsPerPost": 8383,
+      "viewsText": "785M",
+      "postsText": "94K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/anthropic/",
-      "notes": "Primary: TikTok /tag/anthropic page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Anthropic company tag; official tag count on 2026-11-22."
+      "notes": "Primary: TikTok /tag/anthropic page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. Anthropic company tag; official tag count on 2026-11-22. Login-state live recheck 2026-11-22T11:11:11Z: 785163112 views / 93664 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     },
     {
       "tag": "#anthropicipo",
@@ -783,17 +783,17 @@
     {
       "tag": "#aiagents",
       "kind": "niche",
-      "views": 555616871,
-      "posts": 148633,
-      "avgViewsPerPost": 3738,
-      "viewsText": null,
-      "postsText": null,
+      "views": 557405324,
+      "posts": 148850,
+      "avgViewsPerPost": 3745,
+      "viewsText": "557M",
+      "postsText": "149K",
       "status": "ok",
       "grade": "A",
-      "sampledAt": "2026-11-22T02:04:08.000Z",
+      "sampledAt": "2026-11-22T11:11:11Z",
       "source": "tiktok-challenge-detail-api",
       "url": "https://www.tiktok.com/tag/aiagents/",
-      "notes": "Primary: TikTok /tag/aiagents page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. AI agents topic tag; official tag count on 2026-11-22."
+      "notes": "Primary: TikTok /tag/aiagents page in-page fetch of /api/challenge/detail/ (statsV2 counters), sampled 2026-11-22T02:04:08Z. AI agents topic tag; official tag count on 2026-11-22. Login-state live recheck 2026-11-22T11:11:11Z: 557405324 views / 148850 posts via /api/challenge/detail/ inside a logged-in TikTok tag page."
     }
   ],
   "blacklist": [

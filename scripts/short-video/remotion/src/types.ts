@@ -46,6 +46,8 @@ export interface MediaField {
   path: string;
   mode?: "background" | "fullscreen" | "card"; // default "background" — card = framed evidence card (#663)
   fit?: "cover" | "contain"; // default "cover" — how to place landscape media in 9:16
+  /** Solid matte behind a contained picture's letterbox (CSS color). Match the source's own edge so the card frame does not read as a dark shadow. */
+  matteColor?: string;
   /** @deprecated Replaced by protectedRegions from detectFocus() in Phase 2. Existing scene-data values still render, but new auto-analysis no longer writes this field. */
   focus?: "top" | "center" | "bottom"; // default "center" — crop focus when fit is "cover"
   /** #1040: normalized [0,1] CSS object-position ratio (0 = left/top, 0.5 = centre, 1 = right/bottom) — NOT a source-space point. `objectPositionFor` maps it straight to `${x * 100}%`; producers convert via crop-decision.mjs `sourceFocusToObjectPosition`. Overrides deprecated `focus` enum when present. Set by selectBestCrop(). */
@@ -85,6 +87,10 @@ export interface MediaField {
     path: string;
     source?: string;
     animation?: "fade";
+    /** Opt out of the frame-level right action-rail vignette. Default true.
+     * Light full-bleed artwork otherwise reads as a hard vertical shadow in
+     * the 200px TikTok action rail. */
+    railVignette?: boolean;
     volume?: number;
     upscale?: boolean;
   };

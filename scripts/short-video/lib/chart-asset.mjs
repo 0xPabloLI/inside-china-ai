@@ -213,7 +213,25 @@ export function validateChartPin(chart, map = null) {
     }
   }
   try {
-    resolveChartParams(chart, map?.defaults ?? {});
+    const resolved = resolveChartParams(chart, map?.defaults ?? {});
+    // `range` is the window on the x-axis; `interval` is the bar size inside
+    // that window. A one-day window queried at 1D interval is a single candle:
+    // it cannot show an intraday path, so a "single-day" claim would be drawn
+    // from one bar. The user drew this distinction explicitly on 2026-11-23.
+    const range = resolved.range;
+    const singleDayWindow =
+      range === "1D" ||
+      (range &&
+        typeof range === "object" &&
+        typeof range.from === "string" &&
+        typeof range.to === "string" &&
+        range.from.slice(0, 10) === range.to.slice(0, 10));
+    if (singleDayWindow && String(resolved.interval).toUpperCase() === "1D") {
+      errors.push(
+        'chart.range "1D" cannot use interval "1D": that is one daily bar. ' +
+          'Use interval "15m" or "1h" for an intraday path, or widen the range for a multi-day daily chart.',
+      );
+    }
   } catch (error) {
     errors.push(error.message);
   }

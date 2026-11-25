@@ -132,9 +132,11 @@ const KAGGLE_PROBE_FAILURE_BUDGET_MS = parseInt(
 // running — the queue therefore gets longer every time a timed-out pipeline is
 // retried. Before pushing, `kaggle kernels list --mine` is narrowed to recent
 // kernels, then each candidate (target first) is probed with
-// `kaggle kernels status`. A target that is still RUNNING/QUEUED is waited out
-// for a bounded 10min; another own kernel only earns a warning because queuing
-// behind it is the documented, expected behaviour of the 40min queue budget.
+// `kaggle kernels status`. Default policy: one Kaggle TTS job at a time. A
+// target that is still RUNNING/QUEUED is waited out; another own kernel holding
+// the slot is also waited out, then refused, instead of stacking a second job
+// behind it. `COSYVOICE3_KAGGLE_EXCLUSIVE=0` restores the old queue-behind
+// behaviour for an explicit opt-out.
 const KAGGLE_SLOT_WAIT_MS = parseInt(process.env.COSYVOICE3_KAGGLE_SLOT_WAIT_MS || "600000", 10); // 10 min, pre-push only; the queue budget starts after the push
 const KAGGLE_SLOT_POLL_INTERVAL_MS = parseInt(
   process.env.COSYVOICE3_KAGGLE_SLOT_POLL_INTERVAL_MS || "15000",
@@ -1134,8 +1136,11 @@ async function probeOwnKernelSlots({
  *
  * Same-slug RUNNING/QUEUED is the dangerous case: re-pushing stacks a new
  * version behind the old one and makes the wait longer every retry. Wait for
- * it, bounded, then refuse. Another own kernel only gets a warning — queuing
- * behind it is what the 40min queue budget exists for.
+ * it, bounded, then refuse. Default policy is one Kaggle TTS job at a time:
+ * another own kernel holding the slot is also waited for, then refused. Set
+ * `COSYVOICE3_KAGGLE_EXCLUSIVE=0` (or `exclusive: false`) to opt back into
+ * queue-behind, which is only appropriate when the caller deliberately wants
+ * to spend the 40min queue budget.
  *
  * Fail-open applies when the list itself fails: a network hiccup must not block
  * a push, and the push itself is the authoritative failure if Kaggle is down.
@@ -1147,9 +1152,10 @@ async function probeOwnKernelSlots({
  * @param {object} [opts]
  * @param {number} [opts.waitBudgetMs]
  * @param {number} [opts.pollIntervalMs]
+ * @param {boolean} [opts.exclusive] - default true; false allows queue-behind
  * @param {object} [deps] - injected execFile/sleep/now/log for tests
  * @returns {Promise<{waitedMs: number, target: object, holders: object[], probes: object[], listOk: boolean, listError: string|null}>}
- * @throws {Error} when the target itself stays RUNNING/QUEUED past the wait budget
+ * @throws {Error} when the target or another own kernel stays RUNNING/QUEUED past the wait budget
  */
 export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
   const {
@@ -1158,6 +1164,7 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
     recentWindowMs = KAGGLE_RECENT_KERNEL_WINDOW_MS,
     probeTimeoutMs = KAGGLE_PROBE_TIMEOUT_MS,
   } = opts;
+  const exclusive = opts.exclusive ?? process.env.COSYVOICE3_KAGGLE_EXCLUSIVE !== "0";
   const execFile = deps.execFile ?? defaultExecFile;
   const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
@@ -1275,13 +1282,71 @@ export async function preflightKernelSlot(kernelId, opts = {}, deps = {}) {
         `(${snapshot.listError || "unknown error"}) — pushing without the full check`,
     );
   }
-  for (const holder of snapshot.holders) {
-    if (sameRef(holder.ref, kernelId)) continue;
+
+  let otherHolders = snapshot.holders.filter((h) => !sameRef(h.ref, kernelId));
+  if (exclusive && otherHolders.length > 0) {
+    const refs = otherHolders.map((h) => `${h.ref} (${h.phase.toUpperCase()})`).join(", ");
     log(
-      `  ⚠️ [Kaggle] Slot precheck: own kernel ${holder.ref} is ` +
-        `${holder.phase.toUpperCase()} — this push will queue behind Kaggle's single ` +
-        `free-tier GPU session (queue budget ${Math.round(KAGGLE_QUEUE_TIMEOUT_MS / 60000)}min)`,
+      `  ⏳ [Kaggle] Slot precheck: own kernel ${refs} holds the single free-tier GPU ` +
+        `session — default Kaggle concurrency is 1; waiting up to ${fmtDuration(waitBudgetMs)} ` +
+        `instead of stacking a second job behind it`,
     );
+    while (otherHolders.length > 0 && now() - started < waitBudgetMs) {
+      await sleep(pollIntervalMs);
+      const refreshed = await probeOwnKernelSlots({
+        kernelId,
+        execFile,
+        now,
+        recentWindowMs,
+        probeTimeoutMs,
+      });
+      if (!refreshed.listOk) {
+        // Do not turn a failed probe into "the slot is free" while we already
+        // know another own kernel was holding it.
+        log(
+          `  ⚠️ [Kaggle] Slot precheck: own-kernel list probe failed while waiting ` +
+            `(${refreshed.listError || "unknown error"}) — keeping the last known holder`,
+        );
+        continue;
+      }
+      snapshot = {
+        ...refreshed,
+        target:
+          refreshed.target.phase === "unknown" ? snapshot.target : refreshed.target,
+      };
+      otherHolders = snapshot.holders.filter((h) => !sameRef(h.ref, kernelId));
+      waitedMs = now() - started;
+      if (otherHolders.length > 0) {
+        const still = otherHolders
+          .map((h) => `${h.ref} (${h.phase.toUpperCase()})`)
+          .join(", ");
+        log(
+          `  ⏳ [Kaggle] Slot precheck: ${still} still active ` +
+            `(${fmtDuration(waitedMs)}/${fmtDuration(waitBudgetMs)})`,
+        );
+      }
+    }
+    if (otherHolders.length > 0) {
+      const still = otherHolders
+        .map((h) => `${h.ref} (${h.phase.toUpperCase()})`)
+        .join(", ");
+      throw new Error(
+        `Kaggle slot precheck: own kernel ${still} is still holding the single ` +
+          `free-tier GPU session after ${fmtDuration(waitedMs)}. Default Kaggle ` +
+          `concurrency is 1; refusing to push a second job. Wait for it to finish, ` +
+          `or set COSYVOICE3_KAGGLE_EXCLUSIVE=0 to explicitly allow queue-behind. ` +
+          `The queue budget was not consumed.`,
+      );
+    }
+    log(`  ✓ [Kaggle] Slot precheck: Kaggle TTS slot is free — safe to push`);
+  } else if (!exclusive) {
+    for (const holder of otherHolders) {
+      log(
+        `  ⚠️ [Kaggle] Slot precheck: own kernel ${holder.ref} is ` +
+          `${holder.phase.toUpperCase()} — this push will queue behind Kaggle's single ` +
+          `free-tier GPU session (queue budget ${Math.round(KAGGLE_QUEUE_TIMEOUT_MS / 60000)}min)`,
+      );
+    }
   }
 
   return {
@@ -2086,8 +2151,9 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // ── Push precheck (#1354) ──
       // Never re-push a slug whose previous version is still RUNNING/QUEUED:
       // each push adds a version to the same queue and makes the wait longer.
-      // Another own kernel only earns a warning; queuing behind it is the
-      // documented 40min queue behaviour.
+      // Default policy is one Kaggle TTS job at a time; another own kernel
+      // holding the slot is waited for, then refused. Set
+      // COSYVOICE3_KAGGLE_EXCLUSIVE=0 only when queue-behind is intentional.
       const preflightResult = await preflight(
         kernelId,
         {},

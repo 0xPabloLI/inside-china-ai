@@ -141,8 +141,11 @@ const dimBackgroundFor = (
             rgba(10, 10, 20, ${overlay > 0 ? Math.max(0.75, overlay) : 0}) 100%)`;
 
 /** Whether the frame-level action-rail vignette applies to this element. */
-const drawsRailVignette = (scope: "frame" | "element", overlay: number): boolean =>
-  scope === "frame" && overlay > 0;
+const drawsRailVignette = (
+  scope: "frame" | "element",
+  overlay: number,
+  media: { railVignette?: boolean },
+): boolean => scope === "frame" && overlay > 0 && media.railVignette !== false;
 
 /**
  * CSS `object-position` for the media element.
@@ -353,7 +356,11 @@ export const MediaBackground: React.FC<Props> = ({
       {showBrandedMatte && (
         <AbsoluteFill
           style={{
-            background: "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
+            // A dark default matte reads as a shadow whenever the contained
+            // source is light (white chart, pale product shot). The scene can
+            // name the source's edge colour instead, so the letterbox
+            // disappears into the picture rather than framing it in black.
+            background: media.matteColor ?? "radial-gradient(circle at 50% 50%, #0a0a14 0%, #050508 100%)",
             opacity,
           }}
         />
@@ -456,7 +463,7 @@ export const MediaBackground: React.FC<Props> = ({
           would let the exit fade brighten the rail back up, and `overlay: 0`
           means "no dim layer" — a pure-colour fixture must stay untouched
           (render contracts). */}
-      {drawsRailVignette(scrimScope, overlay) && (
+      {drawsRailVignette(scrimScope, overlay, media) && (
         <div
           style={{
             position: "absolute",

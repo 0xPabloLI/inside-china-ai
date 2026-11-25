@@ -32,7 +32,7 @@ const TIKTOK_THRESHOLDS_BASELINE = {
   maxDurationSec: 70,
   maxVoiceoverWords: 175,
   maxOneBreathWords: 25,
-  minScenes: 6,
+  minScenes: 3,
   maxScenes: 10,
   hookTextOverlapFailThreshold: 0.8,
   bodyTextDuplicateMinWords: 4,

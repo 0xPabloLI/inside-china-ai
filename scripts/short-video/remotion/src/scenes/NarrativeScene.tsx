@@ -259,6 +259,12 @@ export const NarrativeScene: React.FC<{
                   duration={duration}
                   contentDir={contentDir}
                   containAlign="bottom"
+                  // The band is an element-mounted picture, not a full frame:
+                  // the frame-relative lane stop and rail vignette would land
+                  // inside the picture and read as a shadow (2026-11-23 user
+                  // report on the CapCut winner demo). One flat `overlay` is
+                  // the only dim this layout gets.
+                  scrimScope="element"
                 />
               </div>
               {/* The scrims are what keep a full-bleed band inside the frame
@@ -270,6 +276,10 @@ export const NarrativeScene: React.FC<{
                 mediaBottom={
                   scene.media!.fit === "contain" ? CONTAIN_MEDIA_BOTTOM : MEDIA_BAND.bottom
                 }
+                panelTop={MEDIA_BAND.scrimTop}
+                // Copy lives in the panel below, not over the top of the
+                // picture. A top fade here is a shadow with no job.
+                topScrim={false}
               />
             </>
           ))}
@@ -446,8 +456,12 @@ export const NarrativeScene: React.FC<{
             display: "flex",
             flexDirection: "column",
             gap: SPACING.sm,
-            background: "linear-gradient(to top, rgba(10,10,20,0.8), transparent)",
+            // No panel: on a bright demo frame the old gradient box read as
+            // a hard-edged grey shadow. A soft inherited text shadow keeps
+            // the type legible on light and dark frames without a rectangle.
+            background: "none",
             padding: `${SPACING.xl}px ${SPACING["2xl"]}px`,
+            textShadow: "0 2px 10px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9)",
             overflow: "hidden",
           }}
         >

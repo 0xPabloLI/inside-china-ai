@@ -47,6 +47,45 @@ describe("checkChartPinContract", () => {
     expect(results[0].detail).toContain("at most 3");
   });
 
+  it("passes a one-day window at intraday granularity", () => {
+    const results = checkChartPinContract([
+      {
+        id: 4,
+        visualType: "data",
+        chart: { entity: "zhipu", range: "1D", interval: "15m" },
+      },
+    ]);
+    expect(results[0].level).toBe("pass");
+  });
+
+  it("fails a one-day window at daily granularity, which is one bar", () => {
+    const results = checkChartPinContract([
+      {
+        id: 4,
+        visualType: "data",
+        chart: { entity: "zhipu", range: "1D", interval: "1D" },
+      },
+    ]);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].detail).toContain("one daily bar");
+  });
+
+  it("fails a same-day custom window at daily granularity", () => {
+    const results = checkChartPinContract([
+      {
+        id: 4,
+        visualType: "data",
+        chart: {
+          entity: "zhipu",
+          range: { from: "2026-11-20T09:30:00+08:00", to: "2026-11-20T16:00:00+08:00" },
+          interval: "1D",
+        },
+      },
+    ]);
+    expect(results[0].level).toBe("fail");
+    expect(results[0].detail).toContain("one daily bar");
+  });
+
   it("fails a malformed range", () => {
     const results = checkChartPinContract([
       { id: 4, visualType: "data", chart: { entity: "zhipu", range: { from: "2026-01-01" } } },

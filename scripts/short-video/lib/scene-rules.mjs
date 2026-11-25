@@ -145,13 +145,16 @@ function hasTerm(haystack, term) {
  */
 export function checkSceneCount(scenes, opts = {}) {
   const count = scenes.length;
-  if (count >= THRESHOLDS.minScenes && count <= THRESHOLDS.maxScenes) {
+  const plan = opts.meta?.scenePlan ?? {};
+  const min = Number.isFinite(plan.minScenes) ? plan.minScenes : THRESHOLDS.minScenes;
+  const max = Number.isFinite(plan.maxScenes) ? plan.maxScenes : THRESHOLDS.maxScenes;
+  if (count >= min && count <= max) {
     return [
       {
         level: "pass",
         category: "Structure",
-        check: "Scene count (6-10)",
-        detail: `${count} scenes`,
+        check: `Scene count (${min}-${max})`,
+        detail: `${count} scenes${plan.minScenes || plan.maxScenes ? " (scenePlan)" : ""}`,
       },
     ];
   }
@@ -159,11 +162,11 @@ export function checkSceneCount(scenes, opts = {}) {
     {
       level: opts.longForm ? "warn" : "fail",
       category: "Structure",
-      check: "Scene count (6-10)",
-      detail: `${count} scenes`,
+      check: `Scene count (${min}-${max})`,
+      detail: `${count} scenes${plan.minScenes || plan.maxScenes ? " (scenePlan)" : ""}`,
       fix: opts.longForm
-        ? "SKILL.md recommends 6-10 scenes"
-        : "Split into content/<dir>/pt1, pt2... (6-10 scenes each) or pass --long-form",
+        ? `SKILL.md recommends ${min}-${max} scenes for this package`
+        : `Split into content/<dir>/pt1, pt2... (${min}-${max} scenes each) or pass --long-form`,
     },
   ];
 }
@@ -395,6 +398,99 @@ export function checkHookCompellingElement(scenes) {
       check,
       detail: "no hook family marker in hook VO",
       fix: `Write one of the six families and declare it as hookFamily (${HOOK_FAMILY_IDS.join(", ")}), or use a number or strong word`,
+    },
+  ];
+}
+
+const HOOK_VISUAL_PRIORITY_CHECK = "Hook visual priority";
+
+function sceneHasBoundMedia(scene) {
+  return Boolean(scene?.media?.path && scene?.media?.type);
+}
+
+function sceneHasBoundMotion(scene) {
+  return sceneHasBoundMedia(scene) && scene.media.type === "video";
+}
+
+function sceneIsCta(scene) {
+  return scene?.visualType === "cta" || scene?.sceneType === "cta";
+}
+
+/**
+ * Editorial check (#1542): the strongest available motion clip should open the
+ * video, not sit until the payoff. This is deliberately advisory: "attractive"
+ * is a judgment call, and a motion clip can be a bad hook when it spoils the
+ * reveal or contradicts the opening claim. A package may keep the clip behind
+ * scenes 1-2 only when `meta.hookVisualPriorityReason` records why.
+ */
+export function checkHookVisualPriority(scenes, meta = {}) {
+  const hook = scenes?.[0] ?? null;
+  if (!hook) return [];
+
+  const hookHasMedia = sceneHasBoundMedia(hook);
+  const hookHasMotion = sceneHasBoundMotion(hook);
+  // The hook renderer drops background/card media: a declared clip that is not
+  // evidence is still a text-only first frame in the delivered video (#299).
+  const hookRendersMotion = hookHasMotion && mediaRoleOf(hook) === MEDIA_ROLE.EVIDENCE;
+
+  if (hookRendersMotion) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: HOOK_VISUAL_PRIORITY_CHECK,
+        detail: `scene ${hook.id ?? 1}: motion clip ${hook.media.path}`,
+      },
+    ];
+  }
+
+  // Scene 2 counts as "front": the rule is hook / first two scenes, not hook
+  // alone. Only ignore CTA media — a CTA clip cannot carry the opening.
+  const laterMotion = scenes
+    .slice(2)
+    .filter((scene) => !sceneIsCta(scene) && sceneHasBoundMotion(scene));
+
+  if (laterMotion.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: HOOK_VISUAL_PRIORITY_CHECK,
+        detail: hookHasMotion
+          ? "hook declares video but it is not renderable evidence; no stronger motion bound after scene 2"
+          : "no motion clip bound after scene 2",
+      },
+    ];
+  }
+
+  const reason =
+    typeof meta?.hookVisualPriorityReason === "string" ? meta.hookVisualPriorityReason.trim() : "";
+
+  if (reason) {
+    return [
+      {
+        level: "pass",
+        category: "Hook",
+        check: HOOK_VISUAL_PRIORITY_CHECK,
+        detail: `hook keeps motion after scene 2 with declared reason: ${reason}`,
+      },
+    ];
+  }
+
+  const firstLater = laterMotion[0];
+  const hookState = hookHasMedia
+    ? hookHasMotion
+      ? "a video that the hook renderer drops (mediaRole is not evidence)"
+      : "a still image"
+    : "text-only";
+
+  return [
+    {
+      level: "warn",
+      category: "Hook",
+      check: HOOK_VISUAL_PRIORITY_CHECK,
+      detail: `scene ${hook.id ?? 1} opens on ${hookState}; the first motion clip is scene ${firstLater.id ?? "?"}`,
+      fix: `Use a 0.5-1.5s teaser from that clip in scene 1-2, or add meta.hookVisualPriorityReason explaining why the clip cannot open (spoiler / fact mismatch / rights).`,
     },
   ];
 }
@@ -862,16 +958,20 @@ export function checkShareWorthyData(scenes) {
 
 /** Total voiceover should fit the profile's duration ceiling (see maxVoiceoverWords) */
 export function checkVoiceoverWordCount(scenes, opts = {}) {
+  const plan = opts.meta?.scenePlan ?? {};
+  const maxWords = Number.isFinite(plan.maxVoiceoverWords)
+    ? plan.maxVoiceoverWords
+    : THRESHOLDS.maxVoiceoverWords;
   const totalWords = scenes.reduce(
     (sum, s) => sum + (s.voiceover || "").split(/\s+/).filter(Boolean).length,
     0,
   );
-  if (totalWords <= THRESHOLDS.maxVoiceoverWords) {
+  if (totalWords <= maxWords) {
     return [
       {
         level: "pass",
         category: "Duration",
-        check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
+        check: `Total voiceover words (≤${maxWords})`,
         detail: `${totalWords} words (~${(totalWords / THRESHOLDS.voiceoverEstimateWps).toFixed(0)}s)`,
       },
     ];
@@ -880,11 +980,11 @@ export function checkVoiceoverWordCount(scenes, opts = {}) {
     {
       level: opts.longForm ? "warn" : "fail",
       category: "Duration",
-      check: `Total voiceover words (≤${THRESHOLDS.maxVoiceoverWords})`,
+      check: `Total voiceover words (≤${maxWords})`,
       detail: `${totalWords} words`,
       fix: opts.longForm
-        ? `May exceed 70s at 2.5 wps — consider trimming (limit: ${THRESHOLDS.maxVoiceoverWords} words)`
-        : `Split VO across content/<dir>/pt1, pt2... (≤${THRESHOLDS.maxVoiceoverWords} words each) or pass --long-form`,
+        ? `May exceed the package duration — consider trimming (limit: ${maxWords} words)`
+        : `Split VO across content/<dir>/pt1, pt2... (≤${maxWords} words each) or pass --long-form`,
     },
   ];
 }
@@ -3478,6 +3578,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   // reach pass/warn/fail, so they can't block a render or inflate the gate.
   const EDITORIAL_RUNNERS = [
     () => checkHookCompellingElement(scenes),
+    () => checkHookVisualPriority(scenes, meta),
     () => checkHookSentenceFamily(scenes),
     () => checkHookDuration(scenes, opts),
     () => checkShareWorthyData(scenes),

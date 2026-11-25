@@ -24,7 +24,7 @@ export const scenes = [
       overlay: 0.45,
     },
     voiceover:
-      "36Kr reported Anthropic's 107 billion dollar IPO did not lift AI stocks. MiniMax fell 10.8 percent.",
+      "36 K R reported Anthropic's 107 billion dollar IPO did not lift AI stocks. MiniMax fell ten point eight percent that day.",
     texts: {
       badge: "CHINA AI",
       subject: "ANTHROPIC IPO",
@@ -63,7 +63,7 @@ export const scenes = [
     narrativeRole: "A",
     media: null,
     voiceover:
-      "The next day, Hong Kong sold the model trade. MiniMax fell 10.8 percent, Zhipu 7.17, and Hang Seng Tech dropped more than 4 percent intraday.",
+      "The next day, Hong Kong sold the model trade. MiniMax fell ten point eight percent, Zhipu seven point one seven, and Hang Seng Tech dropped more than four percent during the session.",
     texts: {
       bigNumber: "-10.8%",
       label: "MINIMAX · NOV 20",

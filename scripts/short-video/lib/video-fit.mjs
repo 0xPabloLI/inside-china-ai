@@ -4,6 +4,9 @@
 // `content/<slug>/assets/`, then the declared `meta.videoFit` is checked against
 // that measurement. This closes the 2026-11-20 failure where two published
 // videos declared "video fit" but shipped 2-3 stills and zero motion.
+// From score 3 up, the scenes must also bind image/video media to at least
+// 60% of non-CTA scenes; score 4+ additionally checks hook evidence and motion
+// clips actually used in scenes.
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, extname, join } from "node:path";
@@ -235,6 +238,18 @@ export function evaluateVideoFit({ inventory = {}, meta = {}, scenes = [] } = {}
     });
   }
 
+  if (actual >= 3) {
+    const renderable = scenes.filter((scene) => !isCta(scene));
+    const withMedia = renderable.filter(sceneHasMedia);
+    const coverage = renderable.length ? withMedia.length / renderable.length : 0;
+    rows.push({
+      level: coverage >= 0.6 ? "pass" : "fail",
+      check: "videoFit media coverage ≥60%",
+      detail: `${withMedia.length}/${renderable.length} non-CTA scenes have media`,
+      fix: "Bind image or video media to at least 60% of the non-CTA scenes.",
+    });
+  }
+
   if (actual >= 4) {
     const hookIndex = scenes.findIndex((scene, index) => isHook(scene, index));
     const hook = hookIndex >= 0 ? scenes[hookIndex] : null;
@@ -245,9 +260,6 @@ export function evaluateVideoFit({ inventory = {}, meta = {}, scenes = [] } = {}
     // earn the point (2026-11-20 WorkBuddy: clip declared, hook rendered black).
     const hookIsRenderable = hookHasMedia && mediaRoleOf(hook) === "evidence";
     const hookHasMotion = hookIsRenderable && hook?.media?.type === "video";
-    const renderable = scenes.filter((scene) => !isCta(scene));
-    const withMedia = renderable.filter(sceneHasMedia);
-    const coverage = renderable.length ? withMedia.length / renderable.length : 0;
     const usedVideoPaths = new Set(
       scenes.filter((scene) => scene?.media?.type === "video").map((scene) => scene.media.path),
     );
@@ -272,13 +284,6 @@ export function evaluateVideoFit({ inventory = {}, meta = {}, scenes = [] } = {}
         fix: "Use one of the motion clips as the hook background.",
       });
     }
-
-    rows.push({
-      level: coverage >= 0.5 ? "pass" : "fail",
-      check: "videoFit media coverage ≥50%",
-      detail: `${withMedia.length}/${renderable.length} non-CTA scenes have media`,
-      fix: "Bind media to at least half of the non-CTA scenes.",
-    });
 
     rows.push({
       level: usedVideoPaths.size >= requiredVideos ? "pass" : "fail",

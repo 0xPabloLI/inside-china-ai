@@ -118,6 +118,42 @@ test("videoFit 5 fails when the hook clip is bound as background (not rendered)"
   assert.match(hookRow.detail, /background/);
 });
 
+test("videoFit 3 requires 60% non-CTA media coverage", () => {
+  const inventory = { videos: [clip("a.mp4", 4)], images: [still("1"), still("2")] };
+  const pass = evaluateVideoFit({
+    inventory,
+    meta: { createdAt: "2026-11-20", videoFit: 3 },
+    scenes: [
+      scene(1, "hook"),
+      scene(2, "explainer", { path: "a.mp4", type: "video" }),
+      scene(3, "demo", { path: "1.png", type: "image" }),
+      scene(4, "why", { path: "2.png", type: "image" }),
+      scene(5, "detail"),
+      scene(6, "cta"),
+    ],
+  });
+  assert.equal(pass.actual, 3);
+  assert.equal(pass.rows.find((row) => row.check.includes("coverage")).level, "pass");
+
+  const fail = evaluateVideoFit({
+    inventory: {
+      videos: [],
+      images: ["1", "2", "3", "4", "5", "6"].map((name) => still(name)),
+    },
+    meta: { createdAt: "2026-11-20", videoFit: 3 },
+    scenes: [
+      scene(1, "hook"),
+      scene(2, "explainer", { path: "1.png", type: "image" }),
+      scene(3, "demo", { path: "2.png", type: "image" }),
+      scene(4, "why"),
+      scene(5, "detail"),
+      scene(6, "cta"),
+    ],
+  });
+  assert.equal(fail.actual, 3);
+  assert.equal(fail.rows.find((row) => row.check.includes("coverage")).level, "fail");
+});
+
 test("a package created on the policy date must declare videoFit", () => {
   const result = evaluateVideoFit({
     inventory: {

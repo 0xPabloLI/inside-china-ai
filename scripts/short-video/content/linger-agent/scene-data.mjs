@@ -57,7 +57,7 @@ export const scenes = [
       overlay: 0,
     },
     voiceover:
-      "36Kr reported Tony Zhang led DeepSeek's vision project. His China-based startup is Simplex AI.",
+      "36 K R reported Tony Zhang led DeepSeek's vision project. His China-based startup is Simplex AI.",
     texts: {
       company: "CHINA AI · SIMPLEX AI",
       action: "TONY ZHANG",
@@ -79,6 +79,7 @@ export const scenes = [
       path: "assets/linger-product-shot.jpg",
       source: "36Kr Linger product screenshot, 2026-11-21",
       fit: "contain",
+      matteColor: "#f8f8f8",
       mode: "card",
       upscale: "resample",
       animation: "none",
@@ -107,6 +108,7 @@ export const scenes = [
       path: "assets/feature-local-moe.png",
       source: "Linger official PolyStrata diagram, 2026-11-22",
       fit: "contain",
+      matteColor: "#2f3d62",
       mode: "card",
       upscale: "resample",
       animation: "none",
@@ -135,6 +137,7 @@ export const scenes = [
       path: "assets/feature-locomo.png",
       source: "Linger official LoCoMo chart, 2026-11-22",
       fit: "contain",
+      matteColor: "#000000",
       mode: "card",
       upscale: "resample",
       animation: "none",

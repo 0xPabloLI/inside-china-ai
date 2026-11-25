@@ -9,6 +9,10 @@ export const meta = {
   // no motion clips, 4 usable stills. Chart-led package.
   videoFit: 2,
   videoFitFormat: "chart-led",
+  // This package is a market-day analysis with 7 scenes; the measured
+  // voiceover lands near 75s, so the package declares its own ceiling
+  // instead of being forced into the 70s default.
+  scenePlan: { minScenes: 6, maxScenes: 7, maxVoiceoverWords: 175, maxDurationSec: 78 },
   videoFitHook:
     "Anthropic's Nasdaq photo at 0s, with $107.3B raised and a 1.27T market cap on screen before the first turn.",
   videoFitEvidence:

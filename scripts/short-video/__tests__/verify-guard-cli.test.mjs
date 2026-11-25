@@ -33,7 +33,7 @@ describe("verify-video.mjs --pre guard (CLI contract)", () => {
     () => {
       const res = runPre(["--content", "_test-fixtures/overlimit"]);
       expect(res.status).toBe(1);
-      expect(res.stdout).toContain("Scene count (6-10)");
+      expect(res.stdout).toContain("Scene count (3-10)");
     },
     CLI_TIMEOUT_MS,
   );
@@ -43,7 +43,7 @@ describe("verify-video.mjs --pre guard (CLI contract)", () => {
     () => {
       const res = runPre(["--long-form", "--content", "_test-fixtures/overlimit"]);
       expect(res.status).toBe(0);
-      expect(res.stdout).toContain("Scene count (6-10)");
+      expect(res.stdout).toContain("Scene count (3-10)");
       expect(res.stdout).toMatch(/WARN:\s+[1-9]/);
       // #299: the hook media waiver is itself a WARN, so the counter above can no
       // longer prove that --long-form downgraded the scene-count rule. Pin the

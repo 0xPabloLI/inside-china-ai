@@ -42,8 +42,11 @@ const THRESHOLDS = {
   /** Max words per sentence for one-breath check */
   maxOneBreathWords: 25,
 
-  /** Min scene count */
-  minScenes: 6,
+  /** Min scene count. 3 is the breaking-news floor, not a target: a
+   *  single-point story can be 3-5 scenes and pass without padding. Raise
+   *  it per package through meta.scenePlan when the story genuinely has more
+   *  beats. */
+  minScenes: 3,
 
   /** Max scene count */
   maxScenes: 10,

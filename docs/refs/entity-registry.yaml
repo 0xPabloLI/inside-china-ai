@@ -1,5 +1,5 @@
 # Entity Registry — for RAG entity linking & query expansion
-# Last updated: 2026-08-08
+# Last updated: 2026-11-20
 # Source: extracted from 3 articles, 13 widget data files, 3 source materials, 7 scene-data
 
 companies:
@@ -13,6 +13,17 @@ companies:
     status: "active"
     open_source_strategy: "open-weight"
     key_products: ["DeepSeek V3", "DeepSeek R1", "DeepSeek V4-Flash", "DeepSeek V4-Pro"]
+
+  phancy:
+    name: "Phancy Group"
+    aliases: ["范式智能", "第四范式", "4Paradigm", "Fourth Paradigm", "Phanthy", "Phai"]
+    founded: "2014"
+    founder: "dai_wenyuan"
+    type: "Enterprise AI and foundation models"
+    status: "active"
+    listing: "HKEX 6682, listed 2023"
+    key_products: ["Phai-A1", "Phai-M1", "PhanthyCode", "ModelSphere"]
+    background: "Chinese enterprise AI group formerly known as Fourth Paradigm; listed in Hong Kong in 2023; launched its first foundation-model family Phai in November 2026."
 
   bytedance:
     name: "ByteDance"
@@ -67,6 +78,15 @@ companies:
     ai_division: "Hunyuan Team"
     consumer_brand: "混元"
     consumer_brand_aliases: ["Hunyuan", "腾讯混元"]
+
+  workbuddy:
+    name: "WorkBuddy"
+    aliases: ["腾讯WorkBuddy", "工作搭子"]
+    parent: "tencent"
+    type: "AI desktop agent"
+    status: "active"
+    key_products: ["Computer Use"]
+    background: "Tencent's AI desktop agent; its Computer Use beta (2026-11-20) lets the client click, type and scroll in macOS/Windows apps and browsers without requiring the target app to expose an API."
 
   zhipu:
     name: "Zhipu AI"
@@ -165,6 +185,13 @@ people:
     role: "DeepSeek Founder"
     company: "deepseek"
 
+  dai_wenyuan:
+    name: "Dai Wenyuan"
+    aliases: ["戴文渊"]
+    role: "Founder, Chairman and CEO"
+    company: "phancy"
+    note: "Founded Fourth Paradigm in 2014; ACM ICPC world champion; former Baidu Fengchao chief architect."
+
   zhang_yiming:
     name: "Zhang Yiming"
     aliases: ["张一鸣"]
@@ -223,6 +250,23 @@ people:
     note: "Management reference in DeepSeek article"
 
 models:
+  # ── Phancy / Phai ──
+  phai_a1:
+    name: "Phai-A1"
+    aliases: ["Phai A1", "Phai-A1-35B-1M"]
+    company: "phancy"
+    type: "LLM / code and agent"
+    released: "2026-11"
+    open_weight: true
+
+  phai_m1:
+    name: "Phai-M1"
+    aliases: ["Phai M1"]
+    company: "phancy"
+    type: "video generation with sound"
+    released: "2026-11"
+    open_weight: false
+
   # ── DeepSeek ──
   deepseek_v3:
     name: "DeepSeek V3"

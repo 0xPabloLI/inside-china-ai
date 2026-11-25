@@ -111,7 +111,8 @@ node scripts/short-video/lib/video-fit.mjs --content <slug>   # 打印实测 ass
 
 - `assetReady` 由实测 `assetFit ≥2` 得出（至少 3 张可用静图，或 1 段 ≥3s 动态 + 2 张静图）；`assetReady=0` 时不能进入渲染。
 - `meta.videoFit` 仍保留为**生产库存分**字段（历史兼容，等价于 `assetFit`），不表示选题潜力。声明高于实测即 preflight FAIL；`2026-11-20` 及之后创建的包没有 `meta.videoFit` 直接 FAIL。
-- `assetFit ≥4` 还要求：hook 有可渲染的 evidence media（`mediaRole:"evidence"`；只有 path 不够，background/card 在 hook 里不渲染，首帧仍是文字）、非 CTA 场次媒体覆盖 ≥50%、场景里实际用到 ≥1 段（5 分要求 ≥2 段）动态素材。素材躺在 `assets/` 但没绑进 scene，不算交付。
+- `assetFit ≥3` 要求：非 CTA 场次媒体覆盖 ≥60%（图片或视频均可）。`assetFit ≥4` 还要求：hook 有可渲染的 evidence media（`mediaRole:"evidence"`；只有 path 不够，background/card 在 hook 里不渲染，首帧仍是文字）、场景里实际用到 ≥1 段（5 分要求 ≥2 段）动态素材。素材躺在 `assets/` 但没绑进 scene，不算交付。
+- 开场视觉优先级（#1542）：包内只要绑定了 motion clip，第一段必须出现在 scene 1-2；若第一段视频只在 scene 3+，`checkHookVisualPriority` 只报 editorial WARN。例外写 `meta.hookVisualPriorityReason`（剧透/事实不匹配/版权或原声限制），完整 demo 仍留 payoff。
 
 核实第一方素材时看官方 X / YouTube / Bilibili / 视频号 / 官网 newsroom。选题阶段可以只登记 URL；进入生产必须把 mp4 下载到 `content/<slug>/assets/` 并用 `ffprobe` 读出时长才算库存。`trending-topics.json` 的 `videos[]` 是页面级信号（整页视频会赋给每条文章），只能当线索；DOM 里没有 `<video>` 也不代表没有素材，要查 `films.js`、播放器配置或页面 bundle 里的真实清单。
 

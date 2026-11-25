@@ -293,7 +293,9 @@ if (!preMode) {
   }
 
   if (checkTikTok) {
-    const ceiling = tiktokProfile.thresholds.maxDurationSec;
+    const ceiling = Number.isFinite(meta?.scenePlan?.maxDurationSec)
+      ? meta.scenePlan.maxDurationSec
+      : tiktokProfile.thresholds.maxDurationSec;
     if (duration <= ceiling) {
       pass("Duration", `TikTok duration (≤${ceiling}s, content-driven)`, `${duration.toFixed(1)}s`);
     } else if (duration <= 600) {

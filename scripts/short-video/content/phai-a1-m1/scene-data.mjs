@@ -1,0 +1,216 @@
+// Phai-A1 / Phai-M1: open weights, one RTX 3090, and a vendor benchmark caveat.
+// Facts checked against https://phai.phanthy.com/?lang=en and QbitAI, 2026-11-19.
+
+export const scenes = [
+  {
+    id: 1,
+    name: "hook",
+    visualType: "hook",
+    layout: "hero-center",
+    hookFamily: "result-first",
+    narrativeRole: "S",
+    arcRole: "establisher",
+    retentionMechanism: null,
+    media: null,
+    voiceover:
+      "A 35-billion-parameter model just shipped with a million-token context, and it runs on one RTX 3090.",
+    texts: {
+      badge: "CHINA AI · NOV 2026",
+      subject: "PHAI-A1",
+      bigNumber: "35B",
+      numberLabel: "TOTAL PARAMS · MIXTURE OF EXPERTS",
+      stats: [
+        { num: "1M", unit: "", label: "TOKEN CONTEXT" },
+        { num: "1", unit: "", label: "RTX 3090" },
+      ],
+      source: "PHANCY OFFICIAL, NOV 2026",
+    },
+  },
+  {
+    id: 2,
+    name: "background",
+    visualType: "narrative",
+    layout: "media-bottom-bar",
+    narrativeRole: "T",
+    retentionMechanism: null,
+    mediaRole: "evidence",
+    media: {
+      type: "image",
+      path: "assets/phai-hero.jpg",
+      source: "Phai official launch visual",
+      fit: "contain",
+      mode: "card",
+      upscale: "resample",
+      animation: "none",
+      overlay: 0.0,
+    },
+    voiceover:
+      "The company is Phancy Group, formerly Fourth Paradigm. It listed in Hong Kong in 2023 and sells enterprise AI.",
+    texts: {
+      company: "PHANCY GROUP",
+      action: "FORMER 4PARADIGM",
+      result: "HKEX 6682 · 2023",
+    },
+  },
+  {
+    id: 3,
+    name: "a1-spec",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "A",
+    retentionMechanism: "open-loop",
+    media: null,
+    voiceover:
+      "Phai-A1 is a 35-billion-parameter mixture of experts. Its weights are open today.",
+    texts: {
+      badge: "THE FIRST MODEL",
+      company: "35B MOE",
+      action: "1M-TOKEN CONTEXT",
+      context: "OPEN ON HF + MODELSCOPE",
+      result: "TRAINED ON ASCEND",
+      source: "PHANCY OFFICIAL",
+    },
+  },
+  {
+    id: 4,
+    name: "speed",
+    visualType: "stat-reveal",
+    layout: "hero-center",
+    narrativeRole: "A",
+    retentionMechanism: null,
+    media: null,
+    voiceover:
+      "According to QbitAI, the whole post-training run used Huawei Ascend. It is eight to ten times faster on one RTX 3090.",
+    texts: {
+      bigNumber: "8-10X",
+      label: "FASTER · SAME RTX 3090",
+      subtext: "POST-TRAINED ON ASCEND",
+      source: "PHANCY OFFICIAL / QBITAI",
+    },
+  },
+  {
+    id: 5,
+    name: "benchmark",
+    visualType: "narrative",
+    layout: "media-bottom-bar",
+    narrativeRole: "A",
+    arcRole: "peak",
+    retentionMechanism: null,
+    mediaRole: "evidence",
+    media: {
+      type: "image",
+      path: "assets/phai-benchmarks.png",
+      source: "Phai official benchmark chart",
+      fit: "contain",
+      mode: "card",
+      upscale: "resample",
+      animation: "none",
+      overlay: 0.0,
+    },
+    voiceover:
+      "QbitAI reported 83.6 on SWE-Bench Verified and 65.0 on SWE-Bench Pro. The company says it leads every 35B MoE in its class.",
+    texts: {
+      company: "83.6",
+      action: "SWE-BENCH VERIFIED",
+      result: "65.0 SWE-BENCH PRO",
+      source: "PHANCY OFFICIAL BENCHMARK",
+    },
+  },
+  {
+    id: 6,
+    name: "caveat",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "R",
+    retentionMechanism: "pattern-interrupt",
+    media: null,
+    voiceover:
+      "But it does not lead every model. Alibaba's Qwen dense model scores higher on SWE-Bench Verified, IFBench and long-context reasoning.",
+    texts: {
+      badge: "THE CAVEAT",
+      company: "CLASS LEADER",
+      action: "NOT OVERALL",
+      context: "QWEN3.8-27B: 86.0",
+      result: "79.5 IFBENCH",
+      source: "PHANCY OFFICIAL BENCHMARK",
+    },
+  },
+  {
+    id: 7,
+    name: "m1",
+    visualType: "narrative",
+    layout: "media-bottom-bar",
+    narrativeRole: "A",
+    retentionMechanism: "open-loop",
+    mediaRole: "evidence",
+    media: {
+      type: "image",
+      path: "assets/phai-m1-aurora.jpg",
+      source: "Phai-M1 official sample: Aurora over the ice",
+      fit: "contain",
+      mode: "card",
+      upscale: "resample",
+      animation: "none",
+      overlay: 0.0,
+    },
+    voiceover:
+      "Phai-M1 turns text or images into video with sound: fifteen seconds, 720p, in about three minutes on a 16GB GPU.",
+    texts: {
+      company: "15 SEC",
+      action: "720P · WITH SOUND",
+      result: "~3 MIN · 16GB GPU",
+      source: "PHANCY OFFICIAL",
+    },
+  },
+  {
+    id: 8,
+    name: "open-caveat",
+    visualType: "narrative",
+    layout: "stacked-cards",
+    narrativeRole: "R",
+    retentionMechanism: "loop-closure",
+    media: null,
+    voiceover:
+      "A1 is open today. M1 is coming soon. The benchmarks are Phancy's own: a claim, not a verdict.",
+    texts: {
+      badge: "WHAT IS REAL",
+      company: "A1 OPEN TODAY",
+      action: "M1 WEIGHTS COMING",
+      context: "BENCHMARKS ARE VENDOR-RUN",
+      result: "VENDOR-CLAIMED",
+      source: "PHANCY OFFICIAL, NOV 2026",
+    },
+  },
+  {
+    id: 9,
+    name: "cta",
+    visualType: "cta",
+    layout: "hero-center",
+    narrativeRole: "T-Tell",
+    arcRole: "release",
+    retentionMechanism: "loop-closure",
+    media: null,
+    voiceover:
+      "A 35B model on one RTX 3090. The question is whether open weights can catch the closed labs. Follow China AI News for more.",
+    texts: {
+      brand: "CHINA AI NEWS",
+      brandHighlight: "AI",
+      tagline: "CHINA AI, DECODED",
+      action: "FOLLOW FOR MORE",
+      topic: "PHAI-A1 · 35B ON ONE 3090",
+    },
+  },
+];
+
+export const metadata = {
+  title: "A 35B Model That Runs on One RTX 3090",
+  description:
+    "Phancy Group, formerly Fourth Paradigm, released Phai-A1: a 35B MoE coding model with a 1M-token context, open weights, and a claim that it runs 8-10x faster on one RTX 3090. Phai-M1 makes 15-second 720p video with sound in about three minutes.",
+  commentHook:
+    "A 35B model on one RTX 3090. Would you run it locally, or wait for the M1 weights?",
+  trendingChecked: true,
+  sources: [
+    "https://phai.phanthy.com/?lang=en",
+    "https://www.qbitai.com/2026/11/511071.html",
+  ],
+};

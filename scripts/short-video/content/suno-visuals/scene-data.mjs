@@ -79,6 +79,7 @@ export const scenes = [
       path: "assets/feature-edit-1778.jpg",
       source: "Suno Visuals official editor screenshot",
       fit: "contain",
+      matteColor: "#34332b",
       mode: "card",
       upscale: "resample",
       animation: "none",
@@ -107,6 +108,7 @@ export const scenes = [
       path: "assets/minimax-h3-en-overview.png",
       source: "MiniMax H3 official system overview",
       fit: "contain",
+      matteColor: "#ffffff",
       mode: "card",
       upscale: "resample",
       animation: "none",
@@ -158,7 +160,7 @@ export const scenes = [
       upscale: false,
     },
     voiceover:
-      "That is the new pattern: a U.S. consumer product, a Chinese open model, and a global audience.",
+      "That is the new pattern: a U.S. consumer product, Chinese open model, and a global audience.",
     texts: {
       company: "U.S. PRODUCT",
       action: "CHINA BASE MODEL",

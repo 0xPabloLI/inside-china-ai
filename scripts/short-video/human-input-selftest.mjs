@@ -20,8 +20,9 @@
  *   - typing produced `beforeinput`/`input` with `inputType: "insertText"`;
  *   - Enter and Backspace arrived as trusted key events;
  *   - a wheel scroll produced trusted wheel events;
+ *   - a trusted `paste` event carries the caption after a real Cmd+V;
  *   - the typed text (emoji included) matches what was requested;
- *   - no paste event was used at all.
+ *   - every event the page saw was `isTrusted: true` (no synthetic paste).
  *
  * Run:
  *   node scripts/short-video/human-input-selftest.mjs
@@ -37,6 +38,7 @@ import { automationPort } from "./lib/cdp-profile-guard.mjs";
 import {
   clickAtPoint,
   openVisibleSession,
+  pasteText,
   planTyping,
   pokeEditorState,
   sleepJitter,
@@ -45,6 +47,7 @@ import {
 } from "./lib/human-input.mjs";
 
 const CAPTION = "Hello 世界 🙂\nsecond line";
+const PASTE_TEXT = "Pasted 世界 🙂\nsecond line";
 
 const FIXTURE = `<!doctype html>
 <html><body style="margin:0;font:14px system-ui">
@@ -199,6 +202,19 @@ export async function runSelfTest() {
     await pokeEditorState(cdp);
     await sleepJitter(250, 100);
 
+    // The normal creator path is a real Cmd+V, not an 80-second typing burst.
+    // Select the typed text, paste over it from the OS clipboard, and verify
+    // both the resulting text and the `isTrusted` flag on the paste event.
+    await cdp.send("Runtime.evaluate", {
+      expression: `(() => {
+        const ed = document.getElementById("ed");
+        ed.focus();
+        document.execCommand("selectAll");
+      })()`,
+    });
+    await pasteText(cdp, PASTE_TEXT);
+    await sleepJitter(250, 100);
+
     const fixture = await readFixture(cdp);
     const events = fixture.events;
 
@@ -234,7 +250,8 @@ export async function runSelfTest() {
     if (wheels.length < 2) fail(failures, `only ${wheels.length} wheel events`);
     if (!(fixture.scrollY > 0))
       fail(failures, `the wheel did not scroll the page (scrollY=${fixture.scrollY})`);
-    if (pastes.length > 0) fail(failures, `a paste event was used (${pastes.length})`);
+    if (pastes.length < 1) fail(failures, "no trusted paste event was produced");
+    if (pastes.some((e) => !e.trusted)) fail(failures, "a paste event was not trusted");
     if (synthetic.length > 0) {
       fail(
         failures,
@@ -247,8 +264,8 @@ export async function runSelfTest() {
         .replace(/[ \t]+/g, " ")
         .replace(/\s*\n\s*/g, "\n")
         .trim();
-    if (normalized(fixture.text) !== normalized(CAPTION)) {
-      fail(failures, `typed text mismatch: ${JSON.stringify(fixture.text)}`);
+    if (normalized(fixture.text) !== normalized(PASTE_TEXT)) {
+      fail(failures, `pasted text mismatch: ${JSON.stringify(fixture.text)}`);
     }
 
     const report = {
@@ -264,6 +281,7 @@ export async function runSelfTest() {
       wheels: wheels.length,
       untrustedEvents: synthetic.length,
       pasteEvents: pastes.length,
+      pasteTrusted: pastes.every((e) => e.trusted),
       text: fixture.text,
       notes,
     };
@@ -302,7 +320,8 @@ if (isMain) {
         console.log(`  wheel:    ${report.wheels} trusted bursts, page scrolled`);
         console.log(`  text:     ${JSON.stringify(report.text)}`);
         console.log(
-          `  synthetic events: ${report.untrustedEvents} · paste events: ${report.pasteEvents}`,
+          `  synthetic events: ${report.untrustedEvents} · paste events: ${report.pasteEvents} ` +
+            `(trusted=${report.pasteTrusted})`,
         );
         for (const note of notes ?? []) console.log(`  ⚠️ ${note}`);
         console.log("");

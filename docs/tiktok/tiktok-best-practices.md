@@ -193,6 +193,7 @@ TikTok 的长尾比大多数平台更长：一条好视频可以持续浮出数�
 > 数据来源：tiktokhashtags.com（TikTok API 缓存数据）、TikTok Creative Center（trending 标签）、TikTok 搜索（竞品成功案例分析）、竞品情报库（`docs/research/tiktok-competitor-intelligence.md`）。
 > 实体→hashtag 映射库（60+ 实体，7 层级）：`docs/research/china-ai-hashtag-mapping.md`。代码实现：`scripts/short-video/lib/caption-utils.mjs` → `ENTITY_HASHTAG_MAP`。
 > 机器可读的流量数据以标签池 JSON 为唯一事实源（SSOT）；本节下方的人工策展表格是参考视图，数值、状态与新鲜度以标签池为准。
+> **选标签的操作口径（角色分类、每条视频顺序、刷新时钟）见 [`hashtag-playbook.md`](hashtag-playbook.md)。** 本节保留调研背景、数据表和渠道；两处冲突时，以 playbook 的角色规则为准。
 
 #### 核心原则
 
@@ -325,7 +326,7 @@ node scripts/short-video/tag-pool.mjs ingest --from <research.json> [--dry-run] 
 
 #### 标签池
 
-**核心流量标签**（每次必选 1-2 个）：
+**广泛触达标签**（`broad`，可选 0–1 个；不默认全带）：
 
 | 标签        | 浏览量 | 帖子数 | 均帖浏览 | 说明                                       |
 | ----------- | ------ | ------ | -------- | ------------------------------------------ |
@@ -333,11 +334,12 @@ node scripts/short-video/tag-pool.mjs ingest --from <research.json> [--dry-run] 
 | `#technews` | 6.6B   | 367K   | 17,937   | 科技新闻专用，受众精准；2026-11-22 官方二次复核 |
 | `#news`     | —      | —      | —        | 2026-08-25 新增：竞品情报 3/16 使用        |
 
-**品牌标签**（每次必选 1 个）：
+**账号常驻标签**（`evergreen`，内容确属 China AI / AI news 时带 1–2 个）：
 
 | 标签       | 说明                      |
 | ---------- | ------------------------- |
-| `#chinaai` | 品牌 niche 标签，始终携带 |
+| `#chinaai` | 品牌 niche 标签，内容确属 China AI 时携带 |
+| `#ainews`  | AI 新闻栏目标签；已列入上方 broad，按本条内容决定是否占用触达位 |
 
 **辅助流量标签**（自动补位用，根据内容选 0-1 个）：
 
@@ -346,7 +348,7 @@ node scripts/short-video/tag-pool.mjs ingest --from <research.json> [--dry-run] 
 | `#ai`                     | 2026-08-25 提升：竞品 9/16 使用，从"可选"提升为补位候选 |
 | `#artificialintelligence` | 2026-08-25 新增：竞品 4/16 使用，比 #ai 更精准          |
 
-**垂直/实体标签**（根据内容匹配 1-2 个，自动推导）：
+**垂直/实体标签**（`topic`，仅当本条视频讲到该实体/事件时带 1-2 个）：
 
 | 标签          | 浏览量 | 匹配关键词                                               |
 | ------------- | ------ | -------------------------------------------------------- |
@@ -379,7 +381,7 @@ node scripts/short-video/tag-pool.mjs ingest --from <research.json> [--dry-run] 
 
 #### TikTok Creative Center Trending 检查
 
-**每次做视频时执行**（通过 web-access skill）：
+**每周做一次趋势扫描**（通过 web-access skill），不是每条视频都全量重查：
 
 1. 打开 `https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?period=7&region=US`
 2. 检查**所有类别**的 trending 标签（不只 Tech & Electronics）
@@ -390,9 +392,9 @@ node scripts/short-video/tag-pool.mjs ingest --from <research.json> [--dry-run] 
 
 #### Hashtag 数据获取渠道
 
-Hashtag 策略的数据来源分**运行时**（每次做视频时自动执行）和**调研期**（定期更新标签池时执行）两个层面：
+Hashtag 策略的数据来源分**运行时**（每周趋势扫描 + 单条视频候选校验）和**调研期**（定期更新标签池时执行）两个层面：
 
-**运行时渠道**（每次做视频，content-pipeline.md Stage 3 Step 9 已整合）：
+**运行时渠道**（每周趋势扫描；单条视频只对候选标签做单标签校验）：
 
 | 渠道                   | 方式                              | 费用 | 用途                                   |
 | ---------------------- | --------------------------------- | ---- | -------------------------------------- |

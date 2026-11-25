@@ -19,12 +19,14 @@ export const MEDIA_FIELD_KEYS = new Set([
   "path",
   "mode",
   "fit",
+  "matteColor", // solid letterbox fill for contain images; match the source edge
   "focus",
   "cropFocus", // #1040: [0,1] CSS object-position ratio, not a source-space point
   "source",
   "animation",
   "overlay",
   "volume",
+  "railVignette",
   "upscale",
   "videoStartOffsetMs",
   "evidence",

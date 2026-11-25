@@ -245,7 +245,55 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
     expect(result.target.listed).toBe(false);
   });
 
-  it("warns (but does not wait) when another own kernel holds the slot", async () => {
+  it("waits for another own kernel by default", async () => {
+    const { execFile } = makeCli({
+      list: JSON.stringify([
+        { ref: "xpabloli/k", lastRunTime: iso(60_000) },
+        { ref: "xpabloli/other", lastRunTime: iso(120_000) },
+      ]),
+      statuses: {
+        "xpabloli/k": "k complete: done",
+        "xpabloli/other": ["k running: now", "k complete: done", "k complete: done"],
+      },
+    });
+    const { deps } = makeClock();
+    const logs = [];
+    const result = await preflightKernelSlot(
+      "xpabloli/k",
+      { waitBudgetMs: 5000, pollIntervalMs: 1000 },
+      { execFile, ...deps, log: (msg) => logs.push(msg) },
+    );
+    expect(result.waitedMs).toBe(1000);
+    expect(result.holders.filter((h) => h.ref === "xpabloli/other")).toHaveLength(0);
+    expect(logs.some((l) => l.includes("default Kaggle concurrency is 1"))).toBe(true);
+    expect(logs.some((l) => l.includes("slot is free"))).toBe(true);
+  });
+
+  it("fails closed after the wait budget when another own kernel stays RUNNING", async () => {
+    const { execFile, commands } = makeCli({
+      list: JSON.stringify([
+        { ref: "xpabloli/k", lastRunTime: iso(60_000) },
+        { ref: "xpabloli/other", lastRunTime: iso(120_000) },
+      ]),
+      statuses: {
+        "xpabloli/k": "k complete: done",
+        "xpabloli/other": "k running: now",
+      },
+    });
+    const { deps } = makeClock();
+    await expect(
+      preflightKernelSlot(
+        "xpabloli/k",
+        { waitBudgetMs: 3000, pollIntervalMs: 1000 },
+        { execFile, ...deps, log: () => {} },
+      ),
+    ).rejects.toThrow(
+      /own kernel xpabloli\/other[\s\S]*still holding[\s\S]*concurrency is 1[\s\S]*COSYVOICE3_KAGGLE_EXCLUSIVE=0/,
+    );
+    expect(commands.some((c) => c.includes("kaggle kernels push"))).toBe(false);
+  });
+
+  it("allows queue-behind when exclusive is explicitly disabled", async () => {
     const { execFile } = makeCli({
       list: JSON.stringify([
         { ref: "xpabloli/k", lastRunTime: iso(60_000) },
@@ -259,7 +307,7 @@ describe("preflightKernelSlot — never stack a version behind a live slug (#135
     const logs = [];
     const result = await preflightKernelSlot(
       "xpabloli/k",
-      {},
+      { exclusive: false },
       { execFile, now: () => NOW, sleep: async () => {}, log: (msg) => logs.push(msg) },
     );
     expect(result.waitedMs).toBe(0);

@@ -72,10 +72,12 @@ describe("TTS Engine Registry — selectEngine()", () => {
   beforeEach(() => {
     resetAllMocks();
     delete process.env.TTS_ENGINE;
+    delete process.env.TTS_ALLOW_LOCAL;
   });
 
   afterEach(() => {
     delete process.env.TTS_ENGINE;
+    delete process.env.TTS_ALLOW_LOCAL;
   });
 
   // S1: Kaggle CUDA available, no TTS_ENGINE set → Uses Kaggle CUDA (default)
@@ -119,18 +121,30 @@ describe("TTS Engine Registry — selectEngine()", () => {
     expect(createF5MLXEngine).not.toHaveBeenCalled();
   });
 
-  // S2c: Kaggle + Modal + MLX unavailable, F5-MLX available → Falls back to F5
-  it("S2c: falls back to F5-MLX when Kaggle + Modal + MLX unavailable", async () => {
+  // S2c: Kaggle + Modal + MLX unavailable, F5-MLX available → F5 only with
+  // explicit opt-in. A silent fallback is exactly how the 2026-11-22 batch
+  // ended up on the local voice.
+  it("S2c: falls back to F5-MLX only when TTS_ALLOW_LOCAL=1", async () => {
     vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
     vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
     const f5 = mockEngine("f5-mlx", "F5-TTS-MLX (backup)");
     vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
 
+    process.env.TTS_ALLOW_LOCAL = "1";
     const engine = await selectEngine();
 
     expect(engine.name).toBe("f5-mlx");
     expect(engine).toBe(f5);
+  });
+
+  it("S2c-block: refuses F5-MLX without TTS_ALLOW_LOCAL=1", async () => {
+    vi.mocked(createCosyVoice3KaggleCudaEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3ModalCudaEngine).mockResolvedValue(null);
+    vi.mocked(createCosyVoice3MLXEngine).mockResolvedValue(null);
+    vi.mocked(createF5MLXEngine).mockResolvedValue(mockEngine("f5-mlx", "F5-TTS-MLX (backup)"));
+
+    await expect(selectEngine()).rejects.toThrow(/TTS_LOCAL_BLOCKED/);
   });
 
   // S2e: `npu` is no longer an engine name at all. The registry must not even
@@ -161,6 +175,7 @@ describe("TTS Engine Registry — selectEngine()", () => {
     vi.mocked(createF5MLXEngine).mockResolvedValue(f5);
 
     process.env.TTS_ENGINE = "f5-mlx";
+    process.env.TTS_ALLOW_LOCAL = "1";
     const engine = await selectEngine();
 
     expect(engine.name).toBe("f5-mlx");

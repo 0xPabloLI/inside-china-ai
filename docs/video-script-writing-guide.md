@@ -306,6 +306,8 @@ media: {
 
 **素材库现实**：`scripts/short-video/assets/` 是全局库（约 275 文件 / 297MB，含暗调通用背景），但 `catalog.yml` 目前只有 7 条、RAG 只能搜到这 7 条。完整素材库与索引是 #310，不在本票范围；手工挑图时按文件名浏览、打开确认，不要假设 RAG 能搜到。
 
+**开场视觉优先级（#1542）**：包里有 motion clip 时，第一段必须落在 scene 1–2；完整 demo 仍留 payoff，hook 用 0.5–1.5s teaser 或关键帧。若不能前置，在 `meta.hookVisualPriorityReason` 写一句可复核的理由（剧透、事实不匹配、版权/原声限制）。`checkHookVisualPriority` 只进 `🧭 Editorial Suggestions`，不阻断渲染。
+
 **豁免与兜底**：纯文字 hook 写 `media: null` 显式豁免；生成兜底允许 `b-roll` / `asset-then-broll` / `ai-image` / `asset-then-ai-image`。预检与最终 media gate 的判定表只在 `docs/content-pipeline.md` → Hook 媒体策展（#299）维护，本节只给策展标准。
 
 ---
