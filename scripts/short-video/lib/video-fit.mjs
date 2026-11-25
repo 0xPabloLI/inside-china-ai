@@ -219,14 +219,17 @@ export function evaluateVideoFit({ inventory = {}, meta = {}, scenes = [] } = {}
     });
   }
 
+  const densityBlocked = actual < 2 && (requiresDeclaration || claimed !== null);
   rows.push({
-    level: actual >= 2 ? "pass" : "fail",
+    level: densityBlocked ? "fail" : "pass",
     check: "asset inventory",
-    detail: `${measured.motionClipCount} motion clips / ${measured.motionSeconds}s counted; ${measured.stillCount} stills → score ${actual}`,
-    fix:
-      actual >= 2
-        ? ""
-        : "Download at least 3 usable stills, or a motion clip of 3s+ plus 2 stills, into content/<slug>/assets/.",
+    detail:
+      `${measured.motionClipCount} motion clips / ${measured.motionSeconds}s counted; ` +
+      `${measured.stillCount} stills → score ${actual}` +
+      (densityBlocked ? "" : " (legacy package — not gated)"),
+    fix: densityBlocked
+      ? "Download at least 3 usable stills, or a motion clip of 3s+ plus 2 stills, into content/<slug>/assets/."
+      : "",
   });
 
   if (claimed !== null && claimed > actual) {

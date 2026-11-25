@@ -115,7 +115,7 @@ describe("Wechat RSS sources", () => {
         freshnessWindowDays: 14,
       });
       expect(source.apiSearch.url()).toMatch(
-        /^https:\/\/wechat2rss\.xlab\.app\/feed\/[a-f0-9]+\.xml$/,
+        /^https:\/\/wechat2rss\.xlab\.app\/feed\/[a-f0-9]+\.xml(\?content=0)?$/,
       );
     }
   });
@@ -168,7 +168,9 @@ describe("Wechat RSS sources", () => {
       freshnessWindowDays: 14,
     });
     expect(source.accessMethod.notes).toMatch(/Self-hosted/);
-    expect(source.apiSearch.url()).toBe("http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml");
+    expect(source.apiSearch.url()).toBe(
+      "http://127.0.0.1:8001/feed/MP_WXS_3921736177.xml?content=0",
+    );
     expect(source.url()).toBe(source.apiSearch.url());
   });
 

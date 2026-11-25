@@ -48,7 +48,7 @@ describe("verify-video.mjs --pre guard (CLI contract)", () => {
       // #299: the hook media waiver is itself a WARN, so the counter above can no
       // longer prove that --long-form downgraded the scene-count rule. Pin the
       // specific warning in the WARNINGS block.
-      expect(res.stdout).toMatch(/• \[Structure\] Scene count \(6-10\) — 11 scenes/);
+      expect(res.stdout).toMatch(/• \[Structure\] Scene count \(3-10\) — 11 scenes/);
     },
     CLI_TIMEOUT_MS,
   );
