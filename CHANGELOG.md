@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.115.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.115.1...tanstack_start_ts-v1.115.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **short-video:** restore the caption notify seam dropped by the [#1531](https://github.com/0xPabloLI/inside-china-ai/issues/1531) merge ([#1530](https://github.com/0xPabloLI/inside-china-ai/issues/1530)) ([#1553](https://github.com/0xPabloLI/inside-china-ai/issues/1553)) ([8d7b243](https://github.com/0xPabloLI/inside-china-ai/commit/8d7b2439551933fbf2ca6fee63a3271dc5135171))
+
 ## [1.115.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.115.0...tanstack_start_ts-v1.115.1) (2026-11-26)
 
 
