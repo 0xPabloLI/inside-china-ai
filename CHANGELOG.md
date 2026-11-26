@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.117.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.116.0...tanstack_start_ts-v1.117.0) (2026-11-26)
+
+
+### Features
+
+* **content:** media-first + native audio windows for the two legacy packs ([#1524](https://github.com/0xPabloLI/inside-china-ai/issues/1524) [#1525](https://github.com/0xPabloLI/inside-china-ai/issues/1525)) ([#1558](https://github.com/0xPabloLI/inside-china-ai/issues/1558)) ([73c93e8](https://github.com/0xPabloLI/inside-china-ai/commit/73c93e8e7431688b876d92e468b4b0b6285c396a))
+
 ## [1.116.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.115.2...tanstack_start_ts-v1.116.0) (2026-11-26)
 
 
