@@ -142,6 +142,19 @@ async function main() {
     }
   }
 
+  // ── Audio policy: `--bgm` is a declaration, not a silent opt-in ──
+  {
+    const { renderAudioPolicyViolation } = await import("./lib/audio-policy.mjs");
+    const violation = renderAudioPolicyViolation({
+      meta,
+      useBgm: process.argv.includes("--bgm"),
+    });
+    if (violation) {
+      console.error(`❌ Audio policy: ${violation}\n`);
+      process.exit(1);
+    }
+  }
+
   // ── Run allocation (#1432 S2) ──
   // Every artifact this process produces lands under
   // output/<slug>/runs/<runId>/, and the manifest entry is appended BEFORE

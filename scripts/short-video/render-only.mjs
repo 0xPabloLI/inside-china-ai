@@ -52,6 +52,19 @@ async function main() {
     process.exit(1);
   }
 
+  // ── Audio policy: `--bgm` is a declaration, not a silent opt-in ──
+  // A render without the bed ships narration-only and every downstream check
+  // still passes (2026-11-26: "sound only at the very beginning" reached the
+  // user). Refuse before touching the renderer.
+  {
+    const { renderAudioPolicyViolation } = await import("./lib/audio-policy.mjs");
+    const violation = renderAudioPolicyViolation({ meta, useBgm: args.includes("--bgm") });
+    if (violation) {
+      console.error(`❌ Audio policy: ${violation}\n`);
+      process.exit(1);
+    }
+  }
+
   // ── Resolve the run (#1432 S3) ──
   // Explicit --run wins; otherwise the latest released run; otherwise the
   // legacy output/<slug>/ package. Legacy packs keep rendering unchanged.
