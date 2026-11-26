@@ -9,7 +9,7 @@
  */
 import { staticFile, CanvasImage } from "remotion";
 import { SLOT_FIELDS } from "../../../lib/text-slots.mjs";
-import { BRAND_BAR, COLOR, SAFE_ZONES } from "./shared";
+import { BRAND_BAR, HEADER_SLOTS, COLOR, SAFE_ZONES } from "./shared";
 import { TextGate } from "./text-gate";
 import type { ReactNode } from "react";
 
@@ -61,51 +61,59 @@ export const Glow: React.FC<{ color: "red" | "blue" }> = ({ color }) => {
  * glyphs above the media band's picture in both the card and the full-bleed
  * layout, so it never lands on footage.
  */
-export const BrandBar: React.FC = () => (
+export const BrandBar: React.FC<{ showBrand?: boolean }> = ({ showBrand = true }) => (
   <div
+    data-collision-group="header"
     style={{
       position: "absolute",
-      top: BRAND_BAR.top,
-      left: 60,
-      right: 200,
+      top: HEADER_SLOTS.brand.top,
+      left: HEADER_SLOTS.brand.left,
+      right: SAFE_ZONES.right,
       display: "flex",
       alignItems: "center",
-      gap: 16,
+      gap: HEADER_SLOTS.gap,
     }}
   >
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        // The lockup can land on a bright frame (the CapCut demo is a white
-        // tree on snow). This is a text plate, not a picture scrim: it covers
-        // only the mark and the wordmark, never the footage around them.
-        background: "rgba(8,8,18,0.78)",
-        padding: "6px 16px 6px 8px",
-        borderRadius: 10,
-      }}
-    >
-      <CanvasImage
-        src={staticFile("assets/china-ai-news-mark-video.svg")}
-        // objectFit is load-bearing, not decoration: <CanvasImage> renders a
-        // <canvas> sized to the artwork's natural pixels, and a canvas defaults
-        // to object-fit: fill — so a square box squashes this 648×420 mark.
-        // See __tests__/canvas-image-fit-contract.test.mjs.
-        style={{ width: 48, height: 48, objectFit: "contain" }}
-      />
-      <span
+    {showBrand && (
+      // Brand and badge are the SAME left slot (#1561): a scene that declares
+      // a kicker badge yields the lockup for that scene. Drawing both is what
+      // produced the ABot-World 0.5 overlap.
+      <div
+        data-collision-box="header.brand"
         style={{
-          fontSize: 24,
-          fontWeight: 900,
-          color: COLOR.text,
-          letterSpacing: "3px",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          // The lockup can land on a bright frame (the CapCut demo is a white
+          // tree on snow). This is a text plate, not a picture scrim: it covers
+          // only the mark and the wordmark, never the footage around them.
+          background: "rgba(8,8,18,0.78)",
+          padding: "6px 16px 6px 8px",
+          borderRadius: 10,
         }}
       >
-        CHINA <span style={{ color: COLOR.brand }}>AI</span> NEWS
-      </span>
-    </div>
+        <CanvasImage
+          src={staticFile("assets/china-ai-news-mark-video.svg")}
+          // objectFit is load-bearing, not decoration: <CanvasImage> renders a
+          // <canvas> sized to the artwork's natural pixels, and a canvas defaults
+          // to object-fit: fill — so a square box squashes this 648×420 mark.
+          // See __tests__/canvas-image-fit-contract.test.mjs.
+          style={{ width: 48, height: 48, objectFit: "contain" }}
+        />
+        <span
+          style={{
+            fontSize: 24,
+            fontWeight: 900,
+            color: COLOR.text,
+            letterSpacing: "3px",
+          }}
+        >
+          CHINA <span style={{ color: COLOR.brand }}>AI</span> NEWS
+        </span>
+      </div>
+    )}
     <span
+      data-collision-box="header.briefing"
       style={{
         marginLeft: "auto",
         fontSize: 20,
@@ -126,21 +134,30 @@ export const BrandBar: React.FC = () => (
 /**
  * Badge pill — hook scene badge (NOT the breaking badge). Matches
  * .s-hook .badge-pill. `fontSize` is injected by the TextGate when gated
- * (HookScene is the only caller and always passes it); the default reads the
- * contract's `badge` preferredSize so an ungated preview cannot reintroduce
- * the 22px badge #688 raised away, and so a future raise moves it too.
+ * (the hook scenes always pass it); the default reads the contract's `badge`
+ * preferredSize so an ungated preview cannot reintroduce the 22px badge #688
+ * raised away, and so a future raise moves it too.
  */
-export const BadgePill: React.FC<{ text: string; fontSize?: number }> = ({
-  text,
-  fontSize = SLOT_FIELDS.badge.preferredSize,
-}) => (
+export const BadgePill: React.FC<{
+  text: string;
+  fontSize?: number;
+  /** Set only when the pill is a fixed header element (#1561). */
+  collisionId?: string;
+}> = ({ text, fontSize = SLOT_FIELDS.badge.preferredSize, collisionId }) => (
   <div
+    data-collision-box={collisionId}
     style={{
       display: "inline-flex",
       alignItems: "center",
       gap: 10,
       background: COLOR.red,
       color: "white",
+      // The pill is a single-line label by design. Without this it WRAPS when
+      // the header slot is narrower than the text (663px, #1561) and the
+      // two-line box overruns the 78px kicker band before Fit can shrink it
+      // (observed: 118px tall at font 40). nowrap forces Fit to solve in width,
+      // which is the dimension the slot actually constrains.
+      whiteSpace: "nowrap",
       // #688: 16 -> 12 vertical. The badge pill is 71px tall at the 40px
       // metadata floor, and the hook's three bands must together fit the 930px
       // safe zone (see HookScene.HOOK_BANDS) — the pill is the only thing the
@@ -310,12 +327,14 @@ export const StatCard: React.FC<{
 export const Slot: React.FC<{
   variant: "kicker" | "hero" | "support";
   align?: "center" | "start" | "end";
+  /** Horizontal alignment of the slot's children. Default: centred. */
+  alignX?: "center" | "start";
   top?: number;
   height?: number;
   left?: number;
   right?: number;
   children: ReactNode;
-}> = ({ variant, align = "center", top, height, left, right, children }) => {
+}> = ({ variant, align = "center", alignX = "center", top, height, left, right, children }) => {
   const slots = {
     kicker: { top: 220, height: 180 }, // 220-400
     hero: { top: 400, height: 550 }, // 400-950
@@ -339,7 +358,7 @@ export const Slot: React.FC<{
         display: "flex",
         flexDirection: "column",
         justifyContent,
-        alignItems: "center",
+        alignItems: alignX === "start" ? "flex-start" : "center",
       }}
     >
       {children}

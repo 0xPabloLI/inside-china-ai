@@ -14,7 +14,7 @@
  * the same scene-data ended up rendering at 64px on one path and 80px on the
  * other, and how a clipped "THAT'S THE WHOLE POIN" passed every check.
  */
-import { BRAND_FONT_STACK } from "./safe-zones.mjs";
+import { BRAND_FONT_STACK, HEADER_SLOTS } from "./safe-zones.mjs";
 import { mediaRoleOf, MEDIA_ROLE } from "./media-role.mjs";
 
 /**
@@ -245,13 +245,16 @@ export const MEASURED_MAX_WIDTH = {
   // the chip, so its padding/border stay inside the slot) — measured by
   // measure-slot-widths.mjs (T9, decision 65).
   "narrative.stacked-cards.badge": 820,
-  "hook.hero-center.badge": 820,
+  // Both hook layouts draw their kicker badge in the shared header left slot
+  // (#1561) — 663px, not the full 820 band. A badge longer than this shrinks
+  // inside the slot instead of growing under the BRIEFING chip.
+  "hook.hero-center.badge": HEADER_SLOTS.badge.textWidth,
   "hook.hero-center.subtitle": 820,
   "hook.hero-center.subtitleHighlight": 820,
   // media-led hook: same 820 safe band; the text rows live in the letterbox
   // zones above/below the contained picture or on the cover scrim, never over
   // the picture's focal content.
-  "hook.media-led.badge": 820,
+  "hook.media-led.badge": HEADER_SLOTS.badge.textWidth,
   "hook.media-led.subject": 820,
   "hook.media-led.bigNumber": 820,
   "hook.media-led.numberLabel": 820,

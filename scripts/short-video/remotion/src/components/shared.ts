@@ -9,6 +9,7 @@ import { interpolate, Easing } from "remotion";
 // Re-export shared constants from the existing pipeline lib/
 export {
   BRAND_BAR,
+  HEADER_SLOTS,
   CANVAS,
   SAFE_ZONES,
   SUBTITLE_LANE,

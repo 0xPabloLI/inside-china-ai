@@ -25,7 +25,7 @@ import {
   hookSubjectTextWidth,
   isMediaLedHook,
 } from "../../../lib/text-slots.mjs";
-import { CONTAIN_MEDIA_BOTTOM, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
+import { CONTAIN_MEDIA_BOTTOM, HEADER_SLOTS, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 import { AnnotationCollisionAssert } from "../components/annotation-collision-gate";
 import { SplitHighlight } from "../components/substring-highlight";
 import { HookMediaLed } from "./HookMediaLed";
@@ -195,14 +195,32 @@ export const HookScene: React.FC<{ scene: SceneData; duration: number; contentDi
             subject. Only the sweep remains; the hook's number/claim is the
             only thing that glows. */}
         <ScanSweep duration={duration} />
-        <BrandBar />
+        <BrandBar showBrand={!txt.badge} />
 
         {/* Kicker slot — optional badge pill (NOT breaking badge) */}
         {txt.badge && (
-          <Slot variant="kicker" top={HOOK_BANDS.kicker.top} height={HOOK_BANDS.kicker.height}>
+          <Slot
+            variant="kicker"
+            alignX="start"
+            top={HEADER_SLOTS.badge.top}
+            height={HEADER_SLOTS.badge.height}
+            left={HEADER_SLOTS.badge.left}
+            right={CANVAS.width - (HEADER_SLOTS.badge.left + HEADER_SLOTS.badge.width)}
+          >
             <StampIn delay={0.2} duration={0.4}>
-              <TextGate sceneId={sceneId} slotId="hook.hero-center.badge">
-                {(fontSize) => <BadgePill text={txt.badge as string} fontSize={fontSize} />}
+              <TextGate
+                sceneId={sceneId}
+                slotId="hook.hero-center.badge"
+                slotWidth={HEADER_SLOTS.badge.width}
+                fitWidth={HEADER_SLOTS.badge.textWidth}
+              >
+                {(fontSize) => (
+                  <BadgePill
+                    text={txt.badge as string}
+                    fontSize={fontSize}
+                    collisionId="header.badge"
+                  />
+                )}
               </TextGate>
             </StampIn>
           </Slot>
