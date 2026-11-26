@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.116.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.115.2...tanstack_start_ts-v1.116.0) (2026-11-26)
+
+
+### Features
+
+* **short-video:** fail-closed audio policy gate ([#1555](https://github.com/0xPabloLI/inside-china-ai/issues/1555)) ([#1556](https://github.com/0xPabloLI/inside-china-ai/issues/1556)) ([f645e2d](https://github.com/0xPabloLI/inside-china-ai/commit/f645e2d6fe65da5c4d39103a6db6cec63d432f23))
+
 ## [1.115.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.115.1...tanstack_start_ts-v1.115.2) (2026-11-26)
 
 
