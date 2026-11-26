@@ -9,7 +9,7 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-11-26（**Round CCL：`#1524`+`#1525` 联合最终合成收口**——两条旧片各一次渲染完成两票验收：scene 4 改 media-first（全画幅 `contain` + 同源 blur，文案压两行）、原声窗口 5.2/5.4 s（`volume 1`、duck 0.55）叠全片 BGM 床；CapCut scene 2 补 `CHINA · BEIJING`、RunningHub scene 3 加报名网格背景（媒体覆盖 50%→66%）。`#1555` 同轮落地 fail-closed 音频门禁（`meta.audio.mode`：`bed` 缺 `--bgm` 直接拒绝渲染）。产品验证门：**有产出差异**。PR #PRNUM。frontier：1A/1B/②③④ 空；A 段队首 `#1528`，其后 `#1537`；`#1551` 未分流（Inbox）。）
+> **Last inventory**: 2026-11-26（**Round CCL：`#1524`+`#1525` 联合最终合成收口**——两条旧片各一次渲染完成两票验收：scene 4 改 media-first（全画幅 `contain` + 同源 blur，文案压两行）、原声窗口 5.2/5.4 s（`volume 1`、duck 0.55）叠全片 BGM 床；CapCut scene 2 补 `CHINA · BEIJING`、RunningHub scene 3 加报名网格背景（媒体覆盖 50%→66%）。`#1555` 同轮落地 fail-closed 音频门禁（`meta.audio.mode`：`bed` 缺 `--bgm` 直接拒绝渲染）。产品验证门：**有产出差异**。PR #1558。frontier：1A/1B/②③④ 空；A 段队首 `#1528`，其后 `#1537`；`#1551` 未分流（Inbox）。）
 > **2026-11-09 HITL 裁决**：③ 段 `#738`/`#734`/`#735`/`#739`/`#747` 转 `ready-for-agent`，`#1160`/`#733` 转 `dormant`；② `#320` 已交付闭票（PR #1203，squash `5ffedbc6`）、`#434` 已核查闭票（评论 `6740307743`），② 段清空；`#734` 已于 Round CLXIV 交付闭票（PR #1207，squash `905a2a77`）、`#735` 已于 Round CLXV 交付闭票（PR #1211，squash `00d6bbd6`）、`#739` 已于 Round CLXVI 交付闭票（PR #1216，squash `b0c8a030`）、`#738` 已于 Round CLXVII 交付闭票（PR #1220，squash `cb69029e`）、`#747` 已于 Round CLXVIII 交付闭票（PR #1223，squash `023e7eaa`），③ 段 5 张全部清空；其延后的「新逐词强调手法」按同一裁决另立 **#1224**（won't fix）并换入继任票 **#1228**（2026-11-11 拍板 68px，转 `ready-for-agent`，归 ④ 段）；现行 frontier 见 Step 4。
 > **frontier（三轨制，默认跨轨单入口瀑布见 `### Execution Semantics`）**：
 >
