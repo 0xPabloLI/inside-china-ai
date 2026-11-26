@@ -2093,6 +2093,12 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   const liveStopWaitMs = positiveIntEnv("TTS_KAGGLE_LIVE_STOP_WAIT_MS", 90000);
   /** @type {null | {kernelId:string, requestId:string, control:object, stream:object, tempDir:string, nextBatch:number}} */
   let liveSession = null;
+  /**
+   * #1528 batch mode: a driver serving several videos sets `reuseLiveSession`
+   * before each pack after the first, so a different `outputDir` (different
+   * content id) still rides the warm kernel instead of pushing a new one.
+   */
+  const batchFlags = { reuseLiveSession: false };
 
   /**
    * Verify + promote a staged batch (live stream or classic download).
@@ -2174,6 +2180,17 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
     const nextBatch = session.nextBatch;
     const speeds = {};
     for (const s of scenes) speeds[String(s.id)] = resolveSceneSpeed(s);
+    // #1528: scenes from another pack are not in batch 1's manifest, so the
+    // retry command carries their text (and instruct) directly. For the pack
+    // that owns the manifest these overrides are identical to the table's
+    // entry — the kernel prefers the payload either way.
+    const texts = {};
+    const instructs = {};
+    for (const s of scenes) {
+      texts[String(s.id)] = s.ttsText || engineTtsText(s.voiceover || "");
+      const instruct = resolveInstructForScene(s);
+      if (instruct) instructs[String(s.id)] = instruct;
+    }
     console.log(
       `  ♻️ [TTS Live] Reusing kernel ${session.kernelId} for batch ${nextBatch} ` +
         `(${scenes.length} scene(s)) — no cold push`,
@@ -2186,6 +2203,8 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         action: "retry",
         sceneIds: scenes.map((s) => s.id),
         speeds,
+        texts,
+        instructs,
       });
       const batch = await session.stream.waitForBatch(nextBatch, liveRetryTimeoutMs);
       const liveDir = join(session.tempDir, "live", `batch-${nextBatch}`);
@@ -2279,6 +2298,17 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       await closeLiveSession();
     },
 
+    /**
+     * #1528: batch driver switch. `reuseLiveSession` makes the next generate()
+     * ride the open kernel from a different pack; `false` restores the
+     * per-pack kernel identity rule.
+     */
+    setBatchMode(mode = {}) {
+      if (typeof mode.reuseLiveSession === "boolean") {
+        batchFlags.reuseLiveSession = mode.reuseLiveSession;
+      }
+    },
+
     async generate(scenes, outputDir, hooks = {}) {
       // Kernel slug resolved per call (#267): env override > content-id
       // derivation (output/<pipelineId>/audio) > fail-fast. Never a shared
@@ -2292,7 +2322,9 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // A retry hands the engine a staging dir under the same audio dir, so
       // `deriveContentIdFromOutputDir` strips the staging segment and lands on
       // the SAME kernelId — that identity is the live-session key (#1515).
-      if (liveSession && liveSession.kernelId === kernelId) {
+      // #1528: a batch driver reuses the warm session across videos even though
+      // each pack has its own content id / outputDir.
+      if (liveSession && (liveSession.kernelId === kernelId || batchFlags.reuseLiveSession)) {
         return generateLiveRetry(scenes, outputDir, hooks);
       }
 

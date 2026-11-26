@@ -223,6 +223,8 @@ export async function selectEngine() {
  * @param {object} [options]
  * @param {boolean} [options.useCache=true] - reuse cached scene audio
  * @param {boolean} [options.runAlignment=true] - run forced alignment after TTS
+ * @param {boolean} [options.keepLiveSession=false] - #1528: leave the engine's
+ *   live kernel open for a following video (batch driver owns the teardown)
  * @returns {Promise<TTSResult[]>}
  */
 export async function generateTTS(scenes, outputDir, options = {}) {
@@ -1675,10 +1677,14 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       // engine for another take (gate retry / pacing ladder / local fallback
       // all run above). Once it exits — green, hard block or error — the live
       // kernel must stop instead of idling out its timeout and burning quota.
-      try {
-        await engine.endLiveSession?.();
-      } catch (err) {
-        console.warn(`  ⚠️ [TTS Live] session close failed: ${err.message}`);
+      // #1528: a batch driver serving several videos keeps it open instead and
+      // owns the teardown after the last pack.
+      if (!options.keepLiveSession) {
+        try {
+          await engine.endLiveSession?.();
+        } catch (err) {
+          console.warn(`  ⚠️ [TTS Live] session close failed: ${err.message}`);
+        }
       }
     }
   }
@@ -1709,10 +1715,12 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       });
     }
     // A skip-gate run never retries, so a live kernel would idle for nothing.
-    try {
-      await engine.endLiveSession?.();
-    } catch (err) {
-      console.warn(`  ⚠️ [TTS Live] session close failed: ${err.message}`);
+    if (!options.keepLiveSession) {
+      try {
+        await engine.endLiveSession?.();
+      } catch (err) {
+        console.warn(`  ⚠️ [TTS Live] session close failed: ${err.message}`);
+      }
     }
   }
 

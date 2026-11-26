@@ -43,6 +43,7 @@ function makeLiveHarness({ tamper = false } = {}) {
   const closes = [];
   let batch1 = null;
   let retryScenes = null;
+  let requestIdCache = null;
 
   const control = {
     url: "https://gist.example/raw/control.json",
@@ -68,7 +69,7 @@ function makeLiveHarness({ tamper = false } = {}) {
 
   const materialize = async ({ batch, dir }) => {
     const outDir = dirname(dirname(dirname(dir)));
-    const requestId = requestIdFrom(outDir);
+    const requestId = (requestIdCache ??= requestIdFrom(outDir));
     const scenes = batch.batch === 1 ? SCENES : retryScenes;
     mkdirSync(join(dir, "output"), { recursive: true });
     for (const s of scenes) {
@@ -163,6 +164,59 @@ describe("live session — retry reuses the warm kernel", () => {
     // The stop patch is awaited; follower/gist cleanup runs in the background.
     await new Promise((r) => setTimeout(r, 10));
     expect(harness.stops.length).toBeGreaterThan(0);
+  });
+
+  it("#1528: serves a second pack's batch on the warm kernel instead of pushing again", async () => {
+    process.env.COSYVOICE3_KAGGLE_USER = "test-kaggle-user";
+    process.env.COSYVOICE3_KAGGLE_SLUG = "test-live-session";
+    const outDirA = join(tmpdir(), `tts-batch-a-${process.pid}-${Date.now()}`);
+    const outDirB = join(tmpdir(), `tts-batch-b-${process.pid}-${Date.now()}`);
+    mkdirSync(outDirA, { recursive: true });
+    mkdirSync(outDirB, { recursive: true });
+    writeFileSync(join(outDirA, "ref.wav"), wavBytes("ref"));
+    const harness = makeLiveHarness();
+    const engine = await createCosyVoice3KaggleCudaEngine({
+      refAudioPath: join(outDirA, "ref.wav"),
+      live: true,
+      exec: async (cmd) => {
+        harness.commands.push(cmd);
+        return { stdout: "" };
+      },
+      preflight: async () => ({
+        waitedMs: 0,
+        target: { phase: "unknown", listed: false },
+        holders: [],
+        probes: [],
+        listOk: true,
+        listError: null,
+      }),
+      poll: async () => ({ queuedMs: 0, runningMs: 0 }),
+      controlChannel: async () => harness.control,
+      logStream: () => harness.stream,
+      materializeLiveBatch: harness.materialize,
+      postProcess: async () => ({ duration: 3.0 }),
+    });
+
+    await engine.generate(SCENES, outDirA);
+    expect(harness.commands.filter((c) => c.includes("kaggle kernels push"))).toHaveLength(1);
+
+    // Pack B: same scene ids, different text — the payload must override the
+    // table instead of replaying pack A's script.
+    const packB = [
+      { id: 1, voiceover: "A completely different hook from the second pack." },
+      { id: 2, voiceover: "Second pack body copy that is not in batch 1." },
+    ];
+    harness.setRetryScenes(packB);
+    engine.setBatchMode({ reuseLiveSession: true });
+    const stagingB = join(outDirB, `.regen-staging-${process.pid}-9`);
+    const results = await engine.generate(packB, stagingB);
+
+    expect(results.map((r) => r.sceneId)).toEqual([1, 2]);
+    expect(harness.commands.filter((c) => c.includes("kaggle kernels push"))).toHaveLength(1);
+    const command = harness.updates.at(-1);
+    expect(command).toMatchObject({ action: "retry", batch: 1, sceneIds: [1, 2] });
+    expect(command.texts["1"]).toContain("completely different hook");
+    expect(command.texts["2"]).toContain("not in batch 1");
   });
 
   it("fails closed when the retry take is truncated — no promotion into audio", async () => {

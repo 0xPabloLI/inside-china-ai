@@ -1076,3 +1076,8 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 
 - **Round CCL 盘点全段（原文）**：2026-11-26（**Round CCL：`#1524`+`#1525` 联合最终合成收口**——两条旧片各一次渲染完成两票验收：scene 4 改 media-first（全画幅 `contain` + 同源 blur，文案压两行）、原声窗口 5.2/5.4 s（`volume 1`、duck 0.55）叠全片 BGM 床；CapCut scene 2 补 `CHINA · BEIJING`、RunningHub scene 3 加报名网格背景（媒体覆盖 50%→66%）。`#1555` 同轮落地 fail-closed 音频门禁（`meta.audio.mode`：`bed` 缺 `--bgm` 直接拒绝渲染）。产品验证门：**有产出差异**。PR #1558。frontier：1A/1B/②③④ 空；A 段队首 `#1528`，其后 `#1537`；`#1551` 未分流（Inbox）。）
 - **Round CCXLVII 一句话档案（原文）**：**Round CCXLVII**（`#1525` 音频核心交付：`audioIn/audioOut` + fade + `duckUnderNarration`（默认 0.25），真片窗口外 −91 dB、窗口内 −15.6 dB、旁白在场 −27.6 dB；PR #1533，squash `abcf7972`；票保持 open 等联合合成；**无产出差异**）
+
+## Round CCLII 下沉（2026-11-26）
+
+- **Round CCLI 盘点全段（原文）**：> **Last inventory**: 2026-11-26（**Round CCLI：`#1528` TTS 调度 verify 轮（无代码）**——八项 verify 逐条落证：单 kernel 多视频已在验收驱动里跑通（2 包 4 scene 一次冷 push、4 条 wav 不串）、模型复用与单 scene 重试由 `#1515` 实测成立（63.9–71.5 s/批）、`render-only` 在剥离根缓存的隔离树通过 Gate 1 与 Step 3.5。新找出的缺口：生产侧无跨视频 manifest、`tts-only` 不 materialize run、lane 无账本。产品验证门：**无产出差异**（纯取证）。frontier：1A/1B/②③④ 空；A 段队首仍 `#1528`（verify 已落，下一轮 R1 本地可验）；其后 `#1537`；`#1551` 未分流。）
+- **Round CCXLVIII 一句话档案（原文）**：**Round CCXLVIII**（`#1531` run 目录自包含：sidecar + timing 对随 run materialize，全 cache-hit run 7/7 免手工补文件通过 Step 4.5、53.7 s 出片；**无产出差异**；1A/1B/②③④ 空）

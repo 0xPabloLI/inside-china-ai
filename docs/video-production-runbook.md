@@ -1032,6 +1032,7 @@ scripts/short-video/
 ├── replay-render.mjs       # Replay one recorded render from its manifest (no TTS/alignment/gates)
 ├── still-frame.mjs         # One-frame still through the same props/manifest contract (--content/--frame)
 ├── tts-only.mjs             # TTS-only driver (Step 0.5/0.6: voice gen + alignment + gate) — no render
+├── tts-batch.mjs            # Multi-pack TTS on one warm Kaggle kernel (--content ... ×N, #1528)
 ├── generate-broll.mjs      # Standalone B-roll generation entrypoint (--help)
 ├── verify-subtitles.mjs    # CLI wrapper — subtitle verification
 ├── text-align.py           # wav2vec2 forced alignment (known text → audio)
@@ -1117,6 +1118,18 @@ node scripts/short-video/render-only.mjs --content restraint/pt1
 node scripts/short-video/tts-only.mjs --content deepseek
 # equivalent npm script:
 npm run video:tts -- --content deepseek
+
+# TTS 提前做、渲染后置（#1528）：--run 建一个自包含 run（音频 + sidecar +
+# subtitle-timing 对 + currency-rates.json），之后可在任意机器只渲染。
+# run 停在 status=running（未出片，不移动 latest），渲染时显式 --run。
+node scripts/short-video/tts-only.mjs --content deepseek --run
+node scripts/short-video/render-only.mjs --content deepseek --run <runId>
+
+# 多条视频共用一次内核（#1528）：一个 Kaggle 会话里逐包跑完整 TTS 流程
+# （缓存规划/门禁/节奏阶梯/对齐/落 run 都在原地），第 2 条起作为同一内核的
+# 后续 batch，跨包 scene 的文本随控制通道下发；单条失败只标记该 run，
+# 不拖住其它包；内核空闲上限在批模式下抬到 1800s，收尾由驱动负责。
+node scripts/short-video/tts-batch.mjs --content a --content b --content c
 
 # Debug re-render tools — accept --content like main.mjs (bare runs default to
 # deepseek-v41-flash; an unknown dir fails fast with the available list)
