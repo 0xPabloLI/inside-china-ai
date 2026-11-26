@@ -16,7 +16,7 @@ import { findBoxCollisions } from "./collision-geometry.mjs";
 /** @typedef {{ x: number, y: number, width: number, height: number }} Box */
 
 /** Convert a left/top slot box to the geometry module's x/y shape. */
-export function slotBoxOf(slot) {
+function slotBoxOf(slot) {
   return { x: slot.left, y: slot.top, width: slot.width, height: slot.height };
 }
 
@@ -26,7 +26,7 @@ export function slotBoxOf(slot) {
  * @param {{ hasBadge?: boolean, showBrand?: boolean }} [opts]
  * @returns {Array<{ id: string, box: Box }>}
  */
-export function headerBoxes({ hasBadge = false, showBrand = true } = {}) {
+function headerBoxes({ hasBadge = false, showBrand = true } = {}) {
   const boxes = [{ id: "header.briefing", box: slotBoxOf(HEADER_SLOTS.briefing) }];
   if (hasBadge) {
     // The badge owns the left slot: the lockup is not drawn (mutual exclusion).

@@ -3214,7 +3214,7 @@ export function checkMediaCopyDensity(scenes, { meta } = {}) {
  * It also encodes the occupancy rule: a hook that declares a badge yields the
  * brand lockup, so brand∩badge is not a defect — badge∩briefing is.
  */
-export function checkHeaderSlots(scenes) {
+function checkHeaderSlots(scenes) {
   const CHECK = "Header slot contract";
   const CATEGORY = "Layout";
   const rows = [];

@@ -58,7 +58,7 @@ export function boxesIntersect(a, b) {
  * @param {Box} b
  * @returns {{ width: number, height: number }}
  */
-export function overlapOf(a, b) {
+function overlapOf(a, b) {
   return {
     width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)),
     height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)),
