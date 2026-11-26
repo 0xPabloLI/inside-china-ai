@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.119.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.118.0...tanstack_start_ts-v1.119.0) (2026-11-26)
+
+
+### Features
+
+* **short-video:** [#1562](https://github.com/0xPabloLI/inside-china-ai/issues/1562) 成片通知三态 review/auto/off + --approve 补推 ([#1569](https://github.com/0xPabloLI/inside-china-ai/issues/1569)) ([1393d46](https://github.com/0xPabloLI/inside-china-ai/commit/1393d4636c1cd571c3fbb653bf25082a306bf825))
+
 ## [1.118.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.117.0...tanstack_start_ts-v1.118.0) (2026-11-26)
 
 
