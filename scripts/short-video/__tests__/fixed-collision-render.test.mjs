@@ -17,6 +17,40 @@ const GATE_TIMEOUT = 300_000;
 const ENTRY = "src/collision-gate-fixture.tsx";
 const COMPOSITION = "CollisionGateFixture";
 
+/**
+ * Pull the first balanced JSON object after the marker.
+ *
+ * Remotion mirrors the error onto stderr, so the same message can appear twice
+ * on one line; a greedy `.*` then swallows the second copy and JSON.parse fails
+ * at its first byte. Walk braces instead of trusting a regex to stop.
+ */
+function extractPayload(text) {
+  const marker = "[FixedCollisionError] ";
+  const start = text.indexOf(marker);
+  if (start < 0) return null;
+  const open = text.indexOf("{", start + marker.length);
+  if (open < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = open; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return JSON.parse(text.slice(open, i + 1));
+    }
+  }
+  return null;
+}
+
 async function renderFixture(props, frame = 45) {
   const out = join(mkdtempSync(join(tmpdir(), "t1561-gate-")), "still.png");
   try {
@@ -31,8 +65,7 @@ async function renderFixture(props, frame = 45) {
     return { ok: true, payload: null };
   } catch (err) {
     const text = `${err.stdout ?? ""}${err.stderr ?? ""}${err.message ?? ""}`;
-    const match = /\[FixedCollisionError\] (\{.*\})/.exec(text);
-    return { ok: false, payload: match ? JSON.parse(match[1]) : null, raw: text };
+    return { ok: false, payload: extractPayload(text), raw: text };
   }
 }
 
