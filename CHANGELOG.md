@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.114.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.113.0...tanstack_start_ts-v1.114.0) (2026-11-26)
+
+
+### Features
+
+* **short-video:** select the TikTok upload file through macOS NSOpenPanel ([#1453](https://github.com/0xPabloLI/inside-china-ai/issues/1453)) ([5bbf27d](https://github.com/0xPabloLI/inside-china-ai/commit/5bbf27d5a9156d885e9f250c20d7183a8c2149aa))
+
+
+### Bug Fixes
+
+* **security:** place the urllib suppression on its own line ([903520e](https://github.com/0xPabloLI/inside-china-ai/commit/903520eebcd3ca854bd74ee5ab393c4fcea796d5))
+* **security:** remove hardcoded HMAC key and gate the cache URL ([dbc330d](https://github.com/0xPabloLI/inside-china-ai/commit/dbc330d335b86a920d9dea22cc466836196f3e1a))
+
 ## [1.113.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.112.1...tanstack_start_ts-v1.113.0) (2026-11-25)
 
 
