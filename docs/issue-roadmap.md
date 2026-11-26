@@ -9,7 +9,7 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-11-26（**Round CCXLVIII：`#1531` run 目录自包含交付**——TTS sidecar + `subtitle-timing.json`/`.meta.json` 随 run materialize（sidecar 的 `audioPath` 重绑到 run 副本）；真实全 cache-hit run `r-20261126T023059-70d11d` 7/7 免手工补文件通过 Step 4.5、53.7 s 出片，`render-only --run` 复渲同 run PASS；本机存量 44 个 run 目录 37 个缺 timing 对。证据 issue 评论。产品验证门：**无产出差异**（成片像素不变，解除的是「靠手工补文件才出片」）。PR 见本轮交付评论。frontier：1A 空、1B 空（`#1531` 闭票后清空）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ②④⑥ dormant；新分流 `#1528`/`#1530`/`#1537` 入 Tier 2/3，A 段队首 `#1524`→`#1525` 待联合最终合成。）
+> **Last inventory**: 2026-11-26（**Round CCXLVIII：`#1531` run 目录自包含交付**——TTS sidecar + `subtitle-timing.json`/`.meta.json` 随 run materialize（sidecar 的 `audioPath` 重绑到 run 副本）；真实全 cache-hit run `r-20261126T023059-70d11d` 7/7 免手工补文件通过 Step 4.5、53.7 s 出片，`render-only --run` 复渲同 run PASS；本机存量 44 个 run 目录 37 个缺 timing 对。证据 issue 评论。产品验证门：**无产出差异**（画面模板 / 字幕排版 / 混音与 TTS 引擎选择均未动，只改 TTS→run 的文件交接）。PR #1550（squash 见合并提交）。frontier：1A 空、1B 空（`#1531` 闭票后清空）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ②④⑥ dormant；新分流 `#1528`/`#1530`/`#1537` 入 Tier 2/3，A 段队首 `#1524`→`#1525` 待联合最终合成。）
 > **2026-11-09 HITL 裁决**：③ 段 `#738`/`#734`/`#735`/`#739`/`#747` 转 `ready-for-agent`，`#1160`/`#733` 转 `dormant`；② `#320` 已交付闭票（PR #1203，squash `5ffedbc6`）、`#434` 已核查闭票（评论 `6740307743`），② 段清空；`#734` 已于 Round CLXIV 交付闭票（PR #1207，squash `905a2a77`）、`#735` 已于 Round CLXV 交付闭票（PR #1211，squash `00d6bbd6`）、`#739` 已于 Round CLXVI 交付闭票（PR #1216，squash `b0c8a030`）、`#738` 已于 Round CLXVII 交付闭票（PR #1220，squash `cb69029e`）、`#747` 已于 Round CLXVIII 交付闭票（PR #1223，squash `023e7eaa`），③ 段 5 张全部清空；其延后的「新逐词强调手法」按同一裁决另立 **#1224**（won't fix）并换入继任票 **#1228**（2026-11-11 拍板 68px，转 `ready-for-agent`，归 ④ 段）；现行 frontier 见 Step 4。
 > **frontier（三轨制，默认跨轨单入口瀑布见 `### Execution Semantics`）**：
 >
