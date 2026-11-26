@@ -44,7 +44,7 @@ import { ChartPanel, ChartRenderer } from "../components/charts";
 import { Camera } from "../components/Camera";
 import { TextGate } from "../components/text-gate";
 import { hookSubjectTextWidth } from "../../../lib/text-slots.mjs";
-import { MEDIA_LED, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
+import { HEADER_SLOTS, MEDIA_LED, SAFE_ZONES } from "../../../lib/safe-zones.mjs";
 
 /** Content-box width of the contain media band (SAFE_ZONES left/right). */
 const MEDIA_LED_BAND_WIDTH = CANVAS.width - SAFE_ZONES.left - SAFE_ZONES.right; // 820
@@ -138,14 +138,32 @@ export const HookMediaLed: React.FC<{
             </>
           ))
         )}
-        <BrandBar />
+        <BrandBar showBrand={!txt.badge} />
 
         {/* Kicker — badge pill in its own row ABOVE the picture. */}
         {txt.badge && (
-          <Slot variant="kicker" top={MEDIA_LED.kicker.top} height={MEDIA_LED.kicker.height}>
+          <Slot
+            variant="kicker"
+            alignX="start"
+            top={HEADER_SLOTS.badge.top}
+            height={HEADER_SLOTS.badge.height}
+            left={HEADER_SLOTS.badge.left}
+            right={CANVAS.width - (HEADER_SLOTS.badge.left + HEADER_SLOTS.badge.width)}
+          >
             <StampIn delay={0.2} duration={0.4}>
-              <TextGate sceneId={sceneId} slotId="hook.media-led.badge">
-                {(fontSize) => <BadgePill text={txt.badge as string} fontSize={fontSize} />}
+              <TextGate
+                sceneId={sceneId}
+                slotId="hook.media-led.badge"
+                slotWidth={HEADER_SLOTS.badge.width}
+                fitWidth={HEADER_SLOTS.badge.textWidth}
+              >
+                {(fontSize) => (
+                  <BadgePill
+                    text={txt.badge as string}
+                    fontSize={fontSize}
+                    collisionId="header.badge"
+                  />
+                )}
               </TextGate>
             </StampIn>
           </Slot>

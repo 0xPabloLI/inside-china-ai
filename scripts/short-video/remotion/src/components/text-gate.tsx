@@ -470,6 +470,13 @@ export type TextGateProps = {
   settledFrame?: number;
   /** Slot content-box width. Default: the contract's measured maxWidth. */
   slotWidth?: number;
+  /**
+   * Width the TEXT ink must fit, when it differs from the slot box because
+   * fixed chrome (a pill's padding + dot) sits outside the text. Fit solves
+   * against this; the container assert still judges the full slot box.
+   * Default: the slot content box.
+   */
+  fitWidth?: number;
   /** Force annotation-mount waiting even when the contract says "none". */
   expectAnnotation?: boolean;
   /**
@@ -495,6 +502,7 @@ export const TextGate: React.FC<TextGateProps> = ({
   extraFontsReady,
   settledFrame,
   slotWidth,
+  fitWidth,
   expectAnnotation,
   checkContainer = true,
   children,
@@ -628,7 +636,7 @@ export const TextGate: React.FC<TextGateProps> = ({
           seed = minContainerSeed(
             predictGateSeeds({
               textEl,
-              maxWidth: contentLocal.width,
+              maxWidth: fitWidth ?? contentLocal.width,
               preferredSize: slot.preferredSize,
               maxLines: slot.maxLines ?? 2,
             }),
@@ -651,7 +659,8 @@ export const TextGate: React.FC<TextGateProps> = ({
         const inflated = inflate(textExtentLocal(gate), ink);
         lastInk = ink;
         lastBox = inflated;
-        if (boxWithin(inflated, contentLocal, EPS)) {
+        const textFits = fitWidth == null || inflated.width <= fitWidth + EPS;
+        if (textFits && boxWithin(inflated, contentLocal, EPS)) {
           chosen = size;
           break;
         }
@@ -928,6 +937,13 @@ export const TextGate: React.FC<TextGateProps> = ({
       ref={gateRef}
       data-text-slot={slotId}
       data-text-field={field}
+      // FixedCollisionAssert must not measure before Fit has committed: the
+      // pre-fit candidate can be wider than the final slot (the badge renders
+      // at preferred 40 until its walk lands on the fitting size). `ready`
+      // flips only after the fit ladder resolves, so it is the honest
+      // "geometry is final" flag for scene-level gates.
+      data-text-ready={ready ? "1" : "0"}
+      data-text-font-size={fontSize}
       // display:block + auto margins: a full-width inline-block under
       // textAlign:center shifts right by half the parent's slack and
       // overflows its container (seen on quote.hero-center.verified).

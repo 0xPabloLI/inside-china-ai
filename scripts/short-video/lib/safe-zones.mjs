@@ -460,6 +460,66 @@ export const MEDIA_LED = Object.freeze({
   numberSize: 110,
 });
 
+/**
+ * Header mutual-exclusion slots (#1561).
+ *
+ * The top band carries three fixed elements that used to be drawn independently
+ * and could therefore cover each other: the BrandBar lockup (channel identity),
+ * the per-scene kicker badge pill, and the right-aligned BRIEFING chip. In the
+ * ABot-World 0.5 hook the red badge pill started at x = SAFE_ZONES.left and ran
+ * under BOTH the wordmark and the chip.
+ *
+ * The rule now: `brand` and `badge` are the SAME left slot, mutually exclusive
+ * (a scene that declares a badge yields the brand lockup for that scene —
+ * `BrandBar showBrand={!badge}`), while `briefing` keeps a reserved right box
+ * and the badge box stops a 16px gap before it. The badge is gated to this box
+ * (663px), so a long kicker shrinks inside it instead of growing into the chip.
+ *
+ * Boxes are measured in real Chrome (Times stack) on 2026-11-26:
+ *   - the lockup plate (48px mark + wordmark + padding) is 313.7 × 60;
+ *   - the BRIEFING chip is 140.9 × 35, centred on the 60px lockup.
+ * `badge` is the hook kicker band from MEDIA_LED — both hook layouts draw their
+ * badge there, so the slot is shared rather than duplicated per template.
+ * Runtime reality is policed by `FixedCollisionAssert`; this table is the
+ * declared contract and is test-locked in __tests__/header-slots.test.mjs.
+ */
+const HEADER_RIGHT = CANVAS.width - SAFE_ZONES.right; // 880
+const HEADER_BRIEFING_WIDTH = 141;
+export const HEADER_SLOTS = Object.freeze({
+  left: SAFE_ZONES.left,
+  right: HEADER_RIGHT,
+  /** Gap every header neighbour pair must keep. */
+  gap: 16,
+  brand: Object.freeze({
+    left: SAFE_ZONES.left,
+    top: BRAND_BAR.top,
+    width: 314,
+    height: 60,
+  }),
+  briefing: Object.freeze({
+    left: HEADER_RIGHT - HEADER_BRIEFING_WIDTH,
+    // (60px lockup − 35px chip) / 2, centred on the brand plate.
+    top: BRAND_BAR.top + 12.5,
+    width: HEADER_BRIEFING_WIDTH,
+    height: 35,
+  }),
+  badge: Object.freeze({
+    left: SAFE_ZONES.left,
+    top: MEDIA_LED.kicker.top,
+    height: MEDIA_LED.kicker.height,
+    // left slot minus the reserved right box and the mandatory gap.
+    width: HEADER_RIGHT - SAFE_ZONES.left - HEADER_BRIEFING_WIDTH - 16,
+    right: HEADER_RIGHT - HEADER_BRIEFING_WIDTH - 16,
+    // The pill's horizontal chrome is OUTSIDE the text the TextGate fits:
+    // 48px padding × 2 + 12px dot + 10px gap. Fit solves the text against
+    // `textWidth`, and the padded pill then lands exactly inside `width`.
+    // Without this split the gate's 663px content box let the 685px pill
+    // overflow into the BRIEFING chip by 6px (observed on the ABot hook).
+    chromeWidth: 118,
+    textWidth: HEADER_RIGHT - SAFE_ZONES.left - HEADER_BRIEFING_WIDTH - 16 - 118,
+  }),
+});
+
 /** Channel watermark position (top-left corner, outside the content band). */
 export const WATERMARK_POS = { top: 60, left: 60 };
 

@@ -96,6 +96,7 @@ import {
   resolveMediaPlan,
 } from "./media-strategies.mjs";
 import { checkHookMediaQuality } from "./hook-media.mjs";
+import { headerCollisionIssues } from "./header-slots.mjs";
 import { checkInfoSpec } from "./info-grammar.mjs";
 import { checkChartPinContract } from "./chart-pin-contract.mjs";
 import { auditNarrativeArc } from "./narrative.mjs";
@@ -3203,6 +3204,50 @@ export function checkMediaCopyDensity(scenes, { meta } = {}) {
   return results;
 }
 
+/**
+ * Header slot contract (#1561): the fixed top elements (BrandBar lockup,
+ * BRIEFING chip, hook kicker badge) must not intersect. The render-time
+ * `FixedCollisionAssert` judges the measured DOM; this cheap preflight run on
+ * the DECLARED boxes catches a constants edit before a frame is rendered (and
+ * before anyone wonders why a 30-minute render died).
+ *
+ * It also encodes the occupancy rule: a hook that declares a badge yields the
+ * brand lockup, so brand∩badge is not a defect — badge∩briefing is.
+ */
+export function checkHeaderSlots(scenes) {
+  const CHECK = "Header slot contract";
+  const CATEGORY = "Layout";
+  const rows = [];
+  const describe = (issue) =>
+    `${issue.a} ∩ ${issue.b} at (${issue.aBox.x}, ${issue.aBox.y}) ${issue.aBox.width}×${issue.aBox.height} vs (${issue.bBox.x}, ${issue.bBox.y}) ${issue.bBox.width}×${issue.bBox.height}`;
+
+  const baseIssues = headerCollisionIssues({ hasBadge: false });
+  for (const issue of baseIssues) {
+    rows.push({
+      level: "fail",
+      category: CATEGORY,
+      check: CHECK,
+      detail: `Declared header boxes overlap: ${describe(issue)}`,
+      fix: "Adjust HEADER_SLOTS in lib/safe-zones.mjs so brand and briefing keep the 16px gap; hook badge boxes derive from the same table",
+    });
+  }
+
+  for (const scene of scenes || []) {
+    if (scene?.visualType !== "hook" || !scene?.texts?.badge) continue;
+    const issues = headerCollisionIssues({ hasBadge: true });
+    for (const issue of issues) {
+      rows.push({
+        level: "fail",
+        category: CATEGORY,
+        check: CHECK,
+        detail: `Scene ${scene.id}: declared header boxes overlap: ${describe(issue)}`,
+        fix: "The kicker badge slot must stop 16px before the BRIEFING chip — adjust HEADER_SLOTS.badge, never the chip's reserved width",
+      });
+    }
+  }
+  return rows;
+}
+
 export function checkContainFitBand(scenes) {
   const CHECK = "contain fit has a band";
   const CATEGORY = "Media";
@@ -3811,6 +3856,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkLayoutMediaRouting(scenes),
     ...checkMediaRoleContract(scenes),
     ...checkContainFitBand(scenes),
+    ...checkHeaderSlots(scenes),
     ...checkEmptyField(scenes, opts),
     ...checkFocusLight(scenes),
     ...checkBrollPromptDimensions(scenes),

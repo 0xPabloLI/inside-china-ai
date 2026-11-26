@@ -26,6 +26,7 @@ export const FullscreenMedia: React.FC<{
         // label — an absolutely-positioned child would escape the flow and
         // leave the wrapper height 0, which Fit rejects).
         <div
+          data-collision-box="footer.source"
           style={{
             position: "absolute",
             bottom: SAFE_ZONES.bottom,
