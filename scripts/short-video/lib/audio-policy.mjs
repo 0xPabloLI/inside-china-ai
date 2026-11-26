@@ -51,7 +51,7 @@ export function renderAudioPolicyViolation({ meta, useBgm }) {
   if (mode === "bed" && !useBgm) {
     return (
       'meta.audio.mode is "bed" but this render has no --bgm: the film would ship with narration ' +
-      "only. Pass --bgm, or declare meta.audio.mode = \"voice-only\" with the reason recorded in the " +
+      'only. Pass --bgm, or declare meta.audio.mode = "voice-only" with the reason recorded in the ' +
       "ticket."
     );
   }
