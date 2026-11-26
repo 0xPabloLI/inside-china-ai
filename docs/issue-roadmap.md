@@ -9,7 +9,7 @@
 
 ## 当前状态
 
-> **Last inventory**: 2026-11-26（**Round CCLII：`#1528` R1+R2 交付**——`tts-only --run` 直接产自包含 run（音频 + sidecar + timing 对 + rates，status=running 不移动 latest）；`tts-batch` 用**一次 Kaggle push** 服务 4 包/8 scene：254.9 + 84.9 + 55.8 + 63.1 = 458.7 s，门禁 100% 通过，收尾 stop→COMPLETE；跨包 batch 的文本随控制命令走（内核 `_table` 覆盖 + `engine.setBatchMode` + registry `keepLiveSession`）。复核补丁：汇率 report 24h 复用（main/tts-only 统一缓存 key）、`tts-batch` 拆库 7 例、3-scene 兜底 + R1 Step 3.5 真机补证。产品验证门：**无产出差异**（播放/版式/音频口径未变）。R3 lane 账本未做，票保持 open。frontier：1A/1B/②③④ 空；A 段队首 `#1528`（余 R3）；其后 `#1537`；`#1551` 未分流。）
+> **Last inventory**: 2026-11-26（**Round CCLII：`#1528` R1+R2 交付**——`tts-only --run` 直接产自包含 run（音频 + sidecar + timing 对 + rates，status=running 不移动 latest）；`tts-batch` 用**一次 Kaggle push** 服务 4 包/8 scene：254.9 + 84.9 + 55.8 + 63.1 = 458.7 s，门禁 100% 通过，收尾 stop→COMPLETE；跨包 batch 的文本随控制命令走（内核 `_table` 覆盖 + `engine.setBatchMode` + registry `keepLiveSession`）。复核补丁：汇率 report 24h 复用（main/tts-only 统一缓存 key）、`tts-batch` 拆库 7 例、3-scene 兜底 + R1 Step 3.5 真机补证。产品验证门：**无产出差异**（播放/版式/音频口径未变）。R3 已拆 `#1566`，票保持 open。frontier：1A/1B/②③④ 空；A 段队首 `#1528`（余 R3）；其后 `#1537`；`#1551` 未分流。）
 > **2026-11-09 HITL 裁决**：③ 段 `#738`/`#734`/`#735`/`#739`/`#747` 转 `ready-for-agent`，`#1160`/`#733` 转 `dormant`；② `#320` 已交付闭票（PR #1203，squash `5ffedbc6`）、`#434` 已核查闭票（评论 `6740307743`），② 段清空；`#734` 已于 Round CLXIV 交付闭票（PR #1207，squash `905a2a77`）、`#735` 已于 Round CLXV 交付闭票（PR #1211，squash `00d6bbd6`）、`#739` 已于 Round CLXVI 交付闭票（PR #1216，squash `b0c8a030`）、`#738` 已于 Round CLXVII 交付闭票（PR #1220，squash `cb69029e`）、`#747` 已于 Round CLXVIII 交付闭票（PR #1223，squash `023e7eaa`），③ 段 5 张全部清空；其延后的「新逐词强调手法」按同一裁决另立 **#1224**（won't fix）并换入继任票 **#1228**（2026-11-11 拍板 68px，转 `ready-for-agent`，归 ④ 段）；现行 frontier 见 Step 4。
 > **frontier（三轨制，默认跨轨单入口瀑布见 `### Execution Semantics`）**：
 >
@@ -116,7 +116,7 @@
 5. `#535` B-roll 云端生图接入（P3，dormant，唤醒需用户圈定范围）
 6. ✅ `#469` site-patterns 入库机制（P3）—— Round CCXXXII 裁决 B（本机缓存）并交付闭票（子模块 `327770d`）
 7. ✅ `#1530` 成片通知（P2）—— Round CCXLIX 交付闭票（PR #1553）：`#1531` 的合并静默丢掉 verify 尾部 notify 块，真 run 只发包、群里无消息；本轮原样复位并加接线测试（22 例绿），`seres-super-factory` `r-20261125T000328-054c2c` 飞书两条送达（963 字）、`notify-log.jsonl` 单行幂等、重跑 duplicate。
-8. `#1528` TTS 批量 / 渲染拆段调度（P2）—— 2026-11-26 triage 入 Tier 2；Round CCLI verify 落评论（comment `7185486709`）；**Round CCLII 交付 R1+R2**：`tts-only --run` 产自包含 run，`tts-batch` 一次 push 跑 4 包/8 scene（254.9+84.9+55.8+63.1=458.7 s、门禁 100%、stop→COMPLETE），跨包 batch 文本随控制命令走。余 **R3 lane 账本**，票保持 open。
+8. `#1528` TTS 批量 / 渲染拆段调度（P2）—— 2026-11-26 triage 入 Tier 2；Round CCLI verify 落评论（comment `7185486709`）；**Round CCLII 交付 R1+R2**：`tts-only --run` 产自包含 run，`tts-batch` 一次 push 跑 4 包/8 scene（254.9+84.9+55.8+63.1=458.7 s、门禁 100%、stop→COMPLETE），跨包 batch 文本随控制命令走。余 **R3 lane 账本**已拆为 `#1566`（enhancement / P2 / needs-triage，新 session 做），票保持 open 等最终收口。
 9. `#1537` Colab 模型预置缓存（P3）—— 2026-11-26 triage 入 Tier 3；缓存分支代码已落地（`cosyvoice3_tts_colab.py` 的 `try_model_cache`），卡在真实 Colab smoke：运行要占 Colab 配额，开跑前需用户确认。
 
 **A′. 数据驱动的重审（不进施工队列，等实拍数据）**
@@ -203,7 +203,7 @@
 | ----- | ---------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | #296 | 中文多平台发布架构（AiToEarn 调研） | P4·W4A · ⏸ deferred | 🎯 `wayfinder:map`；**2026-11-20 裁决后整图后延，已摘激活态、不进任何 frontier**；8 原生子票 `#268`/`#216`/`#217`/`#218`/`#220`/`#223`/`#206`/`#208` 同转 deferred；解冻条件见 `#### 4` B 段 |
 | #268 | 中文内容轨首包产出 | P4·W4A · ⏸ deferred | `#216` 前置物料；2026-11-20 起随 W4A 后延 |
-| #1528 | TTS 批量单 kernel 与渲染分段调度 | P2·W1A · `ready-for-agent`（R1+R2 已交付，余 R3） | 2026-11-26 triage；Round CCLII：`tts-only --run` + `tts-batch`（1 push/4 包 458.7 s、门禁 100%）；余 lane 账本（Kaggle/Colab/Modal）；不改 `#1524` 版式与 `#1525` 音频口径 |
+| #1528 | TTS 批量单 kernel 与渲染分段调度 | P2·W1A · `ready-for-agent`（R1+R2 已交付，R3 → #1566） | 2026-11-26 triage；Round CCLII：`tts-only --run` + `tts-batch`（1 push/4 包 458.7 s、门禁 100%）；余 lane 账本（Kaggle/Colab/Modal）；不改 `#1524` 版式与 `#1525` 音频口径 |
 
 ### Tier 3 — 低重要性 / 工具链与合规排查
 
