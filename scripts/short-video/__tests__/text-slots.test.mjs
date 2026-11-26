@@ -660,10 +660,14 @@ describe("hook media-led layout contract (2026-11-15)", () => {
     expect(isMediaLedHook(undefined)).toBe(false);
   });
 
-  it("registers every media-led field with the 820 band width", () => {
-    for (const field of ["badge", "subject", "bigNumber", "numberLabel", "source"]) {
+  it("registers every media-led field with its band width", () => {
+    // The badge is a fixed header slot from #1561: its Fit width is the 545px
+    // text box inside the 663px pill, not the 820px kicker band. The other
+    // fields still own the full band.
+    const widths = { badge: 545, subject: 820, bigNumber: 820, numberLabel: 820, source: 820 };
+    for (const [field, width] of Object.entries(widths)) {
       const id = `hook.media-led.${field}`;
-      expect(MEASURED_MAX_WIDTH[id], id).toBe(820);
+      expect(MEASURED_MAX_WIDTH[id], id).toBe(width);
       expect(() => getSlot(id)).not.toThrow();
     }
   });

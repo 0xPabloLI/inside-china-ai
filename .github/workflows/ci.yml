@@ -393,7 +393,7 @@ jobs:
       # module graph and rejects Math.random / Date.now / performance.now /
       # unseeded random()) runs in `Lint, typecheck, test` — fast enough to catch
       # the source before this job's render ever runs.
-      - name: Pixel render contracts (9 suites)
+      - name: Pixel render contracts (10 suites)
         run: |
           npx vitest run --no-file-parallelism --retry=0 \
             scripts/short-video/__tests__/media-focus-render.test.mjs \
@@ -404,6 +404,7 @@ jobs:
             scripts/short-video/__tests__/avatar-card-render.test.mjs \
             scripts/short-video/__tests__/contrast-media-render.test.mjs \
             scripts/short-video/__tests__/scene-gate-render.test.mjs \
+            scripts/short-video/__tests__/fixed-collision-render.test.mjs \
             scripts/short-video/__tests__/render-determinism.test.mjs
 
       # The stills are the evidence trail for a red run: a sampled pixel value

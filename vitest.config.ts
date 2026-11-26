@@ -46,6 +46,7 @@ const CI_SKIPPED_MACHINE_BOUND = [
   "scripts/short-video/__tests__/audio-diagnostics.test.mjs", // full-build ffmpeg behaviors
   "scripts/short-video/__tests__/avatar-card-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
   "scripts/short-video/__tests__/finalize-render.test.mjs", // real-ffmpeg integration asserts runner-specific output
+  "scripts/short-video/__tests__/fixed-collision-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1561)
   "scripts/short-video/__tests__/focus-smoke.test.mjs", // ~/.video-tts-env venv
   "scripts/short-video/__tests__/infra-paths.test.mjs", // local path assumptions
   "scripts/short-video/__tests__/official-fit-render.test.mjs", // npx remotion still; runs in `pixel-render` (#1087)
