@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.115.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.114.0...tanstack_start_ts-v1.115.0) (2026-11-26)
+
+
+### Features
+
+* **ci:** upgrade Node baseline to 26 and pin poll handoff clock ([#1548](https://github.com/0xPabloLI/inside-china-ai/issues/1548)) ([464e151](https://github.com/0xPabloLI/inside-china-ai/commit/464e151c0cc0c517110c1d52cfca059a1cb805ab))
+
 ## [1.114.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.113.0...tanstack_start_ts-v1.114.0) (2026-11-26)
 
 
