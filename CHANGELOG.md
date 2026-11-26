@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.118.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.117.0...tanstack_start_ts-v1.118.0) (2026-11-26)
+
+
+### Features
+
+* **short-video:** [#1528](https://github.com/0xPabloLI/inside-china-ai/issues/1528) R1+R2 —— tts-only 自包含 run + 单内核跨包 TTS 批量 ([#1565](https://github.com/0xPabloLI/inside-china-ai/issues/1565)) ([b07e43b](https://github.com/0xPabloLI/inside-china-ai/commit/b07e43b0b9f8615dd440678813498d6bc549dcac))
+
 ## [1.117.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.116.0...tanstack_start_ts-v1.117.0) (2026-11-26)
 
 
