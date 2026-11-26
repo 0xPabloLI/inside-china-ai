@@ -21,7 +21,14 @@
  * - The caption is forwarded verbatim. Long text is chunked, never truncated.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { createHmac } from "node:crypto";
 import { dirname } from "node:path";
 
@@ -46,6 +53,38 @@ export function resolveNotifyConfig(env = process.env) {
     required: env.NOTIFY_REQUIRED === "1",
   };
 }
+
+/**
+ * #1562 — three notification modes, because "sent" and "not sent" are not the
+ * same question as "approved".
+ *
+ * - `auto`: push once verify passes (the #1530 behavior).
+ * - `review` (default): write `publish/notify-pending.json`, push nothing;
+ *   a human runs `--approve` when the copy is cleared to go out. The default
+ *   is `review` because the project rule is "confirm before sending", and the
+ *   2026-11-26 MAGI-2 run was lost precisely by switching the channel off:
+ *   there was no pending state and no way to push after confirming.
+ * - `off`: write nothing.
+ *
+ * The webhook being unset is not a fourth mode: `review` still writes the
+ * pending file so a later `--approve` can send once the channel exists.
+ */
+export const NOTIFY_MODES = ["auto", "review", "off"];
+const DEFAULT_NOTIFY_MODE = "review";
+
+export function resolveNotifyMode(env = process.env) {
+  const raw = String(env.NOTIFY_MODE ?? "")
+    .trim()
+    .toLowerCase();
+  if (!raw) return DEFAULT_NOTIFY_MODE;
+  if (!NOTIFY_MODES.includes(raw)) {
+    throw new Error(`notify: NOTIFY_MODE must be one of ${NOTIFY_MODES.join("|")} (got "${raw}")`);
+  }
+  return raw;
+}
+
+/** Name of the per-run review file, under the run's publish/ directory. */
+export const NOTIFY_PENDING_FILE = "notify-pending.json";
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return "unknown size";
@@ -267,6 +306,118 @@ export function hasSuccessfulSend(logPath, { runId, platform }) {
 export function appendNotifyLog(logPath, entry) {
   mkdirSync(dirname(logPath), { recursive: true });
   appendFileSync(logPath, `${JSON.stringify(entry)}\n`);
+}
+
+/**
+ * One platform's row inside the review file. Stored verbatim so `--approve`
+ * sends exactly the copy that was reviewed — it never re-reads the package
+ * (which may have been re-rendered in the meantime).
+ */
+export function buildPendingItem({
+  platform,
+  caption,
+  hashtags = [],
+  pinnedComment = "",
+  videoPath = "",
+  packageDir = "",
+  createdAt = new Date().toISOString(),
+}) {
+  return {
+    platform,
+    caption: String(caption ?? ""),
+    hashtags: (hashtags ?? []).map((tag) => String(tag ?? "").trim()).filter(Boolean),
+    pinnedComment: String(pinnedComment ?? ""),
+    videoPath: String(videoPath ?? ""),
+    packageDir: String(packageDir ?? ""),
+    status: "pending",
+    createdAt,
+  };
+}
+
+/** Read a review file; a torn or missing file returns null. */
+export function readPendingNotify(pendingPath) {
+  if (!pendingPath || !existsSync(pendingPath)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(pendingPath, "utf8"));
+    if (!parsed || !Array.isArray(parsed.items)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/** Upsert by platform, preserving rows for other platforms. */
+export function upsertPendingItem(pending, item) {
+  const next = pending ?? { version: 1, slug: "", runId: "", createdAt: item.createdAt, items: [] };
+  const index = next.items.findIndex((row) => row.platform === item.platform);
+  if (index >= 0) next.items[index] = item;
+  else next.items.push(item);
+  return next;
+}
+
+export function writePendingNotify(pendingPath, pending) {
+  mkdirSync(dirname(pendingPath), { recursive: true });
+  writeFileSync(pendingPath, `${JSON.stringify(pending, null, 2)}\n`);
+}
+
+/**
+ * Send the reviewed rows. Rows already approved (or already in the ledger for
+ * this runId+platform) are left alone, so a repeated `--approve` is idempotent.
+ * A failed row stays pending: the review file is the source of truth, not a
+ * claim that everything went out.
+ */
+export async function approvePendingNotify({
+  pendingPath,
+  logPath,
+  config = resolveNotifyConfig(),
+  platforms = [],
+  force = false,
+  fetchImpl = globalThis.fetch,
+  sleep,
+}) {
+  const pending = readPendingNotify(pendingPath);
+  if (!pending) {
+    return { ok: false, reason: "no-pending", results: [], pending: null };
+  }
+  const wanted = platforms.length > 0 ? new Set(platforms) : null;
+  const results = [];
+  for (const item of pending.items) {
+    if (item.status === "approved") {
+      results.push({ platform: item.platform, ok: true, skipped: true, reason: "approved" });
+      continue;
+    }
+    if (wanted && !wanted.has(item.platform)) continue;
+    const result = await notifyCaption({
+      slug: pending.slug,
+      runId: pending.runId,
+      platform: item.platform,
+      caption: item.caption,
+      hashtags: item.hashtags,
+      pinnedComment: item.pinnedComment,
+      videoPath: item.videoPath,
+      packageDir: item.packageDir,
+      logPath,
+      config,
+      force,
+      fetchImpl,
+      sleep,
+    });
+    if (result.ok) {
+      item.status = "approved";
+      item.approvedAt = new Date().toISOString();
+    }
+    results.push({ platform: item.platform, ...result });
+  }
+  writePendingNotify(pendingPath, pending);
+  const failed = results.filter((row) => !row.ok).length;
+  const sent = results.filter((row) => row.ok && !row.skipped).length;
+  return {
+    ok: failed === 0,
+    reason: failed === 0 ? "approved" : "send-failed",
+    results,
+    sent,
+    pending,
+  };
 }
 
 /**
