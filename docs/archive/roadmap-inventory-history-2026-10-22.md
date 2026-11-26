@@ -1071,3 +1071,8 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 
 - **Round CCXLIX 盘点全段（原文）**：2026-11-26（**Round CCXLIX：`#1530` 成片通知 seam 复位**——`#1531` 的合并把 `verify-video.mjs` 尾部取成分支侧，静默丢掉 post-render notify 块：真 run 照常出发布包却不推送；本轮原样复位，并加「调用点必须在发包之后」的接线测试（22 例绿）。真 run `seres-super-factory` / `r-20261125T000328-054c2c`：verify 全 PASS → 飞书两条消息送达（963 字）→ `publish/notify-log.jsonl` 单行，重跑走 duplicate。产品验证门：**有产出差异**（成片字节不变，差异在成片后的交付面）。PR #1553。frontier：1A 空、1B 空；②③ 空（`#1472` 冻结）；④ 空；A 段队首 `#1524`→`#1525` 待联合合成，其后 `#1528`/`#1537`；`#1551` 未分流（Inbox）。）
 - **Round CCXLVI 一句话档案（原文）**：**Round CCXLVI**（`#1524` media-first 版式交付：全画幅 16:9 + 同源 blur + 950–1206 硬边平色条，删右 rail 暗化；PR #1529，squash `cfcdf19e`；票保持 open 等联合合成；**有产出差异**）
+
+## Round CCLI 下沉（2026-11-26）
+
+- **Round CCL 盘点全段（原文）**：2026-11-26（**Round CCL：`#1524`+`#1525` 联合最终合成收口**——两条旧片各一次渲染完成两票验收：scene 4 改 media-first（全画幅 `contain` + 同源 blur，文案压两行）、原声窗口 5.2/5.4 s（`volume 1`、duck 0.55）叠全片 BGM 床；CapCut scene 2 补 `CHINA · BEIJING`、RunningHub scene 3 加报名网格背景（媒体覆盖 50%→66%）。`#1555` 同轮落地 fail-closed 音频门禁（`meta.audio.mode`：`bed` 缺 `--bgm` 直接拒绝渲染）。产品验证门：**有产出差异**。PR #1558。frontier：1A/1B/②③④ 空；A 段队首 `#1528`，其后 `#1537`；`#1551` 未分流（Inbox）。）
+- **Round CCXLVII 一句话档案（原文）**：**Round CCXLVII**（`#1525` 音频核心交付：`audioIn/audioOut` + fade + `duckUnderNarration`（默认 0.25），真片窗口外 −91 dB、窗口内 −15.6 dB、旁白在场 −27.6 dB；PR #1533，squash `abcf7972`；票保持 open 等联合合成；**无产出差异**）
