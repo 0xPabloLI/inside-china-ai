@@ -15,7 +15,7 @@
 import { mkdirSync } from "fs";
 import { join } from "path";
 
-import { DEFAULT_RATES, readRateReport } from "./exchange-rates.mjs";
+import { readFreshRateReport, writeRateReport } from "./exchange-rates.mjs";
 import { normalizeSceneDataWithLiveRates } from "./normalize-currency.mjs";
 import { createRun, markRun, RUN_STATUS } from "./run-history.mjs";
 import { materializeRunAudio } from "./tts-run-materialize.mjs";
@@ -39,22 +39,28 @@ export function resolveTtsRun({ root, pipelineId, contentDir, withRun = false, r
 }
 
 /**
- * Normalize scenes exactly like `main.mjs` Step 0.5/0.6, but write the rate
- * report beside the run artifacts when there is a run (what `render-only`
- * reads) instead of only into the cache.
+ * Normalize scenes exactly like `main.mjs` Step 0.5/0.6. A fresh report is
+ * reused so the prewarmed cache stays byte-identical for the later full run;
+ * with no usable report we fetch once and seed the cache, so the full run
+ * reuses the same numbers instead of re-annotating text and missing the cache.
  */
 export async function normalizeForTts({
   scenes,
   meta,
   cacheRatesFile,
   ratesFile = null,
+  now = Date.now(),
+  fetchImpl,
 }) {
-  const cached = readRateReport(cacheRatesFile);
-  await normalizeSceneDataWithLiveRates(scenes, meta, {
-    rates: cached?.rates ?? DEFAULT_RATES,
-    rateSource: cached ? `run-artifact:${cached.source}` : "fallback",
-    ratesFile,
-  });
+  const cached = readFreshRateReport(cacheRatesFile, { now });
+  const report = await normalizeSceneDataWithLiveRates(
+    scenes,
+    meta,
+    cached
+      ? { rates: cached.rates, rateSource: `run-artifact:${cached.source}`, ratesFile }
+      : { ratesFile, fetchImpl, now: () => new Date(now) },
+  );
+  if (!cached) writeRateReport(cacheRatesFile, report);
   const { normalizeTtsText } = await import("./normalize-tts-text.mjs");
   normalizeTtsText(scenes, meta);
 }
@@ -69,7 +75,8 @@ export async function normalizeForTts({
  * @param {boolean} [options.withRun=false] - create and materialize a run
  * @param {string|null} [options.runId]
  * @param {Function} options.generate - `generateTTS` (injectable)
- * @param {Date} [options.now]
+ * @param {number|Date} [options.now]
+ * @param {typeof fetch} [options.fetchImpl] - injectable for tests
  * @param {(line: string) => void} [options.log]
  * @returns {Promise<{runId: string|null, runDir: string|null, results: Array, materialized: object|null}>}
  */
@@ -83,6 +90,7 @@ export async function runTtsOnly({
   runId = null,
   generate,
   now = new Date(),
+  fetchImpl,
   log = () => {},
   onRunCreated = () => {},
 }) {
@@ -104,6 +112,8 @@ export async function runTtsOnly({
     meta,
     cacheRatesFile,
     ratesFile: run ? join(run.dir, "currency-rates.json") : null,
+    now: now instanceof Date ? now.getTime() : now,
+    fetchImpl,
   });
 
   const results = await generate(scenes, cacheDir, {

@@ -1131,6 +1131,11 @@ node scripts/short-video/render-only.mjs --content deepseek --run <runId>
 # 不拖住其它包；内核空闲上限在批模式下抬到 1800s，收尾由驱动负责。
 node scripts/short-video/tts-batch.mjs --content a --content b --content c
 
+# 汇率报告（output/<id>/currency-rates.json）在 24h 内由 main.mjs 与 tts-only
+# 共同复用（expired 才重新取价）：同一段文本因此算出同一个缓存 key，预生成的
+# 音频不会被一次「汇率动了」的全流程跑变成全部 miss。tts-only 在缓存缺失时
+# 取价一次并回写该文件。#1528
+
 # Debug re-render tools — accept --content like main.mjs (bare runs default to
 # deepseek-v41-flash; an unknown dir fails fast with the available list)
 node scripts/short-video/rerender.mjs [--content <dir>]        # media-patch + render (no TTS)

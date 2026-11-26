@@ -22,11 +22,11 @@ import { readManifest, RUN_STATUS } from "../lib/run-history.mjs";
 
 const PIPELINE_ID = "probe-pack";
 
-function buildRoot() {
+function buildRoot({ withRates = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), "tts-only-run-"));
   mkdirSync(join(root, "content", PIPELINE_ID), { recursive: true });
   mkdirSync(join(root, "output", PIPELINE_ID, "audio"), { recursive: true });
-  writeRateReport(join(root, "output", PIPELINE_ID, "currency-rates.json"), {
+  if (withRates) writeRateReport(join(root, "output", PIPELINE_ID, "currency-rates.json"), {
     rates: { CNY: 7.21, HKD: 7.79 },
     source: "test-fixture",
     providerTime: null,
@@ -35,6 +35,16 @@ function buildRoot() {
   });
   return root;
 }
+
+/** Provider stand-in: only used when the cache is cold. */
+const okFetch = async () => ({
+  ok: true,
+  json: async () => ({
+    result: "success",
+    time_last_update_utc: "Wed, 26 Nov 2026 00:00:00 +0000",
+    rates: { USD: 1, CNY: 7.0, HKD: 7.8 },
+  }),
+});
 
 /** A generate stand-in: writes the cache artifacts a real engine + aligner would. */
 function fakeGenerate({ writeTiming = true } = {}) {
@@ -160,6 +170,51 @@ describe("tts-only --run", () => {
       expect(entry.status).toBe(RUN_STATUS.FAILED);
       expect(entry.meta.stage).toBe("tts-only");
       expect(entry.meta.exitCode).toBe(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("seeds the rate report when the cache is cold, so the full run reuses it", async () => {
+    const root = buildRoot({ withRates: false });
+    try {
+      await runTtsOnly({
+        root,
+        pipelineId: PIPELINE_ID,
+        contentDir: PIPELINE_ID,
+        scenes: [{ id: 1, voiceover: "first line" }],
+        meta: { pipelineId: PIPELINE_ID, keyEntities: {} },
+        withRun: true,
+        generate: fakeGenerate(),
+        now: new Date("2026-11-26T03:00:00Z"),
+        fetchImpl: okFetch,
+      });
+      const seeded = JSON.parse(
+        readFileSync(join(root, "output", PIPELINE_ID, "currency-rates.json"), "utf8"),
+      );
+      expect(seeded.source).toBe("open.er-api.com");
+      expect(seeded.rates.CNY).toBeCloseTo(1 / 7.0, 6);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not touch the network when a fresh report exists", async () => {
+    const root = buildRoot();
+    try {
+      await runTtsOnly({
+        root,
+        pipelineId: PIPELINE_ID,
+        contentDir: PIPELINE_ID,
+        scenes: [{ id: 1, voiceover: "first line" }],
+        meta: { pipelineId: PIPELINE_ID, keyEntities: {} },
+        withRun: true,
+        generate: fakeGenerate(),
+        now: new Date("2026-11-26T03:00:00Z"),
+        fetchImpl: async () => {
+          throw new Error("network must not be used");
+        },
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

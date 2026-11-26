@@ -25,22 +25,11 @@ import { dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const args = process.argv.slice(2);
+const { parseBatchArgs, runTtsBatch } = await import("./lib/tts-batch-run.mjs");
 
-const contents = [];
-for (let i = 0; i < args.length; i += 1) {
-  if (args[i] === "--content") {
-    const value = args[i + 1];
-    if (!value || value.startsWith("--")) {
-      console.error("❌ --content needs a value");
-      process.exit(1);
-    }
-    contents.push(value);
-    i += 1;
-  }
-}
-if (contents.length < 2) {
-  console.error("usage: tts-batch.mjs --content <dir> --content <dir> [--content ...]");
+const { contents, error: argError } = parseBatchArgs(process.argv.slice(2));
+if (argError) {
+  console.error(`❌ ${argError}`);
   process.exit(1);
 }
 
@@ -65,82 +54,38 @@ if (typeof engine.setBatchMode !== "function") {
   process.exit(1);
 }
 
-const summary = [];
-
-for (const [index, contentDir] of contents.entries()) {
-  const isLast = index === contents.length - 1;
-  let allocatedRunId = null;
-  let allocatedPipelineId = null;
-  try {
+const { summary, ok } = await runTtsBatch({
+  contents,
+  engine,
+  loadPack: async (contentDir) => {
     const meta = (await import(`./content/${contentDir}/meta.mjs`)).meta;
     const scenes = (await import(`./content/${contentDir}/scene-data.mjs`)).scenes;
-    if (!Array.isArray(scenes) || scenes.length === 0) {
-      throw new Error(`no scenes in content/${contentDir}/scene-data.mjs`);
-    }
-    const pipelineId = meta.pipelineId ?? contentDir;
-    allocatedPipelineId = pipelineId;
-
-    console.log(
-      `\n▶️  [${index + 1}/${contents.length}] ${contentDir} — ${scenes.length} scene(s)` +
-        `${index > 0 ? " （复用热内核）" : " （首批，建立 manifest）"}`,
-    );
-
-    engine.setBatchMode({ reuseLiveSession: index > 0 });
-    const t0 = Date.now();
-    const result = await runTtsOnly({
+    console.log(`\n▶️  ${contentDir} — ${Array.isArray(scenes) ? scenes.length : 0} scene(s)`);
+    return { meta, scenes };
+  },
+  runPack: (pack) =>
+    runTtsOnly({
       root: __dirname,
-      pipelineId,
-      contentDir,
-      scenes,
-      meta,
+      pipelineId: pack.pipelineId,
+      contentDir: pack.contentDir,
+      scenes: pack.scenes,
+      meta: pack.meta,
       withRun: true,
       generate: (scenesArg, cacheDir, options) =>
         generateTTSWithEngine(scenesArg, cacheDir, engine, {
           ...options,
-          keepLiveSession: !isLast,
+          keepLiveSession: pack.keepLiveSession,
         }),
       log: (line) => console.log(line),
-      onRunCreated: (id) => {
-        allocatedRunId = id;
-      },
-    });
-    const seconds = (Date.now() - t0) / 1000;
-    summary.push({
-      contentDir,
-      pipelineId,
-      runId: result.runId,
-      scenes: scenes.length,
-      seconds,
-      status: "ok",
-    });
-    console.log(`✅ ${contentDir} → ${result.runId} (${seconds.toFixed(1)}s)`);
-  } catch (error) {
-    const seconds = 0;
-    console.warn(`❌ ${contentDir} failed: ${error.message.split("\n")[0]}`);
-    if (allocatedRunId) {
-      markTtsRunFailed({
-        root: __dirname,
-        pipelineId: allocatedPipelineId ?? contentDir,
-        runId: allocatedRunId,
-        code: 1,
-      });
-    }
-    summary.push({
-      contentDir,
-      runId: allocatedRunId,
-      status: "failed",
-      error: error.message,
-      seconds,
-    });
-  }
-}
-
-// The driver owns the kernel lifetime. Even a run of failures must release GPU.
-try {
-  await engine.endLiveSession?.();
-} catch (error) {
-  console.warn(`  ⚠️ [TTS Live] session close failed: ${error.message}`);
-}
+      onRunCreated: pack.onRunCreated,
+    }),
+  onPackFailed: ({ pipelineId, runId }) => {
+    if (!runId) return;
+    markTtsRunFailed({ root: __dirname, pipelineId, runId, code: 1 });
+  },
+  log: (line) => console.log(line),
+  warn: (line) => console.warn(line),
+});
 
 console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 console.log("📋 Batch summary");
@@ -157,4 +102,4 @@ console.log(
   "渲染（可与其他包的 TTS 重叠）：node scripts/short-video/render-only.mjs --content <dir> --run <runId>",
 );
 
-process.exit(okCount === summary.length ? 0 : 1);
+process.exit(ok ? 0 : 1);

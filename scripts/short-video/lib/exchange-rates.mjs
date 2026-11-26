@@ -119,6 +119,34 @@ export function writeRateReport(filePath, report) {
   }
 }
 
+/** How long a cached report may steer new text (#1528). */
+export const RATE_REPORT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Read a report only when it can still anchor the TTS text (#1528).
+ *
+ * The cache key hashes rate-annotated `ttsText`. `tts-only --run` prewarms
+ * audio with the rates recorded by the last pipeline run; if `main.mjs` then
+ * fetched live rates and got a different quote, every amount-bearing scene
+ * would hash differently and the prewarmed audio would silently miss. Both
+ * callers therefore reuse a recent report and only pay the lookup when the
+ * cache is absent, malformed or stale.
+ *
+ * @param {string} filePath
+ * @param {{maxAgeMs?: number, now?: number}} [options]
+ * @returns {ExchangeRateReport|null}
+ */
+export function readFreshRateReport(filePath, { maxAgeMs = RATE_REPORT_MAX_AGE_MS, now = Date.now() } = {}) {
+  const report = readRateReport(filePath);
+  if (!report) return null;
+  const fetchedAt = Date.parse(report.fetchedAt);
+  if (!Number.isFinite(fetchedAt)) return null;
+  const age = now - fetchedAt;
+  // A clock skewed into the future must not pin a report forever.
+  if (age < 0 || age > maxAgeMs) return null;
+  return report;
+}
+
 /**
  * Read back a report written by `writeRateReport`.
  *

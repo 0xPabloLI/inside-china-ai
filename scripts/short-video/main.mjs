@@ -248,8 +248,18 @@ async function main() {
   prof.mark("step-0.5-currency");
   try {
     const { normalizeSceneDataWithLiveRates } = await import("./lib/normalize-currency.mjs");
+    const { readFreshRateReport } = await import("./lib/exchange-rates.mjs");
+    const ratesFile = join(outputDir, "currency-rates.json");
+    // #1528: reuse the recent report instead of always fetching. `tts-only
+    // --run` prewarms audio with these rates; a live quote that moved would
+    // change the rate-annotated text, fail the cache key and throw away that
+    // prewarm. Reusing also means we must NOT rewrite the file here — a
+    // rewritten fetchedAt would make stale rates look fresh forever.
+    const cached = readFreshRateReport(ratesFile);
     await normalizeSceneDataWithLiveRates(scenes, meta, {
-      ratesFile: join(outputDir, "currency-rates.json"),
+      rates: cached?.rates,
+      rateSource: cached ? `run-artifact:${cached.source}` : undefined,
+      ratesFile: cached ? null : ratesFile,
     });
     console.log("💱 Step 0.5: Currency normalization complete (CNY/HKD → USD dual-annotation)\n");
   } catch (e) {
