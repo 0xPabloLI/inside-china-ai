@@ -49,5 +49,6 @@ export const meta = {
     "Dumu: the grand prize film Empty City has started formal feature development; Best Film winner Bronze Guardian screened at a TK industry event in Los Angeles.",
     "RunningHub service agreement: RunningHub is provided by Anhui Haima Cloud Intelligent Technology Co., Ltd., a Chinese company.",
   ],
+  audio: { mode: "bed" },
   hashtags: ["#chinaai", "#runninghub", "#aigc", "#aifilm", "#nebulaawards"],
 };
