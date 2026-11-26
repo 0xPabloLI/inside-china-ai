@@ -17,19 +17,12 @@
  *   scripts/short-video/output/{pipelineId}/final.mp4
  */
 
-import {
-  writeFileSync,
-  mkdirSync,
-  readdirSync,
-  existsSync,
-  readFileSync,
-  linkSync,
-  copyFileSync,
-} from "fs";
-import { join, dirname, resolve, relative, basename } from "path";
+import { writeFileSync, mkdirSync, readdirSync, existsSync, readFileSync } from "fs";
+import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
 import { generateTTS } from "./lib/generate-tts.mjs";
+import { materializeRunAudio } from "./lib/tts-run-materialize.mjs";
 import { renderRemotion, rawOutputPathFor } from "./lib/render-remotion.mjs";
 import { assertRemotionRenderer } from "./lib/renderer-guard.mjs";
 import {
@@ -432,24 +425,18 @@ async function main() {
   if (ttsDone.status === "rejected") throw ttsDone.reason;
   ttsResults = ttsDone.value;
 
-  // ── Materialize this run's audio into the run directory (#1432 S2) ──
+  // ── Materialize this run's audio into the run directory (#1432 S2, #1531) ──
   // The TTS cache is shared across runs; the run directory must be
   // self-contained so a re-render reads this run's bytes even after the cache
-  // changes. Hardlink when possible (same volume, no extra bytes), copy
-  // otherwise. Paths are rewritten so every downstream reader (subtitles,
-  // alignment, render staging, the manifest) sees the run copy.
-  for (const result of ttsResults) {
-    const name = basename(result.audioPath);
-    const dest = join(audioDir, name);
-    if (!existsSync(dest)) {
-      try {
-        linkSync(result.audioPath, dest);
-      } catch {
-        copyFileSync(result.audioPath, dest);
-      }
-    }
-    result.audioPath = dest;
-  }
+  // changes. #1432 moved the takes only; the sidecars and the alignment pair
+  // are the same contract and move with them (#1531 — a cache-hit run used to
+  // reach Step 4.5 with no subtitle-timing.json and fail closed).
+  materializeRunAudio({
+    results: ttsResults,
+    cacheDir: ttsCacheDir,
+    audioDir,
+    log: (line) => console.log(line),
+  });
 
   // ── Step 1.6: Final media gate ──
   // Runs after the join: sourcing (1.5), patch application (1.5c), upscale
@@ -647,6 +634,11 @@ async function main() {
     console.error(
       "   Fail-closed: a voiced video without burned-in subtitles is not shippable (#421).",
     );
+    // #1531: name both ends of the handoff. A run that cannot show its own
+    // timing is a pipeline bug, not something to hand-patch per video.
+    console.error("   Run is not self-contained: TTS stage did not hand off subtitle timing.");
+    console.error(`   producer: ${ttsCacheDir}/subtitle-timing.json`);
+    console.error(`   consumer: ${join(audioDir, "subtitle-timing.json")}`);
     process.exit(1);
   }
 
