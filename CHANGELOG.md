@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.115.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.115.0...tanstack_start_ts-v1.115.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **short-video:** materialize TTS sidecars and alignment into the run dir ([#1531](https://github.com/0xPabloLI/inside-china-ai/issues/1531)) ([#1550](https://github.com/0xPabloLI/inside-china-ai/issues/1550)) ([844bd70](https://github.com/0xPabloLI/inside-china-ai/commit/844bd70191d4f7caeccb894df623e7ec10647c06))
+
 ## [1.115.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.114.0...tanstack_start_ts-v1.115.0) (2026-11-26)
 
 
