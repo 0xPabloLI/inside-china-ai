@@ -12,6 +12,7 @@ import { join } from "node:path";
 import {
   DEFAULT_RATES,
   RATE_PROVIDER,
+  readFreshRateReport,
   readRateReport,
   resolveExchangeRates,
   writeRateReport,
@@ -122,6 +123,53 @@ describe("rate report sidecar", () => {
     try {
       expect(readRateReport(join(dir, "absent.json"))).toBeNull();
       expect(readRateReport(dir)).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("readFreshRateReport (#1528 cache coherence)", () => {
+  const report = {
+    rates: { CNY: 0.14, HKD: 0.13 },
+    source: "open.er-api.com",
+    providerTime: "Tue, 17 Nov 2026 00:02:31 +0000",
+    fetchedAt: "2026-11-26T00:00:00.000Z",
+    fallback: false,
+  };
+
+  it("reuses a report inside the freshness window", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rates-fresh-"));
+    try {
+      const file = join(dir, "currency-rates.json");
+      writeRateReport(file, report);
+      const now = Date.parse(report.fetchedAt) + 60 * 60 * 1000;
+      expect(readFreshRateReport(file, { now })).toEqual(report);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a stale report so a new quote can land", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rates-stale-"));
+    try {
+      const file = join(dir, "currency-rates.json");
+      writeRateReport(file, report);
+      const now = Date.parse(report.fetchedAt) + 25 * 60 * 60 * 1000;
+      expect(readFreshRateReport(file, { now })).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a report stamped in the future and a missing file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rates-future-"));
+    try {
+      const file = join(dir, "currency-rates.json");
+      writeRateReport(file, report);
+      const now = Date.parse(report.fetchedAt) - 60 * 1000;
+      expect(readFreshRateReport(file, { now })).toBeNull();
+      expect(readFreshRateReport(join(dir, "absent.json"))).toBeNull();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

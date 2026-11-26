@@ -1137,16 +1137,36 @@ def _lookup(scene_id):
             return dict(entry)
     raise RuntimeError(f"control asked for scene {scene_id} not in the pushed manifest")
 
-def _table(scene_ids, speeds):
+def _table(scene_ids, speeds, texts=None, instructs=None):
     overrides = {str(k): v for k, v in (speeds or {}).items()}
+    # #1528: a batch from a *different* pack is not in batch 1's manifest, so
+    # the host may carry that scene's text/instruct directly. Copy the entry
+    # instead of mutating the manifest table — a later batch for the original
+    # pack must still see its own row.
+    text_overrides = {str(k): v for k, v in (texts or {}).items()}
+    instruct_overrides = {str(k): v for k, v in (instructs or {}).items()}
     batch = []
     for sid in scene_ids:
-        entry = _lookup(sid)
+        try:
+            entry = dict(_lookup(sid))
+        except RuntimeError:
+            # A cross-pack batch may carry scene ids the pushed manifest never
+            # saw (e.g. the second video has more scenes than the first).
+            if str(sid) not in text_overrides:
+                raise
+            entry = {"sceneId": sid}
         # Always override when the host sent a value: pacing compensation may
         # need 1.0 where the pushed manifest carried 1.2, so "absent means
         # unchanged" is not good enough.
         if str(sid) in overrides:
             entry["speed"] = overrides[str(sid)]
+        if str(sid) in text_overrides:
+            entry["text"] = text_overrides[str(sid)]
+            entry["output"] = "scene-%s.wav" % sid
+            # Never inherit the other pack's instruct for an overridden text.
+            entry["instruct_text"] = instruct_overrides.get(str(sid))
+        elif str(sid) in instruct_overrides:
+            entry["instruct_text"] = instruct_overrides[str(sid)]
         batch.append(entry)
     return batch
 
@@ -1188,7 +1208,12 @@ try:
                 time.sleep(CONTROL_POLL_SEC)
                 continue
             log(f"Live: retry batch {next_batch} for scene(s) {scene_ids}")
-            batch_scenes = _table(scene_ids, msg.get("speeds"))
+            batch_scenes = _table(
+                scene_ids,
+                msg.get("speeds"),
+                msg.get("texts"),
+                msg.get("instructs"),
+            )
             deadline[0] = time.time() + SYNTH_BASE_SEC + SYNTH_PER_SEGMENT_SEC * len(batch_scenes)
             _req_path = os.path.join(SESSION_DIR, f"request_{next_batch}.json")
             json.dump({"scenes": batch_scenes}, open(_req_path + ".tmp", "w"),
