@@ -32,6 +32,30 @@ const SCENE_SIDECARS = [".tts-meta.json", ".tts-candidate.json"];
 /** The forced-alignment pair — timing plus the signature that guards it. */
 const ALIGNMENT_FILES = ["subtitle-timing.json", "subtitle-timing.meta.json"];
 
+/** A bare file name: no separator, no parent hop, nothing that can climb out. */
+const BARE_FILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * Join a file name we built ourselves onto a directory this run owns.
+ *
+ * Both ends are pipeline-internal: `dir` is the run's `audio/` dir or the slug
+ * cache dir handed over by `main.mjs`, and `name` is a scene id formatted from
+ * `scenes` or `basename()` of a take path — no user text reaches it. The name is
+ * validated to a bare file before the join, so a `../` can never be expressed;
+ * the `nosemgrep` is on the syntactic sink only, not on an unchecked flow.
+ *
+ * @param {string} dir
+ * @param {string} name
+ * @returns {string}
+ */
+function runFile(dir, name) {
+  if (!BARE_FILE_RE.test(String(name))) {
+    throw new Error(`refusing to build a path from "${name}" — not a bare file name`);
+  }
+  // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
+  return join(dir, name);
+}
+
 /**
  * Place one cache file into the run without clobbering run-local work.
  *
@@ -89,7 +113,7 @@ export function materializeRunAudio({ results, cacheDir, audioDir, log = () => {
 
   for (const result of results) {
     const name = basename(result.audioPath);
-    const dest = join(audioDir, name);
+    const dest = runFile(audioDir, name);
     const outcome = placeFile(result.audioPath, dest);
     if (outcome === "link") {
       summary.links += 1;
@@ -101,8 +125,8 @@ export function materializeRunAudio({ results, cacheDir, audioDir, log = () => {
     result.audioPath = dest;
 
     for (const suffix of SCENE_SIDECARS) {
-      const src = join(cacheDir, `scene-${result.sceneId}${suffix}`);
-      const destSidecar = join(audioDir, `scene-${result.sceneId}${suffix}`);
+      const src = runFile(cacheDir, `scene-${result.sceneId}${suffix}`);
+      const destSidecar = runFile(audioDir, `scene-${result.sceneId}${suffix}`);
       const placed = placeSceneSidecar(src, destSidecar, name);
       if (placed === "rebound") {
         summary.sidecars += 1;
@@ -119,7 +143,7 @@ export function materializeRunAudio({ results, cacheDir, audioDir, log = () => {
   if (results.length === 0) return summary;
 
   for (const file of ALIGNMENT_FILES) {
-    const outcome = placeFile(join(cacheDir, file), join(audioDir, file));
+    const outcome = placeFile(runFile(cacheDir, file), runFile(audioDir, file));
     if (outcome === "link" || outcome === "copy") {
       summary.timing.push(file);
       log(`  ${outcome === "link" ? "🔗" : "📄"} ${file} (${outcome})`);

@@ -179,6 +179,21 @@ describe("materializeRunAudio", () => {
     expect(existsSync(join(audioDir, "subtitle-timing.json"))).toBe(false);
   });
 
+  it("refuses to build a path from a take with no bare file name", () => {
+    const { audioDir, root } = freshRoot();
+    const { cacheDir } = buildCache(root);
+    // A take path that carries no file name has nothing legitimate to
+    // materialize; failing loud beats writing beside the run (the guarded join
+    // is the only place these names touch the filesystem).
+    expect(() =>
+      materializeRunAudio({
+        results: [{ sceneId: 1, audioPath: "", duration: 3 }],
+        cacheDir,
+        audioDir,
+      }),
+    ).toThrow(/not a bare file name/);
+  });
+
   it("rebinds a candidate sidecar too (#423 unverified takes)", () => {
     const { audioDir, root } = freshRoot();
     const { cacheDir, results } = buildCache(root);
