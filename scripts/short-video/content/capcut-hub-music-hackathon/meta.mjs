@@ -47,5 +47,6 @@ export const meta = {
     "QbitAI: the roundtable included WaytoAGI founder AJ, White Paper band vocalist Liu Jiahui, Berlin Story guitarist OD and Communication University of China professor Ai Shengying; they said music sync, story and taste still matter most.",
     "Official Douyin event page: the event ran November 20-21 at the Beijing National Convention Center; WaytoAGI and ACE-CON co-founded it, CapCut Hub was the exclusive tool.",
   ],
+  audio: { mode: "bed" },
   hashtags: ["#chinaai", "#capcut", "#jianying", "#aimusicvideo", "#hackathon"],
 };

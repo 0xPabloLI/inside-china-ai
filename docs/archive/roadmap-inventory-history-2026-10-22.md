@@ -1066,3 +1066,8 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 ## Round CCXLIX 台账补登：PR #1548（Node baseline 26）
 
 - **PR #1548**（`464e151c`，2026-11-26）`chore(ci): upgrade Node baseline to 26`——对应 `#1002`（dependabot `node.js v26`，已闭票）；升 Node 基线并钉 poll handoff clock，无独立执行票，不进 open 票行。
+
+## Round CCL 下沉（2026-11-26）
+
+- **Round CCXLIX 盘点全段（原文）**：2026-11-26（**Round CCXLIX：`#1530` 成片通知 seam 复位**——`#1531` 的合并把 `verify-video.mjs` 尾部取成分支侧，静默丢掉 post-render notify 块：真 run 照常出发布包却不推送；本轮原样复位，并加「调用点必须在发包之后」的接线测试（22 例绿）。真 run `seres-super-factory` / `r-20261125T000328-054c2c`：verify 全 PASS → 飞书两条消息送达（963 字）→ `publish/notify-log.jsonl` 单行，重跑走 duplicate。产品验证门：**有产出差异**（成片字节不变，差异在成片后的交付面）。PR #1553。frontier：1A 空、1B 空；②③ 空（`#1472` 冻结）；④ 空；A 段队首 `#1524`→`#1525` 待联合合成，其后 `#1528`/`#1537`；`#1551` 未分流（Inbox）。）
+- **Round CCXLVI 一句话档案（原文）**：**Round CCXLVI**（`#1524` media-first 版式交付：全画幅 16:9 + 同源 blur + 950–1206 硬边平色条，删右 rail 暗化；PR #1529，squash `cfcdf19e`；票保持 open 等联合合成；**有产出差异**）
