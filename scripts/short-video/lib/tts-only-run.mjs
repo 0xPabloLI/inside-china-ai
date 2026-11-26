@@ -32,7 +32,14 @@ import { materializeRunAudio } from "./tts-run-materialize.mjs";
  * @param {string} options.contentDir
  * @returns {{run: {runId: string, dir: string}|null, cacheRatesFile: string}}
  */
-export function resolveTtsRun({ root, pipelineId, contentDir, withRun = false, runId = null, now }) {
+export function resolveTtsRun({
+  root,
+  pipelineId,
+  contentDir,
+  withRun = false,
+  runId = null,
+  now,
+}) {
   const cacheRatesFile = join(root, "output", pipelineId, "currency-rates.json");
   const run = withRun ? createRun({ root, slug: pipelineId, contentDir, runId, now }) : null;
   return { run, cacheRatesFile };

@@ -26,13 +26,14 @@ function buildRoot({ withRates = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), "tts-only-run-"));
   mkdirSync(join(root, "content", PIPELINE_ID), { recursive: true });
   mkdirSync(join(root, "output", PIPELINE_ID, "audio"), { recursive: true });
-  if (withRates) writeRateReport(join(root, "output", PIPELINE_ID, "currency-rates.json"), {
-    rates: { CNY: 7.21, HKD: 7.79 },
-    source: "test-fixture",
-    providerTime: null,
-    fetchedAt: new Date("2026-11-26T00:00:00Z").toISOString(),
-    fallback: false,
-  });
+  if (withRates)
+    writeRateReport(join(root, "output", PIPELINE_ID, "currency-rates.json"), {
+      rates: { CNY: 7.21, HKD: 7.79 },
+      source: "test-fixture",
+      providerTime: null,
+      fetchedAt: new Date("2026-11-26T00:00:00Z").toISOString(),
+      fallback: false,
+    });
   return root;
 }
 
@@ -81,7 +82,10 @@ describe("tts-only --run", () => {
   it("materializes takes, sidecars, alignment pair and rates into a new run", async () => {
     const root = buildRoot();
     try {
-      const scenes = [{ id: 1, voiceover: "first line" }, { id: 2, voiceover: "second line" }];
+      const scenes = [
+        { id: 1, voiceover: "first line" },
+        { id: 2, voiceover: "second line" },
+      ];
       const meta = { pipelineId: PIPELINE_ID, keyEntities: {} };
       const result = await runTtsOnly({
         root,

@@ -136,7 +136,10 @@ export const RATE_REPORT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
  * @param {{maxAgeMs?: number, now?: number}} [options]
  * @returns {ExchangeRateReport|null}
  */
-export function readFreshRateReport(filePath, { maxAgeMs = RATE_REPORT_MAX_AGE_MS, now = Date.now() } = {}) {
+export function readFreshRateReport(
+  filePath,
+  { maxAgeMs = RATE_REPORT_MAX_AGE_MS, now = Date.now() } = {},
+) {
   const report = readRateReport(filePath);
   if (!report) return null;
   const fetchedAt = Date.parse(report.fetchedAt);

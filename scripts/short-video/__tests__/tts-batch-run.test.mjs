@@ -23,11 +23,9 @@ const packs = {
 
 describe("parseBatchArgs", () => {
   it("collects repeated --content values", () => {
-    expect(parseBatchArgs(["--content", "a", "--content", "b", "--content", "c"]).contents).toEqual([
-      "a",
-      "b",
-      "c",
-    ]);
+    expect(parseBatchArgs(["--content", "a", "--content", "b", "--content", "c"]).contents).toEqual(
+      ["a", "b", "c"],
+    );
   });
 
   it("rejects a missing value and a single pack", () => {
