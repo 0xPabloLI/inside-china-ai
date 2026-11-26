@@ -32,14 +32,7 @@ import { materializeRunAudio } from "./tts-run-materialize.mjs";
  * @param {string} options.contentDir
  * @returns {{run: {runId: string, dir: string}|null, cacheRatesFile: string}}
  */
-export function resolveTtsRun({
-  root,
-  pipelineId,
-  contentDir,
-  withRun = false,
-  runId = null,
-  now,
-}) {
+function resolveTtsRun({ root, pipelineId, contentDir, withRun = false, runId = null, now }) {
   const cacheRatesFile = join(root, "output", pipelineId, "currency-rates.json");
   const run = withRun ? createRun({ root, slug: pipelineId, contentDir, runId, now }) : null;
   return { run, cacheRatesFile };
@@ -51,7 +44,7 @@ export function resolveTtsRun({
  * with no usable report we fetch once and seed the cache, so the full run
  * reuses the same numbers instead of re-annotating text and missing the cache.
  */
-export async function normalizeForTts({
+async function normalizeForTts({
   scenes,
   meta,
   cacheRatesFile,

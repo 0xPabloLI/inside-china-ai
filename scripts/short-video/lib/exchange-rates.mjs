@@ -120,7 +120,7 @@ export function writeRateReport(filePath, report) {
 }
 
 /** How long a cached report may steer new text (#1528). */
-export const RATE_REPORT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const RATE_REPORT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Read a report only when it can still anchor the TTS text (#1528).
