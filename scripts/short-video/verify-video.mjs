@@ -34,6 +34,7 @@ import {
 import { readReport, summarizeBrollReport } from "./lib/b-roll/report.mjs";
 import { validateMedia } from "./lib/media-bg.mjs";
 import { resolveOutputVideo } from "./lib/assemble.mjs";
+import { expectedBedFromPolicy, resolveAudioMode } from "./lib/audio-policy.mjs";
 import {
   buildWindowsFromTiming,
   evaluateBgmMargin,
@@ -485,6 +486,30 @@ if (sceneResults.editorial.length > 0) {
 // mutating the authored data the checks above just judged.
 if (preMode) {
   console.log("");
+  // ── Audio policy declaration ──
+  // Without an explicit mode a render can lose its bed silently; the render
+  // entries now refuse that combination, and the pack has to say which one it
+  // is. Legacy packs default to "bed" (warn), a bad value is a hard fail.
+  {
+    const mode = resolveAudioMode(meta);
+    if (!mode.valid) {
+      fail(
+        "Audio",
+        "audio.mode declaration",
+        `"${mode.declaredValue}" is not one of bed / voice-only`,
+        'Set meta.audio.mode to "bed" or "voice-only"',
+      );
+    } else if (!mode.declared) {
+      warn(
+        "Audio",
+        "audio.mode declaration",
+        'meta.audio.mode missing — treated as "bed"; the render will require --bgm',
+        'Add meta.audio = { mode: "bed" } (or "voice-only" with the reason in the ticket)',
+      );
+    } else {
+      pass("Audio", "audio.mode declaration", mode.mode);
+    }
+  }
   if (!meta?.pipelineId) {
     // main.mjs derives output/<meta.pipelineId> and cannot run without it;
     // pricing a fallback dir here would describe a different run.
@@ -693,9 +718,11 @@ if (!preMode) {
         JSON.parse(readFileSync(durationsPath, "utf8")),
       );
       const measurement = measureBgmMargin({ videoPath: VIDEO_PATH, windows });
-      // The marker the mix pass wrote says whether a bed was expected; without
-      // it "music 35 dB down" and "no music" are the same reading.
-      const verdict = evaluateBgmMargin(measurement, { expectBed: expectedBedFor(VIDEO_PATH) });
+      // The pack's declaration outranks the mix marker: legacy packs resolve to
+      // "bed", so an artifact that lost its bed cannot pass on marker absence
+      // (2026-11-26: a narration-only cut passed because no marker existed).
+      const expectBed = meta ? expectedBedFromPolicy(meta) : expectedBedFor(VIDEO_PATH);
+      const verdict = evaluateBgmMargin(measurement, { expectBed });
       const numbers = measurement.ok
         ? ` (speech ${measurement.speechRmsDb.toFixed(1)} dBFS / bed ${measurement.bgmOnlyRmsDb.toFixed(1)} dBFS over ${measurement.pauseWindows} pauses)`
         : "";
