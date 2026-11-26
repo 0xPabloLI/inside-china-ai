@@ -1030,3 +1030,29 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 **下沉的一句话档案（Round CCXLI，原文）**：
 
 **Round CCXLI**（`#1514` 立项：`step-1-tts` 子步计时——`#1512` 结论落地，拆 573 s 本地尾巴，**无产出差异**；① `#1514`，1A/②③④ 空）
+
+## Round CCXLV 下沉：`#228` ③ 增量渲染（2026-11-24）
+
+> **Last inventory**: 2026-11-24（**Round CCXLV：`#228` ③ 增量渲染交付**——默认按场景指纹复用旧帧，只重画脏场景 ±10 帧转场带，segments 单次 finalize；真实 `workbuddy-computer-use`（9 场景/1725 帧）全量 69.5–72.4 s、改 1 场景 20.3 s、改 2 个不相邻场景 32.7 s、无画面变化 10.1 s；SSIM vs 整片重渲 All 0.999269、最低 0.988117（成片层 0.995 不可达，门改为 All ≥0.999 + 最低 ≥0.985）。证据 [`specs/spec-render-incremental-228-3.md`](specs/spec-render-incremental-228-3.md) §Verification。产品验证门：**无产出差异**（等待时间变化；成片模板/字幕契约不变）。PR #1523，squash `0b573abc`。frontier：1A 空、1B 空；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ②④⑥ dormant。）
+
+**下沉的一句话档案（同轮，原文）**：**Round CCXLV**（`#228` ③ 增量渲染交付：改 1 场景 20.3 s、2 个不相邻场景 32.7 s、无变化 10.1 s，SSIM All 0.999269/最低 0.988117；**无产出差异**，成片模板/字幕不变；1A/1B/②③④ 空，`#228` 余 ②④⑥ dormant）
+
+## Round CCXLVIII 台账补登：2026-11-24 → 11-26 已合并但未入 roadmap 的 5 个 PR
+
+`roadmap-ledger --fetch` 在 Round CCXLVIII 盘点时列出 5 条未登记 PR，逐条处置如下（换轮 PR 以 `--gate` 复跑到空为完成）：
+
+- **PR #1535**（`967a9c2e`，2026-11-24）`fix(video): remove frame scrim gradients from media cards`——删媒体卡取景渐变，属 `#1524` media-first 阴影清除批，无独立票。
+- **PR #1538**（`e04f92f8`，2026-11-24）`feat(video): enforce shadow-free cards and competition demos`——无阴影卡片门禁 + competition demo 版式，随 `#1524` 批入 main；无独立票。
+- **PR #1541**（`db424c23`，2026-11-25）`fix(video): remove media dimming at the render root (#1540)`——`#1540` 已闭票；渲染根去掉媒体压暗，属 `#1524` 同一条阴影/压暗线。
+- **PR #1544**（`cf173552`，2026-11-25）`feat(short-video): hook visual priority editorial check (#1542)`——`#1542` 已闭票；开场最强素材前置的编辑检查，跨 pipeline。
+- **PR #1543**（`a2cd67db`，2026-11-25）`chore(recovery): restore main work lost in the 2026-11-25 reset (#1524 #1525 #1538)`——2026-11-25 main 重置事故的恢复提交；内容归属已在 `#1524`/`#1525` 交付记录，不另立票。
+
+（上述五条在 `docs/issue-roadmap.md` 的 open 票行里不占位置：`#1540`/`#1542` 已闭票，其余是 `#1524` 波次的同批施工。）
+
+## 下沉的一句话档案（Round CCXLIV / CCXLIII / CCXLII，原文）
+
+**Round CCXLIV**（`#1520` 闭票：预装 site-packages 数据集跳过冷启 pip——真实冷批 374.8→247.6 s（−33.9%），4/4 wav 逐字节一致；票面按实测改 `≤250 s`；**无产出差异**；1A/1B/②③④ 空）
+
+**Round CCXLIII**（`#1515` 闭票：常驻内核复用门内重试，2 包/3 次真实 63.9–71.5 s，节省 82–84%；**无产出差异**；1A/1B/②③④ 空）
+
+**Round CCXLII**（`#1514` 闭票 + `#1515` 立项：子步实测证明尾巴 58% 是重试冷启，本地机械仅 ~60 s；**无产出差异**；① `#1515`，1A/②③④ 空）
