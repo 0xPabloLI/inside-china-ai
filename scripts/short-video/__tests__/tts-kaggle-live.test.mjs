@@ -325,6 +325,9 @@ describe("pollKernelStatus — live handoff", () => {
           return { stdout: 'user/kernel has status "KernelWorkerStatus.RUNNING"' };
         },
         sleep: async (ms) => sleeps.push(ms),
+        // Pin the clock: the assertion below is about phase handoff, not how
+        // many milliseconds elapsed between `runStart = now()` and `snapshot()`.
+        now: () => 0,
       },
     );
     expect(calls).toBe(1);
