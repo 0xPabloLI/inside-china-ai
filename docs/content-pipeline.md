@@ -751,7 +751,9 @@ node scripts/short-video/verify-video.mjs --tiktok  # 全量合规检查 = MRL-3
 >
 > **Caption 可读性门（2026-11-25 起）**：新包按首屏/正文硬门校验，旧包按 `createdAt` 豁免、不追溯改已验收 caption。规则、阈值和判定器见 `scripts/short-video/lib/caption-readability.mjs` 与 `docs/tiktok/tiktok-best-practices.md` → Caption 和 Hashtag。
 
-> **成片通知（#1530）**：同一个 post-render seam 在 verify 全 PASS 后调用 `notify-caption.mjs`，把该 run 各平台的发布包推到飞书群自定义机器人（`.env.local` 的 `FEISHU_BOT_WEBHOOK`）。**每次推送分两条**：① 运行信息（片名/文件/`run`/置顶评论/发布包路径）；② 粘贴块——`*-caption.txt` 原文 + `metadata.hashtags` 里 caption 尚未包含的标签，整段可直接复制进 TikTok，不含任何标题、emoji 或路径。推送失败只 WARN、**不改 verify 的 PASS/FAIL 与退出码**；`publish/notify-log.jsonl` 按 `runId + platform` 幂等，重跑 verify 不会重复刷屏。手动重推：`node scripts/short-video/notify-caption.mjs --content <dir> --run <runId> --force`；只预览不发：`--dry-run`；接通自检：`--test`。没配 webhook 时整段静默跳过（打印三步启用说明），管线行为不变。
+> **成片通知（#1530 / #1562）**：同一个 post-render seam 在 verify 全 PASS 后调用 `notify-caption.mjs`，把该 run 各平台的发布包推到飞书群自定义机器人（`.env.local` 的 `FEISHU_BOT_WEBHOOK`）。**每次推送分两条**：① 运行信息（片名/文件/`run`/置顶评论/发布包路径）；② 粘贴块——`*-caption.txt` 原文 + `metadata.hashtags` 里 caption 尚未包含的标签，整段可直接复制进 TikTok，不含任何标题、emoji 或路径。推送失败只 WARN、**不改 verify 的 PASS/FAIL 与退出码**；`publish/notify-log.jsonl` 按 `runId + platform` 幂等，重跑 verify 不会重复刷屏。手动重推：`node scripts/short-video/notify-caption.mjs --content <dir> --run <runId> --force`；只预览不发：`--dry-run`；接通自检：`--test`。
+>
+> **三态（#1562，2026-11-26 起）**：`NOTIFY_MODE` / `--mode` 取 `review`（默认）、`auto`、`off`。`review` 不推送，把 caption + hashtags + runId 原样写进 `publish/notify-pending.json`；确认文案后跑 `notify-caption.mjs --content <dir> --run <runId> --approve` 一条命令补推，重复 approve 按 `runId + platform` 幂等、不会重发。`auto` 是 #1530 的立即推送；`off` 不生成待审包。**未配 webhook 不再是静默丢弃**：`review` 照常落待审包，等通道配好再 approve；`auto` 在没有 webhook 时也退化为写待审包。
 
 > **Verify-retry loop**（`lib/verify-retry.mjs`）：Step 6 字幕验证失败后，自动分类失败类型并尝试对应修复。每次修复后重新验证，只接受严格减少 error 数的修复，否则回滚。`--max-retries N`（默认 2）控制重试上限。两类情况**不消耗重试预算**、一次 verify 后直接 fail-closed（#818）：分类不可重试（`unknown` / `audio-sync-skipped` / `subtitle-alignment`，各自带原因入日志），或修复根本没跑成（返回 `success:false` 或抛异常——磁盘未变，复验只会得到同一份报告）。详见 `docs/archive/spec-verify-retry-loop.md`。
 

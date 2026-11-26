@@ -5,18 +5,26 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   FEISHU_MAX_BODY_BYTES,
+  NOTIFY_MODES,
+  NOTIFY_PENDING_FILE,
   appendNotifyLog,
+  approvePendingNotify,
   buildCopyText,
   buildFeishuPayload,
+  buildPendingItem,
   buildSummaryText,
   chunkText,
   feishuSignature,
   hasSuccessfulSend,
   notifyCaption,
   readNotifyLog,
+  readPendingNotify,
   resolveNotifyConfig,
+  resolveNotifyMode,
   sendFeishuText,
   sendWithRetry,
+  upsertPendingItem,
+  writePendingNotify,
 } from "../lib/notify-caption.mjs";
 
 const CAPTION = [
@@ -301,6 +309,138 @@ describe("notifyCaption", () => {
       const log = readFileSync(logPath, "utf8").trim().split("\n");
       expect(log).toHaveLength(1);
       expect(hasSuccessfulSend(logPath, { runId: "r-3", platform: "tiktok" })).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("review mode (#1562)", () => {
+  it("defaults to review and accepts explicit modes", () => {
+    expect(NOTIFY_MODES).toEqual(["auto", "review", "off"]);
+    expect(resolveNotifyMode({})).toBe("review");
+    expect(resolveNotifyMode({ NOTIFY_MODE: "auto" })).toBe("auto");
+    expect(resolveNotifyMode({ NOTIFY_MODE: " OFF " })).toBe("off");
+    expect(() => resolveNotifyMode({ NOTIFY_MODE: "sometimes" })).toThrow(/auto\|review\|off/);
+  });
+
+  it("stores one row per platform without clobbering the others", () => {
+    const first = buildPendingItem({ platform: "tiktok", caption: CAPTION, hashtags: TAGS });
+    const second = buildPendingItem({ platform: "youtube", caption: "yt copy", hashtags: [] });
+    let pending = upsertPendingItem(null, first);
+    pending = upsertPendingItem(pending, second);
+    expect(pending.items.map((row) => row.platform)).toEqual(["tiktok", "youtube"]);
+    expect(pending.items[0].status).toBe("pending");
+
+    const updated = upsertPendingItem(
+      pending,
+      buildPendingItem({ platform: "tiktok", caption: "revised" }),
+    );
+    expect(updated.items).toHaveLength(2);
+    expect(updated.items[0].caption).toBe("revised");
+  });
+
+  it("round-trips the review file and tolerates a torn one", () => {
+    const dir = tempDir();
+    try {
+      const path = join(dir, NOTIFY_PENDING_FILE);
+      expect(readPendingNotify(path)).toBeNull();
+      const pending = {
+        version: 1,
+        slug: "suno-visuals",
+        runId: "r-1",
+        createdAt: "2026-11-26T00:00:00.000Z",
+        items: [buildPendingItem({ platform: "tiktok", caption: CAPTION })],
+      };
+      writePendingNotify(path, pending);
+      expect(readPendingNotify(path)).toMatchObject({ slug: "suno-visuals", runId: "r-1" });
+      expect(readPendingNotify(path).items[0].caption).toBe(CAPTION);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("approves the reviewed copy, then refuses to send twice", async () => {
+    const dir = tempDir();
+    const pendingPath = join(dir, NOTIFY_PENDING_FILE);
+    const logPath = join(dir, "notify-log.jsonl");
+    let calls = 0;
+    try {
+      writePendingNotify(pendingPath, {
+        version: 1,
+        slug: "suno-visuals",
+        runId: "r-review",
+        createdAt: "2026-11-26T00:00:00.000Z",
+        items: [
+          buildPendingItem({ platform: "tiktok", caption: CAPTION, hashtags: TAGS }),
+          buildPendingItem({ platform: "youtube", caption: "yt copy" }),
+        ],
+      });
+      const config = resolveNotifyConfig({ FEISHU_BOT_WEBHOOK: "https://example.test/hook" });
+      const first = await approvePendingNotify({
+        pendingPath,
+        logPath,
+        config,
+        fetchImpl: async () => {
+          calls += 1;
+          return feishuResponse(0);
+        },
+      });
+      expect(first.ok).toBe(true);
+      expect(first.sent).toBe(2); // two platform rows
+      expect(calls).toBe(4); // two messages × two platforms
+      expect(readPendingNotify(pendingPath).items.every((row) => row.status === "approved")).toBe(
+        true,
+      );
+      expect(readNotifyLog(logPath).filter((entry) => entry.ok).length).toBe(2);
+
+      const second = await approvePendingNotify({
+        pendingPath,
+        logPath,
+        config,
+        fetchImpl: async () => feishuResponse(0),
+      });
+      expect(second.results.every((row) => row.skipped)).toBe(true);
+      expect(calls).toBe(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the row pending when the channel cannot send", async () => {
+    const dir = tempDir();
+    const pendingPath = join(dir, NOTIFY_PENDING_FILE);
+    try {
+      writePendingNotify(pendingPath, {
+        version: 1,
+        slug: "s",
+        runId: "r-no-channel",
+        createdAt: "2026-11-26T00:00:00.000Z",
+        items: [buildPendingItem({ platform: "tiktok", caption: CAPTION })],
+      });
+      const result = await approvePendingNotify({
+        pendingPath,
+        logPath: join(dir, "notify-log.jsonl"),
+        config: resolveNotifyConfig({}),
+        fetchImpl: async () => feishuResponse(0),
+      });
+      expect(result.ok).toBe(false);
+      expect(result.reason).toBe("send-failed");
+      expect(readPendingNotify(pendingPath).items[0].status).toBe("pending");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a missing review file instead of sending nothing silently", async () => {
+    const dir = tempDir();
+    try {
+      const result = await approvePendingNotify({
+        pendingPath: join(dir, NOTIFY_PENDING_FILE),
+        logPath: join(dir, "notify-log.jsonl"),
+        config: resolveNotifyConfig({ FEISHU_BOT_WEBHOOK: "https://example.test/hook" }),
+      });
+      expect(result).toMatchObject({ ok: false, reason: "no-pending" });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
