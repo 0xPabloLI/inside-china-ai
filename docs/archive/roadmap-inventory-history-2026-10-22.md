@@ -1081,3 +1081,8 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 
 - **Round CCLI 盘点全段（原文）**：> **Last inventory**: 2026-11-26（**Round CCLI：`#1528` TTS 调度 verify 轮（无代码）**——八项 verify 逐条落证：单 kernel 多视频已在验收驱动里跑通（2 包 4 scene 一次冷 push、4 条 wav 不串）、模型复用与单 scene 重试由 `#1515` 实测成立（63.9–71.5 s/批）、`render-only` 在剥离根缓存的隔离树通过 Gate 1 与 Step 3.5。新找出的缺口：生产侧无跨视频 manifest、`tts-only` 不 materialize run、lane 无账本。产品验证门：**无产出差异**（纯取证）。frontier：1A/1B/②③④ 空；A 段队首仍 `#1528`（verify 已落，下一轮 R1 本地可验）；其后 `#1537`；`#1551` 未分流。）
 - **Round CCXLVIII 一句话档案（原文）**：**Round CCXLVIII**（`#1531` run 目录自包含：sidecar + timing 对随 run materialize，全 cache-hit run 7/7 免手工补文件通过 Step 4.5、53.7 s 出片；**无产出差异**；1A/1B/②③④ 空）
+
+## Round CCLV 下沉（2026-11-26）
+
+- **Round CCLIV 盘点全段（原文）**：> **Last inventory**: 2026-11-26（**Round CCLIV：`#1562` 成片通知三态**——默认 `review` 不再静默跳过或立即推送：verify 全 PASS 后写 `publish/notify-pending.json`（caption/hashtags/runId 原样存档），确认文案后 `notify-caption.mjs --approve` 一条命令补推，按 `runId+platform` 幂等；`auto` 保留 #1530 行为，`off` 不落包。E2E：无通道 approve 失败且保持 pending；假 webhook 补推 2 条、二次 approve 不重发。**有产出差异**（交付面：默认转待审 + 新增待审文件；成片字节不变）。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1561`→`#1559`→`#1560`→`#1551`；④ `#1566`；A 段队首 `#1537`（卡 Colab 配额/用户确认）。）
+- **Round CCLI 一句话档案（原文）**：**Round CCLI**（`#1528` 调度 verify：单 kernel 多视频/模型复用/单 scene 重试成立，`render-only` 干净目录过 Step 3.5；缺口 = 跨视频 manifest、`tts-only --run`、lane 账本；**无产出差异**；1A/1B/②③④ 空）
