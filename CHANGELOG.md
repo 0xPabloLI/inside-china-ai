@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.119.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.119.0...tanstack_start_ts-v1.119.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **short-video:** header mutual-exclusion slots and general fixed-element collision gate ([#1561](https://github.com/0xPabloLI/inside-china-ai/issues/1561)) ([b6d51c7](https://github.com/0xPabloLI/inside-china-ai/commit/b6d51c7437959805ebd18eaf1fe77544e6f1b5e1))
+
 ## [1.119.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.118.0...tanstack_start_ts-v1.119.0) (2026-11-26)
 
 
