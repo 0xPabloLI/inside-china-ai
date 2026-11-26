@@ -306,3 +306,17 @@ describe("notifyCaption", () => {
     }
   });
 });
+
+describe("verify seam wiring (#1530)", () => {
+  it("keeps the notify CLI wired into verify-video's post-render path", () => {
+    // The merge that resolved verify-video.mjs for #1531 dropped this block:
+    // every lib-level test stayed green while the pipeline silently stopped
+    // pushing. Pin the call site, not the wording around it.
+    const source = readFileSync(new URL("../verify-video.mjs", import.meta.url), "utf8");
+    const packageIdx = source.indexOf("Generating platform publish packages");
+    const seamIdx = source.indexOf('"notify-caption.mjs"');
+    expect(packageIdx).toBeGreaterThan(-1);
+    expect(seamIdx).toBeGreaterThan(packageIdx);
+    expect(source.slice(seamIdx)).toContain('"--require-notify"');
+  });
+});

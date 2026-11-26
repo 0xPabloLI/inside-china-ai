@@ -1056,3 +1056,13 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 **Round CCXLIII**（`#1515` 闭票：常驻内核复用门内重试，2 包/3 次真实 63.9–71.5 s，节省 82–84%；**无产出差异**；1A/1B/②③④ 空）
 
 **Round CCXLII**（`#1514` 闭票 + `#1515` 立项：子步实测证明尾巴 58% 是重试冷启，本地机械仅 ~60 s；**无产出差异**；① `#1515`，1A/②③④ 空）
+
+## Round CCXLVIII 下沉：`#1531` run 目录自包含（2026-11-26）
+
+> **Last inventory**: 2026-11-26（**Round CCXLVIII：`#1531` run 目录自包含交付**——TTS sidecar + `subtitle-timing.json`/`.meta.json` 随 run materialize（sidecar 的 `audioPath` 重绑到 run 副本）；真实全 cache-hit run `r-20261126T023059-70d11d` 7/7 免手工补文件通过 Step 4.5、53.7 s 出片，`render-only --run` 复渲同 run PASS；本机存量 44 个 run 目录 37 个缺 timing 对。证据 issue 评论。产品验证门：**无产出差异**（画面模板 / 字幕排版 / 混音与 TTS 引擎选择均未动，只改 TTS→run 的文件交接）。PR #1550（squash 见合并提交）。frontier：1A 空、1B 空（`#1531` 闭票后清空）；②③ 空（`#1472` 冻结）；④ 空；`#228` 余 ②④⑥ dormant；新分流 `#1528`/`#1530`/`#1537` 入 Tier 2/3，A 段队首 `#1524`→`#1525` 待联合最终合成。）
+
+**下沉的一句话档案（同轮，原文）**：**Round CCXLVIII**（`#1531` run 目录自包含：sidecar + timing 对随 run materialize，全 cache-hit run 7/7 免手工补文件通过 Step 4.5、53.7 s 出片；本机 44 个 run 目录 37 个缺 timing 对；**无产出差异**；1A/1B/②③④ 空）
+
+## Round CCXLIX 台账补登：PR #1548（Node baseline 26）
+
+- **PR #1548**（`464e151c`，2026-11-26）`chore(ci): upgrade Node baseline to 26`——对应 `#1002`（dependabot `node.js v26`，已闭票）；升 Node 基线并钉 poll handoff clock，无独立执行票，不进 open 票行。
