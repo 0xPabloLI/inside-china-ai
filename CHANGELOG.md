@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.123.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.123.1...tanstack_start_ts-v1.123.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **video:** close the [#1591](https://github.com/0xPabloLI/inside-china-ai/issues/1591) PATH boundary and audit leftovers ([#1594](https://github.com/0xPabloLI/inside-china-ai/issues/1594)) ([c3e100a](https://github.com/0xPabloLI/inside-china-ai/commit/c3e100a76d182000ad1af6e09d26ae091adae06e))
+
 ## [1.123.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.123.0...tanstack_start_ts-v1.123.1) (2026-11-27)
 
 
