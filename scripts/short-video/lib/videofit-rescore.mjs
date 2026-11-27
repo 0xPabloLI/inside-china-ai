@@ -94,7 +94,10 @@ function formatEvidenceChange(demoAssets, pagesWithMedia) {
  */
 export async function rescoreTopic(topic, deps = {}) {
   const fetchImpl = deps.fetchImpl;
-  const maxPages = deps.maxPagesPerTopic ?? DEFAULT_MAX_PAGES;
+  const maxPages =
+    Number.isInteger(deps.maxPagesPerTopic) && deps.maxPagesPerTopic > 0
+      ? deps.maxPagesPerTopic
+      : DEFAULT_MAX_PAGES;
   const slug = topic?.slug || "(unnamed)";
   const title = topic?.title || slug;
   const assets = dedupeAssets(topic?.assets);

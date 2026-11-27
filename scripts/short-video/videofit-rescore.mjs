@@ -79,11 +79,20 @@ async function main(argv = process.argv.slice(2)) {
     return 1;
   }
 
+  let maxPagesPerTopic;
+  if (options.maxPages) {
+    maxPagesPerTopic = Number(options.maxPages);
+    if (!Number.isInteger(maxPagesPerTopic) || maxPagesPerTopic <= 0) {
+      console.error(`invalid --max-pages: ${options.maxPages} (expected a positive integer)`);
+      return 1;
+    }
+  }
+
   const date = options.date || todayInShanghai();
   const result = await rescoreTopics({
     topics,
     date,
-    ...(options.maxPages ? { maxPagesPerTopic: Number(options.maxPages) } : {}),
+    ...(maxPagesPerTopic ? { maxPagesPerTopic } : {}),
   });
   const markdown = buildRescoreMarkdown(result, { date });
 
@@ -98,7 +107,7 @@ async function main(argv = process.argv.slice(2)) {
   }
 
   if (options.out) {
-    console.log(`审计已写入 ${resolve(options.out)}`);
+    console.error(`审计已写入 ${resolve(options.out)}`);
   }
   return 0;
 }
