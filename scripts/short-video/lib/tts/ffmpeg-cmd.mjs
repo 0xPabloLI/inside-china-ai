@@ -22,14 +22,19 @@ export const ffmpegCmd = FFMPEG_BIN;
 const ffprobeCmd = FFPROBE_BIN;
 
 /**
- * Measurement-only ffmpeg: PATH-resolved, never ffmpeg-full.
+ * Measurement-only ffmpeg: the same resolved binary as `ffmpegCmd` (#1582).
  *
  * Analysis filters (volumedetect, silencedetect, the loudnorm read-back)
- * behave identically on both builds, so the smaller PATH binary is the right
- * dependency for a pass that writes no output file. One policy, one place —
+ * behave identically on every build, so measurement does not need libass — but
+ * it does need a binary that exists. Resolving it through the shared seam
+ * (`FFMPEG_BIN` → ffmpeg-full → PATH) is what makes subtitles verification,
+ * post-processing read-back and the BGM/cut detectors work on an agent shell
+ * or clean worktree whose PATH has no Homebrew. A literal "ffmpeg" here only
+ * worked because the interactive shell carried that PATH.
+ *
  * post-process.mjs, bgm.mjs and verify-subtitles.mjs all measure through this.
  */
-export const ffmpegMeasureCmd = "ffmpeg";
+export const ffmpegMeasureCmd = FFMPEG_BIN;
 
 /**
  * Get exact audio duration using ffprobe.

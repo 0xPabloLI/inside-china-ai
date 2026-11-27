@@ -24,6 +24,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { execFileSync } from "child_process";
 import { sceneTimeline, findScene } from "../timeline.mjs";
+import { FFMPEG_BIN } from "../ffmpeg-bins.mjs";
 import { decodeToWavFile, readWavPcm } from "./wav.mjs";
 import { findOnset } from "./fft.mjs";
 
@@ -325,7 +326,10 @@ export function realignAudioToTimeline({ videoPath, outputDir, sceneDurations, a
 
   try {
     execFileSync(
-      "ffmpeg",
+      // Same shared decode/encode binary as decodeToWavFile (#1582): the
+      // realign pass only re-encodes audio, and a bare "ffmpeg" made it
+      // silently fail on shells without a Homebrew PATH.
+      FFMPEG_BIN,
       ["-y", "-i", videoPath, "-af", af, "-c:v", "copy", ...audioArgs, tempPath],
       { stdio: ["pipe", "pipe", "pipe"] },
     );
