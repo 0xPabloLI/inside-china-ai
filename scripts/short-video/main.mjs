@@ -21,7 +21,7 @@ import { writeFileSync, mkdirSync, readdirSync, existsSync, readFileSync } from 
 import { join, dirname, resolve, relative } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
-import { FFMPEG_BIN } from "./lib/ffmpeg-bins.mjs";
+import { FFMPEG_BIN, binaryUsable } from "./lib/ffmpeg-bins.mjs";
 import { generateTTS } from "./lib/generate-tts.mjs";
 import { materializeRunAudio } from "./lib/tts-run-materialize.mjs";
 import { renderRemotion, rawOutputPathFor } from "./lib/render-remotion.mjs";
@@ -79,24 +79,6 @@ function getBudgetArg(name, fallback) {
     console.error(`❌ ${error.message}`);
     process.exit(1);
   }
-}
-
-function checkCommand(cmd) {
-  try {
-    execFileSync("which", [cmd], { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Probe the binary the pipeline will actually run (#1586). A bare `which`
- * reports "not installed" for a resolved ffmpeg-full keg when PATH lacks
- * ffmpeg — the call sites then work and the preflight lied.
- */
-function checkBinary(bin) {
-  return bin.includes("/") ? existsSync(bin) : checkCommand(bin);
 }
 
 async function main() {
@@ -357,7 +339,7 @@ async function main() {
   }
 
   // ── Prerequisite checks ──
-  const hasFfmpeg = checkBinary(FFMPEG_BIN);
+  const hasFfmpeg = binaryUsable(FFMPEG_BIN);
   if (!hasFfmpeg) {
     console.error(
       `❌ FFmpeg is required but not found at ${FFMPEG_BIN}. Install with: brew install ffmpeg`,
