@@ -1115,3 +1115,12 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 ## Roadmap ledger 回填（2026-11-27，Round CCLIX）
 
 - PR #1579（2026-11-27，squash `919bb705`）：四包内容 + media-first 改写，消费 `#1524`/`#1525` 的既有能力；roadmap 状态无变化（能力交付已在 Round CCLVI/CCLVII 记录）。
+
+## Round CCLX 下沉（2026-11-27）
+
+- **Round CCLIX 盘点全段（原文）**：> **Last inventory**: 2026-11-27（**Round CCLX：`#1586` verify/QA/BGM 裸 ffmpeg/ffprobe 收敛**——11 个文件 12 处改走 `FFMPEG_BIN`/`FFPROBE_BIN`：`verify-video`/`verify-remotion-frames` 的裸 `ffprobe`、QA 抽帧与拼图、luma/lane 测量、BGM 生成与 mix、xfade 合辑、`video-downloaders`、音频诊断同批；`main.mjs` preflight 改探解析后二进制，不再把可用的 ffmpeg-full keg 误报「未安装」；测试 fixture 同步 + 静态守卫禁止回退。`PATH=/usr/bin:/bin` 真实成片：`verify-video` 读到 specs 69.5s / 1080×1920 / 30fps 并跑完 audio mix（仅存量内容结论 BGM bed −57.6 dBFS），audio-sync 26/26、8 套 123/123，QA 抽帧 4 帧 + 3×4 拼图 810×1920、BGM 3.000s。Homebrew PATH：受影响 11 套 163/163、依赖 6 套 315/315、render 4 套 36/36。PR #1590，squash `6be743fd`。**无产出差异（enabling fix）**：成片字节/字幕/时间线/混音参数不变，解除的是 agent shell/干净 worktree 的 PATH 排除；残余 `post-process.mjs` 非 ASS finalize/concat 仍按 `#1118` 边界绑定 PATH ffmpeg，已开边界变更票 `#1591`（`needs-triage`）。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 空（`#1591` 待分流）；④ `#1566`；A 段队首 `#1537`。）
+- **Round CCLVI 一句话档案（原文）**：**Round CCLVI**（`#1559` media-led 全宽：16:9 证据片 820×461→1080×608 + 同源 blur，schema/preflight/门禁同步；MAGI-2 真帧与 CapCut/RunningHub 回归；**有产出差异**；1B 队首 `#1560`）
+
+## Roadmap ledger 回填（2026-11-27，Round CCLX）
+
+- PR #1590（2026-11-27，squash `6be743fd`）：`#1586` verify/QA/BGM 裸 ffmpeg/ffprobe 收敛交付闭票；同轮登记 `#1591`（`post-process` 非 ASS finalize 边界变更，`needs-triage`，Triage Inbox）。
