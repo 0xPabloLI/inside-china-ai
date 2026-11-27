@@ -35,5 +35,5 @@ export const meta = {
     "Zhipu BigModel official page: GLM-5.4 uses Loop Transformer, is positioned against 2-3T-class models, and supports native multimodal input.",
     "No official GLM-5.4 model card or benchmark table has been published as of 2026-11-24.",
   ],
-  hashtags: ["#chinaai", "#zhipu", "#glm54", "#coding", "#llm"],
+  hashtags: ["#chinaai", "#zhipu", "#glm", "#coding", "#llm"],
 };

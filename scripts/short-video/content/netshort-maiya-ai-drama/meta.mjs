@@ -36,5 +36,5 @@ export const meta = {
     "36Kr, October 2026: 63 of the top 100 overseas short dramas listed NetShort as the main investment platform; 54 of the top 100 AI short dramas were on NetShort.",
     "NetShort official episode page: One Move God Mode follows Ethan, son of Poseidon, who awakens his father's trident and fights a dragon with a farmer's pitchfork.",
   ],
-  hashtags: ["#chinaai", "#netshort", "#aidrama", "#shortdrama", "#maiya"],
+  hashtags: ["#chinaai", "#netshort", "#aishortdrama", "#shortdrama", "#microdrama"],
 };
