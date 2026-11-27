@@ -13,6 +13,7 @@
  */
 import { isPlainObject, shown, validateProvenance } from "./media-integrity.mjs";
 import { isMediaLedFullWidth } from "./text-slots.mjs";
+import { EVIDENCE_AUDIO_MODES } from "./evidence-audio.mjs";
 
 /** Every key a `scene.media` object may carry. Mirrors `MediaField`. */
 export const MEDIA_FIELD_KEYS = new Set([
@@ -34,6 +35,7 @@ export const MEDIA_FIELD_KEYS = new Set([
   "audioFadeOut",
   "duckUnderNarration",
   "duckLevel",
+  "audioMode", // #1560: "source" (default for evidence video) | "silent-by-design"
   "upscale",
   "videoStartOffsetMs",
   "evidence",
@@ -264,6 +266,50 @@ export function checkMediaFieldSchema(scenes) {
             "duckLevel is declared without duckUnderNarration:true — the renderer will never read it",
           fix: "Add `duckUnderNarration: true`, or drop duckLevel.",
         });
+      }
+    }
+
+    // #1560: evidence source audio is a declared default, and silence is an
+    // explicit decision. The renderer materialises `source` into a 0–3s window
+    // at render-props time, so a `silent-by-design` scene that still carries a
+    // window or a positive gain would describe two contradictory cuts.
+    if (media.audioMode !== undefined) {
+      if (!EVIDENCE_AUDIO_MODES.includes(media.audioMode)) {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} audioMode is a known mode`,
+          detail: `media.audioMode must be "source" or "silent-by-design", got ${shown(media.audioMode)} (${typeof media.audioMode})`,
+          fix: 'Use audioMode: "source" to keep the clip\'s own sound, or "silent-by-design" to mute it on purpose.',
+        });
+      } else if (media.type !== "video") {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} audioMode is on a video`,
+          detail: `media.type is "${media.type}"; an image has no source audio to keep or mute`,
+          fix: 'Set media.type to "video", or drop audioMode.',
+        });
+      } else if (media.audioMode === "silent-by-design") {
+        if (audioEdges.some((key) => media[key] !== undefined)) {
+          results.push({
+            level: "fail",
+            category: "Media",
+            check: `Media field schema: Scene ${scene.id} silent-by-design has no window`,
+            detail:
+              "audioMode silent-by-design still declares an audioIn/audioOut window — the window can never be heard",
+            fix: 'Drop the window fields, or switch to audioMode "source" and keep them.',
+          });
+        }
+        if (typeof media.volume === "number" && media.volume > 0) {
+          results.push({
+            level: "fail",
+            category: "Media",
+            check: `Media field schema: Scene ${scene.id} silent-by-design is zero gain`,
+            detail: `volume ${media.volume} contradicts silent-by-design`,
+            fix: 'Set volume: 0 (or drop it), or switch to audioMode "source".',
+          });
+        }
       }
     }
 

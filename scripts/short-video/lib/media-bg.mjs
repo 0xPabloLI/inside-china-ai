@@ -92,6 +92,21 @@ export function resolveMediaPath(mediaPath, contentDir) {
 }
 
 /**
+ * Resolve a relative media path to an absolute filesystem path.
+ *
+ * The one place a pack-relative `media.path` turns into a path on disk; the
+ * source-audio probe (#1560) and `mediaExists` share it so a pack cannot resolve
+ * to two different files in two checks.
+ *
+ * @param {string} mediaPath - Path relative to the content directory
+ * @param {string} contentDir - Absolute content directory path
+ * @returns {string} absolute path
+ */
+export function mediaAbsolutePath(mediaPath, contentDir) {
+  return resolve(contentDir, mediaPath);
+}
+
+/**
  * Check if a media file exists on disk.
  *
  * @param {string} mediaPath - Path relative to the content directory
@@ -100,7 +115,7 @@ export function resolveMediaPath(mediaPath, contentDir) {
  */
 export function mediaExists(mediaPath, contentDir) {
   if (!mediaPath) return false;
-  return existsSync(resolve(contentDir, mediaPath));
+  return existsSync(mediaAbsolutePath(mediaPath, contentDir));
 }
 
 // ─── Animation CSS generation ───

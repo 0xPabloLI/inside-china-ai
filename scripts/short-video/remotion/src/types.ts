@@ -93,6 +93,14 @@ export interface MediaField {
   duckUnderNarration?: boolean;
   duckLevel?: number;
   /**
+   * #1560: evidence source-audio decision. `"source"` (the default for an
+   * evidence video) keeps the clip's own track — full level, a 0–3s window and
+   * narration ducking are materialised into the render props. `"silent-by-design"`
+   * is the only declaration that keeps the clip muted; it forbids a window and
+   * a positive gain.
+   */
+  audioMode?: "source" | "silent-by-design";
+  /**
    * Controls the sub-720p upscale safety net. `false` opts out entirely (set by
    * the B-roll stage — Tier A clips are 480×832 by design). `"resample"` keeps
    * the net but swaps Real-ESRGAN for the deterministic kernel: charts and

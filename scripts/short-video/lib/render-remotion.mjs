@@ -46,6 +46,7 @@ import {
   writeRenderArtifacts,
 } from "./render-manifest.mjs";
 import { computeCompositionFingerprint } from "./render-composition.mjs";
+import { applyEvidenceAudioDefaults } from "./evidence-audio.mjs";
 import {
   INCREMENTAL_SCHEMA,
   buildSceneFingerprints,
@@ -573,6 +574,23 @@ export function renderRemotion({
   });
   if (avatarCount > 0) {
     console.log(`  🧑‍💼 Avatar card layer enabled for ${avatarCount} scene(s)`);
+  }
+
+  // ── 2d. Evidence source audio (#1560) ──
+  // An evidence video with a real track and `volume: 0` is a contradiction the
+  // renderer used to honour silently. The default is materialised into the
+  // props here — the artifact both the renderer and the gates can read — rather
+  // than inside MediaBackground, which never learns the scene's mediaRole.
+  let evidenceAudioScenes = 0;
+  for (const [index, scene] of sanitizedScenes.entries()) {
+    const resolved = applyEvidenceAudioDefaults(scene);
+    if (resolved !== scene) {
+      sanitizedScenes[index] = resolved;
+      evidenceAudioScenes += 1;
+    }
+  }
+  if (evidenceAudioScenes > 0) {
+    console.log(`  🔊 Evidence source audio resolved for ${evidenceAudioScenes} scene(s)`);
   }
 
   // ── 3. Construct props ──

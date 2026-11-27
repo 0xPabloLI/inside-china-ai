@@ -567,6 +567,24 @@ if (scenesWithMedia.length > 0) {
   pass("Media", "No media backgrounds (all CSS)", "");
 }
 
+// ─── Evidence source audio (#1560) ───
+// The render default keeps an evidence clip's own track; the one shape that
+// still ships silence is `volume: 0` without an opt-out. Only a probe can tell
+// "the source had nothing to keep" from "someone muted a real track", so this
+// check reads the file — a missing file stays the final media gate's finding.
+{
+  const { checkEvidenceSourceAudio } = await import("./lib/evidence-audio.mjs");
+  const report = checkEvidenceSourceAudio({ scenes, contentDirAbs: CONTENT_DIR_ABS });
+  if (report.rows.length > 0) {
+    console.log("\n🔊 Evidence Source Audio");
+    console.log("─".repeat(50));
+    for (const row of report.rows) {
+      if (row.level === "warn") warn("Audio", row.check, row.detail, row.fix);
+      else pass("Audio", row.check, row.detail);
+    }
+  }
+}
+
 // ─── Video-fit inventory gate (shared: pre-render + post-render) ───
 // videoFit is no longer an editorial label. It is measured from the curated
 // assets/ package: motion clip count and counted seconds buy the score, and a
