@@ -14,7 +14,7 @@
  * The CLI renders to an intermediate MP4, then FFmpeg post-processes it.
  */
 
-import { execFileSync, execSync } from "child_process";
+import { execFileSync } from "child_process";
 import {
   existsSync,
   writeFileSync,
@@ -476,7 +476,12 @@ export function renderRemotion({
   const nodeModulesPath = join(REMOTION_DIR, "node_modules");
   if (!existsSync(nodeModulesPath)) {
     console.log("  📦 Installing Remotion dependencies (first run)...");
-    execSync("npm install", { cwd: REMOTION_DIR, stdio: ["pipe", "pipe", "pipe"] });
+    // #1598: argv, not a shell line — `npm` was the last static string call
+    // here, but the guard is "no execSync anywhere in production".
+    execFileSync("npm", ["install"], {
+      cwd: REMOTION_DIR,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     console.log("  ✅ Dependencies installed");
   }
 

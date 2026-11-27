@@ -5,7 +5,7 @@
  * with the Daniel voice. Post-processing uses silenceremove + resample.
  */
 
-import { execSync, exec } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -13,7 +13,7 @@ import { promisify } from "util";
 import { postProcessAudio, getDuration } from "./post-process.mjs";
 import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ── Config ──
 const SAY_VOICE = "Daniel";
@@ -58,7 +58,17 @@ export async function createSayEngine() {
         const rawPath = join(outputDir, `scene-${scene.id}-raw.aiff`);
         const audioPath = join(outputDir, `scene-${scene.id}.mp3`);
 
-        execSync(`say -v ${SAY_VOICE} -r ${SAY_RATE} -f "${tempFile}" -o "${rawPath}"`);
+        // #1598: argv — tempFile/rawPath are generated paths, never shell.
+        execFileSync("say", [
+          "-v",
+          SAY_VOICE,
+          "-r",
+          String(SAY_RATE),
+          "-f",
+          tempFile,
+          "-o",
+          rawPath,
+        ]);
         await postProcessAudio(rawPath, audioPath, {
           useSilenceFilter: true,
           silenceFloorMs,
@@ -87,7 +97,7 @@ export async function createSayEngine() {
 
 async function isCommandAvailable(cmd) {
   try {
-    await execAsync(`which ${cmd}`);
+    await execFileAsync("which", [cmd]);
     return true;
   } catch {
     return false;

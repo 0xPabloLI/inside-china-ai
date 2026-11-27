@@ -8,6 +8,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { spawnSync } from "child_process";
 import { shellQuote } from "../lib/shell-quote.mjs";
+import { sh } from "../lib/shell.mjs";
 
 describe("shellQuote", () => {
   it("wraps a plain value in single quotes", () => {
@@ -44,5 +45,34 @@ describe("shellQuote", () => {
       { encoding: "utf8" },
     );
     expect(run.stdout).toBe("a b|$(echo hi)");
+  });
+
+  // The four characters a naive double-quote escaper misses (#1598).
+  it.each([
+    ["command substitution", "$(touch /tmp/pwned)"],
+    ["backtick substitution", "`touch /tmp/pwned`"],
+    ["double quote", 'a"b'],
+    ["backslash", "a\\b"],
+    ["semicolon", "a; rm -rf /"],
+  ])("keeps %s literal in a real shell", (_label, value) => {
+    const run = spawnSync("/bin/sh", ["-c", `printf %s ${shellQuote(value)}`], {
+      encoding: "utf8",
+    });
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe(value);
+  });
+});
+
+describe("sh tagged template", () => {
+  it("quotes every interpolation as one argument", () => {
+    const cmd = sh`say -v ${"Daniel"} -f ${"a b $(x)"} -o ${"out.aiff"}`;
+    expect(cmd).toBe("say -v 'Daniel' -f 'a b $(x)' -o 'out.aiff'");
+  });
+
+  it("keeps a value with a single quote literal through a real shell", () => {
+    const value = "it's $(touch /tmp/pwned)";
+    const run = spawnSync("/bin/sh", ["-c", `printf %s ${sh`${value}`}`], { encoding: "utf8" });
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe(value);
   });
 });

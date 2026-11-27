@@ -1091,7 +1091,7 @@ describe("weibo routing (#75 Batch 2)", () => {
       tmpPath: "/tmp/v.mp4",
       cookieFile: "/tmp/ck.txt",
     });
-    expect(weiboCmd).toContain('--cookies "/tmp/ck.txt"');
+    expect(weiboCmd).toContain("--cookies '/tmp/ck.txt'");
     expect(weiboCmd).toContain("--playlist-items 1");
 
     const ytCmd = buildYtdlpCommand("https://www.youtube.com/watch?v=abc", {
@@ -1111,7 +1111,7 @@ describe("weibo routing (#75 Batch 2)", () => {
       process.env.HTTPS_PROXY = "http://127.0.0.1:7897";
       expect(
         buildYtdlpCommand("https://www.youtube.com/watch?v=abc", { tmpPath: "/tmp/v.mp4" }),
-      ).toContain('--proxy "http://127.0.0.1:7897"');
+      ).toContain("--proxy 'http://127.0.0.1:7897'");
 
       // Only the lowercase http_proxy reaches ffmpeg, so that var alone means
       // the child already inherits it — no injection.
@@ -1135,17 +1135,17 @@ describe("weibo routing (#75 Batch 2)", () => {
     const yt = buildYtdlpCommand("https://www.youtube.com/watch?v=abc", {
       tmpPath: "/tmp/v.mp4",
     });
-    expect(yt).toContain('--cookies-from-browser "firefox');
+    expect(yt).toContain("--cookies-from-browser 'firefox");
     expect(yt).not.toContain("chrome");
 
     const bili = buildYtdlpCommand("https://www.bilibili.com/video/BV1E7wtzaEdq", {
       tmpPath: "/tmp/v.mp4",
     });
-    expect(bili).toContain('--cookies-from-browser "firefox');
+    expect(bili).toContain("--cookies-from-browser 'firefox");
     expect(bili).not.toContain("chrome");
 
     const weibo = buildYtdlpCommand("https://weibo.com/1/x", { tmpPath: "/tmp/v.mp4" });
-    expect(weibo).toContain('--cookies-from-browser "firefox');
+    expect(weibo).toContain("--cookies-from-browser 'firefox");
     expect(weibo).not.toContain("chrome");
   });
 
@@ -1259,7 +1259,7 @@ describe("tiktok routing (#300 stage 2)", () => {
       // reachable, so it must survive the tiktok branch.
       expect(
         buildYtdlpCommand("https://www.tiktok.com/@user/video/123", { tmpPath: "/tmp/v.mp4" }),
-      ).toContain('--proxy "http://127.0.0.1:7897"');
+      ).toContain("--proxy 'http://127.0.0.1:7897'");
     } finally {
       for (const k of KEYS) {
         if (saved[k] === undefined) delete process.env[k];
@@ -1274,15 +1274,18 @@ describe("tiktok routing (#300 stage 2)", () => {
     // href like `…/1"; touch /tmp/pwned; "` close the quote and run commands.
     const evil = 'https://www.tiktok.com/@x/video/1"; touch /tmp/pwned; "';
     const cmd = buildYtdlpCommand(evil, { tmpPath: "/tmp/v.mp4" });
-    expect(cmd).not.toContain('1"; touch');
-    expect(cmd).toContain('\\"');
-    // The closing quote is escaped, so the payload stays inside one shell word.
-    expect(cmd.match(/\\";/)).not.toBeNull();
+    // #1598: shellQuote wraps the whole URL in single quotes, so the quote
+    // and semicolon are data; the value never starts a new command.
+    expect(cmd).toContain(`'${evil}'`);
+    // The value appears exactly once and is fully wrapped: the embedded
+    // double quote/semicolon never become shell syntax.
+    expect(cmd.split(evil)).toHaveLength(2);
+    expect(cmd).not.toContain("'; touch");
   });
 
   it("still quotes the url and tmpPath for the non-tiktok platforms", () => {
     const cmd = buildYtdlpCommand("https://www.bilibili.com/video/BV1", { tmpPath: "/tmp/v.mp4" });
-    expect(cmd).toContain('-o "/tmp/v.mp4" "https://www.bilibili.com/video/BV1"');
+    expect(cmd).toContain("-o '/tmp/v.mp4' 'https://www.bilibili.com/video/BV1'");
   });
 });
 

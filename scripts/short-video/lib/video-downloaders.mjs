@@ -31,7 +31,7 @@ import {
   mkdtempSync,
 } from "fs";
 import { dirname, extname, join } from "path";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import {
   YTDLP_BROWSER_UA,
   ytdlpCookieSource,
@@ -46,6 +46,7 @@ import {
   removeYtdlpStaleOutput,
   resolveYtdlpOutputPath,
   shellQuote,
+  ytdlpPacingArgs,
   ytdlpPacingShell,
   ytdlpProxyArg,
   ytdlpProxyEnv,
@@ -56,7 +57,6 @@ import { dirname as _dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = _dirname(__filename);
-import { execFileSync } from "child_process";
 
 // ─── Constants ───
 
@@ -777,6 +777,53 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
   return `${envPrefix}${parts.join(" ")}`;
 }
 
+/**
+ * Build the same yt-dlp invocation as argv (#1598) — the execution path uses
+ * this, so `url`, `tmpPath` and the cookie file never reach a shell.
+ *
+ * `buildYtdlpCommand` stays exported (tests and logs read the command
+ * string); both builders must list the same flags.
+ *
+ * @param {string} url
+ * @param {{tmpPath: string, cookieFile?: string}} opts
+ * @returns {string[]}
+ */
+export function buildYtdlpArgs(url, { tmpPath, cookieFile } = {}) {
+  const isWeibo = isWeiboUrl(url);
+  const isTiktok = isTiktokUrl(url);
+  const args = [];
+
+  if (!isTiktok) {
+    args.push("--cookies-from-browser", ytdlpCookieSource());
+  }
+  args.push("--user-agent", YTDLP_BROWSER_UA);
+  args.push(...ytdlpPacingArgs());
+  args.push(
+    "-f",
+    isTiktok
+      ? "b[height<=1920]/b"
+      : "best[height<=720][ext=mp4]/best[height<=720]/bestvideo[height<=720]+bestaudio/best",
+  );
+
+  if (isTiktok) {
+    args.push("--no-playlist");
+  } else {
+    args.push("--max-filesize", "20M");
+    args.push("--download-sections", brollSectionSpec());
+  }
+
+  const proxy = ytdlpProxyEnv().http_proxy;
+  if (proxy) args.push("--proxy", proxy);
+
+  if (isWeibo) {
+    args.push("--playlist-items", "1");
+    if (cookieFile) args.push("--cookies", cookieFile);
+  }
+
+  args.push("-o", tmpPath, url);
+  return args;
+}
+
 export function downloadYtdlpAdapter(url) {
   const isTiktok = isTiktokUrl(url);
   const source = isTiktok
@@ -810,10 +857,10 @@ export function downloadYtdlpAdapter(url) {
     mkdirSync(dir, { recursive: true });
   }
 
-  let cmd = buildYtdlpCommand(url, { tmpPath });
+  let args = buildYtdlpArgs(url, { tmpPath });
   if (isWeiboUrl(url) && process.env.WEIBO_COOKIE) {
     writeFileSync(cookieFile, weiboCookieNetscape(process.env.WEIBO_COOKIE), "utf8");
-    cmd = buildYtdlpCommand(url, { tmpPath, cookieFile });
+    args = buildYtdlpArgs(url, { tmpPath, cookieFile });
   }
 
   // #323 review: clear stale suffixed siblings so the resolver only sees THIS
@@ -826,7 +873,13 @@ export function downloadYtdlpAdapter(url) {
   paceYtdlpItem();
 
   try {
-    execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
+    // #1598: argv — the URL can be scraped page content; no shell parses it.
+    execFileSync("yt-dlp", args, {
+      encoding: "utf8",
+      timeout: timeoutMs,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, ...ytdlpProxyEnv() },
+    });
 
     // #323: resolve the actual output — a webm-only source lands at
     // `<tmpPath>.webm` (yt-dlp appends the real container extension).

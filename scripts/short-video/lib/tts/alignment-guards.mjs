@@ -48,13 +48,13 @@
  * with --force re-aligns but never trims again.
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { existsSync, renameSync, rmSync, copyFileSync } from "fs";
 import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
 import { evaluateSceneTts, MIN_TEXT_SIMILARITY } from "./quality-gate.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /** Decay allowance past the last aligned word (review: 100–150ms). */
 export const TAIL_PAD_SEC = 0.15;
@@ -158,9 +158,25 @@ export async function trimSceneTail(audioPath, cutSec) {
     ? audioPath.replace(/\.wav$/, "-tailcut.wav")
     : audioPath.replace(/\.mp3$/, "-tailcut.mp3");
   const fadeStart = Math.max(0, cutSec - 0.08);
-  await execAsync(
-    `"${ffmpegCmd}" -y -i "${audioPath}" -t "${cutSec.toFixed(3)}" ` +
-      `-af "afade=t=out:st=${fadeStart.toFixed(3)}:d=0.08" -ar 44100 -b:a 320k "${tmpPath}" 2>/dev/null`,
+  // #1598: argv — `audioPath`/`tmpPath` are catalog-derived and used to be
+  // interpolated into a shell command.
+  await execFileAsync(
+    ffmpegCmd,
+    [
+      "-y",
+      "-i",
+      audioPath,
+      "-t",
+      cutSec.toFixed(3),
+      "-af",
+      `afade=t=out:st=${fadeStart.toFixed(3)}:d=0.08`,
+      "-ar",
+      "44100",
+      "-b:a",
+      "320k",
+      tmpPath,
+    ],
+    { encoding: "utf8" },
   );
   let newDuration = NaN;
   try {
@@ -169,10 +185,10 @@ export async function trimSceneTail(audioPath, cutSec) {
     // exec rejection (broken/missing ffprobe) → same fail-open path as NaN
   }
   if (!Number.isFinite(newDuration)) {
-    await execAsync(`rm -f "${tmpPath}"`);
+    rmSync(tmpPath, { force: true });
     return NaN;
   }
-  await execAsync(`mv "${tmpPath}" "${audioPath}"`);
+  renameSync(tmpPath, audioPath);
   return newDuration;
 }
 

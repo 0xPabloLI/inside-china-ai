@@ -109,7 +109,7 @@ describe("buildCV3BatchCommand model dir (#327)", () => {
 
     const cmd = buildCV3BatchCommand({ ...args, env: { HOME: home } });
 
-    expect(cmd).toContain(`--model-dir "${current}"`);
+    expect(cmd).toContain(`--model-dir '${current}'`);
   });
 
   it("uses an explicit modelDir verbatim", () => {
@@ -122,7 +122,7 @@ describe("buildCV3BatchCommand model dir (#327)", () => {
       modelDir: "/custom/cv3-model",
     });
 
-    expect(cmd).toContain('--model-dir "/custom/cv3-model"');
+    expect(cmd).toContain("--model-dir '/custom/cv3-model'");
     expect(cmd).not.toContain(join(home, "models", "cosyvoice3-mlx"));
   });
 
@@ -132,6 +132,6 @@ describe("buildCV3BatchCommand model dir (#327)", () => {
 
     const cmd = buildCV3BatchCommand({ ...args, env: { HOME: home }, modelDir: "" });
 
-    expect(cmd).toContain(`--model-dir "${current}"`);
+    expect(cmd).toContain(`--model-dir '${current}'`);
   });
 });

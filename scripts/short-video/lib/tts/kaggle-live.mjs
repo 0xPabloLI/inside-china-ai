@@ -28,6 +28,7 @@ import { join } from "path";
 import { createInterface } from "readline";
 import { walkRiffChunks } from "../audio/wav.mjs";
 import { ffmpegCmd } from "./ffmpeg-cmd.mjs";
+import { sh } from "../shell.mjs";
 
 const DEFAULT_KAGGLE_BIN = process.env.KAGGLE_BIN || "kaggle";
 
@@ -349,7 +350,9 @@ export async function materializeLiveBatch({ batch, dir, exec, log = () => {} })
     const wavPath = join(outDir, seg.output);
     const rate = seg.sampleRate || 24000;
     await exec(
-      `"${ffmpegCmd}" -v error -y -i "${flacPath}" -ac 1 -ar ${rate} -c:a pcm_s16le "${wavPath}" 2>&1`,
+      // #1598: every interpolation is quoted by the tag; flacPath/wavPath are
+      // batch-derived paths and must stay data.
+      sh`${ffmpegCmd} -v error -y -i ${flacPath} -ac 1 -ar ${rate} -c:a pcm_s16le ${wavPath} 2>&1`,
     );
     if (seg.pcmSha256) {
       const wavBuf = readFileSync(wavPath);

@@ -54,7 +54,7 @@ function makeCli({ list = "[]", statuses = {}, logs = {} } = {}) {
       if (list instanceof Error) throw list;
       return { stdout: list };
     }
-    const statusMatch = cmd.match(/kaggle kernels status (\S+)/);
+    const statusMatch = cmd.match(/kaggle kernels status ['"]?([^'"\s]+)['"]?/);
     if (statusMatch) {
       const ref = statusMatch[1].toLowerCase();
       const value = statuses[ref];
@@ -676,7 +676,7 @@ describe("engine wiring — precheck before push and evidence to the poller (#13
           return { stdout: "Kernel version 7 successfully pushed.  Please check progress at x" };
         }
         if (cmd.includes("kaggle kernels output")) {
-          const dir = cmd.match(/-p "([^"]+)"/)[1];
+          const dir = cmd.match(/-p ["']([^"']+)["']/)[1];
           const kernelDir = join(dir, "..", "..");
           const requestId = readFileSync(
             join(kernelDir, "cosyvoice3_cuda_kernel.py"),

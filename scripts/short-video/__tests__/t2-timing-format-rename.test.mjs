@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "fs";
 
 // ─── Mock child_process + fs ───
-const { execMock, fsMock } = vi.hoisted(() => {
-  const execMock = vi.fn((cmd, callback) => {
-    callback(null, { stdout: "", stderr: "" });
+const { execFileMock, fsMock } = vi.hoisted(() => {
+  const execFileMock = vi.fn((cmd, args, options, callback) => {
+    const cb = typeof options === "function" ? options : callback;
+    cb(null, { stdout: "", stderr: "" });
   });
   const fsMock = {
     existsSync: vi.fn(),
@@ -16,15 +17,14 @@ const { execMock, fsMock } = vi.hoisted(() => {
     renameSync: vi.fn(),
     rmSync: vi.fn(),
   };
-  return { execMock, fsMock };
+  return { execFileMock, fsMock };
 });
 
 vi.mock("child_process", () => ({
-  exec: execMock,
+  exec: vi.fn(),
   execSync: vi.fn(),
-  // getDuration is the argv-safe ffprobe probe (#319 deferred class sweep);
-  // it resolves through execFile with an empty duration.
-  execFile: vi.fn((cmd, args, callback) => callback(null, { stdout: "", stderr: "" })),
+  // #1598: alignment + trim/probe run through execFile argv.
+  execFile: execFileMock,
 }));
 
 // Spread the real module first: this suite reaches `lib/ytdlp-guard.mjs`, whose
@@ -101,9 +101,10 @@ const mockSceneDurations = [{ sceneId: 1, duration: 3.5, ttsDuration: 3.0, clipD
 
 describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () => {
   beforeEach(() => {
-    execMock.mockClear();
-    execMock.mockImplementation((cmd, callback) => {
-      callback(null, { stdout: "", stderr: "" });
+    execFileMock.mockClear();
+    execFileMock.mockImplementation((cmd, args, options, callback) => {
+      const cb = typeof options === "function" ? options : callback;
+      cb(null, { stdout: "", stderr: "" });
     });
     fsMock.existsSync.mockClear();
     fsMock.writeFileSync.mockClear();
@@ -194,17 +195,15 @@ describe("T2: timing JSON format adaptation + runWhisperAlignment rename", () =>
       "/output/audio/whisper-manifest.json",
       expect.any(String),
     );
-    expect(execMock.mock.calls[0][0]).toContain("text-align.py");
+    expect(execFileMock.mock.calls[0][1].join(" ")).toContain("text-align.py");
     // #232 guard pass runs after alignment: scene-1's fixture tail (3.5s audio
     // vs 1.2s last word) is trimmed — one ffmpeg trim call (+ mv + ffprobe).
     // Judge the executable token, not a substring of the whole command: a
     // substring also matches any path containing "ffmpeg" (a worktree named
     // `...-ffmpeg-...` counted a python invocation), and the token may be a
     // bare name or an absolute path depending on the resolved binary (#1118).
-    const executable = (cmd) =>
-      (/^"[^"]+"/.exec(cmd)?.[0] ?? cmd.split(/\s+/)[0]).replaceAll('"', "");
     expect(
-      execMock.mock.calls.filter(([cmd]) => executable(cmd).split("/").pop() === "ffmpeg"),
+      execFileMock.mock.calls.filter(([bin]) => bin.split("/").pop() === "ffmpeg"),
     ).toHaveLength(1);
   });
 

@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock child_process + fs
-const { execMock, fsMock } = vi.hoisted(() => ({
-  execMock: vi.fn((cmd, callback) => callback(null, { stdout: "", stderr: "" })),
+const { execFileMock, fsMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn((cmd, args, options, callback) => {
+    const cb = typeof options === "function" ? options : callback;
+    cb(null, { stdout: "", stderr: "" });
+  }),
   fsMock: {
     existsSync: vi.fn(),
     writeFileSync: vi.fn(),
@@ -12,11 +15,10 @@ const { execMock, fsMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("child_process", () => ({
-  exec: execMock,
+  exec: vi.fn(),
   execSync: vi.fn(),
-  // getDuration is the argv-safe ffprobe probe (#319 deferred class sweep);
-  // it resolves through execFile with an empty duration.
-  execFile: vi.fn((cmd, args, callback) => callback(null, { stdout: "", stderr: "" })),
+  // #1598: alignment runs through execFile argv.
+  execFile: execFileMock,
 }));
 
 // Spread the real module: import-time code in the dependency chain (ytdlp-guard
@@ -58,7 +60,10 @@ describe("T6: Gate 2 — subtitle-alignment repairFn", () => {
   beforeEach(() => {
     // clearAllMocks resets call history only: re-arm the success path so a
     // failure mock installed by one test cannot silence the next one.
-    execMock.mockImplementation((cmd, callback) => callback(null, { stdout: "", stderr: "" }));
+    execFileMock.mockImplementation((cmd, args, options, callback) => {
+      const cb = typeof options === "function" ? options : callback;
+      cb(null, { stdout: "", stderr: "" });
+    });
   });
 
   beforeEach(() => {
@@ -75,7 +80,7 @@ describe("T6: Gate 2 — subtitle-alignment repairFn", () => {
       "/output/audio/whisper-manifest.json",
       expect.any(String),
     );
-    expect(execMock).toHaveBeenCalledTimes(1);
+    expect(execFileMock).toHaveBeenCalledTimes(1);
 
     // Step 2: Regenerate subtitles (reads updated timing from disk)
     fsMock.writeFileSync.mockClear();
@@ -93,8 +98,9 @@ describe("T6: Gate 2 — subtitle-alignment repairFn", () => {
 
   it("handles text-align.py crash gracefully during repair", async () => {
     fsMock.existsSync.mockReturnValue(true);
-    execMock.mockImplementation((cmd, callback) => {
-      callback(new Error("wav2vec2 model not found"));
+    execFileMock.mockImplementation((cmd, args, options, callback) => {
+      const cb = typeof options === "function" ? options : callback;
+      cb(new Error("wav2vec2 model not found"));
     });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -113,7 +119,7 @@ describe("T6: Gate 2 — subtitle-alignment repairFn", () => {
     // Simulate the repairFn flow
     // 1. Align
     await runForcedAlignment(scenes, ttsResults, "/output/audio");
-    expect(execMock).toHaveBeenCalledTimes(1);
+    expect(execFileMock).toHaveBeenCalledTimes(1);
 
     // 2. Regenerate
     fsMock.writeFileSync.mockClear();

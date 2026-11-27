@@ -38,6 +38,7 @@ import {
 import { basename, dirname, isAbsolute, join } from "path";
 import { fileURLToPath } from "url";
 import { homedir } from "node:os";
+import { shellQuote } from "./shell-quote.mjs";
 import { matchDomain } from "./rate-limiter.mjs";
 import {
   parseScutilProxy,
@@ -622,15 +623,18 @@ export function ytdlpProxyEnv(deps = {}) {
 }
 
 /**
- * Escape a value for a double-quoted shell word. All three call sites compose
- * `execSync` command strings, so the quoting is decided here and nowhere else.
+ * Quoting for a value interpolated into a shell word.
  *
- * @param {string} value
- * @returns {string} the value wrapped in double quotes, with shell metacharacters escaped
+ * Re-exported from `shell-quote.mjs` (#1598): one primitive for the whole
+ * pipeline, so a value carrying `$()`, backticks, quotes or backslashes is
+ * read as data. The call sites compose `execFile` arrays instead whenever
+ * they can; these command strings remain because yt-dlp's pacing/backoff
+ * fragments are shell words.
+ *
+ * @param {unknown} value
+ * @returns {string} the value wrapped in single quotes
  */
-export function shellQuote(value) {
-  return `"${value.replace(/([\\"`$])/g, "\\$1")}"`;
-}
+export { shellQuote };
 
 /**
  * Shell fragment for the yt-dlp proxy hand-off — empty when no proxy applies.

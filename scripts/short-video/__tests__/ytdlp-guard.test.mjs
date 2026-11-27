@@ -73,6 +73,7 @@ import {
   ytdlpPacingArgs,
   ytdlpProxyArg,
   ytdlpProxyEnv,
+  shellQuote,
 } from "../lib/ytdlp-guard.mjs";
 import { parseScutilProxy } from "../../lib/proxy-port.mjs";
 import { searchYtdlp, downloadYtdlp } from "../lib/asset-sourcer.mjs";
@@ -560,7 +561,7 @@ describe("yt-dlp wiring", () => {
     // Weibo adapter without WEIBO_COOKIE proceeds via plain yt-dlp; 412 must register.
     const err = new Error("failed");
     err.stderr = "HTTP Error 412: Precondition Failed";
-    execSyncMock.mockImplementation(() => {
+    execFileSyncMock.mockImplementation(() => {
       throw err;
     });
     const res = downloadYtdlpAdapter("https://weibo.com/5468142257/Ri5ajjFK0");
@@ -590,8 +591,8 @@ describe("yt-dlp wiring", () => {
 
   it("#323: downloadYtdlpAdapter reads the webm fallback, reports the real container, leaves no orphan", () => {
     let produced = null;
-    execSyncMock.mockImplementation((cmd) => {
-      const template = cmd.match(/-o "([^"]+)"/)[1];
+    execFileSyncMock.mockImplementation((bin, args) => {
+      const template = args[args.indexOf("-o") + 1];
       produced = `${template}.webm`;
       writeFileSync(produced, Buffer.alloc(2048), "utf8");
     });
@@ -1031,7 +1032,7 @@ describe("#324 proxy resolution", () => {
     try {
       for (const k of KEYS) delete process.env[k];
       process.env.HTTP_PROXY = "http://127.0.0.1:7897";
-      expect(ytdlpProxyArg()).toBe('--proxy "http://127.0.0.1:7897"');
+      expect(ytdlpProxyArg()).toBe("--proxy 'http://127.0.0.1:7897'");
       process.env.http_proxy = "http://127.0.0.1:7897";
       expect(ytdlpProxyArg()).toBe("");
     } finally {
@@ -1047,7 +1048,7 @@ describe("#324 proxy resolution", () => {
     // BS is kept out of the source literal so the expectation stays readable.
     const BS = String.fromCharCode(92);
     const hostile = `http://h:a"b$c${BS}d`;
-    const expected = `--proxy "http://h:a${BS}"b${BS}$c${BS}${BS}d"`;
+    const expected = `--proxy ${shellQuote(hostile)}`;
     const KEYS = ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"];
     const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
     try {
@@ -1405,19 +1406,22 @@ describe("#324 yt-dlp proxy hand-off", () => {
   it("downloadYtdlpAdapter prefixes the shell command with the lower-case http_proxy", () => {
     uppercaseOnly();
     downloadYtdlpAdapter("https://www.youtube.com/watch?v=abc");
-    const cmd = execSyncMock.mock.calls[0][0];
-    // The assignment rides the command word, so yt-dlp and its ffmpeg child
-    // inherit it without the spawn site carrying a second mechanism.
-    expect(cmd).toContain('http_proxy="http://127.0.0.1:7897" yt-dlp');
+    const [bin, args, opts] = execFileSyncMock.mock.calls[0];
+    // #1598: the proxy rides the child environment, not a shell assignment
+    // prefix; yt-dlp and its ffmpeg child still inherit it.
+    expect(bin).toBe("yt-dlp");
+    expect(args.join(" ")).not.toContain("http_proxy=");
+    expect(opts.env.http_proxy).toBe("http://127.0.0.1:7897");
   });
 
   it("downloadYtdlpAdapter emits no prefix for an already-exported lower-case proxy", () => {
     process.env.http_proxy = "http://127.0.0.1:8888";
     process.env.https_proxy = "http://127.0.0.1:8888";
     downloadYtdlpAdapter("https://www.youtube.com/watch?v=abc");
-    const cmd = execSyncMock.mock.calls[0][0];
-    expect(cmd.startsWith("yt-dlp")).toBe(true);
-    expect(cmd).not.toContain("http_proxy=");
+    const [bin, args, opts] = execFileSyncMock.mock.calls[0];
+    expect(bin).toBe("yt-dlp");
+    expect(args.join(" ")).not.toContain("http_proxy=");
+    expect(opts.env.http_proxy).toBe("http://127.0.0.1:8888");
   });
 
   it("leaves an exported lower-case proxy untouched (no second copy)", () => {

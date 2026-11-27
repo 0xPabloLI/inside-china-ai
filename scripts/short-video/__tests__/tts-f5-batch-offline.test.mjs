@@ -35,8 +35,8 @@ describe("F5 batch command offline env (#394)", () => {
     const cmd = buildF5BatchCommand({ ...F5_ARGS, env: {} });
     expect(cmd).toContain("HF_HUB_DISABLE_XET=1");
     expect(cmd).toContain("f5_mlx_batch_tts.py");
-    expect(cmd).toContain('--manifest "/o/f5-manifest.json"');
-    expect(cmd).toContain('--output-dir "/o/audio"');
+    expect(cmd).toContain("--manifest '/o/f5-manifest.json'");
+    expect(cmd).toContain("--output-dir '/o/audio'");
   });
 });
 

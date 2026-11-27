@@ -14,7 +14,7 @@
  * Post-processing: same as F5 — resample only, no silenceremove/prosody/denoise.
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { existsSync, readFileSync, statSync, symlinkSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -23,9 +23,10 @@ import { ROOT_DIR } from "./types.mjs";
 import { containedPath } from "../path-safety.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
-import { offlineEnvPrefix } from "./offline-env.mjs";
+import { offlineEnvPrefix, offlineEnvVars } from "./offline-env.mjs";
+import { shellQuote } from "../shell-quote.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ── Config ──
 const CV3_MLX_BATCH_SCRIPT = join(ROOT_DIR, "cosyvoice3_mlx_batch_tts.py");
@@ -170,13 +171,58 @@ export function buildCV3BatchCommand({
   modelDir,
 }) {
   const resolvedModelDir = modelDir || resolveCV3ModelDir({ env });
+  // #1598: every interpolated value is quoted. The string is still produced
+  // for logs/back-compat; execution uses `buildCV3BatchInvocation` below and
+  // never reaches a shell.
   return (
-    `source ${CV3_MLX_VENV}/bin/activate && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 ` +
-    `python3 "${CV3_MLX_BATCH_SCRIPT}" ` +
-    `--manifest "${manifestPath}" --output-dir "${outputDir}" ` +
-    `--ref-audio "${CV3_REF_AUDIO}" --ref-text "${refText.replace(/"/g, '\\"')}" ` +
-    `--speed ${speed} --model-dir "${resolvedModelDir}" 2>&1`
+    `source ${shellQuote(join(CV3_MLX_VENV, "bin", "activate"))} && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 ` +
+    `python3 ${shellQuote(CV3_MLX_BATCH_SCRIPT)} ` +
+    `--manifest ${shellQuote(manifestPath)} --output-dir ${shellQuote(outputDir)} ` +
+    `--ref-audio ${shellQuote(CV3_REF_AUDIO)} --ref-text ${shellQuote(refText)} ` +
+    `--speed ${shellQuote(speed)} --model-dir ${shellQuote(resolvedModelDir)}`
   );
+}
+
+/**
+ * The argv/env form of the batch command (#1598): no shell, so the reference
+ * text (arbitrary user copy) and every path are literal arguments.
+ *
+ * @param {object} options - Same as buildCV3BatchCommand
+ * @returns {{bin: string, args: string[], env: NodeJS.ProcessEnv}}
+ */
+export function buildCV3BatchInvocation({
+  manifestPath,
+  outputDir,
+  refText,
+  speed = CV3_MLX_SPEED,
+  env = process.env,
+  modelDir,
+}) {
+  const resolvedModelDir = modelDir || resolveCV3ModelDir({ env });
+  return {
+    bin: join(CV3_MLX_VENV, "bin", "python3"),
+    args: [
+      CV3_MLX_BATCH_SCRIPT,
+      "--manifest",
+      manifestPath,
+      "--output-dir",
+      outputDir,
+      "--ref-audio",
+      CV3_REF_AUDIO,
+      "--ref-text",
+      refText,
+      "--speed",
+      String(speed),
+      "--model-dir",
+      resolvedModelDir,
+    ],
+    env: {
+      ...env,
+      ...offlineEnvVars({ env }),
+      HF_HUB_DISABLE_XET: "1",
+      PYTHONUNBUFFERED: "1",
+    },
+  };
 }
 
 /**
@@ -189,9 +235,7 @@ async function isAvailable() {
   if (!existsSync(CV3_REF_AUDIO)) return false;
   if (!existsSync(resolveCV3ModelDir())) return false;
   try {
-    await execAsync(
-      `source ${CV3_MLX_VENV}/bin/activate && python3 -c "import mlx_audio" 2>/dev/null`,
-    );
+    await execFileAsync(join(CV3_MLX_VENV, "bin", "python3"), ["-c", "import mlx_audio"]);
     return true;
   } catch {
     return false;
@@ -231,9 +275,12 @@ export async function createCosyVoice3MLXEngine() {
       ensureS3Tokenizer();
 
       console.log("  Loading CosyVoice3-MLX model (once for all scenes)...");
-      const { stdout } = await execAsync(
-        buildCV3BatchCommand({ manifestPath, outputDir, refText }),
-      );
+      const { bin, args, env } = buildCV3BatchInvocation({
+        manifestPath,
+        outputDir,
+        refText,
+      });
+      const { stdout } = await execFileAsync(bin, args, { env, maxBuffer: 64 * 1024 * 1024 });
 
       const lines = stdout.trim().split("\n");
       const jsonLine = lines.find((l) => l.trim().startsWith("[{"));

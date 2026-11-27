@@ -4,23 +4,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // vi.mock is hoisted, so we use vi.hoisted() to make mocks available
 // inside the factory.
 
-const { execMock, fsMock } = vi.hoisted(() => {
-  const execMock = vi.fn((cmd, callback) => {
-    callback(null, { stdout: "", stderr: "" });
+const { execFileMock, fsMock } = vi.hoisted(() => {
+  const execFileMock = vi.fn((cmd, args, options, callback) => {
+    const cb = typeof options === "function" ? options : callback;
+    cb(null, { stdout: "", stderr: "" });
   });
   const fsMock = {
     existsSync: vi.fn(),
     writeFileSync: vi.fn(),
   };
-  return { execMock, fsMock };
+  return { execFileMock, fsMock };
 });
 
 vi.mock("child_process", () => ({
-  exec: execMock,
+  exec: vi.fn(),
   execSync: vi.fn(),
-  // getDuration is the argv-safe ffprobe probe (#319 deferred class sweep);
-  // it resolves through execFile with an empty duration.
-  execFile: vi.fn((cmd, args, callback) => callback(null, { stdout: "", stderr: "" })),
+  // #1598: alignment invokes the venv python directly via execFile argv.
+  execFile: execFileMock,
 }));
 
 // Spread the real module first: the import chain of `lib/tts/post-process.mjs`
@@ -53,9 +53,10 @@ const mockTTSResults = [
 
 describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
   beforeEach(() => {
-    execMock.mockClear();
-    execMock.mockImplementation((cmd, callback) => {
-      callback(null, { stdout: "", stderr: "" });
+    execFileMock.mockClear();
+    execFileMock.mockImplementation((cmd, args, options, callback) => {
+      const cb = typeof options === "function" ? options : callback;
+      cb(null, { stdout: "", stderr: "" });
     });
     fsMock.existsSync.mockClear();
     fsMock.writeFileSync.mockClear();
@@ -82,8 +83,8 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
     });
 
     // Should exec the alignment script
-    expect(execMock).toHaveBeenCalledTimes(1);
-    const cmd = execMock.mock.calls[0][0];
+    expect(execFileMock).toHaveBeenCalledTimes(1);
+    const cmd = [execFileMock.mock.calls[0][0], ...execFileMock.mock.calls[0][1]].join(" ");
     expect(cmd).toContain("text-align.py");
     expect(cmd).toContain("--manifest");
     expect(cmd).toContain("whisper-manifest.json");
@@ -101,7 +102,7 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
 
     // Should NOT write manifest or exec alignment script
     expect(fsMock.writeFileSync).not.toHaveBeenCalled();
-    expect(execMock).not.toHaveBeenCalled();
+    expect(execFileMock).not.toHaveBeenCalled();
     // Should log warning
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("text-align.py not found"));
 
@@ -111,8 +112,9 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
   // Extra: alignment script throws → graceful fallback with warning
   it("handles alignment failure gracefully", async () => {
     fsMock.existsSync.mockReturnValue(true);
-    execMock.mockImplementation((cmd, callback) => {
-      callback(new Error("wav2vec2 model not found"));
+    execFileMock.mockImplementation((cmd, args, options, callback) => {
+      const cb = typeof options === "function" ? options : callback;
+      cb(new Error("wav2vec2 model not found"));
     });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -122,7 +124,7 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
     // Should still write manifest
     expect(fsMock.writeFileSync).toHaveBeenCalled();
     // Should exec the alignment script
-    expect(execMock).toHaveBeenCalled();
+    expect(execFileMock).toHaveBeenCalled();
     // Should log failure warning
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Force-align failed"));
 
@@ -142,10 +144,9 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
       else process.env.HF_HUB_OFFLINE = prev;
     }
 
-    const cmd = execMock.mock.calls[0][0];
-    expect(cmd).toContain("HF_HUB_OFFLINE=0");
-    expect(cmd).not.toContain("HF_HUB_OFFLINE=1");
-    expect(cmd).toContain("TRANSFORMERS_OFFLINE=0");
+    const env = execFileMock.mock.calls[0][2].env;
+    expect(env.HF_HUB_OFFLINE).toBe("0");
+    expect(env.TRANSFORMERS_OFFLINE).toBe("0");
   });
 
   // #394: the incident's opaque failure. whisperx swallows the real cause
@@ -156,8 +157,9 @@ describe("TTS Subtitle Alignment — runWhisperAlignment()", () => {
     const miss = new Error(
       'ValueError: The chosen align_model "facebook/wav2vec2-large-960h-lv60-self" could not be found in huggingface (https://huggingface.co/models) or torchaudio (https://pytorch.org/audio/stable/pipelines.html#id14)',
     );
-    execMock.mockImplementation((cmd, callback) => {
-      callback(miss);
+    execFileMock.mockImplementation((cmd, args, options, callback) => {
+      const cb = typeof options === "function" ? options : callback;
+      cb(miss);
     });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});

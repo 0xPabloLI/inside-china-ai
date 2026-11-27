@@ -229,7 +229,7 @@ describe("engine metadata — the wetext dataset rides along with the kernel", (
       refAudioPath,
       exec: async (cmd) => {
         if (cmd.includes("kaggle kernels output")) {
-          const dir = cmd.match(/-p "([^"]+)"/)[1];
+          const dir = cmd.match(/-p ["']([^"']+)["']/)[1];
           mkdirSync(join(dir, "output"), { recursive: true });
           writeFileSync(
             join(dir, "output", "summary.json"),

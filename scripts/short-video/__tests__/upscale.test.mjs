@@ -27,7 +27,7 @@ vi.mock("child_process", () => ({
 
 // Import after mocks are set up
 import { existsSync } from "fs";
-import { execFileSync, execSync, spawnSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 
 import {
   checkResolution,
@@ -250,7 +250,7 @@ describe("upscaleImage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     existsSync.mockReturnValue(true);
-    execSync.mockReturnValue("");
+    execFileSync.mockReturnValue("");
   });
 
   afterEach(() => {
@@ -275,8 +275,8 @@ describe("upscaleImage", () => {
   // Verify correct model is used for image
   it("uses realesrgan-x4plus model for image", () => {
     const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
-    const calledCmd = execSync.mock.calls[0]?.[0];
-    expect(calledCmd).toContain("realesrgan-x4plus");
+    const calledArgs = execFileSync.mock.calls[0]?.[1];
+    expect(calledArgs).toContain("realesrgan-x4plus");
   });
 
   // 2026-10-13 media-gate incident: Real-ESRGAN chooses the container from the
@@ -287,7 +287,7 @@ describe("upscaleImage", () => {
     const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
     expect(result.success).toBe(true);
     expect(result.path).toBe("/fake/output.jpg");
-    expect(execSync.mock.calls[1]?.[0]).toContain("/fake/output-tmp.jpg.png");
+    expect(execFileSync.mock.calls[1]?.[1]).toContain("/fake/output-tmp.jpg.png");
   });
 
   // No output from Real-ESRGAN → failure, not a success carrying a phantom path.
@@ -302,7 +302,7 @@ describe("upscaleImage", () => {
   // Degrade path: scale fails but the Real-ESRGAN file is really there.
   it("degrades to the real Real-ESRGAN output when the ffmpeg scale fails", () => {
     existsSync.mockImplementation((p) => !String(p).endsWith("-tmp.jpg"));
-    execSync.mockReturnValueOnce("").mockImplementationOnce(() => {
+    execFileSync.mockReturnValueOnce("").mockImplementationOnce(() => {
       throw new Error("ffmpeg scale failed");
     });
     const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
@@ -316,7 +316,7 @@ describe("upscaleImage", () => {
       .mockReturnValueOnce(true) // Real-ESRGAN binary present
       .mockReturnValueOnce(true) // tmpOutput present before scaling
       .mockReturnValueOnce(false); // gone by the time the scale step failed
-    execSync.mockReturnValueOnce("").mockImplementationOnce(() => {
+    execFileSync.mockReturnValueOnce("").mockImplementationOnce(() => {
       throw new Error("ffmpeg scale failed");
     });
     const result = upscaleImage("/fake/input.jpg", "/fake/output.jpg");
@@ -331,7 +331,7 @@ describe("autoUpscaleIfNeeded", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     existsSync.mockReset().mockReturnValue(true);
-    execSync.mockReset().mockReturnValue("");
+    execFileSync.mockReset().mockReturnValue("");
     execFileSync.mockReset().mockReturnValue("");
     spawnSync.mockReset().mockReturnValue({ status: 0, stdout: "", stderr: "" });
   });
@@ -433,7 +433,7 @@ describe("pipeline integration scenarios", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     existsSync.mockReset().mockReturnValue(true);
-    execSync.mockReset().mockReturnValue("");
+    execFileSync.mockReset().mockReturnValue("");
     execFileSync.mockReset().mockReturnValue("");
     spawnSync.mockReset().mockReturnValue({ status: 0, stdout: "", stderr: "" });
   });
