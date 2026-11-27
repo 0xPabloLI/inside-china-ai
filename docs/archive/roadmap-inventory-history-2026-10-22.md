@@ -1101,3 +1101,8 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 
 - **Round CCLVI 盘点全段（原文）**：> **Last inventory**: 2026-11-27（**Round CCLVI：`#1559` media-led hook 全宽**——contain 16:9 证据片由 820×461 改为 1080×608 + 同源 blur 填底，badge 留头部、subject/数字退图下 plate；`isMediaLedFullWidth()` 统一 schema/preflight/final gate，视频默认全宽、图片 grandfather。PR #1573，squash `5f769f75`。真帧：MAGI-2 1080 宽无侧边黑场、CapCut/RunningHub 仍 820 带；**有产出差异**。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1560`→`#1551`（2 张）；④ `#1566`；A 段队首 `#1537`。
 - **Round CCLIII 一句话档案（原文）**：**Round CCLIII**（`#1528` 收口（PR #1565，squash `b07e43b0`，CI 全绿）+ Inbox 6 张分流：1B 队首 `#1562`→`#1561`→`#1559`→`#1560`→`#1551`，`#1566` 归 ④；**无产出差异**；1A 空、②③ 空）；
+
+## Round CCLVIII 下沉（2026-11-27）
+
+- **Round CCLVII 盘点全段（原文）**：> **Last inventory**: 2026-11-27（**Round CCLVII：`#1560` 证据片原声默认**——`media.audioMode` 默认 `source`：证据视频在 render props 物化 level 1 + 开头 0–3s 窗口（0.3s 淡入出）+ 旁白 duck 0.55；`silent-by-design` 是唯一保留静音的声明，schema 拒绝窗口/正增益；`verify-video --pre` 探测音轨，对「有音轨 + `volume:0`」WARN；`apply-media-patch` 同步学会写 `audioMode`。PR #1576，squash `f62a28ee`。真片：seres 重渲，raw A/B 窗内 −24.7 dB RMS、窗外 −inf；**有产出差异**。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1551`（1 张）；④ `#1566`；A 段队首 `#1537`。
+- **Round CCLIV 一句话档案（原文）**：**Round CCLIV**（`#1562` 通知三态：默认 review 落 `publish/notify-pending.json`，`--approve` 补推且 `runId+platform` 幂等；auto/off 保留；**有产出差异**（交付面）；1A 空、②③ 空）
