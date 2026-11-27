@@ -1106,3 +1106,12 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 
 - **Round CCLVII 盘点全段（原文）**：> **Last inventory**: 2026-11-27（**Round CCLVII：`#1560` 证据片原声默认**——`media.audioMode` 默认 `source`：证据视频在 render props 物化 level 1 + 开头 0–3s 窗口（0.3s 淡入出）+ 旁白 duck 0.55；`silent-by-design` 是唯一保留静音的声明，schema 拒绝窗口/正增益；`verify-video --pre` 探测音轨，对「有音轨 + `volume:0`」WARN；`apply-media-patch` 同步学会写 `audioMode`。PR #1576，squash `f62a28ee`。真片：seres 重渲，raw A/B 窗内 −24.7 dB RMS、窗外 −inf；**有产出差异**。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1551`（1 张）；④ `#1566`；A 段队首 `#1537`。
 - **Round CCLIV 一句话档案（原文）**：**Round CCLIV**（`#1562` 通知三态：默认 review 落 `publish/notify-pending.json`，`--approve` 补推且 `runId+platform` 幂等；auto/off 保留；**有产出差异**（交付面）；1A 空、②③ 空）
+
+## Round CCLIX 下沉（2026-11-27）
+
+- **Round CCLVIII 盘点全段（原文）**：> **Last inventory**: 2026-11-27（**Round CCLVIII：`#1551` 官方产品页动态素材进入证据**——`videoFit<=3` 且有官方产品页时强制探页内 `<video>`/`og:video`/bundle/embed，写 `demo:…(official, dynamic)` 并按同一 rubric 重打分、落 before/after 审计；纯静图页不升 5、第三方转载仍 `official:false`。PR #1583，squash `b90127d8`。真实 7 topic 审计：智元 `7.5 / 3→5 / demo-led`（+19 demo/3 pages），GLM/商汤/九章/纯静图保持 3，NetShort/Seres 5 不重打；**有产出差异**。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1582`（本轮登记，1 张）；④ `#1566`；A 段队首 `#1537`。）
+- **Round CCLV 一句话档案（原文）**：**Round CCLV**（`#1561` header 互斥槽 + 通用碰撞门：hook badge 与 brand 同槽互斥、BRIEFING 固定右槽；`FixedCollisionAssert` 每 scene 测真实 bbox，相交阻断；ABot 首帧修复、lingsante 长 badge 29px 收敛；**有产出差异**；1B 队首 `#1559`）
+
+## Roadmap ledger 回填（2026-11-27，Round CCLIX）
+
+- PR #1579（2026-11-27，squash `919bb705`）：四包内容 + media-first 改写，消费 `#1524`/`#1525` 的既有能力；roadmap 状态无变化（能力交付已在 Round CCLVI/CCLVII 记录）。
