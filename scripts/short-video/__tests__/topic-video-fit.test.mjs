@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+
 import { test, expect } from "vitest";
 
 import { evaluateTopicVideoFit, scoreTopicVideoFit } from "../lib/topic-video-fit.mjs";
+import { probeOfficialPageMedia } from "../lib/official-media-probe.mjs";
 
 const asset = (type, overrides = {}) => ({
   type,
@@ -95,4 +98,58 @@ test("an event screenshot can opt out of dynamic and still count as an entity vi
   });
   expect(result.dynamicCount).toBe(0);
   expect(result.score).toBe(3);
+});
+
+test("a real official product page fixture supplies demo rows and reaches 5", async () => {
+  const html = readFileSync(
+    new URL("./fixtures/official-media/agibot-a3ultra.html", import.meta.url),
+    "utf8",
+  );
+  const probe = await probeOfficialPageMedia({
+    pageUrl: "https://www.agibot.com.cn/products/A3Ultra",
+    official: true,
+    fetchImpl: async () => ({ ok: true, method: "static", text: html }),
+  });
+
+  const result = evaluateTopicVideoFit({
+    slug: "agibot-aima-linksoul",
+    assets: [
+      asset("person", { label: "founder" }),
+      asset("product", { label: "A3 Ultra" }),
+      asset("company", { label: "Agibot" }),
+      ...probe.assets,
+    ],
+    format: "demo-led",
+    hook: "demo：A3 Ultra 官方产品页能力片段，机器人方阵",
+  });
+
+  expect(probe.assets.length).toBeGreaterThan(0);
+  expect(result.videoFit).toBe(5);
+  expect(result.assetEvidence).toMatch(/demo:/);
+});
+
+test("a still-only official page adds no demo rows and cannot reach 5", async () => {
+  const html = readFileSync(
+    new URL("./fixtures/official-media/still-product.html", import.meta.url),
+    "utf8",
+  );
+  const probe = await probeOfficialPageMedia({
+    pageUrl: "https://official.example.com/product",
+    official: true,
+    fetchImpl: async () => ({ ok: true, method: "static", text: html }),
+  });
+
+  const result = evaluateTopicVideoFit({
+    assets: [
+      asset("person", { label: "founder" }),
+      asset("product", { label: "product page" }),
+      asset("company", { label: "company" }),
+      ...probe.assets,
+    ],
+    format: "explainer",
+    hook: "founder photo + product page",
+  });
+
+  expect(probe.assets).toEqual([]);
+  expect(result.videoFit).toBe(3);
 });
