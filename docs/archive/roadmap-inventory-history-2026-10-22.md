@@ -1086,3 +1086,13 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 
 - **Round CCLIV 盘点全段（原文）**：> **Last inventory**: 2026-11-26（**Round CCLIV：`#1562` 成片通知三态**——默认 `review` 不再静默跳过或立即推送：verify 全 PASS 后写 `publish/notify-pending.json`（caption/hashtags/runId 原样存档），确认文案后 `notify-caption.mjs --approve` 一条命令补推，按 `runId+platform` 幂等；`auto` 保留 #1530 行为，`off` 不落包。E2E：无通道 approve 失败且保持 pending；假 webhook 补推 2 条、二次 approve 不重发。**有产出差异**（交付面：默认转待审 + 新增待审文件；成片字节不变）。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1561`→`#1559`→`#1560`→`#1551`；④ `#1566`；A 段队首 `#1537`（卡 Colab 配额/用户确认）。）
 - **Round CCLI 一句话档案（原文）**：**Round CCLI**（`#1528` 调度 verify：单 kernel 多视频/模型复用/单 scene 重试成立，`render-only` 干净目录过 Step 3.5；缺口 = 跨视频 manifest、`tts-only --run`、lane 账本；**无产出差异**；1A/1B/②③④ 空）
+
+## Round CCLVI 下沉（2026-11-27）
+
+- **Round CCLV 盘点全段（原文）**：> **Last inventory**: 2026-11-26（**Round CCLV：`#1561` header 互斥槽 + 通用碰撞门**——hook 声明 badge 时 brand 让位同一左槽、BRIEFING 固定右槽；badge 槽 663px、文字 Fit 上限 545px。新增 `FixedCollisionAssert` 包住每个 scene，按 `data-collision-box` 真实 bbox 判定，部分相交即 `[FixedCollisionError]` 阻断；preflight `checkHeaderSlots` 用同一几何默认 FAIL。真帧：ABot hook 无遮挡、agnes 短 badge 回归、lingsante 24 字符长 badge 收至 29px（646.6<663）。**有产出差异**（ABot 首帧不再被红 pill 覆盖；长 badge 由溢出改为缩字号）。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1559`→`#1560`→`#1551`（3 张）；④ `#1566`；A 段队首 `#1537`。
+- **Round CCLII 一句话档案（原文）**：**Round CCLII**（`#1528` R1+R2：`tts-only --run` 产自包含 run；`tts-batch` 一次 push 跑 4 包/8 scene，254.9+84.9+55.8+63.1=458.7 s，门禁 100%，跨包 batch 文本随命令；**无产出差异**；1A/1B/②③④ 空）
+## Roadmap ledger 回填（2026-11-27）
+
+- PR #1571（2026-11-26，squash `b6d51c74`）：`#1561` header 互斥槽 + 通用碰撞门，记录于 Round CCLV。
+- PR #1569（2026-11-26，squash `1393d463`）：`#1562` 成片通知三态，记录于 Round CCLIV。
+- PR #1556（2026-11-26，squash `f645e2d6`）：`#1555` fail-closed audio policy gate，记录于 Round CCL（`#1524`+`#1525` 联合合成同轮）。
