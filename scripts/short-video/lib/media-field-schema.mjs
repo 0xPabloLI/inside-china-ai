@@ -12,6 +12,7 @@
  * `media-field-schema.test.mjs` fails when the two drift apart.
  */
 import { isPlainObject, shown, validateProvenance } from "./media-integrity.mjs";
+import { isMediaLedFullWidth } from "./text-slots.mjs";
 
 /** Every key a `scene.media` object may carry. Mirrors `MediaField`. */
 export const MEDIA_FIELD_KEYS = new Set([
@@ -20,7 +21,8 @@ export const MEDIA_FIELD_KEYS = new Set([
   "mode",
   "fit",
   "matteColor", // solid letterbox fill for contain images; match the source edge
-  "fill", // #1524: "blur" backdrop behind a contained picture (media-first only)
+  "fill", // #1524: "blur" backdrop behind a contained picture (media-first or media-led fullWidth)
+  "fullWidth", // #1559: full-canvas-width band on the media-led hook (video default)
   "focus",
   "cropFocus", // #1040: [0,1] CSS object-position ratio, not a source-space point
   "source",
@@ -151,14 +153,43 @@ export function checkMediaFieldSchema(scenes) {
           fix: 'Add `fit: "contain"`, or drop media.fill and let cover crop the frame.',
         });
       }
-      if (scene.visualType !== "narrative" || scene.layout !== "media-first") {
+      const blurHonored =
+        (scene.visualType === "narrative" && scene.layout === "media-first") ||
+        isMediaLedFullWidth(scene);
+      if (!blurHonored) {
         results.push({
           level: "fail",
           category: "Media",
           check: `Media field schema: Scene ${scene.id} fill is honored by its layout`,
-          detail: `media.fill renders only in NarrativeScene layout "media-first"; scene ${scene.id} is ${scene.visualType}/${scene.layout ?? "no layout"} — the declaration would have no effect`,
-          fix: 'Move the beat to layout "media-first", or drop media.fill.',
+          detail: `media.fill renders only in NarrativeScene layout "media-first" or a full-width media-led hook; scene ${scene.id} is ${scene.visualType}/${scene.layout ?? "no layout"} — the declaration would have no effect`,
+          fix: 'Move the beat to layout "media-first", declare media.fullWidth on the media-led hook, or drop media.fill.',
         });
+      }
+    }
+
+    // #1559: `fullWidth` is the media-led hook's full-canvas-width band. It
+    // is a boolean, only legal on an effective media-led hook, and only with
+    // a contained picture — "cover" already fills the frame, and a declaration
+    // that renders nothing is the exact dead field this schema exists to catch.
+    if (media.fullWidth !== undefined) {
+      if (typeof media.fullWidth !== "boolean") {
+        results.push({
+          level: "fail",
+          category: "Media",
+          check: `Media field schema: Scene ${scene.id} fullWidth is a boolean`,
+          detail: `media.fullWidth must be true or false, got ${shown(media.fullWidth)} (${typeof media.fullWidth})`,
+          fix: "Use `fullWidth: true` to fill the canvas width, or `fullWidth: false` for the legacy 820 band.",
+        });
+      } else {
+        if (media.fullWidth === true && !isMediaLedFullWidth(scene)) {
+          results.push({
+            level: "fail",
+            category: "Media",
+            check: `Media field schema: Scene ${scene.id} fullWidth is honored by its layout`,
+            detail: `media.fullWidth renders only on an effective media-led hook with an evidence picture and fit:"contain"; scene ${scene.id} is ${scene.visualType}/${scene.layout ?? "no layout"}, mediaRole ${scene.mediaRole ?? "unset"}, fit "${media.fit ?? "cover"}"${scene.info?.chart ? `, chart "${scene.info.chart}"` : ""} — the declaration would have no effect`,
+            fix: 'Move the picture to layout "media-led" with mediaRole:"evidence" and fit:"contain", or drop media.fullWidth.',
+          });
+        }
       }
     }
 

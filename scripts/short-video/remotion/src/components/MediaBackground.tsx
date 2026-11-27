@@ -53,6 +53,13 @@ interface Props {
    * keeps the picture off the burned-subtitle lane.
    */
   containAlign?: ContainAlign;
+  /**
+   * #1559: paint ONLY the blurred same-source fill, no contained picture.
+   * The media-led full-width band uses this for the full-canvas backdrop
+   * while the sharp picture renders in its own 1080×608 container. Requires
+   * `media.fill === "blur"` and `fit: "contain"` (the caller provides both).
+   */
+  fillOnly?: boolean;
 }
 
 /** Vertical anchor for a contained picture inside its container. */
@@ -222,6 +229,7 @@ export const MediaBackground: React.FC<Props> = ({
   duration,
   effects,
   containAlign = "center",
+  fillOnly = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -296,6 +304,19 @@ export const MediaBackground: React.FC<Props> = ({
     audioWindow,
     duck,
   });
+
+  // #1559 fill-only: the full-width media-led hook paints the same-source blur
+  // across the whole canvas while the sharp picture renders in its own
+  // contained band. No primary element, no motion preset, no audio — this is
+  // atmosphere behind the scene, and it must not add a second moving copy.
+  // This return sits after every hook call on purpose: returning before
+  // useNarrationActive would make the hook conditional.
+  if (fillOnly) {
+    const blurAllowed = (media.fit ?? "cover") === "contain" && media.fill === "blur";
+    return blurAllowed ? (
+      <FillBlur media={media} src={src} opacity={opacity} trimBefore={trimBefore} />
+    ) : null;
+  }
 
   const mediaStyle: React.CSSProperties = {
     position: "absolute",

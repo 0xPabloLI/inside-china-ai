@@ -273,6 +273,8 @@ export function formatMediaObject(media, propertyIndent = "  ", options = {}) {
     lines.push(`${fieldIndent}matteColor: ${stringField("matteColor", media.matteColor)},`);
   if (media.fill !== undefined)
     lines.push(`${fieldIndent}fill: ${stringField("fill", media.fill)},`);
+  if (media.fullWidth !== undefined)
+    lines.push(`${fieldIndent}fullWidth: ${booleanField("fullWidth", media.fullWidth)},`);
   if (media.animation !== undefined)
     lines.push(`${fieldIndent}animation: ${stringField("animation", media.animation)},`);
   if (media.volume !== undefined)

@@ -20,6 +20,7 @@ import {
   resolveRenderLayout,
   HOOK_MEDIA_LED_LAYOUT,
   isMediaLedHook,
+  isMediaLedFullWidth,
   HOOK_SUBJECT_ROW,
   MEASURED_MAX_WIDTH,
   SLOT_FIELDS,
@@ -658,6 +659,50 @@ describe("hook media-led layout contract (2026-11-15)", () => {
       isMediaLedHook({ visualType: "hook", layout: "media-led", info: { chart: "line" } }),
     ).toBe(false);
     expect(isMediaLedHook(undefined)).toBe(false);
+  });
+
+  it("isMediaLedFullWidth defaults video evidence to full width and keeps images legacy (#1559)", () => {
+    const base = {
+      visualType: "hook",
+      layout: "media-led",
+      mediaRole: "evidence",
+      media: { type: "video", path: "assets/x.mp4", fit: "contain" },
+    };
+    // The official-demo case: a contained video fills the canvas width with no
+    // opt-in.
+    expect(isMediaLedFullWidth(base)).toBe(true);
+    // An image keeps the 820 band unless it asks for the variant — the
+    // CapCut / RunningHub regression baseline.
+    expect(isMediaLedFullWidth({ ...base, media: { ...base.media, type: "image" } })).toBe(false);
+    expect(
+      isMediaLedFullWidth({
+        ...base,
+        media: { ...base.media, type: "image", fullWidth: true },
+      }),
+    ).toBe(true);
+    // Explicit legacy opt-out is legal for both types.
+    expect(isMediaLedFullWidth({ ...base, media: { ...base.media, fullWidth: false } })).toBe(
+      false,
+    );
+    // Cover already fills the frame; the full-width band is contain-only.
+    expect(isMediaLedFullWidth({ ...base, media: { ...base.media, fit: "cover" } })).toBe(false);
+    // The card branch and the native chart own their own geometry.
+    expect(isMediaLedFullWidth({ ...base, media: { ...base.media, mode: "card" } })).toBe(false);
+    expect(
+      isMediaLedFullWidth({
+        ...base,
+        media: null,
+        info: { chart: "candle" },
+      }),
+    ).toBe(false);
+    // Not an effective media-led hook (decorative media) → no band at all.
+    expect(
+      isMediaLedFullWidth({
+        visualType: "hook",
+        layout: "media-led",
+        media: { type: "video", path: "assets/x.mp4", fit: "contain" },
+      }),
+    ).toBe(false);
   });
 
   it("registers every media-led field with its band width", () => {

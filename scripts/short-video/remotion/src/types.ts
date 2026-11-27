@@ -52,10 +52,20 @@ export interface MediaField {
    * #1524: fill behind a contained picture. `"blur"` paints a blurred,
    * cover-cropped copy of the same source across the container, so a 16:9
    * source sits at full width with no letterbox and no subject crop.
-   * Only legal with `fit: "contain"`, and currently only on `media-first` —
-   * the scene-data schema and preflight enforce both.
+   * Only legal with `fit: "contain"`, and only on `media-first` or the
+   * full-width media-led hook — the scene-data schema and preflight enforce
+   * both.
    */
   fill?: "blur";
+  /**
+   * #1559: the media-led hook's full-canvas-width band. `true` fills the
+   * frame width with the contained picture (1080×608 for a 16:9 source) and
+   * moves subject/number into the plate below; `false` keeps the legacy
+   * 820×619 band. Omitted: video evidence defaults to `true`, image evidence
+   * keeps the legacy band (the CapCut / RunningHub regression baseline).
+   * Requires `fit: "contain"`.
+   */
+  fullWidth?: boolean;
   /** @deprecated Replaced by protectedRegions from detectFocus() in Phase 2. Existing scene-data values still render, but new auto-analysis no longer writes this field. */
   focus?: "top" | "center" | "bottom"; // default "center" — crop focus when fit is "cover"
   /** #1040: normalized [0,1] CSS object-position ratio (0 = left/top, 0.5 = centre, 1 = right/bottom) — NOT a source-space point. `objectPositionFor` maps it straight to `${x * 100}%`; producers convert via crop-decision.mjs `sourceFocusToObjectPosition`. Overrides deprecated `focus` enum when present. Set by selectBestCrop(). */

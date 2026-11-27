@@ -461,6 +461,37 @@ export const MEDIA_LED = Object.freeze({
 });
 
 /**
+ * Full-width media-led hook (#1559). A 16:9 evidence picture at 820 wide
+ * fills only 76% of the frame; the user's report is "视频没有放大、没有撑满
+ * 宽度". This band is the canvas width (1080), the contained 16:9 picture is
+ * 608 tall and starts at `pictureTop` — 16px below the brand/badge header,
+ * the same anchor EVIDENCE_CARD uses — and ends at 908. The copy moves into
+ * the plate BELOW the picture instead of sharing the narrow band: badge stays
+ * in the header, subject and number sit in `strip`.
+ *
+ * Only a contained picture gets this variant. `cover` already fills the frame,
+ * and the native candle chart keeps its own 820 band.
+ */
+const FULL_PICTURE_TOP = 300;
+const FULL_PICTURE_HEIGHT = 608; // 1080 × 9 / 16 = 607.5
+export const HOOK_MEDIA_LED_FULL = Object.freeze({
+  /** Top edge of the full-width picture band (clears header by 16px). */
+  pictureTop: FULL_PICTURE_TOP,
+  /** Height of a 1080-wide 16:9 picture. */
+  pictureHeight: FULL_PICTURE_HEIGHT,
+  /** Gap between the picture's bottom edge and the copy plate. */
+  gap: 8,
+  /**
+   * Copy plate top/bottom. Bottom is the content-band edge (y=1206), so the
+   * plate never reaches the burned subtitle lane at 1336.
+   */
+  stripTop: FULL_PICTURE_TOP + FULL_PICTURE_HEIGHT + 8, // 916
+  stripBottom: CANVAS.height - SAFE_ZONES.bottom, // 1206
+  /** Flat alpha of the copy plate over the blurred fill. */
+  textBedAlpha: 0.62,
+});
+
+/**
  * Header mutual-exclusion slots (#1561).
  *
  * The top band carries three fixed elements that used to be drawn independently

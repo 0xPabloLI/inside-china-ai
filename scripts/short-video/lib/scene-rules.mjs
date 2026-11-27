@@ -1619,7 +1619,7 @@ export function checkHookMediaContract(scenes) {
         detail: `${media.type}: ${media.path}`,
       },
     ];
-    const quality = checkHookMediaQuality(media, { layout: hook.layout });
+    const quality = checkHookMediaQuality(media, { layout: hook.layout, scene: hook });
     for (const f of quality.failures) {
       results.push({
         level: "fail",
