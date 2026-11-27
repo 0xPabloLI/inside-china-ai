@@ -292,7 +292,7 @@ export function checkFinalMedia({ scenes, contentDir, probeVideo }) {
       // The file landed — now enforce the same curation contract as preflight
       // (#299), so a fit:"contain" hook cannot render through the paths that
       // skip scene-rules (render-only / rerender / rerender-full / realign).
-      const quality = checkHookMediaQuality(scene.media, { layout });
+      const quality = checkHookMediaQuality(scene.media, { layout, scene });
       for (const f of quality.failures) {
         failures.push({
           sceneId: scene.id,

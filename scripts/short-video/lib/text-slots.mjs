@@ -446,6 +446,35 @@ export function isMediaLedHook(scene) {
 }
 
 /**
+ * Whether the media-led hook renders the full-width band (#1559).
+ *
+ * Default: a contained VIDEO evidence picture fills the canvas width (1080×608)
+ * with the same-source blur behind it. This is the "official demo" case the
+ * ticket names — the old 820×619 bed showed a 16:9 clip as a 820×461 strip with
+ * black margins on both sides.
+ *
+ * An IMAGE keeps the legacy 820 band unless it declares `media.fullWidth: true`
+ * (the regression baseline for CapCut / RunningHub, the two shipped image
+ * hooks). `fullWidth: false` is the explicit legacy opt-out for either type;
+ * preflight warns on a contained VIDEO that takes it, so the choice is visible
+ * rather than silent.
+ *
+ * The native candle chart never takes this branch: it draws its own baked
+ * series in the 820 band and has no raster picture to fill.
+ *
+ * @param {{visualType?: string, layout?: string, media?: object|null, info?: object}} scene
+ * @returns {boolean}
+ */
+export function isMediaLedFullWidth(scene) {
+  if (!isMediaLedHook(scene)) return false;
+  const media = scene?.media;
+  if (!media || media.mode === "card") return false;
+  if ((media.fit ?? "cover") !== "contain") return false;
+  if (media.fullWidth === false) return false;
+  return media.fullWidth === true || media.type === "video";
+}
+
+/**
  * Visual types whose template owns more than one information layout (#1215).
  * `stat-reveal`, `data`, `contrast`, `context` and `info-card` consume
  * `scene.layout`; the remaining templates do not (narrative has its own set,

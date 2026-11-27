@@ -299,6 +299,21 @@ const BASELINE_SCENES: Record<string, SceneData> = {
   // the same generated photo (`fit` omitted → cover) — a render-OK baseline
   // like the other media baselines.
   "baseline-hook-media-led": MEDIA_LED_CONTAIN_SCENE,
+  "baseline-hook-media-led-full": {
+    ...MEDIA_LED_CONTAIN_SCENE,
+    id: 33,
+    // #1559: an image opts into the full-width band explicitly; a video would
+    // take it by default. The pixel probe below proves the 820 side margins
+    // are gone without changing the legacy image baseline.
+    media: {
+      type: "image",
+      path: SCENE_GATE_PHOTO,
+      fit: "contain",
+      animation: "none",
+      source: "FIXTURE",
+      fullWidth: true,
+    },
+  },
   "baseline-hook-media-led-candle": MEDIA_LED_CANDLE_SCENE,
   "baseline-hook-media-led-cover": {
     ...MEDIA_LED_CONTAIN_SCENE,

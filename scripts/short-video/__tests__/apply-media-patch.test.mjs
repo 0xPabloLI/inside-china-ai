@@ -1510,6 +1510,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       fit: "contain",
       matteColor: "#ffffff",
       fill: "blur",
+      fullWidth: true,
       focus: "left",
       animation: "fade",
       volume: 0.08,

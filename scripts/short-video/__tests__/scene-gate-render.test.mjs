@@ -108,6 +108,7 @@ const BASELINES = [
   // band) and cover (full-bleed footage). The contain case additionally gets
   // the no-occlusion pixel probe below.
   "baseline-hook-media-led",
+  "baseline-hook-media-led-full",
   "baseline-hook-media-led-candle",
   "baseline-hook-media-led-cover",
   "baseline-data",
@@ -516,6 +517,46 @@ describe(
         // scrim (which sat below 120).
         expect(band.r + band.g + band.b, `${label} ${JSON.stringify(band)}`).toBeGreaterThan(170);
       }
+    });
+
+    it("media-led full width: the picture reaches both canvas edges (#1559)", async () => {
+      // The legacy contain band left 130px of canvas ground on each side of a
+      // 16:9 source. The full-width variant puts the picture in a 1080×608
+      // container at y 300: both edge windows must carry the source, not the
+      // #0a0a14 ground. The blurred fill is also the source, so this probe
+      // proves width, not just "something bright".
+      const { PNG } = await import("pngjs");
+      const { ok, raw, out } = await renderScenario("baseline-hook-media-led-full");
+      expect(ok, raw).toBe(true);
+      const png = PNG.sync.read(readFileSync(out));
+      const meanAt = (x0, y0, w, h) => {
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        for (let y = y0; y < y0 + h; y++) {
+          for (let x = x0; x < x0 + w; x++) {
+            const i = (png.width * y + x) << 2;
+            r += png.data[i];
+            g += png.data[i + 1];
+            b += png.data[i + 2];
+          }
+        }
+        const n = w * h;
+        return { r: r / n, g: g / n, b: b / n };
+      };
+      for (const [label, x] of [
+        ["left edge", 20],
+        ["right edge", 1045],
+      ]) {
+        const edge = meanAt(x, 600, 30, 60);
+        // Canvas ground is ~10/10/20 per channel (sum ~40); testsrc2's darker
+        // regions still average well above that. 120 separates the two.
+        expect(edge.r + edge.g + edge.b, `${label} ${JSON.stringify(edge)}`).toBeGreaterThan(120);
+      }
+      // The plate starts at 916 and the picture ends at 908; between them the
+      // blur fill must still be visible (8px gap), never canvas ground.
+      const gap = meanAt(500, 910, 80, 6);
+      expect(gap.r + gap.g + gap.b, `picture/plate gap ${JSON.stringify(gap)}`).toBeGreaterThan(60);
     });
   },
 );
