@@ -33,8 +33,8 @@
  * file lookup are injected so a test never spawns ffprobe.
  */
 import { existsSync } from "fs";
-import { join } from "path";
 import { isEvidenceMedia } from "./media-role.mjs";
+import { mediaAbsolutePath } from "./media-bg.mjs";
 import { probeMedia as realProbeMedia } from "./media-probe.mjs";
 
 /** The only two decisions an evidence video may declare. */
@@ -156,7 +156,7 @@ export function checkEvidenceSourceAudio({
     if (!policy.applies || !policy.valid) continue;
     const media = scene.media;
     if (!media.path) continue;
-    const abs = join(contentDirAbs, media.path);
+    const abs = mediaAbsolutePath(media.path, contentDirAbs);
     if (!fileExists(abs)) continue;
     const probe = probeMedia(abs);
     if (!probe?.hasAudio) continue;
