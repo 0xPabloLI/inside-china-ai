@@ -168,7 +168,14 @@ describe("tts-only --run", () => {
         }),
       ).rejects.toThrow("kaggle queue timeout");
 
-      expect(allocated).toMatch(/^r-20261126T/);
+      // The run id carries the LOCAL calendar day (`r-YYYYMMDDT...`). Pinning
+      // yesterday's literal made this suite red every day after 2026-11-26
+      // without anything in the allocator changing; derive the day here instead.
+      const localDay = (() => {
+        const d = new Date();
+        return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      })();
+      expect(allocated).toMatch(new RegExp(`^r-${localDay}T`));
       markTtsRunFailed({ root, pipelineId: PIPELINE_ID, runId: allocated, code: 1 });
       const entry = readManifest(root, PIPELINE_ID).runs.find((run) => run.runId === allocated);
       expect(entry.status).toBe(RUN_STATUS.FAILED);
