@@ -232,3 +232,49 @@ describe("media field schema (#836)", () => {
     expect([...declared].sort()).toEqual([...BACKDROP_FIELD_KEYS].sort());
   });
 });
+
+describe("evidence audioMode schema (#1560)", () => {
+  const video = (media) => ({
+    id: 1,
+    visualType: "narrative",
+    layout: "media-first",
+    mediaRole: "evidence",
+    media: { type: "video", path: "assets/demo.mp4", ...media },
+  });
+
+  it("accepts source and silent-by-design on a video", () => {
+    expect(failures(checkMediaFieldSchema([video({ audioMode: "source" })]))).toHaveLength(0);
+    expect(
+      failures(checkMediaFieldSchema([video({ audioMode: "silent-by-design", volume: 0 })])),
+    ).toHaveLength(0);
+  });
+
+  it("rejects an unknown mode", () => {
+    const text = failureText(checkMediaFieldSchema([video({ audioMode: "muted" })]));
+    expect(text).toContain("audioMode must be");
+  });
+
+  it("rejects audioMode on an image", () => {
+    const text = failureText(
+      checkMediaFieldSchema([
+        {
+          ...video({ audioMode: "source" }),
+          media: { type: "image", path: "a.png", audioMode: "source" },
+        },
+      ]),
+    );
+    expect(text).toContain("audioMode is on a video");
+  });
+
+  it("rejects silent-by-design that still declares a window or a positive gain", () => {
+    const windowed = failureText(
+      checkMediaFieldSchema([video({ audioMode: "silent-by-design", volume: 0, audioIn: 1 })]),
+    );
+    expect(windowed).toContain("silent-by-design has no window");
+
+    const loud = failureText(
+      checkMediaFieldSchema([video({ audioMode: "silent-by-design", volume: 0.5 })]),
+    );
+    expect(loud).toContain("silent-by-design is zero gain");
+  });
+});
