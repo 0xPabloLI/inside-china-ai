@@ -92,7 +92,7 @@ function formatEvidenceChange(demoAssets, pagesWithMedia) {
  * @param {number} deps.maxPagesPerTopic
  * @returns {Promise<object>} audit row
  */
-export async function rescoreTopic(topic, deps = {}) {
+async function rescoreTopic(topic, deps = {}) {
   const fetchImpl = deps.fetchImpl;
   const maxPages =
     Number.isInteger(deps.maxPagesPerTopic) && deps.maxPagesPerTopic > 0

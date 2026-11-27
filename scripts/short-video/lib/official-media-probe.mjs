@@ -58,7 +58,7 @@ function decodeUrlEntities(value) {
 }
 
 /** Parse one tag's attributes without a DOM dependency. */
-export function parseTagAttributes(tag) {
+function parseTagAttributes(tag) {
   const attrs = {};
   const re = /([a-zA-Z][a-zA-Z0-9:_-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
   let match;
