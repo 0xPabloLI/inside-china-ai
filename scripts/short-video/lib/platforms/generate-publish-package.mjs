@@ -28,6 +28,8 @@ import {
   classifyHashtags,
 } from "../caption-utils.mjs";
 import { validateArticleUrl } from "../article-url-readiness.mjs";
+import { auditHashtags, sanitizeHashtags } from "../hashtag-quality.mjs";
+import { loadPool } from "../hashtag-pool.mjs";
 import {
   auditCaptionReadability,
   shouldEnforceCaptionReadability,
@@ -115,8 +117,18 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
   if (Array.isArray(meta?.keyEntities?.models)) {
     keyEntitiesModels = meta.keyEntities.models;
   }
+  let metaHashtagDrops = [];
   if (meta?.hashtags && Array.isArray(meta.hashtags) && meta.hashtags.length > 0) {
-    metaHashtags = meta.hashtags;
+    const sanitized = sanitizeHashtags({
+      hashtags: meta.hashtags,
+      meta,
+      pool: loadPool(),
+      min: limits.hashtags.min,
+    });
+    metaHashtagDrops = sanitized.dropped;
+    // Keep the manual tags that pass; only fall back to the raw list when the
+    // package would otherwise have too few tags and must fail loudly.
+    metaHashtags = sanitized.usable ? sanitized.kept : meta.hashtags;
   }
   const enriched = {
     ...(metadata || {}),
@@ -174,6 +186,7 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
       brand: brandHashtags,
       trending: trendingHashtags,
       selectionMode,
+      droppedTags: metaHashtagDrops.map((issue) => issue.tag),
       rule: "3-5 hashtags, wrong tags → wrong audience → algorithm penalty",
       researchedAt: "2026-08-08",
       dataSource: "tiktokhashtags.com + TikTok Creative Center + competitor analysis",
@@ -210,6 +223,19 @@ export function buildPublishPackage(profile, { scenes, metadata, meta } = {}) {
     violations.push(
       `Hashtag count out of range [${limits.hashtags.min}-${limits.hashtags.max}] (${hashtags.length})`,
     );
+  }
+  // Manual overrides are the one path that bypasses hashtag strategy. Apply
+  // the same quality gate here so a bad tag cannot be written into the
+  // publish package (and then pushed to the notification channel).
+  if (metaHashtags) {
+    const qualityIssues = auditHashtags({
+      hashtags: metaHashtags,
+      meta,
+      pool: loadPool(),
+    });
+    for (const issue of qualityIssues) {
+      violations.push(`Hashtag quality: ${issue.message}`);
+    }
   }
   // #429 stage-1 gate: a wrong-origin / malformed articleUrl is rejected here.
   // Draft articles may legitimately 404, so no liveness is checked at package

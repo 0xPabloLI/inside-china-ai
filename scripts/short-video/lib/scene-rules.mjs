@@ -26,6 +26,8 @@ import {
   auditCaptionReadability,
   shouldEnforceCaptionReadability,
 } from "./caption-readability.mjs";
+import { sanitizeHashtags } from "./hashtag-quality.mjs";
+import { loadPool } from "./hashtag-pool.mjs";
 // One spelling list for Step 0.5 and this advisory: whatever the auto-fix
 // annotates is exactly what the verify-time net stops flagging.
 import { findCurrencySpellings, hasNearbyUsd } from "./normalize-currency.mjs";
@@ -3811,6 +3813,78 @@ function checkCaptionReadability(seriesMeta, { meta = null } = {}) {
   ];
 }
 
+/**
+ * Hashtag quality gate: manual meta.hashtags must be searchable, not a
+ * version string or a secondary company name. Runs before render so a bad
+ * tag never reaches the expensive TTS/render path.
+ */
+export function checkHashtagQuality(meta) {
+  if (!Array.isArray(meta?.hashtags) || meta.hashtags.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Hashtag",
+        check: "Hashtag quality",
+        detail: "auto-derived (no manual meta.hashtags override)",
+      },
+    ];
+  }
+
+  let pool;
+  try {
+    pool = loadPool();
+  } catch (error) {
+    return [
+      {
+        level: "fail",
+        category: "Hashtag",
+        check: "Hashtag quality",
+        detail: `hashtag pool unavailable: ${error.message}`,
+        fix: "Restore scripts/short-video/config/hashtag-pool.json before publishing",
+      },
+    ];
+  }
+
+  const { kept, dropped, usable } = sanitizeHashtags({
+    hashtags: meta.hashtags,
+    meta,
+    pool,
+    min: 3,
+  });
+  if (dropped.length === 0) {
+    return [
+      {
+        level: "pass",
+        category: "Hashtag",
+        check: "Hashtag quality",
+        detail: `${kept.length} manual tags backed by pool / product / category evidence`,
+      },
+    ];
+  }
+  if (usable) {
+    return [
+      {
+        level: "warn",
+        category: "Hashtag",
+        check: "Hashtag quality",
+        detail: `${dropped.map((issue) => issue.message).join("; ")} — auto-dropped from the publish package; ${kept.length} valid tags remain`,
+        fix: "No manual edit needed; the caption generator keeps only the valid tags.",
+      },
+    ];
+  }
+
+  return dropped.map((issue) => ({
+    level: "fail",
+    category: "Hashtag",
+    check: "Hashtag quality",
+    detail: issue.message,
+    fix:
+      "Add at least 3 valid tags in content/<slug>/meta.mjs: drop version strings, " +
+      "use the product tag instead of a secondary company name, and add " +
+      "a sampled hashtag-pool entry for any new category tag.",
+  }));
+}
+
 export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
   const meta = opts.meta || null;
   const avatarResults = checkAvatarContract(scenes);
@@ -3827,6 +3901,7 @@ export function runAllSceneDataChecks(scenes, seriesMeta, opts = {}) {
     ...checkHookDiffersFromText(scenes),
     ...checkSEOKeywords(scenes),
     ...checkCaptionReadability(opts.metadata ?? seriesMeta, { meta }),
+    ...checkHashtagQuality(meta),
     ...checkSourceAttribution(scenes),
     ...checkVoiceoverWordCount(scenes, opts),
     ...checkOneBreath(scenes),

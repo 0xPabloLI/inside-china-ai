@@ -148,6 +148,36 @@ describe("buildPublishPackage", () => {
     expect(pkg.violations[0]).toContain("chinaai.news");
   });
 
+  it("rejects a manual hashtag override that is a version string", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: METADATA,
+      meta: { ...META, hashtags: ["#deepseek", "#v4"] },
+    });
+    expect(pkg.violations.some((v) => v.includes("Hashtag quality"))).toBe(true);
+    expect(pkg.violations.join(" ")).toContain("#v4");
+  });
+
+  it("drops an invalid manual tag instead of failing when 3+ valid tags remain", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: METADATA,
+      meta: { ...META, hashtags: ["#deepseek", "#llm", "#coding", "#v4"] },
+    });
+    expect(pkg.violations.filter((v) => v.includes("Hashtag quality"))).toEqual([]);
+    expect(pkg.hashtags).not.toContain("#v4");
+    expect(pkg.metadataJson.hashtagStrategy.droppedTags).toContain("#v4");
+  });
+
+  it("keeps a manual override that has pool/product/category evidence", () => {
+    const pkg = buildPublishPackage(tiktok, {
+      scenes: SCENES,
+      metadata: METADATA,
+      meta: { ...META, hashtags: ["#deepseek", "#llm", "#coding"] },
+    });
+    expect(pkg.violations.filter((v) => v.includes("Hashtag quality"))).toEqual([]);
+  });
+
   it("fails a new pack whose caption is too long for the feed (2026-11-25 gate)", () => {
     const pkg = buildPublishPackage(tiktok, {
       scenes: SCENES,
