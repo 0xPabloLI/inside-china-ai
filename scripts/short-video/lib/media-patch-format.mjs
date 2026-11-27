@@ -287,6 +287,8 @@ export function formatMediaObject(media, propertyIndent = "  ", options = {}) {
     lines.push(`${fieldIndent}duckUnderNarration: ${media.duckUnderNarration === true},`);
   if (media.duckLevel !== undefined)
     lines.push(`${fieldIndent}duckLevel: ${numberField("duckLevel", media.duckLevel)},`);
+  if (media.audioMode !== undefined)
+    lines.push(`${fieldIndent}audioMode: ${stringField("audioMode", media.audioMode)},`);
   if (media.videoStartOffsetMs !== undefined)
     lines.push(
       `${fieldIndent}videoStartOffsetMs: ${numberField("videoStartOffsetMs", media.videoStartOffsetMs)},`,

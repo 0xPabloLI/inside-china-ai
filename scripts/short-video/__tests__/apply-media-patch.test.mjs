@@ -1520,6 +1520,7 @@ describe("#846 manual apply: structure-aware rewrite, evidence guard, single for
       audioFadeOut: 0.5,
       duckUnderNarration: true,
       duckLevel: 0.25,
+      audioMode: "source",
       upscale: true,
       videoStartOffsetMs: 1500,
       cropFocus: { x: 0.3, y: 0.5 },
