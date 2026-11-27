@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.122.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.121.0...tanstack_start_ts-v1.122.0) (2026-11-27)
+
+
+### Features
+
+* **content:** add four packs and media-first rewrites ([#1579](https://github.com/0xPabloLI/inside-china-ai/issues/1579)) ([919bb70](https://github.com/0xPabloLI/inside-china-ai/commit/919bb7052c6593f42728afb7a676ffbfd8fafed8))
+
 ## [1.121.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.120.0...tanstack_start_ts-v1.121.0) (2026-11-27)
 
 
