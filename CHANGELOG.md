@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.120.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.119.1...tanstack_start_ts-v1.120.0) (2026-11-27)
+
+
+### Features
+
+* **short-video:** full-width media-led hook band ([#1559](https://github.com/0xPabloLI/inside-china-ai/issues/1559)) ([#1573](https://github.com/0xPabloLI/inside-china-ai/issues/1573)) ([5f769f7](https://github.com/0xPabloLI/inside-china-ai/commit/5f769f75fbd3a9d313dbd0e9ec8e86e9387058cb))
+
 ## [1.119.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.119.0...tanstack_start_ts-v1.119.1) (2026-11-26)
 
 
