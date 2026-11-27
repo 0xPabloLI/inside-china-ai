@@ -19,7 +19,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 
-import { resolveMediaBinary } from "../ffmpeg-bins.mjs";
+import { resolveMediaBinary, binaryUsable } from "../ffmpeg-bins.mjs";
 // The one thing these tests need from the module private to it: which build the
 // resolver prefers. Spelled out here rather than exported only for tests.
 const HOMEBREW_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
@@ -96,6 +96,21 @@ describe("resolveMediaBinary (#1118)", () => {
   });
 });
 
+describe("binaryUsable (#1586 preflight)", () => {
+  it("checks an absolute path directly, without asking PATH", () => {
+    // The incident: `which /opt/homebrew/.../ffmpeg` fails when PATH lacks the
+    // keg, even though the file exists and the call site will happily run it.
+    expect(binaryUsable(process.execPath)).toBe(true);
+    expect(binaryUsable("/definitely/not/a/binary-1586")).toBe(false);
+  });
+
+  it("checks a bare command through PATH", () => {
+    // `sh` lives in /bin, so this branch still runs under a stripped PATH.
+    expect(binaryUsable("sh")).toBe(true);
+    expect(binaryUsable("definitely-not-a-binary-1586")).toBe(false);
+  });
+});
+
 describe("upscale.mjs binary constants (#1118)", () => {
   // Behaviour, not a restatement of the export line: a child process sets the
   // override the way an operator would and the module must hand it back.
@@ -132,47 +147,45 @@ describe("ASS burn boundary (#1118)", () => {
     expect(resolved).toBe(HOMEBREW_FFMPEG);
   });
 
-  it("the burn path imports neither the seam nor its env override", () => {
-    // A comment can claim the boundary; this rejects the wiring that would
-    // break it. The preflight probes post-process's binary, so it is covered
-    // transitively.
-    for (const file of ["post-process.mjs", "ffmpeg-preflight.mjs"]) {
-      const src = readFileSync(join(LIB_DIR, file), "utf8");
-      expect(src, `${file} must not adopt the decode/probe fallback`).not.toMatch(
-        /ffmpeg-bins|FFMPEG_BIN|FFPROBE_BIN/,
-      );
-    }
+  it("the burn preflight does not adopt the decode/probe fallback", () => {
+    // The preflight probes the burn binary; it must keep naming FFMPEG_FULL.
+    const src = readFileSync(join(LIB_DIR, "ffmpeg-preflight.mjs"), "utf8");
+    expect(src, "ffmpeg-preflight must not adopt the decode/probe fallback").not.toMatch(
+      /ffmpeg-bins|FFMPEG_BIN|FFPROBE_BIN/,
+    );
   });
 
-  it("every ASS-carrying pass still names FFMPEG_FULL, not the PATH-fallback helper", () => {
-    // The text scan above cannot see the realistic regression: post-process.mjs
-    // already imports from tts/ffmpeg-cmd.mjs, whose `ffmpegCmd` is
-    // FFMPEG_BIN-backed. Swapping a burn call site to `ffmpegCmd` would burn
-    // through PATH ffmpeg (no libass) while the preflight keeps probing
-    // FFMPEG_FULL — the drift this boundary exists to prevent. So pin the
-    // binary argument of the two passes that carry the `ass=` filter.
+  it("only the ASS burn and useAss finalize pass run ffmpeg-full", () => {
+    // A comment can claim the boundary; this rejects the wiring. post-process
+    // imports the resolver for the non-ASS passes (#1591), so the guard is the
+    // call site: every invocation must name FFMPEG_BIN, except the burn and the
+    // useAss branch, which must name FFMPEG_FULL.
     const src = readFileSync(join(LIB_DIR, "post-process.mjs"), "utf8");
-    expect(src, "post-process must not borrow the decode/probe ffmpeg").not.toMatch(
+    expect(src, "post-process must not borrow the decode/probe ffmpeg alias").not.toMatch(
       /\bffmpegCmd\b|\bffprobeCmd\b/,
     );
 
     const calls = [...src.matchAll(/execFileSync\(\s*([^,\n]+)/g)].map((m) => m[1].trim());
-    expect(
-      calls.length,
-      "post-process's ffmpeg invocations moved; re-check the burn sites",
-    ).toBeGreaterThan(0);
-    expect(
-      calls.filter((bin) => bin === "FFMPEG_FULL" || bin.startsWith("useAss")),
-      "the burn (ass=) and the useAss finalize pass must both run ffmpeg-full",
-    ).toEqual(["FFMPEG_FULL", 'useAss ? FFMPEG_FULL : "ffmpeg"']);
+    expect(calls.length, "post-process's ffmpeg invocations moved; re-check the burn sites").toBe(
+      6,
+    );
+    expect(calls).toEqual([
+      "FFMPEG_BIN", // loudness repair
+      "FFMPEG_FULL", // burnSubtitles (ass=)
+      "FFMPEG_BIN", // mixBgm
+      "FFMPEG_BIN", // normalizeLoudness
+      "FFMPEG_BIN", // concatSegmentsAudio
+      "useAss ? FFMPEG_FULL : FFMPEG_BIN", // finalize
+    ]);
+    expect(calls.some((bin) => /["']ffmpeg["']/.test(bin))).toBe(false);
   });
 });
 
 describe("bare ffmpeg/ffprobe sweep (#1586)", () => {
-  // The files #1582 left behind and #1586 converted. A new bare call fails
-  // here, in the gate, instead of at the first `verify-video` / QA / BGM run
-  // on a shell whose PATH has no Homebrew bin. post-process.mjs is absent on
-  // purpose: its five calls are the ASS-burn boundary above.
+  // The files #1582 left behind and #1586 converted; post-process joined when
+  // its non-ASS passes moved to FFMPEG_BIN (#1591). A new bare call fails here,
+  // in the gate, instead of at the first `verify-video` / QA / BGM run on a
+  // shell whose PATH has no Homebrew bin.
   const SCRIPT_DIR = join(LIB_DIR, "..");
   const SWEPT = [
     "verify-video.mjs",
@@ -187,6 +200,7 @@ describe("bare ffmpeg/ffprobe sweep (#1586)", () => {
     "lib/qa-mechanics.mjs",
     "lib/generate-bgm.mjs",
     "lib/video-downloaders.mjs",
+    "lib/post-process.mjs",
   ];
   const BARE =
     /(?:execFileSync|execFileAsync|execFile|spawnSync|spawn|execSync)\(\s*[`"']?(?:ffmpeg|ffprobe)[`"']?\s*[,)]/;

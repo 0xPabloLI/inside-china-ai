@@ -11,6 +11,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { execFileSync, spawnSync } from "child_process";
 import { FFMPEG_BIN, FFPROBE_BIN } from "../lib/ffmpeg-bins.mjs";
+import { transcodeWavToMp3 } from "./fixtures/audio-fixtures.mjs";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -160,11 +161,7 @@ describe("measureAudioDrift (integration, real ffmpeg)", () => {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execFileSync(
-        FFMPEG_BIN,
-        ["-y", "-i", srcWav, "-codec:a", "libmp3lame", "-q:a", "4", mp3Path],
-        { stdio: ["ignore", "ignore", "ignore"] },
-      );
+      transcodeWavToMp3(srcWav, mp3Path);
       mp3Paths.push(mp3Path);
     }
 
@@ -359,11 +356,7 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execFileSync(
-        FFMPEG_BIN,
-        ["-y", "-i", srcWav, "-codec:a", "libmp3lame", "-q:a", "4", mp3Path],
-        { stdio: ["ignore", "ignore", "ignore"] },
-      );
+      transcodeWavToMp3(srcWav, mp3Path);
       mp3Paths.push(mp3Path);
     }
 

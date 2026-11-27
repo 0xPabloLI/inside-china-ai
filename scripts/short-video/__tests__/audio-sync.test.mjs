@@ -13,6 +13,7 @@ import {
 } from "../lib/audio/sync.mjs";
 import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
 import { writeWavPcm } from "../lib/audio/wav.mjs";
+import { transcodeWavToMp3 } from "./fixtures/audio-fixtures.mjs";
 
 describe("evaluateAudioSync", () => {
   const TOL = 0.08;
@@ -145,20 +146,7 @@ describe("verifyAudioSync (integration, real ffmpeg)", () => {
     ]) {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
-      execFileSync(
-        FFMPEG_BIN,
-        [
-          "-y",
-          "-i",
-          srcWav,
-          "-codec:a",
-          "libmp3lame",
-          "-q:a",
-          "4",
-          join(audioDir, `scene-${id}.mp3`),
-        ],
-        { stdio: ["ignore", "ignore", "ignore"] },
-      );
+      transcodeWavToMp3(srcWav, join(audioDir, `scene-${id}.mp3`));
     }
     return { dir };
   }
@@ -475,11 +463,7 @@ describe("verifyAudioSync honors audioPaths (assembly-source regression)", () =>
       const wavSrc = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(wavSrc, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execFileSync(
-        FFMPEG_BIN,
-        ["-y", "-i", wavSrc, "-codec:a", "libmp3lame", "-q:a", "4", mp3Path],
-        { stdio: ["ignore", "ignore", "ignore"] },
-      );
+      transcodeWavToMp3(wavSrc, mp3Path);
       mp3Paths.push(mp3Path);
       // Stale .wav from a different generation — undecodable, so re-resolution
       // that picks it lands in failedScenes instead of silently matching.
@@ -571,20 +555,7 @@ describe("realignAudioToTimeline (integration, real ffmpeg)", () => {
     ]) {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
-      execFileSync(
-        FFMPEG_BIN,
-        [
-          "-y",
-          "-i",
-          srcWav,
-          "-codec:a",
-          "libmp3lame",
-          "-q:a",
-          "4",
-          join(audioDir, `scene-${id}.mp3`),
-        ],
-        { stdio: ["ignore", "ignore", "ignore"] },
-      );
+      transcodeWavToMp3(srcWav, join(audioDir, `scene-${id}.mp3`));
     }
 
     const finalPath = join(dir, "final.wav");

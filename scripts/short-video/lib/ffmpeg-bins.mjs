@@ -17,12 +17,14 @@
  *      this machine and the historical default),
  *   3. the PATH binary.
  *
- * Boundary: the ASS burn in `post-process.mjs` deliberately does NOT import
- * this module. It consumes libass, which only ffmpeg-full carries, and the
- * Step 0.4 preflight (#394) turns a missing build into a fail-fast error.
- * Falling back to PATH there would move the failure to the last step of a
- * render — the exact incident that gate exists for. `lib/__tests__/ffmpeg-bins.test.mjs`
- * rejects that wiring statically.
+ * Boundary: the ASS burn in `post-process.mjs` still consumes `FFMPEG_FULL`,
+ * because it needs libass — only ffmpeg-full carries it. The Step 0.4
+ * preflight (#394) turns a missing build into a fail-fast error. Since #1591
+ * `post-process.mjs` also imports this resolver for the passes that do NOT
+ * carry subtitles (finalize without ASS, BGM mix, loudness repair, segment
+ * audio concat), so an operator override works on a shell without Homebrew.
+ * The burn call site itself must keep using `FFMPEG_FULL`;
+ * `lib/__tests__/ffmpeg-bins.test.mjs` pins that distinction statically.
  *
  * Consumers: `upscale.mjs` (and therefore `dh-upscale`, `digital-human` and the
  * avatar frame audit through its re-exports), `tts/ffmpeg-cmd.mjs`,
@@ -30,7 +32,9 @@
  * passes (`verify-video`, `verify-remotion-frames`, `compile-series`,
  * `qa-final-review`, `mix-bgm`, `frame-extract`, `qa-mechanics`,
  * `generate-bgm`, `video-downloaders`, `audio/diagnostics`, plus `main.mjs`'s
- * preflight). `lib/__tests__/ffmpeg-bins.test.mjs` pins that sweep so a new
+ * preflight). Since #1591 `post-process.mjs` uses it for the non-ASS
+ * finalize/mix/loudness/concat passes; the ASS burn stays on `FFMPEG_FULL`.
+ * `lib/__tests__/ffmpeg-bins.test.mjs` pins that sweep so a new
  * bare `"ffmpeg"` / `"ffprobe"` call fails there instead of at the first
  * verify run on a shell without Homebrew on PATH.
  * Three decode consumers still pin ffmpeg-full unconditionally
@@ -41,6 +45,7 @@
  * @module ffmpeg-bins
  */
 
+import { execFileSync } from "child_process";
 import { existsSync } from "fs";
 
 /** ffmpeg-full build installed by Homebrew on this machine. */
@@ -78,6 +83,26 @@ export const FFMPEG_BIN = resolveMediaBinary({
   fallback: "ffmpeg",
   envKey: "FFMPEG_BIN",
 });
+
+/**
+ * Is the resolved binary usable as the pipeline will use it?
+ *
+ * A path override is checked directly: `which` reports "not installed" for
+ * `/opt/homebrew/.../ffmpeg` when PATH lacks that keg, even though the file
+ * exists (#1586). A bare command is checked through PATH.
+ *
+ * @param {string} bin - absolute path or PATH command name
+ * @returns {boolean}
+ */
+export function binaryUsable(bin) {
+  if (bin.includes("/")) return existsSync(bin);
+  try {
+    execFileSync("which", [bin], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** ffprobe used by decode/encode paths (not the ASS burn). */
 export const FFPROBE_BIN = resolveMediaBinary({

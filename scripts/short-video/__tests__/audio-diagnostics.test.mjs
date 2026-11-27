@@ -25,6 +25,7 @@ import {
 import { verifySubtitles } from "../lib/verify-subtitles.mjs";
 import { buildVoiceoverTrack } from "../lib/audio/track.mjs";
 import { writeWavPcm } from "../lib/audio/wav.mjs";
+import { transcodeWavToMp3 } from "./fixtures/audio-fixtures.mjs";
 import { hasFfprobe, markerCreated, withMetacharPath } from "./fixtures/metachar-path.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -341,20 +342,7 @@ function makeDriftFixture(ttsDurations) {
   ]) {
     const srcWav = join(dir, `scene-${id}-src.wav`);
     writeWavPcm(srcWav, noise(seconds, seed), 44100);
-    execFileSync(
-      FFMPEG_BIN,
-      [
-        "-y",
-        "-i",
-        srcWav,
-        "-codec:a",
-        "libmp3lame",
-        "-q:a",
-        "4",
-        join(audioDir, `scene-${id}.mp3`),
-      ],
-      { stdio: ["ignore", "ignore", "ignore"] },
-    );
+    transcodeWavToMp3(srcWav, join(audioDir, `scene-${id}.mp3`));
   }
 
   const finalPath = join(dir, "final.wav");

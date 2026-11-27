@@ -13,6 +13,7 @@ import { existsSync, renameSync, unlinkSync } from "fs";
 import { join } from "path";
 import { measureAudioDrift } from "./audio/sync.mjs";
 import { writeBgmMixMarker } from "./audio/bgm-margin.mjs";
+import { FFMPEG_BIN } from "./ffmpeg-bins.mjs";
 import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
 
 /**
@@ -20,7 +21,9 @@ import { ffmpegMeasureCmd, getDurationSync } from "./tts/ffmpeg-cmd.mjs";
  *
  * Exported for the Step 0.4 burn preflight (#394): this is the pipeline's
  * canonical "ass-capable ffmpeg", so the capability check and the actual
- * burn cannot drift apart.
+ * burn cannot drift apart. Non-ASS passes use `FFMPEG_BIN` instead (#1591),
+ * which is why this module imports the resolver without weakening the burn
+ * boundary.
  */
 export const FFMPEG_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
 
@@ -312,7 +315,7 @@ function verifyFinalLoudness(videoPath, options = {}) {
   const tmp = `${videoPath}.loudfix.mp4`;
   try {
     execFileSync(
-      "ffmpeg",
+      FFMPEG_BIN,
       buildLoudnessRepairArgs({
         inputPath: videoPath,
         outputPath: tmp,
@@ -419,7 +422,7 @@ export function mixBgm(videoPath, bgmPath, outputPath, volume = DEFAULT_BGM_VOLU
     `[0:a]volume=1.0[tts];[tts][bgm]amix=inputs=2:duration=first:dropout_transition=0[aout]`;
 
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     [
       "-y",
       "-i",
@@ -469,7 +472,7 @@ export function mixBgm(videoPath, bgmPath, outputPath, volume = DEFAULT_BGM_VOLU
  */
 export function normalizeLoudness(videoPath, outputPath, target = -16) {
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     [
       "-y",
       "-i",
@@ -634,7 +637,7 @@ export function concatSegmentsAudio({ segments, fps = 30, outputDir }) {
     "pcm_s16le",
     wavPath,
   );
-  execFileSync("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+  execFileSync(FFMPEG_BIN, args, { stdio: ["pipe", "pipe", "pipe"] });
   return wavPath;
 }
 
@@ -647,8 +650,9 @@ export function concatSegmentsAudio({ segments, fps = 30, outputDir }) {
  * preserves timestamps) and folded into this pass, eliminating the separate
  * realign re-encode.
  *
- * ASS burn-in requires ffmpeg-full (libass); other combinations use system
- * ffmpeg, matching the binaries the old per-step chain picked.
+ * ASS burn-in requires ffmpeg-full (libass); every pass that does not carry
+ * subtitles uses the resolved decode/encode binary (`FFMPEG_BIN`), so an
+ * operator override works even when PATH has no ffmpeg (#1591).
  *
  * @param {object} options
  * @param {string} options.videoPath - Input MP4 (the raw render output)
@@ -747,7 +751,9 @@ export function finalizeRenderedVideo({
     "loudness normalized",
     audioFilter ? "head trimmed" : null,
   ].filter(Boolean);
-  execFileSync(useAss ? FFMPEG_FULL : "ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+  execFileSync(useAss ? FFMPEG_FULL : FFMPEG_BIN, args, {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
   console.log(`  Finalized in 1 ffmpeg pass (${parts.join(" + ")})`);
 
   // Record what this pass did with the bed (#950). The margin check cannot
