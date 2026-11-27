@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.123.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.123.0...tanstack_start_ts-v1.123.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **audio:** route decode and measurement through FFMPEG_BIN ([#1582](https://github.com/0xPabloLI/inside-china-ai/issues/1582)) ([#1587](https://github.com/0xPabloLI/inside-china-ai/issues/1587)) ([dcafce3](https://github.com/0xPabloLI/inside-china-ai/commit/dcafce33512df9043bc8e68a365d4c7f0b5b4621))
+* **video:** route verify/QA/BGM media calls through the ffmpeg resolver ([#1590](https://github.com/0xPabloLI/inside-china-ai/issues/1590)) ([6be743f](https://github.com/0xPabloLI/inside-china-ai/commit/6be743fd268ed5701c1e23906ab3b6aa16620a96))
+
 ## [1.123.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.122.0...tanstack_start_ts-v1.123.0) (2026-11-27)
 
 
