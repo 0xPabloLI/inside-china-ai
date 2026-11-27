@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.123.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.122.0...tanstack_start_ts-v1.123.0) (2026-11-27)
+
+
+### Features
+
+* **topic:** probe official product pages for dynamic videoFit evidence ([#1583](https://github.com/0xPabloLI/inside-china-ai/issues/1583)) ([b90127d](https://github.com/0xPabloLI/inside-china-ai/commit/b90127d85e02287bd20131ee26397fbaae5b1f6e))
+
 ## [1.122.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.121.0...tanstack_start_ts-v1.122.0) (2026-11-27)
 
 
