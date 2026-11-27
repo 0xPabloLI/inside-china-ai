@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.121.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.120.0...tanstack_start_ts-v1.121.0) (2026-11-27)
+
+
+### Features
+
+* **short-video:** evidence clips keep their own sound by default ([#1560](https://github.com/0xPabloLI/inside-china-ai/issues/1560)) ([#1576](https://github.com/0xPabloLI/inside-china-ai/issues/1576)) ([f62a28e](https://github.com/0xPabloLI/inside-china-ai/commit/f62a28ee083ebf7ae8754981499af0072aa7f4ea))
+
 ## [1.120.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.119.1...tanstack_start_ts-v1.120.0) (2026-11-27)
 
 
