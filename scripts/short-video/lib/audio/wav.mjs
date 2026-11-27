@@ -9,6 +9,7 @@
 
 import { execFileSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
+import { FFMPEG_BIN } from "../ffmpeg-bins.mjs";
 
 const HEADER_SIZE = 44;
 
@@ -158,8 +159,10 @@ export function readWavPcm(path) {
 export function decodeToWavFile(inputPath, outputPath, sampleRate) {
   // argv, never a shell string (#319 deferred class sweep): both paths are
   // content data. stderr stays captured by execSync so a failure reports why.
+  // Binary comes from the shared resolver (#1582): a bare "ffmpeg" assumed a
+  // Homebrew PATH that agent shells and clean worktrees do not have.
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     ["-y", "-i", inputPath, "-ac", "1", "-ar", String(sampleRate), "-c:a", "pcm_s16le", outputPath],
     { stdio: ["pipe", "pipe", "pipe"] },
   );
