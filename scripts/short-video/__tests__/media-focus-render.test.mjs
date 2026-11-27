@@ -72,6 +72,7 @@ import { mkdirSync, readFileSync, rmSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import { EVIDENCE_CARD, SUBTITLE_LANE_TOP } from "../lib/safe-zones.mjs";
 import { bandRowExtent, meanColourInPatch, nearestPaletteColour } from "./pixel-probe.mjs";
 
@@ -141,7 +142,7 @@ function writeBands(axis, out, clip) {
     ? ["-t", "1", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "18", "-y"]
     : ["-frames:v", "1", "-y"];
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     [
       "-v",
       "error",
@@ -169,7 +170,7 @@ function writeSolid(out, clip) {
     ? ["-t", "1", "-r", "30", "-pix_fmt", "yuv420p", "-c:v", "libx264", "-crf", "18", "-y"]
     : ["-frames:v", "1", "-y"];
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     ["-v", "error", "-f", "lavfi", "-i", "color=c=white:s=1080x1920", ...encode, out],
     { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
   );

@@ -20,6 +20,7 @@ import { copyFileSync, existsSync, realpathSync, statSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { spawnSync } from "child_process";
+import { FFMPEG_BIN, FFPROBE_BIN } from "./lib/ffmpeg-bins.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -139,7 +140,7 @@ export function buildXfadeArgs(files, outputPath, xfadeDuration) {
  */
 function getVideoDuration(videoPath) {
   const result = spawnSync(
-    "ffprobe",
+    FFPROBE_BIN,
     [
       "-v",
       "error",
@@ -200,7 +201,7 @@ async function main() {
   console.log(`  Command: ffmpeg ${ffmpegArgs.join(" ").substring(0, 120)}...`);
 
   try {
-    const result = spawnSync("ffmpeg", ffmpegArgs, { stdio: "pipe", encoding: "utf8" });
+    const result = spawnSync(FFMPEG_BIN, ffmpegArgs, { stdio: "pipe", encoding: "utf8" });
     if (result.error || result.status !== 0) {
       const reason =
         result.stderr?.trim() || result.error?.message || `ffmpeg exited ${result.status}`;

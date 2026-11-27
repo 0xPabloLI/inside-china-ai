@@ -10,6 +10,7 @@
  * measured numbers so the reviewer sees them without re-measuring.
  */
 import { describe, it, expect } from "vitest";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import {
   ACCEPTANCE_OFFSETS,
   SHEET_LAYOUT,
@@ -313,7 +314,7 @@ describe("buildSheetCommand", () => {
       outPath: "/qa/sheets/sheet-01.jpg",
       inputPattern: "/qa/sheets/.tiles-01/%02d.png",
     });
-    expect(argv[0]).toBe("ffmpeg");
+    expect(argv[0]).toBe(FFMPEG_BIN);
     expect(argv).toContain("-frames:v");
     expect(argv.join(" ")).toContain("tile=3x4");
     expect(argv.at(-1)).toBe("/qa/sheets/sheet-01.jpg");

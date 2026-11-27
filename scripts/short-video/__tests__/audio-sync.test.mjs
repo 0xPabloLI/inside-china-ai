@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import {
   evaluateAudioSync,
   applyAudioSyncToSummary,
@@ -144,8 +145,19 @@ describe("verifyAudioSync (integration, real ffmpeg)", () => {
     ]) {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
-      execSync(
-        `ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${join(audioDir, `scene-${id}.mp3`)}" 2>/dev/null`,
+      execFileSync(
+        FFMPEG_BIN,
+        [
+          "-y",
+          "-i",
+          srcWav,
+          "-codec:a",
+          "libmp3lame",
+          "-q:a",
+          "4",
+          join(audioDir, `scene-${id}.mp3`),
+        ],
+        { stdio: ["ignore", "ignore", "ignore"] },
       );
     }
     return { dir };
@@ -240,8 +252,10 @@ describe("verifyAudioSync (integration, real ffmpeg)", () => {
   it("errors when the shipped video has no audio track at all", () => {
     const { dir } = makeFixture();
     const silentPath = join(dir, "silent.mp4");
-    execSync(
-      `ffmpeg -y -f lavfi -i color=c=black:s=64x64:d=1 -pix_fmt yuv420p "${silentPath}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      ["-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-pix_fmt", "yuv420p", silentPath],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
 
     const result = verifyAudioSync({
@@ -461,7 +475,11 @@ describe("verifyAudioSync honors audioPaths (assembly-source regression)", () =>
       const wavSrc = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(wavSrc, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execSync(`ffmpeg -y -i "${wavSrc}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`);
+      execFileSync(
+        FFMPEG_BIN,
+        ["-y", "-i", wavSrc, "-codec:a", "libmp3lame", "-q:a", "4", mp3Path],
+        { stdio: ["ignore", "ignore", "ignore"] },
+      );
       mp3Paths.push(mp3Path);
       // Stale .wav from a different generation — undecodable, so re-resolution
       // that picks it lands in failedScenes instead of silently matching.
@@ -553,8 +571,19 @@ describe("realignAudioToTimeline (integration, real ffmpeg)", () => {
     ]) {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
-      execSync(
-        `ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${join(audioDir, `scene-${id}.mp3`)}" 2>/dev/null`,
+      execFileSync(
+        FFMPEG_BIN,
+        [
+          "-y",
+          "-i",
+          srcWav,
+          "-codec:a",
+          "libmp3lame",
+          "-q:a",
+          "4",
+          join(audioDir, `scene-${id}.mp3`),
+        ],
+        { stdio: ["ignore", "ignore", "ignore"] },
       );
     }
 
@@ -570,15 +599,19 @@ describe("realignAudioToTimeline (integration, real ffmpeg)", () => {
   /** Simulate the Remotion AAC-priming delay: pad the whole track's start. */
   function delayTrack(finalPath, ms) {
     const delayed = finalPath.replace(".wav", `-delayed${ms}.wav`);
-    execSync(`ffmpeg -y -i "${finalPath}" -af adelay=${ms}:all=1 "${delayed}" 2>/dev/null`);
+    execFileSync(FFMPEG_BIN, ["-y", "-i", finalPath, "-af", `adelay=${ms}:all=1`, delayed], {
+      stdio: ["ignore", "ignore", "ignore"],
+    });
     return delayed;
   }
 
   /** Simulate audio placed early: cut into the track's head. */
   function trimTrack(finalPath, seconds) {
     const early = finalPath.replace(".wav", `-early.wav`);
-    execSync(
-      `ffmpeg -y -i "${finalPath}" -af atrim=start=${seconds},asetpts=PTS-STARTPTS "${early}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      ["-y", "-i", finalPath, "-af", `atrim=start=${seconds},asetpts=PTS-STARTPTS`, early],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
     return early;
   }

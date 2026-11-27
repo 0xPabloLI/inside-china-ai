@@ -8,10 +8,11 @@
  * pass force:true so a retry genuinely retries.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import {
   computeSceneKey,
   planTtsScenes,
@@ -511,8 +512,19 @@ describe("forced-alignment cache", () => {
   /** Real wav scene audio so the signature hashes real bytes. */
   function makeSceneAudio(dir, sceneId, text) {
     const audioPath = join(dir, `scene-${sceneId}.wav`);
-    execSync(
-      `ffmpeg -y -f lavfi -i sine=frequency=${300 + sceneId}:duration=0.3 -ar 44100 "${audioPath}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        `sine=frequency=${300 + sceneId}:duration=0.3`,
+        "-ar",
+        "44100",
+        audioPath,
+      ],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
     return { sceneId, text, audioPath };
   }
@@ -530,8 +542,10 @@ describe("forced-alignment cache", () => {
     writeFileSync(results[0].audioPath, "different bytes now");
     expect(computeAlignmentSignature(scenes, results)).not.toBe(s1);
 
-    execSync(
-      `ffmpeg -y -f lavfi -i sine=frequency=500:duration=0.3 "${results[0].audioPath}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      ["-y", "-f", "lavfi", "-i", "sine=frequency=500:duration=0.3", results[0].audioPath],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
     expect(computeAlignmentSignature(scenes, results)).not.toBe(s1);
     cleanup();

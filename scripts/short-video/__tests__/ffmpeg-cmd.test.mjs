@@ -11,6 +11,7 @@ import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { spawnSync } from "child_process";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import { getDuration, getDurationSync } from "../lib/tts/ffmpeg-cmd.mjs";
 import {
   hasFfmpeg,
@@ -34,7 +35,7 @@ describe("getDurationSync", () => {
   it.skipIf(!(hasFfprobe && hasFfmpeg))("reads a real wav duration", () => {
     const dir = mkdtempSync(join(tmpdir(), "ffmpeg-cmd-319-"));
     const wav = join(dir, "voiceover.wav");
-    const made = spawnSync("ffmpeg", [
+    const made = spawnSync(FFMPEG_BIN, [
       "-y",
       "-f",
       "lavfi",
@@ -71,7 +72,7 @@ describe("getDuration", () => {
   it.skipIf(!(hasFfprobe && hasFfmpeg))("reads a real wav duration", async () => {
     const dir = mkdtempSync(join(tmpdir(), "ffmpeg-cmd-async-319-"));
     const wav = join(dir, "voiceover.wav");
-    const made = spawnSync("ffmpeg", [
+    const made = spawnSync(FFMPEG_BIN, [
       "-y",
       "-f",
       "lavfi",

@@ -62,6 +62,7 @@
 import { execFileSync } from "child_process";
 import { existsSync } from "fs";
 import { CANVAS, SUBTITLE_LANE, SUBTITLE_LANE_BOTTOM, SUBTITLE_LANE_TOP } from "./safe-zones.mjs";
+import { FFMPEG_BIN } from "./ffmpeg-bins.mjs";
 import { FPS, TRANSITION_FRAMES, sceneTimeline } from "./timeline.mjs";
 
 /** ffmpeg writes raw frames to a pipe; a 60s 1080p decode is ~25MB at 1/15. */
@@ -415,7 +416,7 @@ export function measureVideo({ videoPath, sceneDurations }) {
   }
   const { windows, fps } = sceneScanWindows(sceneDurations);
   const luma = execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     [
       "-v",
       "error",
@@ -433,7 +434,7 @@ export function measureVideo({ videoPath, sceneDurations }) {
 
   const lane = SUBTITLE_LANE_RECT;
   const rgb = execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     [
       "-v",
       "error",

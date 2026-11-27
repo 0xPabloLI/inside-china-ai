@@ -18,6 +18,7 @@
 import { execFileSync } from "child_process";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
+import { FFPROBE_BIN } from "../ffmpeg-bins.mjs";
 
 /** Packet gaps strictly larger than this (seconds) are reported. */
 export const PACKET_GAP_THRESHOLD = 0.1;
@@ -34,7 +35,7 @@ export const PACKET_GAP_THRESHOLD = 0.1;
  */
 function runFfprobeCsv(videoPath, showEntries, extraFlags = []) {
   return execFileSync(
-    "ffprobe",
+    FFPROBE_BIN,
     ["-v", "quiet", ...extraFlags, "-show_entries", showEntries, "-of", "csv=p=0", videoPath],
     { stdio: ["pipe", "pipe", "pipe"] },
   ).toString();

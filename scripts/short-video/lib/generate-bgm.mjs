@@ -13,6 +13,7 @@ import { execFileSync } from "child_process";
 import { mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { FFMPEG_BIN } from "./ffmpeg-bins.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -78,7 +79,7 @@ export function generateBGM(duration = 180, outputDir) {
   ];
 
   console.log("  Generating background music...");
-  execFileSync("ffmpeg", args, { stdio: ["pipe", "pipe", "pipe"] });
+  execFileSync(FFMPEG_BIN, args, { stdio: ["pipe", "pipe", "pipe"] });
 
   console.log("  Background music generated");
   return { bgmPath, transitionPath: null };

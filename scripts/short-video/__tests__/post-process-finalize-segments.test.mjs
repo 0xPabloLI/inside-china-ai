@@ -8,10 +8,11 @@
  * over two distinct clips.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { execFileSync, execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { mkdtempSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { FFMPEG_BIN, FFPROBE_BIN } from "../lib/ffmpeg-bins.mjs";
 import {
   buildFinalizeArgs,
   concatSegmentsAudio,
@@ -105,7 +106,7 @@ describe("finalizeRenderedVideo with segments (real ffmpeg)", () => {
       ["part-1.mp4", "blue", 880],
     ]) {
       execFileSync(
-        "ffmpeg",
+        FFMPEG_BIN,
         [
           "-y",
           "-f",
@@ -146,9 +147,17 @@ describe("finalizeRenderedVideo with segments (real ffmpeg)", () => {
     });
 
     const probe = JSON.parse(
-      execSync(
-        `ffprobe -i "${outPath}" -count_frames -show_entries stream=codec_type,sample_rate,nb_read_frames -show_entries format=duration -of json 2>/dev/null`,
-      ).toString(),
+      execFileSync(FFPROBE_BIN, [
+        "-i",
+        outPath,
+        "-count_frames",
+        "-show_entries",
+        "stream=codec_type,sample_rate,nb_read_frames",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "json",
+      ]).toString(),
     );
     const video = probe.streams.find((s) => s.codec_type === "video");
     const audio = probe.streams.find((s) => s.codec_type === "audio");
@@ -159,9 +168,14 @@ describe("finalizeRenderedVideo with segments (real ffmpeg)", () => {
 
     // Measurement stand-in spans the same timeline.
     const wavPath = concatSegmentsAudio({ segments, fps: 30, outputDir: dir });
-    const wavProbe = execSync(
-      `ffprobe -i "${wavPath}" -show_entries format=duration -of json 2>/dev/null`,
-    ).toString();
+    const wavProbe = execFileSync(FFPROBE_BIN, [
+      "-i",
+      wavPath,
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "json",
+    ]).toString();
     expect(parseFloat(JSON.parse(wavProbe).format.duration)).toBeGreaterThan(0.9);
     expect(parseFloat(JSON.parse(wavProbe).format.duration)).toBeLessThan(1.15);
   }, 60000);

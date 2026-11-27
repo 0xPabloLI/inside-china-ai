@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { execSync, execFileSync } from "child_process";
+import { FFMPEG_BIN, FFPROBE_BIN } from "../lib/ffmpeg-bins.mjs";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -159,7 +160,11 @@ describe("measureAudioDrift (integration, real ffmpeg)", () => {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execSync(`ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`);
+      execFileSync(
+        FFMPEG_BIN,
+        ["-y", "-i", srcWav, "-codec:a", "libmp3lame", "-q:a", "4", mp3Path],
+        { stdio: ["ignore", "ignore", "ignore"] },
+      );
       mp3Paths.push(mp3Path);
     }
 
@@ -172,18 +177,48 @@ describe("measureAudioDrift (integration, real ffmpeg)", () => {
 
     // Wrap the voiceover in a real mp4 (h264 + aac), like the Remotion raw output.
     const videoSrc = join(dir, "video-src.mp4");
-    execSync(
-      `ffmpeg -y -f lavfi -i color=c=black:s=320x568:d=2.2 -i "${alignedWav}" ` +
-        `-c:v libx264 -c:a aac -shortest "${videoSrc}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=320x568:d=2.2",
+        "-i",
+        alignedWav,
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-shortest",
+        videoSrc,
+      ],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
 
     const rawPath = join(dir, "raw.mp4");
     if (delayMs > 0) {
-      execSync(
-        `ffmpeg -y -i "${videoSrc}" -af adelay=${delayMs}:all=1 -c:v copy -c:a aac "${rawPath}" 2>/dev/null`,
+      execFileSync(
+        FFMPEG_BIN,
+        [
+          "-y",
+          "-i",
+          videoSrc,
+          "-af",
+          `adelay=${delayMs}:all=1`,
+          "-c:v",
+          "copy",
+          "-c:a",
+          "aac",
+          rawPath,
+        ],
+        { stdio: ["ignore", "ignore", "ignore"] },
       );
     } else {
-      execSync(`ffmpeg -y -i "${videoSrc}" -c copy "${rawPath}" 2>/dev/null`);
+      execFileSync(FFMPEG_BIN, ["-y", "-i", videoSrc, "-c", "copy", rawPath], {
+        stdio: ["ignore", "ignore", "ignore"],
+      });
     }
     return { dir, rawPath, mp3Paths };
   }
@@ -223,8 +258,21 @@ describe("measureAudioDrift (integration, real ffmpeg)", () => {
     const { dir, rawPath, mp3Paths } = makeFixture(120);
     // Early audio clamps scene 1's correlation peak at track start — the
     // non-constant-drift fixture family from the realign tests.
-    execSync(
-      `ffmpeg -y -i "${rawPath}" -af atrim=start=0.12,asetpts=PTS-STARTPTS -c:v copy -c:a aac "${join(dir, "early.mp4")}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      [
+        "-y",
+        "-i",
+        rawPath,
+        "-af",
+        "atrim=start=0.12,asetpts=PTS-STARTPTS",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        join(dir, "early.mp4"),
+      ],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
 
     const m = measureAudioDrift({
@@ -290,8 +338,10 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
 
   function makeBgm(dir) {
     const bgmPath = join(dir, "bgm.wav");
-    execSync(
-      `ffmpeg -y -f lavfi -i sine=frequency=440:duration=3 -ar 44100 "${bgmPath}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      ["-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-ar", "44100", bgmPath],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
     return bgmPath;
   }
@@ -309,7 +359,11 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
       const srcWav = join(dir, `scene-${id}-src.wav`);
       writeWavPcm(srcWav, noise(seconds, seed), 44100);
       const mp3Path = join(audioDir, `scene-${id}.mp3`);
-      execSync(`ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${mp3Path}" 2>/dev/null`);
+      execFileSync(
+        FFMPEG_BIN,
+        ["-y", "-i", srcWav, "-codec:a", "libmp3lame", "-q:a", "4", mp3Path],
+        { stdio: ["ignore", "ignore", "ignore"] },
+      );
       mp3Paths.push(mp3Path);
     }
 
@@ -321,18 +375,48 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
     });
 
     const videoSrc = join(dir, "video-src.mp4");
-    execSync(
-      `ffmpeg -y -f lavfi -i color=c=black:s=320x568:d=2.2 -i "${alignedWav}" ` +
-        `-c:v libx264 -c:a aac -shortest "${videoSrc}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=320x568:d=2.2",
+        "-i",
+        alignedWav,
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-shortest",
+        videoSrc,
+      ],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
 
     const rawPath = join(dir, "raw.mp4");
     if (delayMs > 0) {
-      execSync(
-        `ffmpeg -y -i "${videoSrc}" -af adelay=${delayMs}:all=1 -c:v copy -c:a aac "${rawPath}" 2>/dev/null`,
+      execFileSync(
+        FFMPEG_BIN,
+        [
+          "-y",
+          "-i",
+          videoSrc,
+          "-af",
+          `adelay=${delayMs}:all=1`,
+          "-c:v",
+          "copy",
+          "-c:a",
+          "aac",
+          rawPath,
+        ],
+        { stdio: ["ignore", "ignore", "ignore"] },
       );
     } else {
-      execSync(`ffmpeg -y -i "${videoSrc}" -c copy "${rawPath}" 2>/dev/null`);
+      execFileSync(FFMPEG_BIN, ["-y", "-i", videoSrc, "-c", "copy", rawPath], {
+        stdio: ["ignore", "ignore", "ignore"],
+      });
     }
     return { rawPath, mp3Paths };
   }
@@ -340,7 +424,7 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
   /** Integrated loudness (LUFS) via ebur128 (stats print to stderr). */
   function integratedLufs(path) {
     const out = execSync(
-      `ffmpeg -hide_banner -nostats -i "${path}" -af ebur128=peak=true -f null - 2>&1`,
+      `"${FFMPEG_BIN}" -hide_banner -nostats -i "${path}" -af ebur128=peak=true -f null - 2>&1`,
       { encoding: "utf8" },
     ).toString();
     const match = [...out.matchAll(/I:\s+(-?\d+\.?\d*)\s+LUFS/g)].pop();
@@ -350,7 +434,7 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
   /** Mean absolute sample value via pcm decode. */
   function meanAbsSamples(path) {
     const out = execFileSync(
-      "ffmpeg",
+      FFMPEG_BIN,
       ["-hide_banner", "-i", path, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"],
       { encoding: "buffer", maxBuffer: 64 * 1024 * 1024, stdio: ["pipe", "pipe", "pipe"] },
     );
@@ -416,9 +500,16 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
     expect(meanAbsSamples(outPath)).toBeGreaterThan(meanAbsSamples(noBgmPath));
 
     // 4. Container sanity: 44.1kHz audio stream, duration ≈ source.
-    const probe = execSync(
-      `ffprobe -i "${outPath}" -show_entries stream=codec_type,sample_rate -show_entries format=duration -of json 2>/dev/null`,
-    ).toString();
+    const probe = execFileSync(FFPROBE_BIN, [
+      "-i",
+      outPath,
+      "-show_entries",
+      "stream=codec_type,sample_rate",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "json",
+    ]).toString();
     const info = JSON.parse(probe);
     const audio = info.streams.find((s) => s.codec_type === "audio");
     expect(audio.sample_rate).toBe("44100");

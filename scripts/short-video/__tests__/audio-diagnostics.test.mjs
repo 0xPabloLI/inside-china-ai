@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import {
   mkdtempSync,
   mkdirSync,
@@ -47,12 +48,30 @@ function freshDir(tag) {
 function buildMp4(dir, name, kind) {
   const p = join(dir, `${name}.mp4`);
   if (kind === "tone") {
-    execSync(
-      `ffmpeg -y -f lavfi -i "sine=frequency=440:duration=2" -f lavfi -i "color=c=black:s=64x64:d=2" -shortest -pix_fmt yuv420p "${p}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=2",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=64x64:d=2",
+        "-shortest",
+        "-pix_fmt",
+        "yuv420p",
+        p,
+      ],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
   } else {
-    execSync(
-      `ffmpeg -y -f lavfi -i "color=c=black:s=64x64:d=1" -pix_fmt yuv420p "${p}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      ["-y", "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-pix_fmt", "yuv420p", p],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
   }
   return p;
@@ -322,8 +341,19 @@ function makeDriftFixture(ttsDurations) {
   ]) {
     const srcWav = join(dir, `scene-${id}-src.wav`);
     writeWavPcm(srcWav, noise(seconds, seed), 44100);
-    execSync(
-      `ffmpeg -y -i "${srcWav}" -codec:a libmp3lame -q:a 4 "${join(audioDir, `scene-${id}.mp3`)}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      [
+        "-y",
+        "-i",
+        srcWav,
+        "-codec:a",
+        "libmp3lame",
+        "-q:a",
+        "4",
+        join(audioDir, `scene-${id}.mp3`),
+      ],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
   }
 
@@ -447,10 +477,11 @@ describe("verifySubtitles FAIL trigger (integration, real ffmpeg)", () => {
 
     let status = 0;
     try {
-      execSync(
-        `node "${CLI}" "${videoPath}" "${assPath}" "${timingPath}" "${durationsPath}" "${dir}"`,
-        { stdio: "pipe" },
-      );
+      // process.execPath, not a PATH-named `node`: the suite has to run under
+      // PATH=/usr/bin:/bin (no Homebrew bins), where `node` is not resolvable.
+      execFileSync(process.execPath, [CLI, videoPath, assPath, timingPath, durationsPath, dir], {
+        stdio: "pipe",
+      });
     } catch (e) {
       status = e.status;
     }

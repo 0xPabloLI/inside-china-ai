@@ -14,15 +14,16 @@ import { existsSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { spawnSync } from "child_process";
+import { FFMPEG_BIN, FFPROBE_BIN } from "../../lib/ffmpeg-bins.mjs";
 
 const FFPROBE_FULL = "/opt/homebrew/opt/ffmpeg-full/bin/ffprobe";
 
 /** ffprobe is present (ffmpeg-full's copy, or a PATH one). */
 export const hasFfprobe =
-  existsSync(FFPROBE_FULL) || spawnSync("ffprobe", ["-version"]).status === 0;
+  existsSync(FFPROBE_FULL) || spawnSync(FFPROBE_BIN, ["-version"]).status === 0;
 
-/** ffmpeg is present on PATH. */
-export const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
+/** ffmpeg is present (resolved build, or a PATH one). */
+export const hasFfmpeg = spawnSync(FFMPEG_BIN, ["-version"]).status === 0;
 
 // Evidence hygiene (docs/conventions/scenario-matrix.md §Evidence Hygiene): a
 // suite whose guards all skip is noise, not evidence. CI runs on macos-latest

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "child_process";
+import { FFMPEG_BIN, FFPROBE_BIN } from "../lib/ffmpeg-bins.mjs";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -13,8 +14,8 @@ import { buildConcatArgs, concatListEntry, buildXfadeArgs } from "../compile-ser
 const hasFfmpegTools = (() => {
   try {
     return (
-      spawnSync("ffmpeg", ["-version"], { stdio: "ignore" }).status === 0 &&
-      spawnSync("ffprobe", ["-version"], { stdio: "ignore" }).status === 0
+      spawnSync(FFMPEG_BIN, ["-version"], { stdio: "ignore" }).status === 0 &&
+      spawnSync(FFPROBE_BIN, ["-version"], { stdio: "ignore" }).status === 0
     );
   } catch {
     return false;
@@ -145,7 +146,7 @@ describe("buildXfadeArgs", () => {
 describe.skipIf(!hasFfmpegTools)("buildConcatArgs end-to-end (real ffmpeg)", () => {
   const durationSeconds = (path) => {
     const probe = spawnSync(
-      "ffprobe",
+      FFPROBE_BIN,
       [
         "-v",
         "error",
@@ -165,7 +166,7 @@ describe.skipIf(!hasFfmpegTools)("buildConcatArgs end-to-end (real ffmpeg)", () 
     try {
       const makeClip = (path, seconds) => {
         const r = spawnSync(
-          "ffmpeg",
+          FFMPEG_BIN,
           [
             "-y",
             "-f",
@@ -198,7 +199,7 @@ describe.skipIf(!hasFfmpegTools)("buildConcatArgs end-to-end (real ffmpeg)", () 
       writeFileSync(planB.listFile, planB.listContent);
 
       for (const plan of [planA, planB]) {
-        const r = spawnSync("ffmpeg", plan.args, { encoding: "utf8" });
+        const r = spawnSync(FFMPEG_BIN, plan.args, { encoding: "utf8" });
         expect(r.status, r.stderr).toBe(0);
       }
 

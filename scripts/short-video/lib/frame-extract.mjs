@@ -13,6 +13,7 @@ import { execFile } from "child_process";
 import { existsSync, mkdirSync, renameSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
+import { FFMPEG_BIN } from "./ffmpeg-bins.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -58,7 +59,7 @@ export async function extractFramesAtIndexes({ videoPath, frames, outDir, nameFo
   mkdirSync(outDir, { recursive: true });
   try {
     await execFileAsync(
-      "ffmpeg",
+      FFMPEG_BIN,
       [
         "-y",
         "-i",
