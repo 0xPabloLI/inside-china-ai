@@ -150,8 +150,7 @@ export const metadata = {
   title: "MAGI-2: 30 Seconds of 1080p Video for $2.25",
   description:
     "$2.25 (15 yuan) buys 30 seconds of 1080p video. Sand.ai's MAGI-2 also generates native audio.\nThe reported price is a fraction of the usual rate. Open weights are promised, not shipped.",
-  commentHook:
-    "Would you trust a 480B video model that charges about $2.25 for 30 seconds?",
+  commentHook: "Would you trust a 480B video model that charges about $2.25 for 30 seconds?",
   trendingChecked: true,
   sources: [
     "https://sand.ai/blog/magi-2/",

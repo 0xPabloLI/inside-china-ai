@@ -18,8 +18,7 @@ export const scenes = [
       animation: "none",
       volume: 0,
     },
-    voiceover:
-      "One photo becomes a world you can drive through. Each frame lands in 1.5 seconds.",
+    voiceover: "One photo becomes a world you can drive through. Each frame lands in 1.5 seconds.",
     texts: {
       badge: "CHINA AI · WORLD MODEL",
       subject: "PHOTO TO WORLD",
@@ -101,8 +100,7 @@ export const scenes = [
       animation: "none",
       volume: 0,
     },
-    voiceover:
-      "The site lists 120+ worlds and 3,800 hours of roaming. All from one photo.",
+    voiceover: "The site lists 120+ worlds and 3,800 hours of roaming. All from one photo.",
     texts: {
       company: "120+ WORLDS",
       action: "3,800 HOURS",
@@ -129,8 +127,7 @@ export const scenes = [
       animation: "none",
       volume: 0,
     },
-    voiceover:
-      "Then change the scene in plain language, while the world keeps running.",
+    voiceover: "Then change the scene in plain language, while the world keeps running.",
     texts: {
       company: "PLAIN LANGUAGE",
       action: "LIVE RESHAPE",
@@ -168,8 +165,7 @@ export const scenes = [
     arcRole: "release",
     retentionMechanism: "loop-closure",
     media: null,
-    voiceover:
-      "A world model is only useful if it can be played. Follow China AI News.",
+    voiceover: "A world model is only useful if it can be played. Follow China AI News.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",
@@ -184,8 +180,7 @@ export const metadata = {
   title: "Amap's ABot-World Turns One Photo Into a Drivable World",
   description:
     "Amap's ABot-World turns one photo into a drivable world in 1.5 seconds per frame.\nQuantumBit ranked it first on WBench physical score. The launch film is curated; 1.5 seconds is latency per frame.",
-  commentHook:
-    "Would you explore a world model that builds a playable scene from one photo?",
+  commentHook: "Would you explore a world model that builds a playable scene from one photo?",
   trendingChecked: true,
   sources: [
     "https://abot-world.amap.com/",

@@ -19,8 +19,7 @@ export const scenes = [
       videoStartOffsetMs: 0,
       volume: 0,
     },
-    voiceover:
-      "Thirty thousand robot agents in one year. Agibot's platform is open to non-coders.",
+    voiceover: "Thirty thousand robot agents in one year. Agibot's platform is open to non-coders.",
     texts: {
       badge: "CHINA AI · EMBODIED AI",
       subject: "ROBOT AGENTS",
@@ -138,8 +137,7 @@ export const scenes = [
     retentionMechanism: "loop-closure",
     mediaStrategy: "asset",
     media: null,
-    voiceover:
-      "But creations are not deployments. Paying customers and uptime are the real test.",
+    voiceover: "But creations are not deployments. Paying customers and uptime are the real test.",
     texts: {
       badge: "THE CAVEAT",
       company: "BUILD IS NOT DEPLOY",
@@ -158,8 +156,7 @@ export const scenes = [
     arcRole: "release",
     retentionMechanism: "loop-closure",
     media: null,
-    voiceover:
-      "Agibot is turning robot skills into an app store. Follow China AI News.",
+    voiceover: "Agibot is turning robot skills into an app store. Follow China AI News.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",

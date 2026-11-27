@@ -44,8 +44,7 @@ export const scenes = [
       animation: "none",
       volume: 0,
     },
-    voiceover:
-      "Metaso announced Kaiji, an AI film crew. You bring the story, not camera prompts.",
+    voiceover: "Metaso announced Kaiji, an AI film crew. You bring the story, not camera prompts.",
     texts: {
       company: "METASO",
       action: "AI FILM CREW",
@@ -111,8 +110,7 @@ export const scenes = [
     retentionMechanism: "loop-closure",
     mediaStrategy: "asset",
     media: null,
-    voiceover:
-      "Ten minutes is a demo run. One shot still needs fixes, and hit rate is unproven.",
+    voiceover: "Ten minutes is a demo run. One shot still needs fixes, and hit rate is unproven.",
     texts: {
       badge: "THE CAVEAT",
       company: "10 MIN IS A DEMO",
@@ -131,8 +129,7 @@ export const scenes = [
     arcRole: "release",
     retentionMechanism: "loop-closure",
     media: null,
-    voiceover:
-      "You bring the story. The crew does the rest. Follow China AI News.",
+    voiceover: "You bring the story. The crew does the rest. Follow China AI News.",
     texts: {
       brand: "CHINA AI NEWS",
       brandHighlight: "AI",
@@ -147,8 +144,7 @@ export const metadata = {
   title: "Metaso's AI Film Crew Turns One Story Into a 15-Minute Movie",
   description:
     "Metaso's Kaiji turns one story into a film in about 10 minutes, with 12 styles and 3 aspect ratios.\nQuantumBit tested a 15-minute cut. One-shot output still needs fixes, and hit rate is unproven.",
-  commentHook:
-    "Would you watch a 15-minute film made from one paragraph in 10 minutes?",
+  commentHook: "Would you watch a 15-minute film made from one paragraph in 10 minutes?",
   trendingChecked: true,
   sources: [
     "https://metaso.cn/kaiji",
