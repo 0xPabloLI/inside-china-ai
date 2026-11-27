@@ -30,7 +30,7 @@
 
 **入口 3（无输入）**：`search-sources --trend` → Agent 从 `trending-topics.json` 选话题 → 走入口 2 路线
 
-> **选题报告（#203 + videoFit）**：选话题前先按 `docs/trend-selection-dedup-scoring.md` 的去重、0-10 评分与按类阈值过滤；达到阈值的 topic 再标 `videoFit`（0-5，**按可获取的人物/企业/产品/数据等实体素材潜力计分**，官方 demo/产品页/发布会/人物照/图表/本地实体库都算，不要求已落盘）及 §4 要求的 `assetReady`/`assetEvidence`/`format`/`hook`，并输出 **News-first**（0-10 分降序，同分看 videoFit）和 **Video-ready**（videoFit 降序；入选为 videoFit≥3 且 assetReady=0，表示可备料）两条列表，写到 `scripts/short-video/output/topic-selection.md`。`videoFit` 不折进 0-10 分；生产库存分用 `lib/video-fit.mjs --content <slug>` 复核，判据见该文档 §4/§4.1。
+> **选题报告（#203 + videoFit）**：选话题前先按 `docs/trend-selection-dedup-scoring.md` 的去重、0-10 评分与按类阈值过滤；达到阈值的 topic 再标 `videoFit`（0-5，**按可获取的人物/企业/产品/数据等实体素材潜力计分**，官方 demo/产品页/发布会/人物照/图表/本地实体库都算，不要求已落盘）及 §4 要求的 `assetReady`/`assetEvidence`/`format`/`hook`，并输出 **News-first**（0-10 分降序，同分看 videoFit）和 **Video-ready**（videoFit 降序；入选为 videoFit≥3 且 assetReady=0，表示可备料）两条列表，写到 `scripts/short-video/output/topic-selection.md`。`videoFit` 不折进 0-10 分；生产库存分用 `lib/video-fit.mjs --content <slug>` 复核，判据见该文档 §4/§4.1；`videoFit ≤3` 且证据含官方产品页时必须先跑该文档 §4.2 的页内动态探针（`official-media-probe.mjs`），探到动态才重打分并落 `videofit-rescore-*.md` 审计。
 
 > **Evidence 模块**：`scripts/short-video/lib/research/`（schemas、validators、workspace、brief-builder、claim-auditor、scene-claims）保留但不接入管线。`search-sources.mjs --content-id <slug> --research-run-id <id>` 输出 `discovery.json`。非阻塞审计可通过 `research-pipeline.mjs --audit-only` 手动触发（Issue #61）。
 >

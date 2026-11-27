@@ -15,6 +15,10 @@ export const EMBED_HOST_PLATFORMS = {
   "player.bilibili.com": "bilibili",
   "douyin.com": "douyin",
   "player.youku.com": "youku",
+  // 视频号 embeds surface through the Channels web player; #1551 counts them
+  // as official dynamic evidence when they sit on the entity's own page.
+  "channels.weixin.qq.com": "weixin",
+  "finder.video.qq.com": "weixin",
 };
 
 // Single-quoted CSS attribute values: these strings are JSON.stringify'd into

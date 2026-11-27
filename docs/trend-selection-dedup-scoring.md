@@ -65,14 +65,14 @@ node scripts/short-video/used-topics.mjs --json --out /tmp/used.json
 
 同一批实体素材可以在多个选题里复用：常出现的公司、人物放进共享实体库（例如 `content/_entities/tencent/`、`content/_entities/people/yao-shunyu/`），选题时写本地路径即可。复用不降低分数，但 `assetEvidence` 必须写出实际路径。
 
-| 分  | 潜力判据（至少满足一档；3 分以上还须 hook 不是纯文字）                                                                 |
-| --- | ----------------------------------------------------------------------------------------------------------------------- |
+| 分  | 潜力判据（至少满足一档；3 分以上还须 hook 不是纯文字）                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- |
 | 5   | 官方 demo/发布会/现场录屏等**官方动态素材** ≥1，加上 ≥3 个可验证的实体视觉（人物/产品/公司/图表），hook 能直接落在动态素材上 |
-| 4   | 可获取的动态素材 ≥1，加上 ≥2 个实体视觉（合计 ≥3 个素材），hook 可以是人物/产品/图表的静图首帧                              |
-| 3   | ≥3 个实体视觉（人物/公司/产品/图表），能做成 explainer；或 1 个动态素材 + 2 个实体视觉                                     |
-| 2   | 只有 1-2 个可验证素材；或只有 logo/头像/通用空镜                                                                          |
-| 1   | 只有文字卡/数据卡，没有可验证的人物、公司、产品或图表                                                                     |
-| 0   | 没有可验证的视觉素材，或素材会误导观众（未证实爆料、法律纠纷、张冠李戴）                                                   |
+| 4   | 可获取的动态素材 ≥1，加上 ≥2 个实体视觉（合计 ≥3 个素材），hook 可以是人物/产品/图表的静图首帧                               |
+| 3   | ≥3 个实体视觉（人物/公司/产品/图表），能做成 explainer；或 1 个动态素材 + 2 个实体视觉                                       |
+| 2   | 只有 1-2 个可验证素材；或只有 logo/头像/通用空镜                                                                             |
+| 1   | 只有文字卡/数据卡，没有可验证的人物、公司、产品或图表                                                                        |
+| 0   | 没有可验证的视觉素材，或素材会误导观众（未证实爆料、法律纠纷、张冠李戴）                                                     |
 
 硬上限：素材少于 3 个时最高 2 分；hook 写成 `TEXT CARD: ...` 或纯文字时最高 2 分；`assetEvidence` 为空或只有一句“官方 demo”而没有任何 URL/路径时记 0。`videoFit ≥3` 要求 hook 首帧能出现人物脸、产品、logo、图表或“人物 + 数据 overlay”，不能是纯文字版式。
 
@@ -96,7 +96,7 @@ node scripts/short-video/used-topics.mjs --json --out /tmp/used.json
 选题阶段用 `lib/topic-video-fit.mjs` 打分：
 
 ```bash
-node --test scripts/short-video/__tests__/topic-video-fit.test.mjs
+npx vitest run scripts/short-video/__tests__/topic-video-fit.test.mjs
 ```
 
 ### 4.1 生产阶段的 assetReady / assetFit（与选题 videoFit 分开）
@@ -115,6 +115,42 @@ node scripts/short-video/lib/video-fit.mjs --content <slug>   # 打印实测 ass
 - 开场视觉优先级（#1542）：包内只要绑定了 motion clip，第一段必须出现在 scene 1-2；若第一段视频只在 scene 3+，`checkHookVisualPriority` 只报 editorial WARN。例外写 `meta.hookVisualPriorityReason`（剧透/事实不匹配/版权或原声限制），完整 demo 仍留 payoff。
 
 核实第一方素材时看官方 X / YouTube / Bilibili / 视频号 / 官网 newsroom。选题阶段可以只登记 URL；进入生产必须把 mp4 下载到 `content/<slug>/assets/` 并用 `ffprobe` 读出时长才算库存。`trending-topics.json` 的 `videos[]` 是页面级信号（整页视频会赋给每条文章），只能当线索；DOM 里没有 `<video>` 也不代表没有素材，要查 `films.js`、播放器配置或页面 bundle 里的真实清单。
+
+### 4.2 官方产品页动态素材探针（#1551）
+
+选题阶段最常见的错分不是 rubric 不认动态，而是**证据采集只到品牌页/新闻稿**：官方产品页里明明嵌着 1080p clips，`assetEvidence` 却只有一行 `product:… (official, still)`，而 `product` 默认 `dynamic:false`。智元 AIMA 在 2026-11-26 就是这样从 5 分掉到 3 分（证据链见 `scripts/short-video/output/videofit-rescore-20261126.md`）。
+
+**强制动作**：`videoFit <= 3` 且证据中出现官方产品页（或编辑已找到该实体的官方产品页）时，定稿前必须探一次页内媒体：
+
+```bash
+node scripts/short-video/official-media-probe.mjs \
+  --url https://www.agibot.com.cn/products/A3Ultra --official
+```
+
+- `--official` 表示页面是第一方；第三方转载页必须用 `--third-party`。探针不猜页面归属，这个 flag 就是编辑的归属判决。
+- 能识别：`<video>` / `<source>` 的 `.mp4` / `.mov` / `.webm` / `.m3u8`、`og:video`、内联 JSON 与页面 bundle 里的媒体 URL，以及页内 YouTube / Bilibili / 抖音 / 优酷 / 视频号 embed。
+- 静图（`.jpg` / `.png` / `.webp`）不算动态；第三方转载页的视频即使可播放，也只能写 `official:false`，不得按官方动态计分。
+
+探到的媒体按既有证据格式写进 `assetEvidence`，**保留原来的 product 静图行**：
+
+```text
+demo:A3 Ultra reliability (official, dynamic) https://cms-tos.agibot.com/…/reliability.mp4
+```
+
+**探不到怎么办**：页面没有可播放媒体（或静态 HTML 里只有图片）时，保留原分并在审计里写「官方产品页未探到可播放动态」。JS 渲染后才创建播放器的页面，静态探针同样返回 0——不能据此断言「没有动态」，也不能凭这个升分；这类页面升级浏览器探针是后续票，不属于本轮。
+
+**重打分只走审计，不全量重打**。把需要复核的 topic 写成 JSON（`assets` + 可选 `probePages` + `probe.format/hook`），跑：
+
+```bash
+node scripts/short-video/videofit-rescore.mjs --input /tmp/videofit-topics.json \
+  --out scripts/short-video/output/videofit-rescore-<YYYY-MM-DD>.md
+```
+
+- 只对 `videoFit <= 3` 且存在官方产品页的 topic 探针；4–5 分 topic 不重打。
+- 探到动态且编辑把 hook/format 落到动态素材上才升分；审计逐条写「原分 / 新分 / 证据变化 / 未升分原因」。
+- 产出文件随下一轮 Trend 报告一起给出（与 `topic-selection.md` 同目录）。
+- embed 的官方性按**载体页面归属**判定，不额外校验 YouTube/Bilibili/视频号账号：官方页面里的 embed 记 `official:true`，第三方转载页里的同一 embed 仍记 `official:false`。
+- 本轮是**软门禁**：定稿前由编辑跑探针并把结果写进审计；它不阻断 CI，也不给旧报告做 grandfather。历史报告只复核当轮 `videoFit <= 3` 的 topic，不一次性回扫最近 N 天。
 
 ### 两条列表
 
@@ -138,10 +174,10 @@ Agent 在选话题的回复里贴出两张表，并给出文件路径。
 
 ## 调参记录
 
-| 日期       | 类型      | 变更                    | 理由                                                 |
-| ---------- | --------- | ----------------------- | ---------------------------------------------------- |
-| 2026-09-06 | tech-news | 初始 7.0                | Horizon 默认 8.0 对起步期选题过严                    |
-| 2026-09-06 | tech-blog | 初始 4.0                | Horizon 默认                                         |
-| 2026-11-16 | videoFit  | 新增 0-5 标注与同分调序 | 官方 demo 类选题在同等新闻价值下优先；不改 0-10 阈值 |
-| 2026-11-20 | videoFit  | 改为素材库存硬分 + preflight 门禁 | 两条已发布视频 3/2 张静图、0 段视频却自称 video fit；改为按落盘素材数量/时长计分，声明高于实测即 FAIL |
+| 日期       | 类型      | 变更                                                                  | 理由                                                                                                                                     |
+| ---------- | --------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-06 | tech-news | 初始 7.0                                                              | Horizon 默认 8.0 对起步期选题过严                                                                                                        |
+| 2026-09-06 | tech-blog | 初始 4.0                                                              | Horizon 默认                                                                                                                             |
+| 2026-11-16 | videoFit  | 新增 0-5 标注与同分调序                                               | 官方 demo 类选题在同等新闻价值下优先；不改 0-10 阈值                                                                                     |
+| 2026-11-20 | videoFit  | 改为素材库存硬分 + preflight 门禁                                     | 两条已发布视频 3/2 张静图、0 段视频却自称 video fit；改为按落盘素材数量/时长计分，声明高于实测即 FAIL                                    |
 | 2026-11-21 | videoFit  | 选题阶段改为“可获取实体素材潜力分”；新增 `assetReady`/`assetFit` 分层 | 旧口径只认已落盘文件，导致所有新 topic 都是 0、Video-ready 永远为空；选题需要先判断“能不能找到人物/企业/产品/图表素材”，生产再按库存复核 |
