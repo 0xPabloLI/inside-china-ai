@@ -109,8 +109,11 @@ function labelFromUrl(url, fallback) {
     let stem = base.replace(/\.(?:mp4|mov|webm|m3u8|m4v)$/i, "");
     // CMS files look like "2a017a298b5e-reliability" or "7a42d99233f39523-hero-h264".
     stem = stem.replace(/^[a-f0-9]{8,}[-_]/i, "");
+    stem = stem.replace(/[-_](?:h264|h265|hevc|1080p|720p|4k)$/i, "");
     stem = stem.replace(/[-_]+/g, " ").trim();
     if (!stem || /^\d+$/.test(stem) || stem.length < 3) return fallback;
+    // A bare content hash is not a label.
+    if (/^[a-f0-9]{8,}$/i.test(stem)) return fallback;
     return stem.slice(0, 80);
   } catch {
     return fallback;

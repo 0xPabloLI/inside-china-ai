@@ -149,6 +149,8 @@ node scripts/short-video/videofit-rescore.mjs --input /tmp/videofit-topics.json 
 - 只对 `videoFit <= 3` 且存在官方产品页的 topic 探针；4–5 分 topic 不重打。
 - 探到动态且编辑把 hook/format 落到动态素材上才升分；审计逐条写「原分 / 新分 / 证据变化 / 未升分原因」。
 - 产出文件随下一轮 Trend 报告一起给出（与 `topic-selection.md` 同目录）。
+- embed 的官方性按**载体页面归属**判定，不额外校验 YouTube/Bilibili/视频号账号：官方页面里的 embed 记 `official:true`，第三方转载页里的同一 embed 仍记 `official:false`。
+- 本轮是**软门禁**：定稿前由编辑跑探针并把结果写进审计；它不阻断 CI，也不给旧报告做 grandfather。历史报告只复核当轮 `videoFit <= 3` 的 topic，不一次性回扫最近 N 天。
 
 ### 两条列表
 

@@ -230,6 +230,10 @@ export async function rescoreTopics({
     (row) => row.probe.errors.length === row.probe.probed && row.probe.probed > 0,
   );
   const probed = rows.filter((row) => row.probe.probed > 0);
+  const kept = rows.filter(
+    (row) => row.probe.probed > 0 && row.rescored.videoFit <= row.original.videoFit,
+  );
+  const untouched = rows.filter((row) => row.probe.probed === 0 && row.original.videoFit > 3);
 
   return {
     date: date || null,
@@ -237,9 +241,10 @@ export async function rescoreTopics({
     summary: {
       total: rows.length,
       raised: raised.length,
+      kept: kept.length,
+      untouched: untouched.length,
       probed: probed.length,
       probeFailed: probeFailed.length,
-      kept: rows.length - raised.length,
     },
   };
 }
@@ -268,7 +273,7 @@ export function buildRescoreMarkdown(result, options = {}) {
     "",
     "> 规则：只对 `videoFit <= 3` 且证据指向官方产品页的 topic 探一次页内媒体；探到可播放动态才重打分，探不到保留原分。第三方页面的视频不得按官方动态计分。",
     "",
-    `共审计 ${summary.total ?? rows.length} 条：升分 ${summary.raised ?? 0}、未升 ${summary.kept ?? 0}（其中探针失败 ${summary.probeFailed ?? 0}）、实际探针 ${summary.probed ?? 0} 条。`,
+    `共审计 ${summary.total ?? rows.length} 条：升分 ${summary.raised ?? 0}、保持 ${summary.kept ?? 0}（其中探针失败 ${summary.probeFailed ?? 0}）、无需重打 ${summary.untouched ?? 0}（原分 > 3）；实际探针 ${summary.probed ?? 0} 条。`,
     "",
     "| Topic | 0–10 | 原分 / format | 新分 / format | 证据变化 | 判定 |",
     "| --- | --- | --- | --- | --- | --- |",
