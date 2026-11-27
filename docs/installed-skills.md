@@ -37,6 +37,13 @@ The project workflow was audited against upstream **v1.2.3** at commit
 `skills-lock.json` tracks per-skill hashes rather than the upstream release
 number, so repeat the audit after `npx skills update`.
 
+> **2026-11-27 install-state note**: `.agents/skills/` now carries all 22
+> workflow skills; every `SKILL.md` is byte-identical to the audited copy in
+> `~/.agents/skills`. `skills list` may still print
+> `modified (differs from the lock)` for `code-review` because the lock hash
+> predates the audited upstream commit — the installed copy is the audited one.
+> Refresh the lock only after a successful `npx skills update` and re-audit.
+
 ### User-invoked (`disable-model-invocation: true`)
 
 These skills are intentionally excluded from implicit model invocation. A human
