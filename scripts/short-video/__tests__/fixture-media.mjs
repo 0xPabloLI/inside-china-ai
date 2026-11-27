@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, renameSync, rmSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { inspectMediaFile } from "../lib/media-integrity.mjs";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import { SCENE_GATE_PHOTO } from "../remotion/src/fixture-media.mjs";
 
 const REMOTION_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "remotion");
@@ -74,7 +75,7 @@ export function ensureSceneGatePhoto() {
   const tmp = `${out}.${process.pid}.tmp.png`;
   try {
     execFileSync(
-      "ffmpeg",
+      FFMPEG_BIN,
       ["-v", "error", "-f", "lavfi", "-i", "testsrc2=s=1600x900", "-frames:v", "1", "-y", tmp],
       { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
     );

@@ -20,7 +20,6 @@ import { dirname, join } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 
 import { resolveMediaBinary } from "../ffmpeg-bins.mjs";
-
 // The one thing these tests need from the module private to it: which build the
 // resolver prefers. Spelled out here rather than exported only for tests.
 const HOMEBREW_FFMPEG = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg";
@@ -166,5 +165,34 @@ describe("ASS burn boundary (#1118)", () => {
       calls.filter((bin) => bin === "FFMPEG_FULL" || bin.startsWith("useAss")),
       "the burn (ass=) and the useAss finalize pass must both run ffmpeg-full",
     ).toEqual(["FFMPEG_FULL", 'useAss ? FFMPEG_FULL : "ffmpeg"']);
+  });
+});
+
+describe("bare ffmpeg/ffprobe sweep (#1586)", () => {
+  // The files #1582 left behind and #1586 converted. A new bare call fails
+  // here, in the gate, instead of at the first `verify-video` / QA / BGM run
+  // on a shell whose PATH has no Homebrew bin. post-process.mjs is absent on
+  // purpose: its five calls are the ASS-burn boundary above.
+  const SCRIPT_DIR = join(LIB_DIR, "..");
+  const SWEPT = [
+    "verify-video.mjs",
+    "verify-remotion-frames.mjs",
+    "compile-series.mjs",
+    "qa-final-review.mjs",
+    "mix-bgm.mjs",
+    "main.mjs",
+    "lib/audio/diagnostics.mjs",
+    "lib/frame-extract.mjs",
+    "lib/qa-final-review.mjs",
+    "lib/qa-mechanics.mjs",
+    "lib/generate-bgm.mjs",
+    "lib/video-downloaders.mjs",
+  ];
+  const BARE =
+    /(?:execFileSync|execFileAsync|execFile|spawnSync|spawn|execSync)\(\s*[`"']?(?:ffmpeg|ffprobe)[`"']?\s*[,)]/;
+
+  it("no swept module invokes a PATH-named media binary", () => {
+    const offenders = SWEPT.filter((rel) => BARE.test(readFileSync(join(SCRIPT_DIR, rel), "utf8")));
+    expect(offenders).toEqual([]);
   });
 });

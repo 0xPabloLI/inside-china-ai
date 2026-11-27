@@ -25,8 +25,14 @@
  * rejects that wiring statically.
  *
  * Consumers: `upscale.mjs` (and therefore `dh-upscale`, `digital-human` and the
- * avatar frame audit through its re-exports), `tts/ffmpeg-cmd.mjs` and
- * `media-probe.mjs` — the last two used to carry their own copy of the rule.
+ * avatar frame audit through its re-exports), `tts/ffmpeg-cmd.mjs`,
+ * `media-probe.mjs`, and — since #1586 — the verify/QA/BGM/series/download
+ * passes (`verify-video`, `verify-remotion-frames`, `compile-series`,
+ * `qa-final-review`, `mix-bgm`, `frame-extract`, `qa-mechanics`,
+ * `generate-bgm`, `video-downloaders`, `audio/diagnostics`, plus `main.mjs`'s
+ * preflight). `lib/__tests__/ffmpeg-bins.test.mjs` pins that sweep so a new
+ * bare `"ffmpeg"` / `"ffprobe"` call fails there instead of at the first
+ * verify run on a shell without Homebrew on PATH.
  * Three decode consumers still pin ffmpeg-full unconditionally
  * (`asr-analyzer`, `temporal-focus`, `video-understand`); no CI suite executes
  * them, so they are not a gate hole, but they fail the same way on a machine

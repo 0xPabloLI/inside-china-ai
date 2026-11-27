@@ -26,6 +26,7 @@ import { readFileSync, existsSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
+import { FFPROBE_BIN } from "./lib/ffmpeg-bins.mjs";
 import { runAllSceneDataChecks } from "./lib/scene-rules.mjs";
 import {
   auditCaptionReadability,
@@ -270,7 +271,7 @@ if (!preMode) {
   try {
     // argv, never a shell string (#319 deferred class sweep).
     const raw = execFileSync(
-      "ffprobe",
+      FFPROBE_BIN,
       [
         "-i",
         VIDEO_PATH,
@@ -287,7 +288,7 @@ if (!preMode) {
     );
     videoInfo = JSON.parse(raw);
   } catch {
-    fail("Specs", "ffprobe can read video", "ffprobe failed", "Ensure ffmpeg is installed");
+    fail("Specs", "ffprobe can read video", "ffprobe failed", `Ensure ${FFPROBE_BIN} is installed`);
     printSummary();
     process.exit(1);
   }

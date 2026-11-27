@@ -23,6 +23,7 @@
 import { execFileSync } from "child_process";
 import { existsSync, readdirSync, mkdirSync, rmSync, createReadStream } from "fs";
 import { join, dirname } from "path";
+import { FFPROBE_BIN } from "./lib/ffmpeg-bins.mjs";
 import { resolveSceneAudio } from "./lib/audio/sync.mjs";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
@@ -156,7 +157,7 @@ try {
   // argv, never a shell string (#319 deferred class sweep): the rendered
   // video path is data.
   const probe = execFileSync(
-    "ffprobe",
+    FFPROBE_BIN,
     [
       "-v",
       "error",

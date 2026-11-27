@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from "fs";
 import { spawnSync } from "child_process";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
@@ -336,7 +337,7 @@ describe.skipIf(!hasFfmpeg)("end-to-end on synthesized audio", () => {
   }
 
   function makeWav(path, expr) {
-    const result = spawnSync("ffmpeg", [
+    const result = spawnSync(FFMPEG_BIN, [
       "-y",
       "-f",
       "lavfi",
@@ -350,7 +351,7 @@ describe.skipIf(!hasFfmpeg)("end-to-end on synthesized audio", () => {
   }
 
   function mixVoiceAndBed(voice, bed, out) {
-    const result = spawnSync("ffmpeg", [
+    const result = spawnSync(FFMPEG_BIN, [
       "-y",
       "-i",
       voice,

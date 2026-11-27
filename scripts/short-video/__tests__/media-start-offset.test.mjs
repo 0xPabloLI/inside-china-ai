@@ -35,6 +35,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -53,7 +54,7 @@ beforeAll(() => {
   mkdirSync(stillDir, { recursive: true });
   fixtureVideoPath = join(REMOTION_DIR, "public", "assets", FIXTURE_VIDEO);
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     [
       "-f",
       "lavfi",

@@ -14,6 +14,7 @@
  * without invalidating the declaration.
  */
 import { CANVAS } from "./safe-zones.mjs";
+import { FFMPEG_BIN } from "./ffmpeg-bins.mjs";
 import { FPS, TRANSITION_FRAMES, sceneTimeline, scheduleTotalFrames } from "./timeline.mjs";
 
 /** Relative offsets (frames) from the start / end of a scene's clip window. */
@@ -455,7 +456,7 @@ export function buildSheetCommand({ framePaths, outPath, inputPattern }) {
     `tile=${cols}x${rows}`,
   ].join(",");
   return [
-    "ffmpeg",
+    FFMPEG_BIN,
     "-y",
     "-hide_banner",
     "-loglevel",

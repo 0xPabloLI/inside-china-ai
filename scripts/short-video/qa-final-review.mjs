@@ -30,6 +30,7 @@ import {
 } from "fs";
 import { basename, dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { FFMPEG_BIN } from "./lib/ffmpeg-bins.mjs";
 import { resolveRun } from "./lib/run-history.mjs";
 import { readSceneDurationsForTimeline } from "./lib/avatar-frame-audit.mjs";
 import { extractFramesAtIndexes } from "./lib/frame-extract.mjs";
@@ -322,7 +323,7 @@ if (missing.length > 0) {
 mkdirSync(sheetsDir, { recursive: true });
 const blankPath = join(sheetsDir, ".blank.png");
 execFileSync(
-  "ffmpeg",
+  FFMPEG_BIN,
   [
     "-y",
     "-hide_banner",

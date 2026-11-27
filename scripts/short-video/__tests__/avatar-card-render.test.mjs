@@ -31,6 +31,7 @@ import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import { AVATAR_CARD_RECT } from "../lib/safe-zones.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,7 +54,7 @@ beforeAll(() => {
   // oversized source scales INTO the card frame (acceptance criterion 5).
   fixtureVideoPath = join(REMOTION_DIR, "public", "assets", FIXTURE_VIDEO);
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     [
       "-f",
       "lavfi",
@@ -99,7 +100,7 @@ async function still(scenario, frame) {
   if (process.env.AVATAR_EVIDENCE === "1") {
     mkdirSync(EVIDENCE_DIR, { recursive: true });
     const evidencePath = join(EVIDENCE_DIR, `${key.replace("@", "-")}.png`);
-    execFileSync("ffmpeg", ["-i", out, "-vf", "scale=540:960", "-y", evidencePath], {
+    execFileSync(FFMPEG_BIN, ["-i", out, "-vf", "scale=540:960", "-y", evidencePath], {
       stdio: ["pipe", "pipe", "pipe"],
     });
   }

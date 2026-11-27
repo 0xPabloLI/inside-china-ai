@@ -15,6 +15,7 @@
  */
 
 import { canonicalizeUrl } from "./url-normalizer.mjs";
+import { FFMPEG_BIN } from "./ffmpeg-bins.mjs";
 import { BROLL_CLIP_SECONDS, brollSectionSpec } from "./media-window.mjs";
 import { cdpNewTab, cdpCloseTab, cdpEval, waitForPageLoad } from "./cdp-client.mjs";
 import { callMcpTool, parseMcpResult } from "./mcp-client.mjs";
@@ -353,7 +354,7 @@ function clipTracks({ videoUrl, audioUrl, referer, seconds }) {
     const outPath = join(workDir, "clip.mp4");
     const args = buildDouyinClipArgs({ videoUrl, audioUrl, referer, seconds, outPath });
     try {
-      execFileSync("ffmpeg", args, {
+      execFileSync(FFMPEG_BIN, args, {
         stdio: "pipe",
         timeout: CLIP_TIMEOUT_MS,
       });

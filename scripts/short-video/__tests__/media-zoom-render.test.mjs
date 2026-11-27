@@ -32,6 +32,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -78,7 +79,7 @@ beforeAll(() => {
   // geometry — with a small source, cover's own upscale blur dominates the
   // pixel diff and the centre-crop comparison stops being decidable.
   execFileSync(
-    "ffmpeg",
+    FFMPEG_BIN,
     ["-f", "lavfi", "-i", "testsrc2=s=1080x1920:d=1", "-frames:v", "1", "-y", fixtureImagePath],
     { stdio: ["pipe", "pipe", "pipe"], timeout: 120_000 },
   );

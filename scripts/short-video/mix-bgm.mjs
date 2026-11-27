@@ -30,6 +30,7 @@ import { execFileSync } from "child_process";
 import { existsSync, renameSync, unlinkSync } from "fs";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import { FFMPEG_BIN } from "./lib/ffmpeg-bins.mjs";
 import { selectBGM } from "./lib/bgm.mjs";
 import {
   detectSilenceWindows,
@@ -101,7 +102,7 @@ console.log(
 );
 
 execFileSync(
-  "ffmpeg",
+  FFMPEG_BIN,
   [
     "-y",
     "-i",

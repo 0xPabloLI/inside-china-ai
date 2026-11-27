@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { spawnSync } from "child_process";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import { analyzeBGM } from "../lib/bgm.mjs";
 import {
   hasFfmpeg,
@@ -21,7 +22,7 @@ describe("analyzeBGM", () => {
       await withMetacharPath("bgm-319", "mp3", (victim, dir) => {
         // A real mp3 so BOTH probes run: the duration probe must succeed for
         // the volumedetect probe to be reached.
-        const made = spawnSync("ffmpeg", [
+        const made = spawnSync(FFMPEG_BIN, [
           "-y",
           "-f",
           "lavfi",

@@ -8,10 +8,11 @@
  * semantics are unchanged, only the number of decodes.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { mkdtempSync, existsSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { FFMPEG_BIN } from "../lib/ffmpeg-bins.mjs";
 import { frameSelectFilter, extractFramesAtIndexes } from "../lib/frame-extract.mjs";
 
 describe("frameSelectFilter", () => {
@@ -35,8 +36,19 @@ describe("extractFramesAtIndexes (integration, real ffmpeg)", () => {
   /** 30-frame synthetic video: 10fps × 3s, distinct pattern per frame. */
   function makeVideo(dir) {
     const videoPath = join(dir, "in.mp4");
-    execSync(
-      `ffmpeg -y -f lavfi -i testsrc2=duration=3:size=64x64:rate=10 -pix_fmt yuv420p "${videoPath}" 2>/dev/null`,
+    execFileSync(
+      FFMPEG_BIN,
+      [
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=duration=3:size=64x64:rate=10",
+        "-pix_fmt",
+        "yuv420p",
+        videoPath,
+      ],
+      { stdio: ["ignore", "ignore", "ignore"] },
     );
     return videoPath;
   }
