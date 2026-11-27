@@ -9,7 +9,7 @@
  * RAW remotion output before the single encode.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { execSync, execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { FFMPEG_BIN, FFPROBE_BIN } from "../lib/ffmpeg-bins.mjs";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
@@ -423,10 +423,15 @@ describe("finalizeRenderedVideo (integration, real ffmpeg)", () => {
 
   /** Integrated loudness (LUFS) via ebur128 (stats print to stderr). */
   function integratedLufs(path) {
-    const out = execSync(
-      `"${FFMPEG_BIN}" -hide_banner -nostats -i "${path}" -af ebur128=peak=true -f null - 2>&1`,
+    const { stdout, stderr, error, status } = spawnSync(
+      FFMPEG_BIN,
+      ["-hide_banner", "-nostats", "-i", path, "-af", "ebur128=peak=true", "-f", "null", "-"],
       { encoding: "utf8" },
-    ).toString();
+    );
+    if (error || status !== 0) {
+      throw error ?? new Error(`ffmpeg ebur128 exited ${status}: ${stderr ?? ""}`);
+    }
+    const out = `${stdout ?? ""}${stderr ?? ""}`;
     const match = [...out.matchAll(/I:\s+(-?\d+\.?\d*)\s+LUFS/g)].pop();
     return match ? parseFloat(match[1]) : NaN;
   }
