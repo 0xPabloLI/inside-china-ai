@@ -1096,3 +1096,8 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 - PR #1571（2026-11-26，squash `b6d51c74`）：`#1561` header 互斥槽 + 通用碰撞门，记录于 Round CCLV。
 - PR #1569（2026-11-26，squash `1393d463`）：`#1562` 成片通知三态，记录于 Round CCLIV。
 - PR #1556（2026-11-26，squash `f645e2d6`）：`#1555` fail-closed audio policy gate，记录于 Round CCL（`#1524`+`#1525` 联合合成同轮）。
+
+## Round CCLVII 下沉（2026-11-27）
+
+- **Round CCLVI 盘点全段（原文）**：> **Last inventory**: 2026-11-27（**Round CCLVI：`#1559` media-led hook 全宽**——contain 16:9 证据片由 820×461 改为 1080×608 + 同源 blur 填底，badge 留头部、subject/数字退图下 plate；`isMediaLedFullWidth()` 统一 schema/preflight/final gate，视频默认全宽、图片 grandfather。PR #1573，squash `5f769f75`。真帧：MAGI-2 1080 宽无侧边黑场、CapCut/RunningHub 仍 820 带；**有产出差异**。frontier：1A 空、②③ 空（`#1472` 冻结）；1B 队首 `#1560`→`#1551`（2 张）；④ `#1566`；A 段队首 `#1537`。
+- **Round CCLIII 一句话档案（原文）**：**Round CCLIII**（`#1528` 收口（PR #1565，squash `b07e43b0`，CI 全绿）+ Inbox 6 张分流：1B 队首 `#1562`→`#1561`→`#1559`→`#1560`→`#1551`，`#1566` 归 ④；**无产出差异**；1A 空、②③ 空）；
