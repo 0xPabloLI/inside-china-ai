@@ -28,11 +28,11 @@ import { appendFileSync, mkdirSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 
 /** Run-level ledger filename, under `output/<pipelineId>/`. */
-export const LEDGER_FILENAME = "tts-ledger.jsonl";
+const LEDGER_FILENAME = "tts-ledger.jsonl";
 /** Session-level ledger filename, under `output/`. */
 export const SESSIONS_FILENAME = "tts-sessions.jsonl";
 /** Schema version of every line. */
-export const LEDGER_VERSION = 1;
+const LEDGER_VERSION = 1;
 /** The one honest value for facts the host cannot observe. */
 export const UNKNOWN = "unknown";
 
