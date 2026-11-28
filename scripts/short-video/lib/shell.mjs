@@ -23,8 +23,6 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { shellQuote } from "./shell-quote.mjs";
 
-export { shellQuote };
-
 /**
  * Tagged template: every `${value}` becomes one quoted shell word.
  *

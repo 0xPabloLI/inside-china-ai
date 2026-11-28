@@ -170,7 +170,7 @@ export function buildF5BatchCommand({
  * @param {object} options - Same as buildF5BatchCommand
  * @returns {{bin: string, args: string[], env: NodeJS.ProcessEnv}}
  */
-export function buildF5BatchInvocation({
+function buildF5BatchInvocation({
   manifestPath,
   outputDir,
   refText,

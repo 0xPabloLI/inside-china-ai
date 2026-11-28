@@ -788,7 +788,7 @@ export function buildYtdlpCommand(url, { tmpPath, cookieFile } = {}) {
  * @param {{tmpPath: string, cookieFile?: string}} opts
  * @returns {string[]}
  */
-export function buildYtdlpArgs(url, { tmpPath, cookieFile } = {}) {
+function buildYtdlpArgs(url, { tmpPath, cookieFile } = {}) {
   const isWeibo = isWeiboUrl(url);
   const isTiktok = isTiktokUrl(url);
   const args = [];
