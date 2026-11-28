@@ -164,6 +164,8 @@ export function startLogStream({
   let exitCode = null;
   let spawnError = null;
   let stopped = false;
+  /** #1566: the kernel prints its own model-load duration; keep the last one. */
+  let loadedInSec = null;
   let resolveExit;
   const exitPromise = new Promise((resolve) => {
     resolveExit = resolve;
@@ -190,6 +192,10 @@ export function startLogStream({
   const handleLine = (raw) => {
     const line = raw.replace(/\r$/, "");
     remember(line);
+    // #1566: "Loaded in 372.5s" is the kernel's own model-load measurement.
+    // Recorded for the ledger; absence stays `unknown`, never estimated.
+    const loaded = line.match(/Loaded in ([\d.]+)s/);
+    if (loaded) loadedInSec = Number(loaded[1]);
     const idx = (marker) => line.indexOf(marker);
     if (idx(MARK.fileBegin) >= 0) {
       const meta = JSON.parse(line.slice(idx(MARK.fileBegin) + MARK.fileBegin.length));
@@ -290,6 +296,8 @@ export function startLogStream({
 
   return {
     waitForBatch,
+    /** #1566: last "Loaded in <seconds>s" line, or null when the log never showed it. */
+    getLoadedInSec: () => loadedInSec,
     waitForExit: (ms) => {
       // Clear the race timer when the kernel exits first: an uncleared 90s
       // timer keeps the host process alive long after the pipeline finished

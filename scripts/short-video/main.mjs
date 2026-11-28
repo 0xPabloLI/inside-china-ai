@@ -43,6 +43,7 @@ import { finalizeRenderedVideo, DEFAULT_BGM_VOLUME } from "./lib/post-process.mj
 import { selectBGM } from "./lib/bgm.mjs";
 import { createProfiler } from "./lib/pipeline-profile.mjs";
 import { createRun, markRun, RUN_STATUS } from "./lib/run-history.mjs";
+import { createSessionId, openTtsLedger } from "./lib/tts/ledger.mjs";
 import { runMediaTrack } from "./lib/media-track.mjs";
 import {
   DEFAULT_AUTO_SCENE_BUDGET,
@@ -155,6 +156,13 @@ async function main() {
   const run = createRun({ root: __dirname, slug: meta.pipelineId, contentDir });
   const outputDir = run.dir;
   console.log(`🆔 Run ${run.runId} → ${relative(__dirname, outputDir)}`);
+  // #1566: the run-level TTS lane ledger sits beside the pack's runs, not in
+  // the run dir — a failed attempt must stay queryable after the run closes.
+  const ttsSessionId = createSessionId({ provider: "tts" });
+  const ttsLedger = openTtsLedger({
+    dir: join(__dirname, "output", meta.pipelineId),
+    onError: (error) => console.warn(`⚠️  TTS ledger write failed: ${error.message}`),
+  });
   process.on("exit", (code) => {
     if (code === 0) return;
     try {
@@ -168,6 +176,13 @@ async function main() {
     } catch {
       // Never mask the failure that triggered the exit.
     }
+    ttsLedger.runFail({
+      runId: run.runId,
+      sessionId: ttsSessionId,
+      pipelineId: meta.pipelineId,
+      contentDir,
+      error: `process exited with code ${code}`,
+    });
   });
 
   // ── Version number (timestamp-based, for output file naming) ──
@@ -429,6 +444,12 @@ async function main() {
         generateTTS(scenes, ttsCacheDir, {
           qualityGateOptions: { keyEntities: meta.keyEntities },
           prof,
+          // #1566: identity + ledger; the registry writes the run's lane facts.
+          ledger: ttsLedger,
+          runId: run.runId,
+          sessionId: ttsSessionId,
+          pipelineId: meta.pipelineId,
+          contentDir,
         }),
       meta: { track: "voice" },
     },
@@ -811,6 +832,8 @@ async function main() {
       profile: `profile-${version}.json`,
       audioDir: "audio",
     },
+    // #1566: pointer from the run to the TTS lane record.
+    meta: { ttsSessionId },
   });
 
   profiler.summary();

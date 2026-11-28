@@ -34,6 +34,7 @@
 
 import { join } from "path";
 import { containedPath } from "../path-safety.mjs";
+import { UNKNOWN } from "./ledger.mjs";
 import { createRegenStaging, acceptRegenTake, cleanupRegenStaging } from "./staging.mjs";
 import { hasAudioBytes } from "./audio-file.mjs";
 import { createCosyVoice3KaggleCudaEngine } from "./cosyvoice3-kaggle-cuda.mjs";
@@ -239,7 +240,12 @@ export async function generateTTS(scenes, outputDir, options = {}) {
   } finally {
     recordSpan(tprof, "tts-select", nowMs() - selectStartMs, { track: "voice" });
   }
-  return generateTTSWithEngine(scenes, outputDir, engine, options);
+  // #1566: the ledger carries the selection cost even on a full cache hit —
+  // the wrapper is the only place that knows it, the engine seam does not.
+  return generateTTSWithEngine(scenes, outputDir, engine, {
+    ...options,
+    selectMs: nowMs() - selectStartMs,
+  });
 }
 
 /**
@@ -672,6 +678,27 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   let loudnessMs = 0;
   /** Wall of the gate's regeneration rounds (self-heal + pacing), not verify. */
   let retryEngineMs = 0;
+  /** #1566: gate/settle walls, hoisted so the ledger exit can read them. */
+  let verifyWallMs = 0;
+  let writeWallMs = 0;
+  const runStartMs = nowMs();
+  /**
+   * #1566 TTS lane ledger. A side channel: absent for every caller that did
+   * not bring a handle (tests, previews, direct API use); a failed write is
+   * swallowed by the handle itself and never becomes a TTS failure.
+   */
+  const ledger = options.ledger ?? null;
+  const ledgerBase = {
+    runId: options.runId ?? null,
+    sessionId: options.sessionId ?? null,
+    provider: engine.name ?? UNKNOWN,
+    engineInfo: engine.info ?? null,
+    pipelineId: options.pipelineId ?? null,
+    contentDir: options.contentDir ?? null,
+    batchIndex: options.batchIndex ?? null,
+    sessionReused: options.sessionReused ?? null,
+  };
+  let ledgerStarted = false;
 
   const atempo = getAtempo();
   // #270: hand the Quality Gate the SELECTED engine's instruct resolver so it
@@ -762,7 +789,8 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   const cachedPacing = skipQualityGate ? null : await planCachedPacing(scenes, cachedResults);
   const cachedNeedsRepair =
     !!cachedPacing && (cachedPacing.compensations.length > 0 || cachedPacing.rerolls.length > 0);
-  recordSpan(tprof, "tts-plan", nowMs() - planStartMs, {
+  const planMs = nowMs() - planStartMs;
+  recordSpan(tprof, "tts-plan", planMs, {
     ...voice,
     scenes: scenes.length,
     cacheHits: cachedResults.length,
@@ -770,17 +798,96 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     pending: toGenerate.length,
   });
 
+  /** #1566: one run.start per attempt, before any GPU work — a crash keeps the identity. */
+  const startLedger = () => {
+    if (!ledger || ledgerStarted) return;
+    ledgerStarted = true;
+    ledger.runStart({
+      ...ledgerBase,
+      scenes: scenes.length,
+      cacheHits: cachedResults.length,
+      pending: toGenerate.length,
+      candidates: candidateResults.length,
+      quota: { kaggleWeekly: UNKNOWN, modalMonthly: UNKNOWN, colab: UNKNOWN },
+    });
+  };
+
+  /**
+   * #1566: one run.end with the honest facts this host observed. Kernel
+   * telemetry is provider-supplied (absent ⇒ unknown); queue/running come from
+   * the poll meter the Kaggle adapter already writes; synth comes from per-scene
+   * `genTime` in the kernel summary. Nothing here is inferred.
+   */
+  const finishLedger = (results, finalizeMs) => {
+    if (!ledger || !ledgerStarted) return;
+    const round1 = (value) => (Number.isFinite(value) ? Math.round(value * 10) / 10 : UNKNOWN);
+    /** Phase walls are milliseconds inside this function; the ledger stores seconds. */
+    const sec = (ms) => round1(ms / 1000);
+    const telemetry =
+      typeof engine.getSessionTelemetry === "function" ? engine.getSessionTelemetry() : null;
+    const meter = readKagglePollMeter(outputDir);
+    const sceneGen = (results ?? [])
+      .filter((result) => Number.isFinite(result.genTime))
+      .map((result) => ({
+        sceneId: result.sceneId,
+        seconds: round1(result.genTime),
+        audioSec: round1(result.duration),
+        rtf: Number.isFinite(result.rtf) ? result.rtf : UNKNOWN,
+      }));
+    const synthSec =
+      sceneGen.length > 0
+        ? round1(sceneGen.reduce((total, row) => total + row.seconds, 0))
+        : UNKNOWN;
+    ledger.runEnd({
+      ...ledgerBase,
+      status: "ok",
+      scenes: scenes.length,
+      cacheHits: cachedResults.length,
+      pending: toGenerate.length,
+      seconds: (nowMs() - runStartMs) / 1000,
+      phases: {
+        select: Number.isFinite(options.selectMs) ? sec(options.selectMs) : UNKNOWN,
+        plan: sec(planMs),
+        engine: toGenerate.length > 0 ? sec(engineWallMs) : 0,
+        loudness: sec(loudnessMs),
+        retry: sec(retryEngineMs),
+        verify: skipQualityGate ? 0 : sec(verifyWallMs),
+        write: sec(writeWallMs),
+        finalize: sec(finalizeMs),
+        total: sec(nowMs() - runStartMs),
+      },
+      kernel: {
+        provider: engine.name ?? UNKNOWN,
+        kernelId: telemetry?.kernelId ?? UNKNOWN,
+        requestId: telemetry?.requestId ?? UNKNOWN,
+        batchIndex: telemetry?.batchIndex ?? options.batchIndex ?? UNKNOWN,
+        sessionReused: telemetry?.sessionReused ?? options.sessionReused ?? UNKNOWN,
+        queuedSec: Number.isFinite(meter?.queuedMs) ? round1(meter.queuedMs / 1000) : UNKNOWN,
+        runningSec: Number.isFinite(meter?.kernelMs) ? round1(meter.kernelMs / 1000) : UNKNOWN,
+        loadSec: telemetry?.loadSec ?? UNKNOWN,
+        sessionLoadSec: telemetry?.sessionLoadSec ?? UNKNOWN,
+        synthSec,
+      },
+      sceneGen,
+      quota: { kaggleWeekly: UNKNOWN, modalMonthly: UNKNOWN, colab: UNKNOWN },
+    });
+  };
+
   if (verifyScenes.length === 0 && !cachedNeedsRepair) {
     // #421: full cache hit — skip generation AND re-verification, but route
     // through the shared finalize so the alignment tail still runs. Returning
     // `cachedResults` here is how the second run of a pipeline silently lost
     // its subtitles.
-    return finalizeTtsResults(scenes, cachedResults, [], outputDir, {
+    startLedger();
+    const finalizeStartMs = nowMs();
+    const finalResults = await finalizeTtsResults(scenes, cachedResults, [], outputDir, {
       runAlignment,
       useCache,
       keyEntities: qualityGateOptions.keyEntities,
       prof: tprof,
     });
+    finishLedger(finalResults, nowMs() - finalizeStartMs);
+    return finalResults;
   }
 
   // The primary round writes DIRECTLY into the audio dir, unlike the regen
@@ -792,6 +899,7 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   // #953: state the spend BEFORE the batch. The plan already knew which scenes
   // missed and why; printing it only after generation (or only as an aggregate)
   // is how a one-line edit silently bought a full cold start.
+  startLedger();
   if (toGenerate.length > 0) {
     const spendReport = buildTtsPlan({ engine, scenes, plan, useCache });
     for (const line of formatPendingGenerationLog(spendReport)) console.log(line);
@@ -1658,8 +1766,10 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
         console.warn(`  ⚠️ TTS cache settle failed: ${err.message}`);
       } finally {
         cacheWriteMs = nowMs() - settleStartMs;
+        writeWallMs = cacheWriteMs;
       }
-      recordSpan(tprof, "tts-verify", nowMs() - verifyStartMs - cacheWriteMs - retryEngineMs, {
+      verifyWallMs = nowMs() - verifyStartMs - cacheWriteMs - retryEngineMs;
+      recordSpan(tprof, "tts-verify", verifyWallMs, {
         ...voice,
         scenes: verifyScenes.length,
         attempts: attempt,
@@ -1707,7 +1817,8 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     } finally {
       // #1514: a skip-gate run has no verify substep; its whole local tail is
       // the candidate settle, recorded here so the sum still reconciles.
-      recordSpan(tprof, "tts-write", nowMs() - settleStartMs, {
+      writeWallMs = nowMs() - settleStartMs;
+      recordSpan(tprof, "tts-write", writeWallMs, {
         ...voice,
         scenes: validatedResults.length,
         writes: validatedResults.length,
@@ -1746,10 +1857,19 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
 
   // Scene-order merge + alignment tail — shared with the full-cache-hit path
   // above so both exits of this function can never drift apart again (#421).
-  return finalizeTtsResults(scenes, cachedResults, validatedResults, outputDir, {
-    runAlignment,
-    useCache,
-    keyEntities: qualityGateOptions.keyEntities,
-    prof: tprof,
-  });
+  const finalizeStartMs = nowMs();
+  const finalResults = await finalizeTtsResults(
+    scenes,
+    cachedResults,
+    validatedResults,
+    outputDir,
+    {
+      runAlignment,
+      useCache,
+      keyEntities: qualityGateOptions.keyEntities,
+      prof: tprof,
+    },
+  );
+  finishLedger(finalResults, nowMs() - finalizeStartMs);
+  return finalResults;
 }
