@@ -168,6 +168,81 @@ node scripts/short-video/tiktok-upload-prep.mjs \
 
 ## 按需操作（低频率）
 
+### Cron hook 的 `CRON_SECRET` 部署 / 轮换（#1600）
+
+> 触发条件：首次给 `/api/public/hooks/*` 配调用者凭据，或轮换 `CRON_SECRET`。
+> 代码行为：默认 fail-closed（401）。三个 hooks 只认 `CRON_SECRET`（`x-cron-secret` 或 `Authorization: Bearer <secret>`）。只有显式设 `CRON_ALLOW_LEGACY_PUBLISHABLE_KEY=1` 时，publishable/anon key 才继续可用，且每次调用都打 `[cron-auth]` warning。没有 secret 也没有 flag 时，旧 key 同样 401——P1 洞默认关闭。
+
+零停机顺序是「先开 flag → 切 pg_cron → 再收 flag」；不能接受一个调度周期 401 时按此走。
+
+1. 生成随机值（只在本机终端出现，不写进仓库、不写进 `.env`）：
+
+   ```bash
+   openssl rand -hex 32
+   ```
+
+2. Lovable → Cloud → Secrets 添加 `CRON_SECRET`（值 = 上一步输出）。若新代码发布后、pg_cron 切完前不能断，再加 `CRON_ALLOW_LEGACY_PUBLISHABLE_KEY=1`，然后 Publish。不要加 `VITE_` 前缀，不要写进 `.env`。
+
+3. 先确认 401 面（不会触发任何 job）：不带 header 和带错误的 `x-cron-secret` 各 POST 一次，均应 `401 Unauthorized`。
+
+   ```bash
+   curl -i -X POST https://chinaai.news/api/public/hooks/dispatch-newsletters \
+     -H "content-type: application/json" -d '{}'
+   ```
+
+   > 200 面不要用 `dispatch-newsletters` / `refresh-keyword-snapshots` / `ask-answers` 手工验证——它们会真的发信、打外部 API 或消耗 AI 额度。改由下一轮 pg_cron 的 `cron.job_run_details` 与应用日志确认。flag=1 期间 publishable key 仍是 200 + warning，这是迁移态，不是回归失败。
+
+4. 改 pg_cron。先列出命中 hooks 的 job：
+
+   ```sql
+   select jobid, jobname, schedule, command
+   from cron.job
+   where command ilike '%/api/public/hooks/%';
+   ```
+
+   对每个 job 用 `cron.alter_job` **同时保留 `apikey`、加上 `x-cron-secret`**：旧代码认 `apikey`，新代码认 `x-cron-secret`，滚动发布期间两边都不 401。
+
+   ```sql
+   select cron.alter_job(
+     job_id := <jobid>,
+     command := $job$
+       select net.http_post(
+         url := 'https://chinaai.news/api/public/hooks/<name>',
+         headers := jsonb_build_object(
+           'Content-Type', 'application/json',
+           'apikey', '<publishable-key>',
+           'x-cron-secret', '<secret>'
+         ),
+         body := '{}'::jsonb
+       );
+     $job$
+   );
+   ```
+
+   > `cron.job` 仅 DB owner 可读；该 secret 的唯一权限是触发 cron hook。SQL 编辑器的历史会留一条含 secret 的命令——共享项目里操作时按凭据轮换处理。
+
+5. 等下一轮调度，确认 job 成功且应用日志**不再**出现 `[cron-auth]` 的未配置 / legacy 提示（同时带两个 header 时新代码走 secret 分支，不会告警）：
+
+   ```sql
+   select jobid, status, return_message, start_time
+   from cron.job_run_details
+   where jobid = <jobid>
+   order by start_time desc
+   limit 5;
+   ```
+
+6. 从 pg_cron 摘掉 `apikey`，只留 `x-cron-secret`（重跑第 4 步，删掉 `'apikey'` 那行）。
+
+7. 删除 `CRON_ALLOW_LEGACY_PUBLISHABLE_KEY`，再 Publish。之后 publishable key 必须 401：
+
+   ```bash
+   curl -i -X POST https://chinaai.news/api/public/hooks/dispatch-newsletters \
+     -H "content-type: application/json" \
+     -H "apikey: <publishable-key>" -d '{}'
+   ```
+
+8. 轮换：重复 1–2，然后对每个 job 重跑第 4 步换新值；旧值在下一轮调度后失效。
+
 ### 竞品参考视频下载
 
 > 触发条件：用户主动发现值得模仿的视频，或 Analytics 数据发现模式后

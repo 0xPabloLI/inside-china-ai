@@ -6,8 +6,11 @@ HTTP surface of the TanStack Start server (src/routes/api/**).
 
 Two conventions apply:
 - `/api/public/*` routes bypass site-level authentication; routes under
-  `/api/public/hooks/*` instead require the Supabase publishable key as
-  proof of caller identity (they are cron targets, not user endpoints).
+  `/api/public/hooks/*` require the server-only `CRON_SECRET` as the cron
+  caller credential (`x-cron-secret` header or bearer token), and fail
+  closed when it is absent. The Supabase publishable key is public by
+  design and is accepted only during an explicit
+  `CRON_ALLOW_LEGACY_PUBLISHABLE_KEY=1` migration window.
 - `/api/tiktok/*` implements the TikTok OAuth callback flow.
 
 Version: 1.0.0
@@ -26,6 +29,25 @@ Auth: none (public).
 | --- | --- |
 | 200 | Server is healthy |
 
+## `/api/public/hooks/ask-answers`
+
+### `POST /api/public/hooks/ask-answers`
+
+**Publish and refresh Ask China AI answers (cron)**
+
+Publishes popular Ask China AI answers as pages, refreshes stale ones
+and tunes search snippets. Intended to be called by pg_cron with
+`x-cron-secret`. Body `{ "resume": true }` clears a credit/policy pause
+for one run.
+
+Auth: `x-cron-secret` header (Server-only `CRON_SECRET` shared with the pg_cron jobs — accepted as the `x-cron-secret` header or as `Authorization: Bearer <secret>`. The Supabase publishable (anon) key is public and is not a caller credential (#1600).)
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Job result |
+| 401 | Missing or wrong cron secret |
+| 500 | Job failed |
+
 ## `/api/public/hooks/refresh-keyword-snapshots`
 
 ### `POST /api/public/hooks/refresh-keyword-snapshots`
@@ -33,16 +55,15 @@ Auth: none (public).
 **Refresh keyword snapshots (cron)**
 
 Refreshes keyword ranking snapshots once per invocation and emails
-admins about ranking drops. Intended to be called by pg_cron with the
-project's publishable key.
+admins about ranking drops. Intended to be called by pg_cron with
+`x-cron-secret`.
 
-Auth: `apikey` header (Supabase publishable (anon) key — accepted either as `apikey` header or `Authorization: Bearer <key>`. Identifies the caller as the cron runner; it is not a user credential.
-)
+Auth: `x-cron-secret` header (Server-only `CRON_SECRET` shared with the pg_cron jobs — accepted as the `x-cron-secret` header or as `Authorization: Bearer <secret>`. The Supabase publishable (anon) key is public and is not a caller credential (#1600).)
 
 | Status | Meaning |
 | --- | --- |
 | 200 | Snapshots refreshed |
-| 401 | Missing or wrong publishable key |
+| 401 | Missing or wrong cron secret |
 | 500 | Refresh failed |
 
 ## `/api/public/hooks/dispatch-newsletters`
@@ -51,13 +72,15 @@ Auth: `apikey` header (Supabase publishable (anon) key — accepted either as `a
 
 **Dispatch pending newsletters (cron)**
 
-Auth: `apikey` header (Supabase publishable (anon) key — accepted either as `apikey` header or `Authorization: Bearer <key>`. Identifies the caller as the cron runner; it is not a user credential.
-)
+Sends every newsletter whose scheduled time has arrived. Intended to be
+called by pg_cron with `x-cron-secret`.
+
+Auth: `x-cron-secret` header (Server-only `CRON_SECRET` shared with the pg_cron jobs — accepted as the `x-cron-secret` header or as `Authorization: Bearer <secret>`. The Supabase publishable (anon) key is public and is not a caller credential (#1600).)
 
 | Status | Meaning |
 | --- | --- |
 | 200 | Dispatch result |
-| 401 | Missing or wrong publishable key |
+| 401 | Missing or wrong cron secret |
 
 ## `/api/public/og/posts/{slug}.png`
 

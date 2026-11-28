@@ -79,6 +79,7 @@ GRANT ALL ON public.<table> TO service_role;
 
 - 外部服务回调、定时任务、公开 API 使用 `src/routes/api/public/*`。
 - 必须在 handler 内验证签名/secret（如 `x-webhook-signature`），再处理数据。
+- `/api/public/hooks/*` 的定时任务用 server-only `CRON_SECRET`（`x-cron-secret` header），不能用会进前端 bundle 的 publishable key 当调用者身份；默认 fail-closed，迁移期只有显式 `CRON_ALLOW_LEGACY_PUBLISHABLE_KEY=1` 才放行旧 key，且每次调用告警。部署与轮换步骤见 `docs/manual-ops.md`。
 - 不要从 `/api/public/*` 返回 PII 或敏感数据。
 
 ## 10. SEO 与元数据
