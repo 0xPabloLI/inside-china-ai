@@ -302,6 +302,37 @@ unchanged by the preview — it reads the same planner the run uses.
 > and bypasses the legacy probe. Then run
 > `mkdir -p ~/models && mv ~/.cosyvoice3-mlx-model ~/models/cosyvoice3-mlx`.
 
+### TTS lane ledger (#1566)
+
+Every TTS attempt that belongs to a run leaves an append-only JSONL trail, so
+"why did this take cost 12 minutes?" is a query instead of log archaeology:
+
+- **run level** — `output/<pipelineId>/tts-ledger.jsonl`: `run.start`
+  (provider/engine info, scenes, approved cache hits, pending), `run.end`
+  (phase walls + a `kernel` block + per-scene `genTime`), `run.fail`;
+- **session level** — `output/tts-sessions.jsonl`: `session.start`,
+  one `session.pack` per pack (same `sessionId`, ascending `batchIndex`), and
+  one `session.end`. That is the only place a batch can show "N packs shared
+  one warm kernel".
+
+`run.json.meta.ttsSessionId` points a run at its session. The ledger is a side
+channel: it never gates a render, and `tts-verify` / `render-only` never read
+it. Anything the host cannot observe is written as `unknown` — Kaggle weekly
+quota, Modal monthly spend, a reused pack's own model load — never estimated.
+`queuedSec` / `runningSec` come from the Kaggle poll meter, `loadSec` from the
+kernel's own `Loaded in <s>s` log line, `synthSec` from the kernel summary's
+per-scene `genTime`.
+
+Query it (read-only, no GPU):
+
+```bash
+node scripts/short-video/tts-ledger.mjs                     # all packs, sessions + runs
+node scripts/short-video/tts-ledger.mjs --content <dir>     # one pack
+node scripts/short-video/tts-ledger.mjs --run <runId>       # one run, full facts
+node scripts/short-video/tts-ledger.mjs --provider cosyvoice3-kaggle-cuda --since 2026-11-01
+node scripts/short-video/tts-ledger.mjs --json              # machine-readable
+```
+
 **M4A → WAV conversion**: M4A is not readable by Python audio libraries (`soundfile`/`torchaudio`/`librosa` are libsndfile-based) — `LibsndfileError: Format not recognised` means an M4A was passed. Convert first, matching the ref-audio spec (24 kHz mono):
 
 ```bash
