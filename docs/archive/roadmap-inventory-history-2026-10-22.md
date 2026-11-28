@@ -1137,3 +1137,6 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 - **Roadmap ledger 回填（2026-11-28，Round CCLXII）**：PR #1602（squash `88a963c9`）：`#1566` TTS lane 账本交付闭票；roadmap 更新 Round CCLXII、④ 段清空。同轮消费 PR #1593（squash `1ca9b8c4`）——finalize fixtures 去掉最后一个 shell 字符串，属 `#1586`/`#1591` 的测试收尾，无 tracker row。
 - **Roadmap ledger 回填（2026-11-28，Round CCLXII 补记）**：PR #1605（squash `79668219`）：`#1566` 跨包 smoke 后续修复——账本不再读取别的 kernel/上一轮遗留的 `poll-status.json`，读不到写 `unknown`；`#1566` 维持已交付，frontier 不变，无产出差异。
 
+## Round CCLXIII 下沉（2026-11-28）
+
+- **Round CCLXII 盘点全段（原文）**：> **Last inventory**: 2026-11-28（**Round CCLXII：`#1566` TTS lane 账本**——run/session 两级 append-only JSONL + `tts-ledger` 查询 CLI，记录 provider/会话/批次/排队/加载/合成，取不到写 `unknown`；新增 16 例、相关 27 例全绿；真实 Kaggle P100 包 `deepseek-v41-flash-report` 6 scenes 402.9s、batch 2 复用、加载 46.0s、合成 75.7s。PR #1602，squash `88a963c9`。**无产出差异**（enabling fix）：成片字节/时间线/门禁裁决不变。frontier：1A 空、② 空（`#1472` 冻结）、③ `#1600`（P1 cron 公开 key，待人工）；1B 队首 `#1598`（P1 shell 边界），其后 `#1599`（P2 TTS PATH）；④ 空；A 段队首 `#1537`。）
