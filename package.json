@@ -120,7 +120,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
-    "@lovable.dev/vite-tanstack-config": "2.27.2",
+    "@lovable.dev/vite-tanstack-config": "2.27.3",
     "@playwright/test": "^1.62.0",
     "@size-limit/file": "^14.0.0",
     "@types/node": "^26.0.0",
@@ -158,7 +158,7 @@
   ],
   "overrides": {
     "esbuild": "^0.28.1",
-    "@hono/node-server": "2.1.9",
+    "@hono/node-server": "2.1.11",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@modelcontextprotocol/server": "2.4.0",
     "hono": "4.13.19",
