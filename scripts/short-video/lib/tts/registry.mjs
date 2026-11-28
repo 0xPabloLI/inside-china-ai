@@ -109,12 +109,26 @@ function recordSpan(prof, name, durationMs, meta = {}) {
  * Read the Kaggle poll meter (`audio/.kaggle-kernel/poll-status.json`), the
  * same file `#1512` used for the queue/kernel split. Absent for local engines
  * and for cache hits — a null answer is not an error.
+ *
+ * A pack directory outlives its runs, so the file can be a leftover from an
+ * earlier run (often a different kernel): the live batch path skips the poll
+ * entirely and never overwrites it. Trust it only when it names this run's
+ * kernel and was written after this run started; otherwise the ledger must say
+ * `unknown` instead of copying a stale number (#1566 smoke follow-up).
+ *
+ * @param {string} outputDir
+ * @param {{kernelId: string|null, sinceMs: number}} expected
  */
-function readKagglePollMeter(outputDir) {
+function readKagglePollMeter(outputDir, { kernelId, sinceMs }) {
   try {
     const statusPath = containedPath(outputDir, ".kaggle-kernel", "poll-status.json");
     if (!existsSync(statusPath)) return null;
     const status = JSON.parse(readFileSync(statusPath, "utf8"));
+    if (kernelId && status.kernelId !== kernelId) return null;
+    if (Number.isFinite(sinceMs)) {
+      const updatedMs = Date.parse(status.updatedAt);
+      if (!Number.isFinite(updatedMs) || updatedMs < sinceMs) return null;
+    }
     const num = (v) => (Number.isFinite(v) ? v : null);
     return { queuedMs: num(status.queuedMs), kernelMs: num(status.runningMs) };
   } catch {
@@ -682,6 +696,8 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
   let verifyWallMs = 0;
   let writeWallMs = 0;
   const runStartMs = nowMs();
+  /** Epoch start, only for comparing `poll-status.json` timestamps (`nowMs` is monotonic). */
+  const runWallStartMs = Date.now();
   /**
    * #1566 TTS lane ledger. A side channel: absent for every caller that did
    * not bring a handle (tests, previews, direct API use); a failed write is
@@ -825,7 +841,10 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
     const sec = (ms) => round1(ms / 1000);
     const telemetry =
       typeof engine.getSessionTelemetry === "function" ? engine.getSessionTelemetry() : null;
-    const meter = readKagglePollMeter(outputDir);
+    const meter = readKagglePollMeter(outputDir, {
+      kernelId: telemetry?.kernelId ?? null,
+      sinceMs: runWallStartMs,
+    });
     const sceneGen = (results ?? [])
       .filter((result) => Number.isFinite(result.genTime))
       .map((result) => ({
@@ -916,7 +935,12 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       },
     });
     engineWallMs = nowMs() - engineStartMs;
-    const meter = readKagglePollMeter(outputDir);
+    const telemetry =
+      typeof engine.getSessionTelemetry === "function" ? engine.getSessionTelemetry() : null;
+    const meter = readKagglePollMeter(outputDir, {
+      kernelId: telemetry?.kernelId ?? null,
+      sinceMs: runWallStartMs,
+    });
     const engineExclusiveMs = engineWallMs - loudnessMs;
     recordSpan(tprof, "tts-engine", engineExclusiveMs, {
       ...voice,

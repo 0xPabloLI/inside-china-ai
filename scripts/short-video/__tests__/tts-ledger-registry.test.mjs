@@ -158,6 +158,103 @@ describe("generateTTSWithEngine + ledger", () => {
     }
   });
 
+  it("ignores a poll-status written before this run started", async () => {
+    const root = buildRoot();
+    try {
+      const outputDir = join(root, "output", PIPELINE, "audio");
+      const statusDir = join(outputDir, ".kaggle-kernel");
+      mkdirSync(statusDir, { recursive: true });
+      writeFileSync(
+        join(statusDir, "poll-status.json"),
+        JSON.stringify({
+          kernelId: ENGINE.name,
+          queuedMs: 120000,
+          runningMs: 300352,
+          updatedAt: "2026-11-25T00:04:45.842Z",
+        }),
+      );
+      const ledger = openTtsLedger({ dir: join(root, "output", PIPELINE) });
+      const engine = {
+        ...fakeEngine(),
+        getSessionTelemetry() {
+          return {
+            kernelId: ENGINE.name,
+            requestId: "req-1566",
+            batchIndex: 1,
+            sessionReused: false,
+            loadSec: null,
+            sessionLoadSec: null,
+          };
+        },
+      };
+
+      await generateTTSWithEngine(
+        [{ id: 1, voiceover: "line" }],
+        outputDir,
+        engine,
+        baseOptions(ledger, { runId: "r-stale-time" }),
+      );
+
+      const { records } = readTtsLedger(ledger.path);
+      const end = records.find((record) => record.event === "run.end");
+      expect(end.kernel.queuedSec).toBe(UNKNOWN);
+      expect(end.kernel.runningSec).toBe(UNKNOWN);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("ignores a fresh poll-status that names another kernel", async () => {
+    const root = buildRoot();
+    try {
+      const outputDir = join(root, "output", PIPELINE, "audio");
+      const statusDir = join(outputDir, ".kaggle-kernel");
+      mkdirSync(statusDir, { recursive: true });
+      const ledger = openTtsLedger({ dir: join(root, "output", PIPELINE) });
+      const base = fakeEngine();
+      const engine = {
+        ...base,
+        async generate(scenes, innerOutputDir) {
+          // Written after the run starts, so only the kernelId guard can reject it.
+          writeFileSync(
+            join(statusDir, "poll-status.json"),
+            JSON.stringify({
+              kernelId: "some-other-kernel",
+              queuedMs: 120000,
+              runningMs: 300352,
+              updatedAt: new Date().toISOString(),
+            }),
+          );
+          return base.generate(scenes, innerOutputDir);
+        },
+        getSessionTelemetry() {
+          return {
+            kernelId: ENGINE.name,
+            requestId: "req-1566",
+            batchIndex: 1,
+            sessionReused: false,
+            loadSec: null,
+            sessionLoadSec: null,
+          };
+        },
+      };
+
+      await generateTTSWithEngine(
+        [{ id: 1, voiceover: "line" }],
+        outputDir,
+        engine,
+        baseOptions(ledger, { runId: "r-stale-kernel" }),
+      );
+
+      const { records } = readTtsLedger(ledger.path);
+      const end = records.find((record) => record.event === "run.end");
+      expect(end.kernel.queuedSec).toBe(UNKNOWN);
+      expect(end.kernel.runningSec).toBe(UNKNOWN);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("does not write anything when no ledger handle is supplied", async () => {
     const root = buildRoot();
     try {
