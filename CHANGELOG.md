@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.124.3](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.124.2...tanstack_start_ts-v1.124.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* **tts:** measure say/edge-tts duration through FFPROBE_BIN ([#1599](https://github.com/0xPabloLI/inside-china-ai/issues/1599)) ([7798f08](https://github.com/0xPabloLI/inside-china-ai/commit/7798f081e5bedf3dfb946e8d7f70337df0f17b96))
+
 ## [1.124.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.124.1...tanstack_start_ts-v1.124.2) (2026-11-28)
 
 
