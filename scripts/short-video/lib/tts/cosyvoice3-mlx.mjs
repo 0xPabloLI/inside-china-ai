@@ -171,9 +171,9 @@ export function buildCV3BatchCommand({
   modelDir,
 }) {
   const resolvedModelDir = modelDir || resolveCV3ModelDir({ env });
-  // #1598: every interpolated value is quoted. The string is still produced
-  // for logs/back-compat; execution uses `buildCV3BatchInvocation` below and
-  // never reaches a shell.
+  // #1598: every interpolated value is quoted. This string is produced for
+  // tests; execution uses `buildCV3BatchInvocation` below and never reaches a
+  // shell.
   return (
     `source ${shellQuote(join(CV3_MLX_VENV, "bin", "activate"))} && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 ` +
     `python3 ${shellQuote(CV3_MLX_BATCH_SCRIPT)} ` +
