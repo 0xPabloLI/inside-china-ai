@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.124.0](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.123.2...tanstack_start_ts-v1.124.0) (2026-11-28)
+
+
+### Features
+
+* **tts:** per-run and per-session lane ledger ([#1566](https://github.com/0xPabloLI/inside-china-ai/issues/1566)) ([#1602](https://github.com/0xPabloLI/inside-china-ai/issues/1602)) ([88a963c](https://github.com/0xPabloLI/inside-china-ai/commit/88a963c98acd77073cf60fde414b4a6b08ce4566))
+
 ## [1.123.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.123.1...tanstack_start_ts-v1.123.2) (2026-11-27)
 
 
