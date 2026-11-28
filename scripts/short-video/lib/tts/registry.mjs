@@ -761,16 +761,19 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
           `re-verification (no GPU): ${plan.candidates.map((c) => `scene ${c.sceneId} (${c.reason})`).join("; ")}`,
       );
     }
-    cachedResults = plan.approved.map(({ sceneId, audioPath, duration, ttsSpeed }) => ({
-      sceneId,
-      audioPath,
-      duration,
-      // #786: the speed that produced the take on disk. The pacing ladder needs
-      // it to tell "already at 1.1x" from "still at 1.0x" — dropping it here is
-      // how a cached 1.0x hook kept being re-compensated (or never was).
-      ttsSpeed,
-      cached: true,
-    }));
+    cachedResults = plan.approved.map(
+      ({ sceneId, audioPath, duration, ttsSpeed, durationMethod }) => ({
+        sceneId,
+        audioPath,
+        duration,
+        ...(durationMethod ? { durationMethod } : {}),
+        // #786: the speed that produced the take on disk. The pacing ladder needs
+        // it to tell "already at 1.1x" from "still at 1.0x" — dropping it here is
+        // how a cached 1.0x hook kept being re-compensated (or never was).
+        ttsSpeed,
+        cached: true,
+      }),
+    );
     // The cached take's speed joins the scene so resolveSceneSpeed() sees what
     // is actually on disk (hook floor / key resolution) instead of the 1.0
     // baseline a fresh scene object starts with.
@@ -779,10 +782,11 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       if (scene && Number.isFinite(hit.ttsSpeed)) scene.ttsSpeed = hit.ttsSpeed;
     }
     candidateSpeedById = new Map(plan.candidates.map((c) => [c.sceneId, c.ttsSpeed]));
-    candidateResults = plan.candidates.map(({ sceneId, audioPath, duration }) => ({
+    candidateResults = plan.candidates.map(({ sceneId, audioPath, duration, durationMethod }) => ({
       sceneId,
       audioPath,
       duration,
+      ...(durationMethod ? { durationMethod } : {}),
     }));
     toGenerate = plan.pending;
   }
@@ -1000,6 +1004,9 @@ export async function generateTTSWithEngine(scenes, outputDir, engine, options =
       key: sceneCacheKey(takeEngine, scene, speed),
       duration: result.duration,
       engine: takeEngine.name,
+      // #1599: keep how the duration was obtained on the take's sidecar — an
+      // estimate is a timeline risk the next run must be able to see.
+      ...(result.durationMethod ? { durationMethod: result.durationMethod } : {}),
       ...(result.fallbackFrom ? { fallbackFrom: result.fallbackFrom } : {}),
       audioPath: result.audioPath,
       ttsSpeed: speed,

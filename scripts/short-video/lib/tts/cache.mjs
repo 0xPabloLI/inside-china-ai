@@ -438,8 +438,8 @@ function classifyPendingMiss({
  * @param {Array<{id: number, voiceover: string}>} scenes
  * @param {{name: string, info: string}} engine
  * @returns {{
- *   approved: Array<{sceneId: number, audioPath: string, duration: number, cached: true, ttsSpeed: number}>,
- *   candidates: Array<{sceneId: number, audioPath: string, duration: number, reason: string, candidate: true, ttsSpeed: number}>,
+ *   approved: Array<{sceneId: number, audioPath: string, duration: number, cached: true, ttsSpeed: number, durationMethod?: string}>,
+ *   candidates: Array<{sceneId: number, audioPath: string, duration: number, reason: string, candidate: true, ttsSpeed: number, durationMethod?: string}>,
  *   pending: Array,
  *   misses: Array<{sceneId: number, reason: string}>,
  * }}
@@ -449,6 +449,15 @@ export function planTtsScenes(outputDir, scenes, engine) {
   const candidates = [];
   const pending = [];
   const misses = [];
+
+  /** #1599: a word estimate in an approved sidecar is a live timeline risk. */
+  const warnEstimated = (sceneId, meta) => {
+    if (meta?.durationMethod === "word-estimate") {
+      console.warn(
+        `  ⚠️ Scene ${sceneId}: cached duration is a word estimate — regenerate to re-probe; timeline may drift`,
+      );
+    }
+  };
 
   for (const scene of scenes) {
     const resolvedSpeed = resolveSceneSpeed(scene);
@@ -479,14 +488,17 @@ export function planTtsScenes(outputDir, scenes, engine) {
       const key = keyForMeta(approvedMeta);
       if (approvedMeta.key === key && existsSync(audioPath)) {
         if (isApprovedAndTrusted(approvedMeta, audioPath)) {
+          warnEstimated(scene.id, approvedMeta);
           approved.push({
             sceneId: scene.id,
             audioPath,
             duration: approvedMeta.duration,
             cached: true,
             ttsSpeed: speedForMeta(approvedMeta),
+            ...(approvedMeta.durationMethod ? { durationMethod: approvedMeta.durationMethod } : {}),
           });
         } else {
+          warnEstimated(scene.id, approvedMeta);
           candidates.push({
             sceneId: scene.id,
             audioPath,
@@ -494,6 +506,7 @@ export function planTtsScenes(outputDir, scenes, engine) {
             reason: untrustedReason(approvedMeta, candidateMeta, key),
             candidate: true,
             ttsSpeed: speedForMeta(approvedMeta),
+            ...(approvedMeta.durationMethod ? { durationMethod: approvedMeta.durationMethod } : {}),
           });
         }
         continue;

@@ -11,6 +11,8 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { promisify } from "util";
 import { postProcessAudio, getDuration } from "./post-process.mjs";
+import { estimateDurationSeconds } from "./ffmpeg-cmd.mjs";
+import { FFPROBE_BIN, binaryUsable } from "../ffmpeg-bins.mjs";
 import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -63,7 +65,9 @@ export async function createEdgeTTSEngine() {
 
     async generate(scenes, outputDir) {
       const results = [];
-      const hasFfprobe = await isCommandAvailable("ffprobe");
+      // #1599: FFPROBE_BIN is an absolute path that works without Homebrew on
+      // PATH — `which ffprobe` would silently report it missing.
+      const canProbe = binaryUsable(FFPROBE_BIN);
 
       for (const scene of scenes) {
         const tempFile = join(tmpdir(), `tts-scene-${scene.id}.txt`);
@@ -107,29 +111,24 @@ export async function createEdgeTTSEngine() {
 
         // Get exact duration
         let duration;
-        if (hasFfprobe) {
+        let durationMethod;
+        if (canProbe) {
           duration = await getDuration(audioPath);
+          durationMethod = "ffprobe";
         } else {
-          const wordCount = scene.voiceover.split(" ").length;
-          duration = wordCount / 2.5;
+          duration = estimateDurationSeconds(scene.voiceover);
+          durationMethod = "word-estimate";
+          console.warn(
+            `  ⚠️ Scene ${scene.id}: ffprobe unusable (FFPROBE_BIN=${FFPROBE_BIN}) — ` +
+              `duration estimated from voiceover text; timeline may drift`,
+          );
         }
 
-        results.push({ sceneId: scene.id, audioPath, duration });
+        results.push({ sceneId: scene.id, audioPath, duration, durationMethod });
         console.log(`  Scene ${scene.id}: ${duration.toFixed(2)}s`);
       }
 
       return results;
     },
   };
-}
-
-// ── Helpers ──
-
-async function isCommandAvailable(cmd) {
-  try {
-    await execFileAsync("which", [cmd]);
-    return true;
-  } catch {
-    return false;
-  }
 }
