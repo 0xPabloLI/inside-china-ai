@@ -22,6 +22,26 @@ export const ffmpegCmd = FFMPEG_BIN;
 const ffprobeCmd = FFPROBE_BIN;
 
 /**
+ * Word-count fallback for engine duration, used only when probing is
+ * impossible (#1599). Callers must warn and record the estimate: a silent
+ * fallback shifts the scene timeline without leaving a trace.
+ *
+ * 2.5 words/second is the same budget rate the TikTok profile uses
+ * (`voiceoverEstimateWps`); this low-level TTS module deliberately does not
+ * import the platform registry just for one number.
+ *
+ * @param {string} voiceover
+ * @returns {number} seconds
+ */
+export function estimateDurationSeconds(voiceover) {
+  const words = String(voiceover ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  return words / 2.5;
+}
+
+/**
  * Measurement-only ffmpeg: the same resolved binary as `ffmpegCmd` (#1582).
  *
  * Analysis filters (volumedetect, silencedetect, the loudnorm read-back)
