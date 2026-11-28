@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.124.2](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.124.1...tanstack_start_ts-v1.124.2) (2026-11-28)
+
+
+### Bug Fixes
+
+* **video:** route shell execution through argv and one quoting seam ([#1598](https://github.com/0xPabloLI/inside-china-ai/issues/1598)) ([#1609](https://github.com/0xPabloLI/inside-china-ai/issues/1609)) ([03ece53](https://github.com/0xPabloLI/inside-china-ai/commit/03ece534d463af66a05367f9fa89f23f1a435f9e))
+
 ## [1.124.1](https://github.com/0xPabloLI/inside-china-ai/compare/tanstack_start_ts-v1.124.0...tanstack_start_ts-v1.124.1) (2026-11-28)
 
 
