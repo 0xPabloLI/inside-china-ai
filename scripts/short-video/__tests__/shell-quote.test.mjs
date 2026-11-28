@@ -55,7 +55,7 @@ describe("shellQuote", () => {
     ["backslash", "a\\b"],
     ["semicolon", "a; rm -rf /"],
   ])("keeps %s literal in a real shell", (_label, value) => {
-    // nosemgrep: javascript.lang.security.audit.dangerous-spawn-shell.dangerous-spawn-shell -- the fixture is attacker-shaped input; the assertion proves it stays literal
+    // nosemgrep: javascript.lang.security.audit.dangerous-spawn-shell.dangerous-spawn-shell
     const run = spawnSync("/bin/sh", ["-c", `printf %s ${shellQuote(value)}`], {
       encoding: "utf8",
     });
