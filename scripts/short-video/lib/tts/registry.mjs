@@ -117,9 +117,9 @@ function recordSpan(prof, name, durationMs, meta = {}) {
  * `unknown` instead of copying a stale number (#1566 smoke follow-up).
  *
  * @param {string} outputDir
- * @param {{kernelId?: string|null, sinceMs?: number|null}} [expected]
+ * @param {{kernelId: string|null, sinceMs: number}} expected
  */
-function readKagglePollMeter(outputDir, { kernelId = null, sinceMs = null } = {}) {
+function readKagglePollMeter(outputDir, { kernelId, sinceMs }) {
   try {
     const statusPath = containedPath(outputDir, ".kaggle-kernel", "poll-status.json");
     if (!existsSync(statusPath)) return null;
