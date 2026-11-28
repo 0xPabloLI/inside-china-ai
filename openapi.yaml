@@ -69,6 +69,10 @@ paths:
                     type: integer
                   seoRewritten:
                     type: integer
+                  paused:
+                    type: ["string", "null"]
+                  error:
+                    type: ["string", "null"]
         "401":
           description: Missing or wrong cron secret
           content:
