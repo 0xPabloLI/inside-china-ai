@@ -111,8 +111,10 @@ colab --auth=adc delete --session echomimic-nf4
   - `COSYVOICE3_COLAB_MODEL_CACHE_URL`：任意可直接下载的 URL；
   - `COSYVOICE3_COLAB_MODEL_CACHE_GDRIVE_ID`：公开 Google Drive 文件 ID（`gdown --id`，必须是文件，不是文件夹）。
 - 两个都不设时保持原行为：从 `FunAudioLLM/Fun-CosyVoice3-0.5B-2512` `snapshot_download`。
-- 缓存命中会在 stdout 打 `model cache hit: ...`；归档损坏或缺 `cosyvoice3.yaml` 时回退 HuggingFace，不阻断推理。
+- 缓存命中会在 stdout 打 `model cache hit: ...`；归档损坏或缺 `cosyvoice3.yaml` 时回退 HuggingFace，不阻断推理。下载 5.4GB 归档时每 100MB 打一行进度，另有一个 30s 心跳线程——`colab run --timeout 900` 是**静默上限**，不是总时限，长时间没输出会被 CLI 当成连接丢失（#1537 首次真机 smoke 就在 10min 静默处挂掉）；心跳让会话活到下载结束。
 - wetext frontend 目前仍由 `modelscope` 下载；如果要一起缓存，把 wetext 目录打进归档并在脚本里设置对应 cache 路径（后续再扩展）。
+- **已发布归档**（2026-11-28）：`https://huggingface.co/datasets/0xpabloli/cosyvoice3-colab-cache/resolve/main/cosyvoice3-model-cache.tar`，5.43GB。归档只含 CosyVoice3 初始化会 `torch.load`/`onnxruntime` 读到的 7 个路径（`cosyvoice3.yaml`、`CosyVoice-BlankEN/`、`campplus.onnx`、`speech_tokenizer_v3.onnx`、`llm.pt`、`flow.pt`、`hift.pt`）；完整 HF snapshot 是 9.7GB（还含 `llm.rl.pt`、`flow.decoder.estimator.fp32.onnx`、`*.batch.onnx`，该路径不读）。票面原先写的「约 2GB」是估值，实际按用量表为准。
+- **重建/换托管**：`scripts/short-video/colab/push-model-cache-build.sh`。它在 Kaggle 侧从 `xpabloli/cosyvoice3-model`（已挂载）打包并上传到 `0xpabloli/cosyvoice3-colab-cache`，不占本机带宽/Colab 配额；HF token 只出现在私有构建 kernel 里，成功后该 kernel 自动删除。换 token 时优先用只对该 dataset 有写权限的 fine-grained token。
 
 ## 限制
 
@@ -125,9 +127,13 @@ colab --auth=adc delete --session echomimic-nf4
 
 Colab CLI 需要通过 HTTP 代理访问 Google 服务。在 macOS TUN 模式下：
 
-- **正确用法**：`HTTPS_PROXY=http://127.0.0.1:<port> colab --auth=adc run --gpu T4 script.py`
+- **正确用法**：`HTTPS_PROXY=socks5h://127.0.0.1:<port> colab --auth=adc run --gpu T4 script.py`
 - **端口获取**：`scutil --proxy` 查看当前系统代理端口（两个 Clash 客户端轮用，端口不同）
-- **不要用 `NO_PROXY` 绕过代理** — TUN 模式下 WebSocket 长连接需要走代理才稳定
+- **2026-11-28 实测（#1537 smoke）**：`http://127.0.0.1:<port>` 对 `colab.research.google.com` 间歇性失败（12 次探测 6 次 `000`；CLI 的 KEEP 心跳在 iter=6 报 `ProxyError`，5–10 分钟后会话被回收，`colab run` 报 `Connection was lost`）。**把 Colab 域名绕过代理**、其余域名继续走代理，最稳：
+  `HTTPS_PROXY=http://127.0.0.1:<port> NO_PROXY=colab.research.google.com,.googleusercontent.com,.colab.dev,127.0.0.1,localhost`
+  TUN 直连 Colab 12/12 通；`oauth2.googleapis.com` 仍需代理，所以 `HTTPS_PROXY` 不能删。SOCKS5（`socks5h://`）对普通请求稳定，但 CLI 的 WebSocket 不支持 socks 环境变量，会直接掉线，别用。
+- **不要用 `NO_PROXY` 绕过 OAuth/普通 API** — 只绕过 `colab.research.google.com`、runtime 的 `.colab.dev` 与 `*.googleusercontent.com`；`oauth2.googleapis.com` 直连会超时。
+- **长任务被掐断的另一个原因**：`--timeout` 是**静默上限**不是总时限；下载/装包长时间无输出会被当成连接丢失。脚本里的 30s 心跳和 100MB 进度行就是为此（#1537）。
 - **长任务必须设 `--timeout`**：默认 30 秒，长时间推理设 `--timeout 36000`（10 小时）
 - **已知问题**：某些代理客户端会断开带 `Authorization` header 的 POST 请求。如果遇到 `ProxyError: RemoteDisconnected`，切换到另一个 Clash 客户端即可
 
