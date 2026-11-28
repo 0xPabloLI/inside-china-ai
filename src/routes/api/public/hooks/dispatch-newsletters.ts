@@ -1,24 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { authorizeCronRequest } from "@/lib/cron-auth.server";
 
 /**
  * Cron endpoint: sends any newsletter whose scheduled time has arrived.
- * Called by pg_cron with the project's publishable key in the `apikey` header.
+ * Called by pg_cron with `x-cron-secret`.
  *
- * Auth (#319 R2): accepts the publishable key under either name —
- * `SUPABASE_PUBLISHABLE_KEY` or its legacy alias `SUPABASE_ANON_KEY` (same
- * project key, not a weaker credential). The alias is kept deliberately until
- * pg_cron's configured key name is verified (dashboard-side, not in this repo).
+ * Auth (#1600): the caller sends the server-only `CRON_SECRET` header. The
+ * public publishable key no longer identifies the cron runner; the explicit
+ * migration windows live in `cron-auth.server.ts`.
  */
 export const Route = createFileRoute("/api/public/hooks/dispatch-newsletters")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const expected =
-          process.env["SUPABASE_PUBLISHABLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"];
-        const provided =
-          request.headers.get("apikey") ??
-          request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-        if (!expected || provided !== expected) {
+        const decision = authorizeCronRequest(request);
+        if (!decision.ok) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
         const { dispatchDueNewsletters } = await import("@/lib/newsletters.server");

@@ -6,8 +6,11 @@ info:
 
     Two conventions apply:
     - `/api/public/*` routes bypass site-level authentication; routes under
-      `/api/public/hooks/*` instead require the Supabase publishable key as
-      proof of caller identity (they are cron targets, not user endpoints).
+      `/api/public/hooks/*` require the server-only `CRON_SECRET` as the cron
+      caller credential (`x-cron-secret` header or bearer token), and fail
+      closed when it is absent. The Supabase publishable key is public by
+      design and is accepted only during an explicit
+      `CRON_ALLOW_LEGACY_PUBLISHABLE_KEY=1` migration window.
     - `/api/tiktok/*` implements the TikTok OAuth callback flow.
   version: 1.0.0
 servers:
@@ -30,16 +33,68 @@ paths:
                   status:
                     type: string
                     example: ok
+  /api/public/hooks/ask-answers:
+    post:
+      operationId: runAskAnswersJob
+      summary: Publish and refresh Ask China AI answers (cron)
+      description: |
+        Publishes popular Ask China AI answers as pages, refreshes stale ones
+        and tunes search snippets. Intended to be called by pg_cron with
+        `x-cron-secret`. Body `{ "resume": true }` clears a credit/policy pause
+        for one run.
+      security:
+        - CronSecret: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resume:
+                  type: boolean
+      responses:
+        "200":
+          description: Job result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  created:
+                    type: integer
+                  refreshed:
+                    type: integer
+                  seoRewritten:
+                    type: integer
+                  paused:
+                    type: ["string", "null"]
+                  error:
+                    type: ["string", "null"]
+        "401":
+          description: Missing or wrong cron secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Job failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/public/hooks/refresh-keyword-snapshots:
     post:
       operationId: refreshKeywordSnapshots
       summary: Refresh keyword snapshots (cron)
       description: |
         Refreshes keyword ranking snapshots once per invocation and emails
-        admins about ranking drops. Intended to be called by pg_cron with the
-        project's publishable key.
+        admins about ranking drops. Intended to be called by pg_cron with
+        `x-cron-secret`.
       security:
-        - PublishableKey: []
+        - CronSecret: []
       responses:
         "200":
           description: Snapshots refreshed
@@ -58,7 +113,7 @@ paths:
                     items:
                       type: string
         "401":
-          description: Missing or wrong publishable key
+          description: Missing or wrong cron secret
           content:
             application/json:
               schema:
@@ -73,8 +128,11 @@ paths:
     post:
       operationId: dispatchNewsletters
       summary: Dispatch pending newsletters (cron)
+      description: |
+        Sends every newsletter whose scheduled time has arrived. Intended to be
+        called by pg_cron with `x-cron-secret`.
       security:
-        - PublishableKey: []
+        - CronSecret: []
       responses:
         "200":
           description: Dispatch result
@@ -83,7 +141,7 @@ paths:
               schema:
                 type: object
         "401":
-          description: Missing or wrong publishable key
+          description: Missing or wrong cron secret
           content:
             application/json:
               schema:
@@ -133,14 +191,11 @@ paths:
           description: Invalid callback parameters
 components:
   securitySchemes:
-    PublishableKey:
+    CronSecret:
       type: apiKey
       in: header
-      name: apikey
-      description: >
-        Supabase publishable (anon) key — accepted either as `apikey` header or
-        `Authorization: Bearer <key>`. Identifies the caller as the cron
-        runner; it is not a user credential.
+      name: x-cron-secret
+      description: "Server-only `CRON_SECRET` shared with the pg_cron jobs — accepted as the `x-cron-secret` header or as `Authorization: Bearer <secret>`. The Supabase publishable (anon) key is public and is not a caller credential (#1600)."
   schemas:
     Error:
       type: object
