@@ -23,7 +23,7 @@
  * @module video-understand
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import {
   existsSync,
   writeFileSync,
@@ -39,9 +39,9 @@ import { fileURLToPath } from "url";
 import { promisify } from "util";
 import { DEFAULT_WHISPER_CPP_MODEL_NAME } from "./asr-defaults.mjs";
 import { guardTranscript } from "./asr-repetition-guard.mjs";
-import { ytdlpCookieSource, ytdlpProxyArg } from "./ytdlp-guard.mjs";
+import { ytdlpCookieSource, ytdlpProxyEnv } from "./ytdlp-guard.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -290,9 +290,9 @@ export async function downloadVideo(url, options = {}) {
 
   if (platform === "youtube" || platform === "bilibili" || platform === "tiktok") {
     const videoPath = join(outputDir, `${platform}-${meta.videoId}.mp4`);
-    const cmd = buildYtdlpCommand(fullUrl, videoPath, platform);
+    const args = buildYtdlpArgs(fullUrl, videoPath, platform);
     try {
-      await execAsync(cmd);
+      await execFileAsync(YTDLP, args);
     } catch (err) {
       throw new Error(`Download failed: ${err.message}`);
     }
@@ -303,7 +303,8 @@ export async function downloadVideo(url, options = {}) {
 }
 
 /**
- * Build yt-dlp command string for the supported platforms.
+ * Build yt-dlp argv for the supported platforms (#1598: argv, not a shell
+ * line — the URL can originate from scraped page content).
  *
  * TikTok (#300 stage 2) replaced the CDP `item/detail` route, which is dead:
  * `/aweme/v1/web/item/detail/` now returns HTML instead of JSON even from a
@@ -314,18 +315,18 @@ export async function downloadVideo(url, options = {}) {
  * @param {string} url - Full URL
  * @param {string} output - Output file path
  * @param {"youtube"|"bilibili"|"tiktok"} platform
- * @returns {string}
+ * @returns {string[]}
  */
-function buildYtdlpCommand(url, output, platform) {
-  const parts = [`"${YTDLP}"`];
+function buildYtdlpArgs(url, output, platform) {
+  const args = [];
 
   if (platform === "youtube") {
     // Cookie source is shared with the sourcer/downloader call sites
     // (ytdlp-guard.mjs) so all three agree on one profile. It was hardcoded to
     // `chrome` here (#313) — the Keychain-backed store that raises a blocking
     // SecurityAgent prompt for this unsigned binary chain (#328).
-    parts.push(`--cookies-from-browser "${ytdlpCookieSource()}"`);
-    parts.push("--remote-components ejs:github");
+    args.push("--cookies-from-browser", ytdlpCookieSource());
+    args.push("--remote-components", "ejs:github");
   }
 
   if (platform === "tiktok") {
@@ -336,19 +337,17 @@ function buildYtdlpCommand(url, output, platform) {
     // Full length, long side capped at 1920. TikTok is mostly 9:16, so `height`
     // is the LONG side — a `height<=1080` filter excludes the 1080x1920 and
     // 720x1280 tracks and silently lands on 576x1024 (measured 2026-10-16).
-    parts.push('-f "b[height<=1920]/b"');
-    parts.push("--no-playlist");
+    args.push("-f", "b[height<=1920]/b");
+    args.push("--no-playlist");
     // tiktok.com is not served at all from a HK exit, and yt-dlp does not read
     // the macOS system proxy — so the resolved proxy is passed explicitly here
     // (the seam #324 established for the ffmpeg-delegated paths).
-    const proxyArg = ytdlpProxyArg();
-    if (proxyArg) parts.push(proxyArg);
+    const proxy = ytdlpProxyEnv().http_proxy;
+    if (proxy) args.push("--proxy", proxy);
   }
 
-  parts.push("-o", `"${output}"`);
-  parts.push(`"${url}"`);
-
-  return parts.join(" ");
+  args.push("-o", output, url);
+  return args;
 }
 
 // ─── Audio Extraction & ASR ───
@@ -376,8 +375,19 @@ export async function transcribeVideo(videoPath, options = {}) {
 
   // Step 1: Extract audio (16kHz mono WAV for whisper.cpp)
   try {
-    const ffmpegCmd = `"${FFMPEG_FULL}" -y -i "${videoPath}" -vn -acodec pcm_s16le -ar 16000 -ac 1 "${audioPath}" 2>/dev/null`;
-    await execAsync(ffmpegCmd);
+    await execFileAsync(FFMPEG_FULL, [
+      "-y",
+      "-i",
+      videoPath,
+      "-vn",
+      "-acodec",
+      "pcm_s16le",
+      "-ar",
+      "16000",
+      "-ac",
+      "1",
+      audioPath,
+    ]);
   } catch (err) {
     console.warn(`  [video-understand] Audio extraction failed: ${err.message}`);
     return null;
@@ -412,9 +422,22 @@ export async function transcribeVideo(videoPath, options = {}) {
     // audio still comes back in Chinese but mangles proper nouns — the same zh
     // clip gave "DeepSeq" under `lang = en` vs "DeepSeek" under `lang = auto`.
     // Only callers that know the language should pin it.
-    const languageArg = options.language ? ` -l "${options.language}"` : "";
-    const whisperCmd = `"${WHISPER_CLI}" -m "${WHISPER_MODEL}" -f "${audioPath}" -t 8 -fa -mc 0${languageArg} -oj -of "${whisperPrefix}"`;
-    await execAsync(whisperCmd);
+    const whisperArgs = [
+      "-m",
+      WHISPER_MODEL,
+      "-f",
+      audioPath,
+      "-t",
+      "8",
+      "-fa",
+      "-mc",
+      "0",
+      ...(options.language ? ["-l", options.language] : []),
+      "-oj",
+      "-of",
+      whisperPrefix,
+    ];
+    await execFileAsync(WHISPER_CLI, whisperArgs);
   } catch (err) {
     console.warn(`  [video-understand] ASR failed: ${err.message}`);
     return null;

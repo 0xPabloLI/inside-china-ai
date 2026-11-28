@@ -114,7 +114,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
     const runCmd = async (cmd) => {
       calls.push(cmd);
       if (!cmd.includes("--file-pattern")) throw SSL_CUT_ERROR;
-      const pattern = cmd.match(/--file-pattern "([^"]+)"/)[1];
+      const pattern = cmd.match(/--file-pattern ["']([^"']+)["']/)[1];
       const re = new RegExp(pattern);
       for (const id of [2, 3, 4]) {
         if (re.test(`output/scene-${id}.wav`)) {
@@ -151,7 +151,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
 
     // The fetch command asks for exactly the files the batch left behind.
     const fetchCmd = calls.filter((c) => c.includes("--file-pattern")).at(-1);
-    const pattern = new RegExp(fetchCmd.match(/--file-pattern "([^"]+)"/)[1]);
+    const pattern = new RegExp(fetchCmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
     expect(pattern.test("output/scene-1.wav")).toBe(false);
     expect(fetchCmd).toContain("--force");
 
@@ -168,7 +168,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
     const runCmd = async (cmd) => {
       if (!cmd.includes("--file-pattern")) throw SSL_CUT_ERROR;
       patternCmds.push(cmd);
-      const re = new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+      const re = new RegExp(cmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
       if (re.test("output/scene-2.wav")) writeFileSync(wavPath(dir, 2), wavBytes("scene-2"));
       return { stdout: "" };
     };
@@ -183,7 +183,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
     });
 
     expect(result.recovered).toEqual(["output/scene-2.wav"]);
-    const pattern = new RegExp(patternCmds.at(-1).match(/--file-pattern "([^"]+)"/)[1]);
+    const pattern = new RegExp(patternCmds.at(-1).match(/--file-pattern ["']([^"']+)["']/)[1]);
     expect(pattern.test("output/scene-3.wav")).toBe(false);
 
     rmSync(dir, { recursive: true, force: true });
@@ -200,7 +200,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
     const runCmd = async (cmd) => {
       if (!cmd.includes("--file-pattern")) throw SSL_CUT_ERROR;
       patternCmds.push(cmd);
-      const re = new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+      const re = new RegExp(cmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
       if (re.test("output/summary.json")) writeSummary(dir, [1, 2, 3], { errored: [3] });
       for (const id of [1, 2]) {
         if (re.test(`output/scene-${id}.wav`)) writeFileSync(wavPath(dir, id), wavBytes(`s${id}`));
@@ -217,7 +217,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
       log: () => {},
     });
 
-    const patternOf = (cmd) => new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+    const patternOf = (cmd) => new RegExp(cmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
     expect(patternCmds).toHaveLength(2);
     expect(patternOf(patternCmds[0]).test("output/summary.json")).toBe(true);
     expect(patternOf(patternCmds[0]).test("output/scene-1.wav")).toBe(false);
@@ -238,7 +238,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
     const dir = tempStaging("narrowed");
     const runCmd = async (cmd) => {
       if (!cmd.includes("--file-pattern")) throw SSL_CUT_ERROR;
-      const re = new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+      const re = new RegExp(cmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
       if (re.test("output/summary.json")) writeSummary(dir, [2, 3]);
       for (const id of [2, 3]) {
         if (re.test(`output/scene-${id}.wav`)) writeFileSync(wavPath(dir, id), wavBytes(`s${id}`));
@@ -342,7 +342,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
     let round = 0;
     const runCmd = async (cmd) => {
       if (!cmd.includes("--file-pattern")) throw SSL_CUT_ERROR;
-      const re = new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+      const re = new RegExp(cmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
       expect(re.test("output/scene-1.wav")).toBe(true);
       round++;
       writeFileSync(
@@ -375,7 +375,7 @@ describe("#581 — whole-batch download failure recovers per file", () => {
 
     const runCmd = async (cmd) => {
       if (!cmd.includes("--file-pattern")) throw SSL_CUT_ERROR;
-      const re = new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+      const re = new RegExp(cmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
       expect(re.test("output/summary.json")).toBe(true);
       writeSummary(dir, [1, 2]);
       return { stdout: "" };
@@ -418,7 +418,7 @@ function makeCutDownloadExecMock({ summaryRequestId, presentWavs }) {
   const exec = async (cmd) => {
     commands.push(cmd);
     if (!cmd.includes("kaggle kernels output")) return { stdout: "" };
-    const dir = cmd.match(/-p "([^"]+)"/)[1];
+    const dir = cmd.match(/-p ["']([^"']+)["']/)[1];
     const kernelDir = dirname(dirname(dir)); // <tempDir>/downloads/<requestId>
     const requestId =
       summaryRequestId ??
@@ -433,7 +433,7 @@ function makeCutDownloadExecMock({ summaryRequestId, presentWavs }) {
       throw SSL_CUT_ERROR;
     }
 
-    const re = new RegExp(cmd.match(/--file-pattern "([^"]+)"/)[1]);
+    const re = new RegExp(cmd.match(/--file-pattern ["']([^"']+)["']/)[1]);
     mkdirSync(join(dir, "output"), { recursive: true });
     if (re.test("output/summary.json")) {
       writeFileSync(

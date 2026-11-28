@@ -28,7 +28,7 @@
  * License: Apache-2.0 (CosyVoice3) — commercial OK.
  */
 
-import { exec, execFile } from "child_process";
+import { execFile } from "child_process";
 import { createHash, randomUUID } from "crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { basename, join, dirname, relative } from "path";
@@ -42,8 +42,8 @@ import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 import { resolveSceneSpeed } from "./pacing.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 import { createControlChannel, materializeLiveBatch, startLogStream } from "./kaggle-live.mjs";
+import { execShell, sh } from "../shell.mjs";
 
-const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 /**
@@ -56,7 +56,7 @@ const execFileAsync = promisify(execFile);
  * wiring itself is pinned separately by a PATH-shim test that exercises this
  * function with no `deps.exec` at all.
  */
-const defaultExec = (cmd, opts) => execAsync(cmd, opts);
+const defaultExec = (cmd, opts) => execShell(cmd, opts);
 
 /**
  * The default argv seam for the slot/attribution probes (#1354).
@@ -724,7 +724,7 @@ export async function downloadKernelOutput({
 
   let batchError = null;
   try {
-    await runCmd(`kaggle kernels output ${kernelId} -p "${downloadDir}" --force 2>&1`);
+    await runCmd(sh`kaggle kernels output ${kernelId} -p ${downloadDir} --force 2>&1`);
   } catch (e) {
     // A non-zero exit is a symptom, not a verdict: it cannot say whether the
     // takes that already landed are usable. Fall through to the recovery path
@@ -751,7 +751,7 @@ export async function downloadKernelOutput({
     try {
       const pattern = buildKernelFilePattern(rels.map((rel) => basename(rel)));
       await runCmd(
-        `kaggle kernels output ${kernelId} -p "${downloadDir}" --file-pattern "${pattern}" --force 2>&1`,
+        sh`kaggle kernels output ${kernelId} -p ${downloadDir} --file-pattern ${pattern} --force 2>&1`,
       );
     } catch (e) {
       lastRecoveryError = e;
@@ -826,7 +826,7 @@ async function isAvailable(deps = {}) {
     // touching real Kaggle", and a real `kaggle --version` can take ~9s of
     // wall-clock on shimmed Python installs (deterministic test timeout).
     const probe = deps.exec ?? defaultExec;
-    await probe("kaggle --version 2>/dev/null");
+    await probe(sh`kaggle --version`);
     return true;
   } catch {
     return false;
@@ -1920,7 +1920,7 @@ export async function pollKernelStatus(kernelId, opts = {}, deps = {}) {
     let probeError = null;
     const probeStart = now();
     try {
-      const { stdout } = await exec(`kaggle kernels status ${kernelId} 2>&1`, {
+      const { stdout } = await exec(sh`kaggle kernels status ${kernelId} 2>&1`, {
         timeout: probeTimeoutMs,
         killSignal: "SIGKILL",
       });
@@ -2486,9 +2486,8 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
 
         // ── Push kernel (single push for the whole manifest, #241) ──
         console.log(`  📤 Pushing Kaggle kernel (${manifest.length} segments, 1 push)...`);
-        pushResult = await runCmd(
-          `kaggle kernels push -p "${tempDir}"${KAGGLE_ACCELERATOR ? ` --accelerator ${KAGGLE_ACCELERATOR}` : ""} 2>&1`,
-        );
+        const acceleratorArg = KAGGLE_ACCELERATOR ? sh` --accelerator ${KAGGLE_ACCELERATOR}` : "";
+        pushResult = await runCmd(sh`kaggle kernels push -p ${tempDir}` + acceleratorArg + " 2>&1");
       } catch (err) {
         if (control) await control.close();
         throw err;

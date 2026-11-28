@@ -14,7 +14,7 @@
  * @module tiktok-csi
  */
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { writeFileSync, unlinkSync, existsSync, mkdirSync, appendFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -28,14 +28,27 @@ const CSI_DETAIL_URL_PREFIX = "https://www.tiktok.com/csi/detail/";
 // ─── CDP Helper Functions ───
 
 /**
+ * Run curl with argv (#1598): `url`/`targetId`/JS payloads are data, never
+ * shell syntax. `-s` keeps the previous silent behavior.
+ * @param {string[]} args
+ * @returns {string}
+ */
+function curl(args) {
+  return execFileSync("curl", ["-s", ...args], { encoding: "utf8" });
+}
+
+/** Sleep without a shell (`sleep` used to be the one static execSync). */
+function sleepSeconds(sec) {
+  execFileSync("sleep", [String(sec)]);
+}
+
+/**
  * Check if CDP proxy is running and ready.
  * @returns {boolean}
  */
 function isCdpReady() {
   try {
-    const result = execSync(`curl -s --max-time 3 ${CDP_BASE}/targets`, {
-      encoding: "utf8",
-    });
+    const result = curl(["--max-time", "3", `${CDP_BASE}/targets`]);
     return result.includes("targetId");
   } catch {
     return false;
@@ -48,9 +61,7 @@ function isCdpReady() {
  * @returns {string} targetId
  */
 function newTab(url) {
-  const result = execSync(`curl -s -X POST --data-raw '${url}' ${CDP_BASE}/new`, {
-    encoding: "utf8",
-  });
+  const result = curl(["-X", "POST", "--data-raw", url, `${CDP_BASE}/new`]);
   const data = JSON.parse(result);
   if (!data.targetId) throw new Error("CDP new tab failed: no targetId");
   return data.targetId;
@@ -62,9 +73,7 @@ function newTab(url) {
  * @param {string} url
  */
 function navigate(targetId, url) {
-  execSync(`curl -s -X POST --data-raw '${url}' "${CDP_BASE}/navigate?target=${targetId}"`, {
-    encoding: "utf8",
-  });
+  curl(["-X", "POST", "--data-raw", url, `${CDP_BASE}/navigate?target=${targetId}`]);
 }
 
 /**
@@ -74,13 +83,17 @@ function navigate(targetId, url) {
  * @returns {*} Parsed JSON result
  */
 function evalPage(targetId, js) {
-  // Use a temp file to avoid shell escaping issues with complex JS
+  // Use a temp file to avoid building one enormous argv element; the path is
+  // passed as `@file`, which curl reads itself (no shell involved).
   const tmpFile = `/tmp/cdp-eval-${Date.now()}.js`;
   writeFileSync(tmpFile, js, "utf8");
-  const result = execSync(
-    `curl -s -X POST "${CDP_BASE}/eval?target=${targetId}" --data-binary @${tmpFile}`,
-    { encoding: "utf8" },
-  );
+  const result = curl([
+    "-X",
+    "POST",
+    `${CDP_BASE}/eval?target=${targetId}`,
+    "--data-binary",
+    `@${tmpFile}`,
+  ]);
   unlinkSync(tmpFile);
   const data = JSON.parse(result);
   if (data.error) throw new Error(`CDP eval error: ${data.error}`);
@@ -106,19 +119,22 @@ function evalPage(targetId, js) {
 function waitForLoad(targetId, timeoutMs = 20000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const info = execSync(`curl -s "${CDP_BASE}/info?target=${targetId}"`, { encoding: "utf8" });
+    const info = curl([`${CDP_BASE}/info?target=${targetId}`]);
     const data = JSON.parse(info);
     if (data.ready === "complete" || data.ready === "interactive") {
       // Check content root has text (#app 容器优先，见函数注释)
-      const bodyCheck = execSync(
-        `curl -s -X POST "${CDP_BASE}/eval?target=${targetId}" -d '(document.getElementById("app") || document.body).innerText.length'`,
-        { encoding: "utf8" },
-      );
+      const bodyCheck = curl([
+        "-X",
+        "POST",
+        `${CDP_BASE}/eval?target=${targetId}`,
+        "-d",
+        '(document.getElementById("app") || document.body).innerText.length',
+      ]);
       const bodyData = JSON.parse(bodyCheck);
       const bodyLen = parseInt(bodyData.value, 10) || 0;
       if (bodyLen > 100) return;
     }
-    execSync("sleep 1", { encoding: "utf8" });
+    sleepSeconds(1);
   }
 }
 
@@ -128,9 +144,7 @@ function waitForLoad(targetId, timeoutMs = 20000) {
  */
 function closeTab(targetId) {
   try {
-    execSync(`curl -s "${CDP_BASE}/close?target=${targetId}"`, {
-      encoding: "utf8",
-    });
+    curl([`${CDP_BASE}/close?target=${targetId}`]);
   } catch {
     // Best effort
   }
@@ -222,7 +236,7 @@ export async function fetchContentGapTopics(opts = {}) {
   );
 
   // Wait for filtered results
-  execSync("sleep 3", { encoding: "utf8" });
+  sleepSeconds(3);
 
   // Extract topics using <tr> row structure
   // Each row has 4 <td> cells: [topic name, search volume + growth rate, AI tips, action]
@@ -278,7 +292,7 @@ export async function fetchTopicDetail(topicId) {
   const url = `${CSI_DETAIL_URL_PREFIX}${topicId}`;
   const targetId = newTab(url);
   waitForLoad(targetId, 15000);
-  execSync("sleep 3", { encoding: "utf8" }); // Extra wait for dynamic content
+  sleepSeconds(3); // Extra wait for dynamic content
 
   const detail = evalPage(
     targetId,
@@ -343,7 +357,7 @@ export async function fetchRecommendedTopics(opts = {}) {
   waitForLoad(targetId);
 
   // Default tab is "推荐" (Recommended) — no filter needed
-  execSync("sleep 2", { encoding: "utf8" });
+  sleepSeconds(2);
 
   // Extract topics using <tr> row structure (same as fetchContentGapTopics)
   const topics = evalPage(

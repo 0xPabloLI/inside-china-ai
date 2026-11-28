@@ -42,9 +42,28 @@ export function offlineEnvPrefix({ env = process.env, transformers = false } = {
   // HF_HUB_OFFLINE is the pipeline's knob and the name transformers reads
   // itself; TRANSFORMERS_OFFLINE is only consulted for the transformers
   // consumer, where huggingface_hub ORs it in anyway.
+  const vars = offlineEnvVars({ env, transformers });
+  const parts = [`HF_HUB_OFFLINE=${vars.HF_HUB_OFFLINE}`];
+  if (transformers) parts.push(`TRANSFORMERS_OFFLINE=${vars.TRANSFORMERS_OFFLINE}`);
+  return parts.join(" ");
+}
+
+/**
+ * The same offline decision as an environment overlay (#1598).
+ *
+ * argv-based spawns (`execFile`) cannot carry shell `VAR=value` prefixes, so
+ * they spread this object into `options.env` instead. One resolver feeds both
+ * shapes; do not re-implement the OR/override rule at a new call site.
+ *
+ * @param {object} [options]
+ * @param {NodeJS.ProcessEnv} [options.env=process.env]
+ * @param {boolean} [options.transformers=false]
+ * @returns {{HF_HUB_OFFLINE: string, TRANSFORMERS_OFFLINE?: string}}
+ */
+export function offlineEnvVars({ env = process.env, transformers = false } = {}) {
   const explicit = env.HF_HUB_OFFLINE ?? (transformers ? env.TRANSFORMERS_OFFLINE : undefined);
   const offline = explicit ?? "1";
-  const parts = [`HF_HUB_OFFLINE=${offline}`];
-  if (transformers) parts.push(`TRANSFORMERS_OFFLINE=${offline}`);
-  return parts.join(" ");
+  return transformers
+    ? { HF_HUB_OFFLINE: offline, TRANSFORMERS_OFFLINE: offline }
+    : { HF_HUB_OFFLINE: offline };
 }

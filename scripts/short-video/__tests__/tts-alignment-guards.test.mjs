@@ -181,10 +181,16 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
     execFileMock.mockClear();
     existsSyncMock.mockClear();
     existsSyncMock.mockReturnValue(true);
-    // ffprobe answers with the cut point, so a trim reports a real duration.
-    execFileMock.mockImplementation((cmd, args, cb) =>
-      cb(null, { stdout: "3.440000\n", stderr: "" }),
-    );
+    // ffmpeg writes the tailcut file; ffprobe answers with the cut point.
+    execFileMock.mockImplementation((cmd, args, ...rest) => {
+      const cb = rest[rest.length - 1];
+      if (args.includes("-show_entries")) {
+        cb(null, { stdout: "3.440000\n", stderr: "" });
+        return;
+      }
+      writeFileSync(args[args.length - 1], "trimmed-audio-bytes");
+      cb(null, { stdout: "", stderr: "" });
+    });
     dir = mkdtempSync(join(tmpdir(), "tailgate-"));
   });
 
@@ -197,7 +203,7 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
     expect(result.crushedWords).toHaveLength(2);
     // The audio is untouched and the duration downstream still sees is the
     // gate-approved one — not a silently shortened take.
-    expect(execMock.mock.calls.filter(([cmd]) => String(cmd).startsWith("mv "))).toHaveLength(0);
+    expect(readFileSync(ttsResults[0].audioPath, "utf8")).toBe("audio-8");
     expect(ttsResults[0].duration).toBe(5.06);
   });
 
@@ -211,7 +217,7 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
     expect(result.cuts).toHaveLength(1);
     expect(result.cuts[0]).toMatchObject({ sceneId: 7, from: 6.1, to: 3.44 });
     expect(ttsResults[0].duration).toBe(3.44);
-    expect(execMock.mock.calls.filter(([cmd]) => String(cmd).startsWith("mv "))).toHaveLength(1);
+    expect(readFileSync(ttsResults[0].audioPath, "utf8")).toBe("trimmed-audio-bytes");
   });
 
   it("gates per scene: a suspect scene does not block a clean scene's cut", async () => {
@@ -233,42 +239,66 @@ describe("runAlignmentGuards — the cut is gated on alignment trust (#629)", ()
 });
 
 describe("trimSceneTail", () => {
+  let dir;
+  let audioPath;
+
   // Braces matter: a hook that RETURNS a function (mockClear is chainable)
   // is treated by vitest as a teardown fn and invoked with no args.
   beforeEach(() => {
     execMock.mockClear();
     execFileMock.mockClear();
-    // mockClear keeps implementations, so re-arm the probe default per test:
-    // ffprobe answers nothing → NaN duration → no mv.
-    execFileMock.mockImplementation((cmd, args, cb) => cb(null, { stdout: "", stderr: "" }));
+    dir = mkdtempSync(join(tmpdir(), "tailtrim-"));
+    audioPath = join(dir, "scene-1.mp3");
+    writeFileSync(audioPath, "original-bytes");
+    // Default: ffmpeg writes the tailcut file, ffprobe answers nothing →
+    // NaN duration → the original stays put and the tmp is cleaned up.
+    execFileMock.mockImplementation((cmd, args, ...rest) => {
+      const cb = rest[rest.length - 1];
+      if (args.includes("-show_entries")) {
+        cb(null, { stdout: "", stderr: "" });
+        return;
+      }
+      writeFileSync(args[args.length - 1], "trimmed-bytes");
+      cb(null, { stdout: "", stderr: "" });
+    });
   });
 
   it("moves the trimmed tmp over the original when the probe succeeds", async () => {
-    execFileMock.mockImplementationOnce((cmd, args, cb) =>
-      cb(null, { stdout: "1.350000\n", stderr: "" }),
-    );
-    const duration = await trimSceneTail("/out/scene-1.mp3", 1.35);
+    execFileMock.mockImplementation((cmd, args, ...rest) => {
+      const cb = rest[rest.length - 1];
+      if (args.includes("-show_entries")) {
+        cb(null, { stdout: "1.350000\n", stderr: "" });
+        return;
+      }
+      writeFileSync(args[args.length - 1], "trimmed-bytes");
+      cb(null, { stdout: "", stderr: "" });
+    });
+    const duration = await trimSceneTail(audioPath, 1.35);
     expect(duration).toBe(1.35);
-    const mvCalls = execMock.mock.calls.filter(([cmd]) => cmd.startsWith("mv "));
-    expect(mvCalls).toHaveLength(1);
-    expect(mvCalls[0][0]).toContain("scene-1-tailcut.mp3");
+    // renameSync committed the tmp bytes over the original; tmp is gone.
+    expect(readFileSync(audioPath, "utf8")).toBe("trimmed-bytes");
+    expect(() => readFileSync(audioPath.replace(/\.mp3$/, "-tailcut.mp3"))).toThrow();
   });
 
   it("keeps the original untouched when the duration probe fails", async () => {
-    // ffprobe returns garbage (empty stdout) → NaN → no mv, tmp cleaned up
-    execMock.mockImplementation((...args) => {
-      const cb = args.findLast((a) => typeof a === "function");
-      cb(null, { stdout: "", stderr: "" });
-    });
-    expect(Number.isNaN(await trimSceneTail("/out/scene-1.mp3", 1.35))).toBe(true);
-    expect(execMock.mock.calls.filter(([cmd]) => cmd.startsWith("mv "))).toHaveLength(0);
-    expect(execMock.mock.calls.filter(([cmd]) => cmd.startsWith("rm -f"))).toHaveLength(1);
+    // ffprobe returns garbage (empty stdout) → NaN → no rename, tmp cleaned up
+    expect(Number.isNaN(await trimSceneTail(audioPath, 1.35))).toBe(true);
+    expect(readFileSync(audioPath, "utf8")).toBe("original-bytes");
+    expect(() => readFileSync(audioPath.replace(/\.mp3$/, "-tailcut.mp3"))).toThrow();
   });
 
   it("treats a probe rejection (broken ffprobe) the same as a NaN probe", async () => {
-    execFileMock.mockImplementation((cmd, args, cb) => cb(new Error("ffprobe missing"), null));
-    expect(Number.isNaN(await trimSceneTail("/out/scene-1.mp3", 1.35))).toBe(true);
-    expect(execMock.mock.calls.filter(([cmd]) => cmd.startsWith("mv "))).toHaveLength(0);
+    execFileMock.mockImplementation((cmd, args, ...rest) => {
+      const cb = rest[rest.length - 1];
+      if (args.includes("-show_entries")) {
+        cb(new Error("ffprobe missing"));
+        return;
+      }
+      writeFileSync(args[args.length - 1], "trimmed-bytes");
+      cb(null, { stdout: "", stderr: "" });
+    });
+    expect(Number.isNaN(await trimSceneTail(audioPath, 1.35))).toBe(true);
+    expect(readFileSync(audioPath, "utf8")).toBe("original-bytes");
   });
 });
 
@@ -376,11 +406,17 @@ describe("runAlignmentGuards verified cut", () => {
     execFileMock.mockClear();
     existsSyncMock.mockClear();
     existsSyncMock.mockReturnValue(true);
-    // ffprobe reports a finite duration so the trim probe succeeds and the
-    // verification step is actually reached.
-    execFileMock.mockImplementation((cmd, args, cb) =>
-      cb(null, { stdout: "5.000000\n", stderr: "" }),
-    );
+    // ffmpeg writes the tailcut file; ffprobe reports a finite duration so
+    // the verification step is actually reached.
+    execFileMock.mockImplementation((cmd, args, ...rest) => {
+      const cb = rest[rest.length - 1];
+      if (args.includes("-show_entries")) {
+        cb(null, { stdout: "5.000000\n", stderr: "" });
+        return;
+      }
+      writeFileSync(args[args.length - 1], "trimmed-audio-bytes");
+      cb(null, { stdout: "", stderr: "" });
+    });
     dir = mkdtempSync(join(tmpdir(), "tailcut-"));
     audioPath = join(dir, "scene-3.wav");
     writeFileSync(audioPath, "original-audio-bytes");
@@ -511,9 +547,15 @@ describe("#827 — runAlignmentGuards hands the dictionary to the read-back", ()
     execFileMock.mockClear();
     existsSyncMock.mockClear();
     existsSyncMock.mockReturnValue(true);
-    execFileMock.mockImplementation((cmd, args, cb) =>
-      cb(null, { stdout: "5.000000\n", stderr: "" }),
-    );
+    execFileMock.mockImplementation((cmd, args, ...rest) => {
+      const cb = rest[rest.length - 1];
+      if (args.includes("-show_entries")) {
+        cb(null, { stdout: "5.000000\n", stderr: "" });
+        return;
+      }
+      writeFileSync(args[args.length - 1], "trimmed-audio-bytes");
+      cb(null, { stdout: "", stderr: "" });
+    });
     dir = mkdtempSync(join(tmpdir(), "tailcut-827-"));
     audioPath = join(dir, "scene-3.wav");
     writeFileSync(audioPath, "original-audio-bytes");

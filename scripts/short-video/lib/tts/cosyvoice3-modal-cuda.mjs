@@ -22,7 +22,7 @@
  * License: Apache-2.0 (CosyVoice3) — commercial OK.
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
@@ -30,7 +30,7 @@ import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch, engineTtsText } from "./post-process.mjs";
 import { INSTRUCT_FORMAT, createInstructResolver } from "./instruct.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ── Config ──
 const MODAL_SCRIPT = join(ROOT_DIR, "modal", "cosyvoice3_cuda_modal.py");
@@ -77,7 +77,7 @@ async function isAvailable() {
   if (!existsSync(MODAL_SCRIPT)) return false;
   if (!existsSync(CV3_REF_AUDIO)) return false;
   try {
-    await execAsync("modal --version 2>/dev/null");
+    await execFileAsync("modal", ["--version"]);
     return true;
   } catch {
     return false;
@@ -123,8 +123,18 @@ export async function createCosyVoice3ModalCudaEngine() {
         `  ⏳ Timeout: ${Math.round(MODAL_TIMEOUT_MS / 60000)}min (first run includes model download)`,
       );
 
-      const { stdout, stderr } = await execAsync(
-        `modal run "${MODAL_SCRIPT}" --manifest-file "${manifestPath}" --ref-audio "${CV3_REF_AUDIO}" --output-file "${outputPath}"`,
+      const { stdout, stderr } = await execFileAsync(
+        "modal",
+        [
+          "run",
+          MODAL_SCRIPT,
+          "--manifest-file",
+          manifestPath,
+          "--ref-audio",
+          CV3_REF_AUDIO,
+          "--output-file",
+          outputPath,
+        ],
         { timeout: MODAL_TIMEOUT_MS, maxBuffer: 50 * 1024 * 1024 },
       );
 

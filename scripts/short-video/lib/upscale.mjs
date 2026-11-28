@@ -19,7 +19,7 @@
 
 import { existsSync, mkdirSync, realpathSync, rmSync } from "fs";
 import { join, dirname, basename, extname } from "path";
-import { execFileSync, execSync, spawnSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { fileURLToPath } from "url";
 import { homedir, tmpdir } from "os";
 import { FFMPEG_BIN, FFPROBE_BIN } from "./ffmpeg-bins.mjs";
@@ -455,18 +455,29 @@ export function upscaleImage(inputPath, outputPath, targetShortSide = DEFAULT_TA
 
   // Step 1: Real-ESRGAN 2x upscale
   const tmpOutput = outputPath.replace(extname(outputPath), "-tmp" + extname(outputPath));
-  const cmd = [
-    `"${REALESRGAN_PATH}"`,
-    `-i "${inputPath}"`,
-    `-o "${tmpOutput}"`,
-    `-n realesrgan-x4plus`,
-    `-s 2`,
-    `-t 256`,
-    `-m "${REALESRGAN_MODELS_DIR}"`,
-  ].join(" ");
+  const realesrganArgs = [
+    "-i",
+    inputPath,
+    "-o",
+    tmpOutput,
+    "-n",
+    "realesrgan-x4plus",
+    "-s",
+    "2",
+    "-t",
+    "256",
+    "-m",
+    REALESRGAN_MODELS_DIR,
+  ];
 
   try {
-    execSync(cmd, { encoding: "utf8", timeout: 300000, stdio: ["pipe", "pipe", "pipe"] });
+    // #1598: argv, not a shell line — the paths can carry `$()`, backticks or
+    // quotes (catalog/source-derived), and execSync would read them as syntax.
+    execFileSync(REALESRGAN_PATH, realesrganArgs, {
+      encoding: "utf8",
+      timeout: 300000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
   } catch (e) {
     return { success: false, error: e.message?.substring(0, 200) || "Real-ESRGAN failed" };
   }
@@ -485,15 +496,15 @@ export function upscaleImage(inputPath, outputPath, targetShortSide = DEFAULT_TA
   }
 
   // Step 2: ffmpeg scale to target resolution
-  const ffScaleCmd = [
-    `"${FFMPEG_PATH}"`,
-    `-i "${realTmpOutput}"`,
-    `-vf "scale='if(gt(iw,ih),-1,${targetShortSide})':'if(gt(iw,ih),${targetShortSide},-1)'"`,
-    `-y "${outputPath}"`,
-  ].join(" ");
+  const scaleFilter = `scale='if(gt(iw,ih),-1,${targetShortSide})':'if(gt(iw,ih),${targetShortSide},-1)'`;
+  const scaleArgs = ["-i", realTmpOutput, "-vf", scaleFilter, "-y", outputPath];
 
   try {
-    execSync(ffScaleCmd, { encoding: "utf8", timeout: 60000, stdio: ["pipe", "pipe", "pipe"] });
+    execFileSync(FFMPEG_PATH, scaleArgs, {
+      encoding: "utf8",
+      timeout: 60000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
   } catch (e) {
     // Degrade to the Real-ESRGAN output, but only if it is really there: a
     // success carrying a path that does not exist propagates straight into the

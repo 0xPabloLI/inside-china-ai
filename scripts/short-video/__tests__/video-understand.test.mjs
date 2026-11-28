@@ -41,6 +41,22 @@ vi.mock("child_process", () => ({
       }
     }
   },
+  // #1598: the module now runs yt-dlp/ffmpeg/whisper as argv. Reassemble the
+  // command line only to reach the suite's existing mockExecAsync seam.
+  execFile: (...args) => {
+    const cb = args[args.length - 1];
+    if (typeof cb !== "function") return;
+    const cmd = [args[0], ...(args[1] ?? [])].join(" ");
+    const result = mockExecAsync(cmd);
+    if (result instanceof Promise) {
+      result.then(
+        ({ stdout, stderr }) => cb(null, stdout, stderr),
+        (err) => cb(err),
+      );
+    } else {
+      cb(null, "", "");
+    }
+  },
 }));
 
 // Spread the real module first: this suite reaches `lib/ytdlp-guard.mjs`, whose
@@ -282,7 +298,7 @@ describe("downloadVideo", () => {
     expect(cmd).toContain("yt-dlp");
     // #328: the firefox plaintext store, never chrome's Keychain-backed one.
     // Prefix match — the resolver pins a profile path when it finds one.
-    expect(cmd).toContain('--cookies-from-browser "firefox');
+    expect(cmd).toContain("--cookies-from-browser firefox");
     expect(cmd).not.toContain("chrome");
   });
 
@@ -487,7 +503,7 @@ describe("transcribeVideo", () => {
 
     await transcribeVideo("/tmp/test.mp4", { language: "zh" });
 
-    expect(mockExecAsync.mock.calls[1][0]).toContain('-l "zh"');
+    expect(mockExecAsync.mock.calls[1][0]).toContain("-l zh");
   });
 
   it("omits -l when the caller does not pin a language", async () => {

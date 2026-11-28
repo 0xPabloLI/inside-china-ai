@@ -16,9 +16,10 @@
  *   - Cambridge (Bakkouche 2026): local pitch-control is key naturalness correlate
  */
 
-import { exec } from "child_process";
-import { writeFileSync, existsSync, rmSync } from "fs";
+import { execFile } from "child_process";
+import { writeFileSync, existsSync, renameSync, rmSync } from "fs";
 import { join } from "path";
+import { homedir } from "os";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { ffmpegCmd, getDuration } from "./ffmpeg-cmd.mjs";
@@ -39,10 +40,10 @@ function recordSpan(prof, name, durationMs, meta = {}) {
 
 import { splitDigitUnits } from "../normalize-tts-text.mjs";
 import { computeAlignmentSignature, alignmentCacheState, writeAlignmentMeta } from "./cache.mjs";
-import { offlineEnvPrefix } from "./offline-env.mjs";
+import { offlineEnvVars } from "./offline-env.mjs";
 import { ALIGN_OFFLINE_MODELS, reportOfflineCacheMiss } from "./offline-model-hints.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // getDuration moved to ./ffmpeg-cmd.mjs (#232) — re-exported for the
 // edge-tts / say adapters that import it from here.
@@ -236,7 +237,10 @@ const MAX_TRIM_REPAIR_PASSES = 2;
  */
 async function applyTrimPass(inPath, outPath, drops) {
   const chain = buildTrimFilters(drops).join(",");
-  await execAsync(`"${ffmpegCmd}" -y -i "${inPath}" -af "${chain}" "${outPath}" 2>/dev/null`);
+  // #1598: argv; the filter chain is one argument, not shell syntax.
+  await execFileAsync(ffmpegCmd, ["-y", "-i", inPath, "-af", chain, outPath], {
+    encoding: "utf8",
+  });
 }
 
 /**
@@ -286,10 +290,14 @@ export async function postProcessAudio(
   }
 
   const filter = buildFilter({ useSilenceFilter, prosody, silenceDrops: plan.drops });
-  const afArg = filter ? `-af "${filter}"` : "";
-  const resampleArg = resample ? "-ar 44100 -b:a 320k" : "";
-  await execAsync(
-    `"${ffmpegCmd}" -y -i "${inputPath}" ${afArg} ${resampleArg} "${outputPath}" 2>/dev/null`,
+  const resampleArgs = resample ? ["-ar", "44100", "-b:a", "320k"] : [];
+  // #1598: argv — input/output paths and the filter are data, never shell
+  // syntax. `2>/dev/null` had only been suppressing ffmpeg's progress noise;
+  // execFile keeps stderr off stdout without a shell redirection.
+  await execFileAsync(
+    ffmpegCmd,
+    ["-y", "-i", inputPath, ...(filter ? ["-af", filter] : []), ...resampleArgs, outputPath],
+    { encoding: "utf8" },
   );
   let removedSec = plan.removedSec;
   let pauseCount = plan.drops.length;
@@ -332,7 +340,7 @@ export async function postProcessAudio(
       // MAX_TRIM_REPAIR_PASSES orphans per scene).
       try {
         await applyTrimPass(outputPath, tmp, repair.drops);
-        await execAsync(`mv "${tmp}" "${outputPath}"`);
+        renameSync(tmp, outputPath);
       } finally {
         if (existsSync(tmp)) rmSync(tmp, { force: true });
       }
@@ -377,7 +385,7 @@ export async function postProcessBatch(audioPath, opts = {}) {
     ? audioPath.replace(/\.wav$/, "-processed.wav")
     : audioPath.replace(/\.mp3$/, "-processed.mp3");
   const trim = await postProcessAudio(audioPath, processedPath, opts);
-  await execAsync(`mv "${processedPath}" "${audioPath}"`);
+  renameSync(processedPath, audioPath);
   const duration = await getDuration(audioPath);
   return { duration, ...trim };
 }
@@ -446,9 +454,17 @@ export async function runForcedAlignment(scenes, ttsResults, outputDir, options 
     // load is paid once per batch — this span is the amortizable part.
     const scriptStartMs = performance.now();
     try {
-      await execAsync(
-        `${offlineEnvPrefix({ transformers: true })} ~/.video-tts-env/bin/python3 "${alignScript}" ` +
-          `--manifest "${manifestPath}" --output "${timingPath}" 2>&1`,
+      // #1598: argv + env overlay — the venv python is addressed directly
+      // instead of `source activate && python3`, so the paths never touch a
+      // shell. The offline flags come from the same resolver as before.
+      const alignPython = join(homedir(), ".video-tts-env", "bin", "python3");
+      await execFileAsync(
+        alignPython,
+        [alignScript, "--manifest", manifestPath, "--output", timingPath],
+        {
+          encoding: "utf8",
+          env: { ...process.env, ...offlineEnvVars({ transformers: true }) },
+        },
       );
     } finally {
       recordSpan(prof, "tts-align-script", performance.now() - scriptStartMs, {

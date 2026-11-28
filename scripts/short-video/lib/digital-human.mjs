@@ -93,7 +93,7 @@ import {
 } from "fs";
 import { basename, dirname, join, resolve } from "path";
 import { pathToFileURL, fileURLToPath } from "url";
-import { execSync, spawnSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { FFMPEG_PATH } from "./upscale.mjs";
 import { upscaleDigitalHuman } from "./dh-upscale.mjs";
 import { resolveSceneAudioInfo } from "./scene-audio.mjs";
@@ -1187,8 +1187,15 @@ function sleep(ms) {
  * dataset (portrait + unit driver-audio slices) that unit kernels attach.
  */
 function createKaggleTransport() {
-  const kaggle = (cmd, timeoutMs = 60000) =>
-    execSync(cmd, { encoding: "utf8", timeout: timeoutMs, stdio: ["pipe", "pipe", "pipe"] });
+  // #1598: kaggle is spawned as argv, not through a shell — `dir`, `workDir`
+  // and `kernelId` carry user/task-derived text and used to be interpolated
+  // into a command line.
+  const kaggle = (args, timeoutMs = 60000) =>
+    execFileSync("kaggle", args, {
+      encoding: "utf8",
+      timeout: timeoutMs,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
   return {
     /**
@@ -1198,13 +1205,22 @@ function createKaggleTransport() {
     async pushDataset({ dir }) {
       const metadata = JSON.parse(readFileSync(join(dir, "dataset-metadata.json"), "utf8"));
       try {
-        kaggle(`kaggle datasets create -p "${dir}"`);
+        kaggle(["datasets", "create", "-p", dir]);
       } catch (e) {
         const msg = e.message || String(e);
         if (!/already exists/i.test(msg)) {
           throw new Error(`Kaggle dataset push failed: ${msg}`);
         }
-        kaggle(`kaggle datasets version -p "${dir}" -m "digital-human unit inputs" --dir-mode zip`);
+        kaggle([
+          "datasets",
+          "version",
+          "-p",
+          dir,
+          "-m",
+          "digital-human unit inputs",
+          "--dir-mode",
+          "zip",
+        ]);
       }
       return { source: metadata.id.toLowerCase() };
     },
@@ -1228,7 +1244,7 @@ function createKaggleTransport() {
       };
       writeFileSync(join(workDir, "kernel-metadata.json"), JSON.stringify(metadata, null, 2));
       writeFileSync(join(workDir, "kernel.py"), script);
-      kaggle(`kaggle kernels push -p "${workDir}"`);
+      kaggle(["kernels", "push", "-p", workDir]);
       return { kernelId: `${KAGGLE_USERNAME}/${slug}` };
     },
 
@@ -1249,7 +1265,7 @@ function createKaggleTransport() {
         await sleep(pollIntervalSec * 1000);
         let status;
         try {
-          status = kaggle(`kaggle kernels status ${kernelId}`, 30000);
+          status = kaggle(["kernels", "status", kernelId], 30000);
         } catch {
           continue; // status query failed — retry
         }
@@ -1279,7 +1295,7 @@ function createKaggleTransport() {
         mkdirSync(outputDir, { recursive: true });
         // 10 min — Kaggle's download API is slow (~80KB/s effective); even a
         // clean output took >2 min in practice (v52 E2E, 2026-09-08).
-        kaggle(`kaggle kernels output ${kernelId} -p "${outputDir}"`, 600000);
+        kaggle(["kernels", "output", kernelId, "-p", outputDir], 600000);
       } catch (e) {
         return {
           success: false,

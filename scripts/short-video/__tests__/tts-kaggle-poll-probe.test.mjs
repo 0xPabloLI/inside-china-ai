@@ -81,7 +81,7 @@ describe("pollKernelStatus — probe timeout (#808)", () => {
     await pollKernelStatus("u/k", { pollIntervalMs: 1000 }, deps);
     expect(calls).toHaveLength(1);
     expect(calls[0].opts).toMatchObject({ timeout: 60000, killSignal: "SIGKILL" });
-    expect(calls[0].cmd).toContain("kaggle kernels status u/k");
+    expect(calls[0].cmd).toContain("kaggle kernels status 'u/k'");
   });
 
   it("honours an explicit probe timeout (so the bound is testable/overridable)", async () => {

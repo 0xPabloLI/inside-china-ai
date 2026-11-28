@@ -13,16 +13,17 @@
  * loudnorm is applied at the final video level in assemble.mjs.
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 import { ROOT_DIR } from "./types.mjs";
 import { postProcessBatch } from "./post-process.mjs";
-import { offlineEnvPrefix } from "./offline-env.mjs";
+import { offlineEnvPrefix, offlineEnvVars } from "./offline-env.mjs";
 import { F5_OFFLINE_MODELS, reportOfflineCacheMiss } from "./offline-model-hints.mjs";
+import { shellQuote } from "../shell-quote.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ── Config ──
 const F5_MLX_BATCH_SCRIPT = join(ROOT_DIR, "f5_mlx_batch_tts.py");
@@ -154,25 +155,69 @@ export function buildF5BatchCommand({
   speed = F5_MLX_SPEED,
   env = process.env,
 }) {
+  // #1598: values are quoted; execution uses the argv form below.
   return (
-    `source ${F5_MLX_VENV}/bin/activate && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 F5_REF_AUDIO="${F5_REF_AUDIO}" F5_REF_TEXT="${refText.replace(/"/g, '\\"')}" python3 "${F5_MLX_BATCH_SCRIPT}" ` +
-    `--manifest "${manifestPath}" --output-dir "${outputDir}" --speed ${speed} 2>&1`
+    `source ${shellQuote(join(F5_MLX_VENV, "bin", "activate"))} && ${offlineEnvPrefix({ env })} HF_HUB_DISABLE_XET=1 PYTHONUNBUFFERED=1 F5_REF_AUDIO=${shellQuote(F5_REF_AUDIO)} F5_REF_TEXT=${shellQuote(refText)} python3 ${shellQuote(F5_MLX_BATCH_SCRIPT)} ` +
+    `--manifest ${shellQuote(manifestPath)} --output-dir ${shellQuote(outputDir)} --speed ${shellQuote(speed)}`
   );
 }
 
 /**
- * Run the F5 batch command, annotating an offline cache miss with the
- * fetch hint (#394) before the error propagates. Failure semantics are
- * unchanged: the error is rethrown untouched.
+ * The argv/env form of the F5 batch command (#1598). No shell: `refText` is
+ * user copy and arrives as one literal argument; the reference audio path
+ * travels through the environment, as before.
  *
- * @param {string} command
+ * @param {object} options - Same as buildF5BatchCommand
+ * @returns {{bin: string, args: string[], env: NodeJS.ProcessEnv}}
+ */
+function buildF5BatchInvocation({
+  manifestPath,
+  outputDir,
+  refText,
+  speed = F5_MLX_SPEED,
+  env = process.env,
+}) {
+  return {
+    bin: join(F5_MLX_VENV, "bin", "python3"),
+    args: [
+      F5_MLX_BATCH_SCRIPT,
+      "--manifest",
+      manifestPath,
+      "--output-dir",
+      outputDir,
+      "--speed",
+      String(speed),
+    ],
+    env: {
+      ...env,
+      ...offlineEnvVars({ env }),
+      HF_HUB_DISABLE_XET: "1",
+      PYTHONUNBUFFERED: "1",
+      F5_REF_AUDIO,
+      F5_REF_TEXT: refText,
+    },
+  };
+}
+
+/**
+ * Run the F5 batch, annotating an offline cache miss with the fetch hint
+ * (#394) before the error propagates. Failure semantics are unchanged: the
+ * error is rethrown untouched.
+ *
+ * @param {{bin: string, args: string[], env: NodeJS.ProcessEnv}|string} invocation
  * @param {object} [options]
- * @param {Function} [options.exec=execAsync] - test seam
+ * @param {Function} [options.exec=execFileAsync] - test seam; receives the invocation
  * @returns {Promise<{stdout: string, stderr: string}>}
  */
-export async function runF5Batch(command, { exec: run = execAsync } = {}) {
+export async function runF5Batch(
+  invocation,
+  {
+    exec: run = (inv) =>
+      execFileAsync(inv.bin, inv.args, { env: inv.env, maxBuffer: 64 * 1024 * 1024 }),
+  } = {},
+) {
   try {
-    return await run(command);
+    return await run(invocation);
   } catch (err) {
     reportOfflineCacheMiss(err, F5_OFFLINE_MODELS);
     throw err;
@@ -188,9 +233,7 @@ async function isAvailable() {
   if (!existsSync(F5_MLX_VENV)) return false;
   if (!existsSync(F5_REF_AUDIO)) return false;
   try {
-    await execAsync(
-      `source ${F5_MLX_VENV}/bin/activate && python3 -c "import f5_tts_mlx" 2>/dev/null`,
-    );
+    await execFileAsync(join(F5_MLX_VENV, "bin", "python3"), ["-c", "import f5_tts_mlx"]);
     return true;
   } catch {
     return false;
@@ -228,7 +271,7 @@ export async function createF5MLXEngine() {
 
       console.log("  Loading F5-TTS-MLX model (once for all scenes)...");
       const { stdout } = await runF5Batch(
-        buildF5BatchCommand({ manifestPath, outputDir, refText }),
+        buildF5BatchInvocation({ manifestPath, outputDir, refText }),
       );
 
       // Parse results from stdout

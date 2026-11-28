@@ -73,7 +73,7 @@ function makeKaggleCliMock({ sceneResults, forceSummaryRequestId } = {}) {
       commands.push(cmd);
       if (cmd.startsWith("kaggle --version")) return { stdout: "Kaggle CLI 2.2.4" };
       if (cmd.startsWith("kaggle kernels push")) {
-        const dir = cmd.match(/-p "([^"]+)"/)[1];
+        const dir = cmd.match(/-p ["']([^"']+)["']/)[1];
         const meta = JSON.parse(readFileSync(join(dir, "kernel-metadata.json"), "utf8"));
         const script = readFileSync(join(dir, meta.code_file), "utf8");
         const requestId = (script.match(/REQUEST_ID = r'''(.*?)'''/s) || [])[1] ?? null;
@@ -117,10 +117,10 @@ function makeKaggleCliMock({ sceneResults, forceSummaryRequestId } = {}) {
         return { stdout: "" };
       }
       if (cmd.startsWith("kaggle kernels output")) {
-        const dir = cmd.match(/-p "([^"]+)"/)[1];
-        const kernelId = cmd.match(/kernels output (\S+)/)[1];
+        const dir = cmd.match(/-p ["']([^"']+)["']/)[1];
+        const kernelId = cmd.match(/kernels output ['"]?([^'"\s]+)['"]?/)[1];
         const forced = cmd.includes("--force");
-        const wantPattern = cmd.match(/--file-pattern "([^"]+)"/);
+        const wantPattern = cmd.match(/--file-pattern ["']([^"']+)["']/);
         downloads.push({ dir, kernelId, cmd });
         // Real CLI semantics: `--force` bypasses the up-to-date check, and
         // without it `download_needed()` skips a file whose local copy is the

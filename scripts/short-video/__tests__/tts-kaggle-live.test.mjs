@@ -262,7 +262,7 @@ describe("live session — retry reuses the warm kernel", () => {
       live: true,
       exec: async (cmd) => {
         if (cmd.includes("kaggle kernels output")) {
-          const dir = cmd.match(/-p "([^"]+)"/)[1];
+          const dir = cmd.match(/-p ["']([^"']+)["']/)[1];
           const kernelDir = dirname(dirname(dir));
           const script = readFileSync(join(kernelDir, "cosyvoice3_cuda_kernel.py"), "utf-8");
           const requestId = script.match(/REQUEST_ID = r'''(.*?)'''/s)[1];

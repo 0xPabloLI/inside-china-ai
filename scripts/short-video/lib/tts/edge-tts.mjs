@@ -5,7 +5,7 @@
  * silenceremove but does NOT resample (unlike other engines).
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -13,7 +13,7 @@ import { promisify } from "util";
 import { postProcessAudio, getDuration } from "./post-process.mjs";
 import { resolveSilenceFloorMs } from "./silence-trim.mjs";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ── Config ──
 const EDGE_VOICE = "en-US-BrianNeural";
@@ -21,20 +21,20 @@ const EDGE_RATE = "+8%";
 
 /**
  * Check if edge-tts is available.
- * @returns {Promise<string|null>} Command string if available, null otherwise.
+ * @returns {Promise<{bin: string, args: string[]}|null>} argv prefix if available, null otherwise.
  */
 async function findCommand() {
   // Check for edge-tts CLI
   try {
-    await execAsync("which edge-tts");
-    return "edge-tts";
+    await execFileAsync("which", ["edge-tts"]);
+    return { bin: "edge-tts", args: [] };
   } catch {
     // fall through
   }
   // Check for Python module
   try {
-    await execAsync("python3 -m edge_tts --version");
-    return "python3 -m edge_tts";
+    await execFileAsync("python3", ["-m", "edge_tts", "--version"]);
+    return { bin: "python3", args: ["-m", "edge_tts"] };
   } catch {
     return null;
   }
@@ -76,9 +76,17 @@ export async function createEdgeTTSEngine() {
         let ttsSuccess = false;
         for (let attempt = 1; attempt <= 3 && !ttsSuccess; attempt++) {
           try {
-            await execAsync(
-              `${command} --voice ${EDGE_VOICE} --rate=${EDGE_RATE} --file "${tempFile}" --write-media "${rawPath}"`,
-            );
+            // #1598: argv — tempFile/rawPath are generated paths, never shell.
+            await execFileAsync(command.bin, [
+              ...command.args,
+              "--voice",
+              EDGE_VOICE,
+              `--rate=${EDGE_RATE}`,
+              "--file",
+              tempFile,
+              "--write-media",
+              rawPath,
+            ]);
             ttsSuccess = true;
           } catch (e) {
             if (attempt < 3) {
@@ -119,7 +127,7 @@ export async function createEdgeTTSEngine() {
 
 async function isCommandAvailable(cmd) {
   try {
-    await execAsync(`which ${cmd}`);
+    await execFileAsync("which", [cmd]);
     return true;
   } catch {
     return false;

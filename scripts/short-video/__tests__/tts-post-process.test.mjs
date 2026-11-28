@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { writeFileSync, existsSync, mkdirSync, rmSync } from "fs";
+import { writeFileSync, existsSync, mkdirSync, rmSync, mkdtempSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { basename, join } from "path";
 
 // ─── Mock child_process ───
 // vi.mock is hoisted, so we use vi.hoisted() to make the mock available
@@ -12,8 +12,11 @@ const { execMock, execFileMock } = vi.hoisted(() => {
   const execMock = vi.fn((cmd, callback) => {
     callback(null, { stdout: "", stderr: "" });
   });
-  const execFileMock = vi.fn((cmd, args, callback) => {
-    callback(null, { stdout: "", stderr: "" });
+  // #1598: the module now uses execFile for ffmpeg too, so the mock must
+  // accept the options object between argv and the callback.
+  const execFileMock = vi.fn((...args) => {
+    const cb = args[args.length - 1];
+    if (typeof cb === "function") cb(null, { stdout: "", stderr: "" });
   });
   return { execMock, execFileMock };
 });
@@ -35,6 +38,17 @@ import {
 
 // ─── Tests ───
 
+/** ffmpeg invocations recorded by the execFile mock (#1598: argv form). */
+function ffmpegCalls() {
+  return execFileMock.mock.calls.filter(([bin]) => basename(String(bin)) === "ffmpeg");
+}
+
+/** The ffmpeg call as one readable line, for substring assertions. */
+function ffmpegText(index = 0) {
+  const [bin, args] = ffmpegCalls()[index] ?? [];
+  return [bin, ...(args ?? [])].join(" ");
+}
+
 describe("TTS Post-Processing", () => {
   beforeEach(() => {
     execMock.mockClear();
@@ -43,8 +57,9 @@ describe("TTS Post-Processing", () => {
     execMock.mockImplementation((cmd, callback) => {
       callback(null, { stdout: "", stderr: "" });
     });
-    execFileMock.mockImplementation((cmd, args, callback) => {
-      callback(null, { stdout: "", stderr: "" });
+    execFileMock.mockImplementation((...args) => {
+      const callback = args[args.length - 1];
+      if (typeof callback === "function") callback(null, { stdout: "", stderr: "" });
     });
     delete process.env.TTS_ATEMPO;
     delete process.env.TTS_HIGHPASS;
@@ -243,9 +258,9 @@ describe("TTS Post-Processing", () => {
         probe: trimmedProbe(),
       });
 
-      const cmd = execMock.mock.calls[0][0];
+      const cmd = ffmpegText(0);
       expect(cmd).toContain("ffmpeg");
-      expect(cmd).toContain('-i "input.mp3"');
+      expect(cmd).toContain("input.mp3");
       expect(cmd).toContain("-af");
       expect(cmd).toContain("highpass");
       expect(cmd).toContain("afftdn");
@@ -253,7 +268,7 @@ describe("TTS Post-Processing", () => {
       expect(cmd).not.toContain("silenceremove");
       expect(cmd).toContain("-ar 44100");
       expect(cmd).toContain("-b:a 320k");
-      expect(cmd).toContain('"output.mp3"');
+      expect(cmd).toContain("output.mp3");
     });
 
     // Scenario 7: Edge-TTS — post-process with trimming, no resample
@@ -264,7 +279,7 @@ describe("TTS Post-Processing", () => {
         probe: trimmedProbe(),
       });
 
-      const cmd = execMock.mock.calls[0][0];
+      const cmd = ffmpegText(0);
       expect(cmd).toContain("aselect");
       expect(cmd).not.toContain("-ar 44100");
       expect(cmd).not.toContain("-b:a");
@@ -287,12 +302,28 @@ describe("TTS Post-Processing", () => {
         before: { duration: 4, silences: [{ start: 1.5, end: 2.4 }] },
         after: { duration: 3.33, silences: [{ start: 1.5, end: 2.4 }] },
       });
-      const result = await postProcessAudio("input.mp3", "output.mp3", {
-        useSilenceFilter: true,
-        probe: stuck,
+      // #1598: repair commits via renameSync; give it a real tmp to move.
+      const dir = mkdtempSync(join(tmpdir(), "pp-stuck-"));
+      // The mocked encoder must materialize its output: the repair pass
+      // commits with renameSync.
+      execFileMock.mockImplementation((bin, args, ...rest) => {
+        const cb = rest[rest.length - 1];
+        writeFileSync(args[args.length - 1], "encoded");
+        cb(null, { stdout: "", stderr: "" });
       });
-      expect(result.pauseViolations).toBe(1);
-      expect(result.maxPauseMs).toBe(900);
+
+      const output = join(dir, "output.mp3");
+      writeFileSync(`${output}.trim1.mp3`, "repaired");
+      try {
+        const result = await postProcessAudio(join(dir, "input.mp3"), output, {
+          useSilenceFilter: true,
+          probe: stuck,
+        });
+        expect(result.pauseViolations).toBe(1);
+        expect(result.maxPauseMs).toBe(900);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it("re-plans and re-applies the trim when the first pass under-delivers", async () => {
@@ -305,19 +336,35 @@ describe("TTS Post-Processing", () => {
         { duration: 3.25, silences: [{ start: 1.5, end: 1.725 }] }, // after repair: 225 ms
       ];
       let call = 0;
-      const result = await postProcessAudio("input.mp3", "output.mp3", {
-        useSilenceFilter: true,
-        probe: async () => readings[Math.min(call++, readings.length - 1)],
+      // #1598: the repair pass renames its tmp over the original.
+      const dir = mkdtempSync(join(tmpdir(), "pp-repair-"));
+      // The mocked encoder must materialize its output: the repair pass
+      // commits with renameSync.
+      execFileMock.mockImplementation((bin, args, ...rest) => {
+        const cb = rest[rest.length - 1];
+        writeFileSync(args[args.length - 1], "encoded");
+        cb(null, { stdout: "", stderr: "" });
       });
-      expect(result.pauseViolations).toBe(0);
-      expect(result.repairPasses).toBe(1);
-      // 0.675 s from the first pass + 0.083 s from the repair.
-      expect(result.removedSec).toBeCloseTo(0.758, 3);
-      // The repair pass is a pure trim: no second prosody / atempo application.
-      const repairCmd = execMock.mock.calls[1][0];
-      expect(repairCmd).toContain("aselect");
-      expect(repairCmd).not.toContain("rubberband");
-      expect(repairCmd).not.toContain("-ar 44100");
+
+      const output = join(dir, "output.mp3");
+      writeFileSync(`${output}.trim1.mp3`, "repaired");
+      try {
+        const result = await postProcessAudio(join(dir, "input.mp3"), output, {
+          useSilenceFilter: true,
+          probe: async () => readings[Math.min(call++, readings.length - 1)],
+        });
+        expect(result.pauseViolations).toBe(0);
+        expect(result.repairPasses).toBe(1);
+        // 0.675 s from the first pass + 0.083 s from the repair.
+        expect(result.removedSec).toBeCloseTo(0.758, 3);
+        // The repair pass is a pure trim: no second prosody / atempo application.
+        const repairCmd = ffmpegText(1);
+        expect(repairCmd).toContain("aselect");
+        expect(repairCmd).not.toContain("rubberband");
+        expect(repairCmd).not.toContain("-ar 44100");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it("removes the repair temp file when the repair pass itself fails", async () => {
@@ -332,13 +379,14 @@ describe("TTS Post-Processing", () => {
         { duration: 3.33, silences: [{ start: 1.5, end: 1.808 }] }, // after pass 1: 308 ms
       ];
       let call = 0;
-      execMock.mockImplementation((cmd, callback) => {
-        if (cmd.includes(tmpPath)) {
+      execFileMock.mockImplementation((bin, args, ...rest) => {
+        const cb = rest[rest.length - 1];
+        if (String(args).includes(tmpPath)) {
           writeFileSync(tmpPath, "partial write before the crash");
-          callback(new Error("ffmpeg died"));
+          cb(new Error("ffmpeg died"));
           return;
         }
-        callback(null, { stdout: "", stderr: "" });
+        cb(null, { stdout: "", stderr: "" });
       });
 
       try {
@@ -359,7 +407,7 @@ describe("TTS Post-Processing", () => {
         useSilenceFilter: true,
         probe: async () => ({ duration: 4, silences: [{ start: 1.5, end: 1.74 }] }),
       });
-      expect(execMock.mock.calls[0][0]).not.toContain("aselect");
+      expect(ffmpegText(0)).not.toContain("aselect");
     });
 
     it("propagates a probe failure instead of shipping untrimmed audio", async () => {
@@ -371,7 +419,7 @@ describe("TTS Post-Processing", () => {
           },
         }),
       ).rejects.toThrow("silencedetect failed");
-      expect(execMock).not.toHaveBeenCalled();
+      expect(execFileMock).not.toHaveBeenCalled();
     });
 
     // Scenario 5: F5 batch — post-process WITHOUT silenceremove, WITH cleanup chain
@@ -381,7 +429,7 @@ describe("TTS Post-Processing", () => {
         resample: true,
       });
 
-      const cmd = execMock.mock.calls[0][0];
+      const cmd = ffmpegText(0);
       expect(cmd).toContain("ffmpeg");
       expect(cmd).not.toContain("silenceremove");
       expect(cmd).toContain("highpass");
@@ -398,7 +446,7 @@ describe("TTS Post-Processing", () => {
         resample: true,
       });
 
-      const cmd = execMock.mock.calls[0][0];
+      const cmd = ffmpegText(0);
       expect(cmd).toContain("atempo=1.3");
       expect(cmd).not.toContain("silenceremove");
     });
@@ -409,7 +457,7 @@ describe("TTS Post-Processing", () => {
         resample: true,
       });
 
-      const cmd = execMock.mock.calls[0][0];
+      const cmd = ffmpegText(0);
       expect(cmd).toContain("ffmpeg");
       expect(cmd).toContain("-af");
       expect(cmd).toContain("highpass");
@@ -421,72 +469,87 @@ describe("TTS Post-Processing", () => {
   // ── postProcessBatch ──
 
   describe("postProcessBatch()", () => {
+    /**
+     * #1598: the move back is `renameSync`, not `mv`. Materialize both paths
+     * in a temp dir so the real rename has something to move, and return the
+     * input file for the duration probe.
+     */
+    function stageBatch(name) {
+      const dir = mkdtempSync(join(tmpdir(), "pp-batch-"));
+      const input = join(dir, name);
+      const processed = join(dir, name.replace(/(\.\w+)$/, "-processed$1"));
+      writeFileSync(input, "original");
+      writeFileSync(processed, "processed");
+      return { dir, input, processed };
+    }
+
     // S17: F5 WAV input → MP3 output
     it("S17: handles .wav input (F5 new behavior) → .mp3 output", async () => {
-      execMock
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })); // mv
-      execFileMock.mockImplementationOnce((cmd, args, cb) =>
-        cb(null, { stdout: "3.45\n", stderr: "" }),
-      ); // ffprobe duration probe (argv form, #319 deferred class sweep)
+      const { dir, input, processed } = stageBatch("scene-1.wav");
+      // ffmpeg's stdout is ignored; every call answers like ffprobe would.
+      execFileMock.mockImplementation((...args) => {
+        const cb = args[args.length - 1];
+        cb(null, { stdout: "3.45\n", stderr: "" });
+      });
 
-      const { duration } = await postProcessBatch("scene-1.wav", { useSilenceFilter: false });
+      try {
+        const { duration } = await postProcessBatch(input, { useSilenceFilter: false });
 
-      expect(duration).toBe(3.45);
-      // First call: ffmpeg processes .wav → -processed.wav (same ext as input)
-      expect(execMock.mock.calls[0][0]).toContain("ffmpeg");
-      expect(execMock.mock.calls[0][0]).toContain("scene-1-processed.wav");
-      // Second call: mv -processed.wav back to original .wav
-      expect(execMock.mock.calls[1][0]).toContain("mv");
-      expect(execMock.mock.calls[1][0]).toContain("scene-1.wav");
-      // Third step: the duration probe, binary + argv
-      expect(execFileMock.mock.calls[0][0]).toContain("ffprobe");
-      expect(execFileMock.mock.calls[0][1]).toContain("scene-1.wav");
+        expect(duration).toBe(3.45);
+        // ffmpeg writes -processed.wav, then renameSync moves it back.
+        expect(ffmpegText(0)).toContain(processed);
+        expect(existsSync(input)).toBe(true);
+        // The duration probe is argv-based (second execFile call).
+        expect(execFileMock.mock.calls[1][0]).toContain("ffprobe");
+        expect(execFileMock.mock.calls[1][1]).toContain(input);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it("post-processes in-place and returns duration (F5 path, .mp3 input)", async () => {
-      // Mock: first exec call = ffmpeg, second = mv, then the execFile probe
-      execMock
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })); // mv
-      execFileMock.mockImplementationOnce((cmd, args, cb) =>
-        cb(null, { stdout: "3.45\n", stderr: "" }),
-      ); // ffprobe
+      const { dir, input, processed } = stageBatch("scene-1.mp3");
+      execFileMock.mockImplementation((...args) => {
+        const cb = args[args.length - 1];
+        cb(null, { stdout: "3.45\n", stderr: "" });
+      }); // ffmpeg ignores stdout; ffprobe reads it
 
-      const { duration } = await postProcessBatch("scene-1.mp3", { useSilenceFilter: false });
+      try {
+        const { duration } = await postProcessBatch(input, { useSilenceFilter: false });
 
-      expect(duration).toBe(3.45);
-      // First call: ffmpeg with -processed.mp3 output
-      expect(execMock.mock.calls[0][0]).toContain("ffmpeg");
-      expect(execMock.mock.calls[0][0]).toContain("scene-1-processed.mp3");
-      // Second call: mv
-      expect(execMock.mock.calls[1][0]).toContain("mv");
-      // Third step: the duration probe, binary + argv
-      expect(execFileMock.mock.calls[0][0]).toContain("ffprobe");
-      expect(execFileMock.mock.calls[0][1]).toContain("scene-1.mp3");
+        expect(duration).toBe(3.45);
+        expect(ffmpegText(0)).toContain(processed);
+        expect(execFileMock.mock.calls[1][0]).toContain("ffprobe");
+        expect(execFileMock.mock.calls[1][1]).toContain(input);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
 
     it("post-processes in-place with the pause trim (XTTS path)", async () => {
-      execMock
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })) // ffmpeg
-        .mockImplementationOnce((cmd, cb) => cb(null, { stdout: "", stderr: "" })); // mv
-      execFileMock.mockImplementationOnce((cmd, args, cb) =>
-        cb(null, { stdout: "5.20\n", stderr: "" }),
-      ); // ffprobe
-
-      let call = 0;
-      const { duration: duration2 } = await postProcessBatch("scene-2.mp3", {
-        useSilenceFilter: true,
-        probe: async () =>
-          call++ === 0
-            ? { duration: 6, silences: [{ start: 1, end: 2 }] }
-            : { duration: 5.2, silences: [{ start: 1, end: 1.23 }] },
+      const { dir, input, processed } = stageBatch("scene-2.mp3");
+      execFileMock.mockImplementation((bin, args, ...rest) => {
+        const cb = rest[rest.length - 1];
+        cb(null, { stdout: "5.20\n", stderr: "" });
       });
 
-      expect(duration2).toBe(5.2);
-      expect(execMock.mock.calls[0][0]).toContain("aselect");
-      // The verify pass measures the -processed file, before mv moves it back.
-      expect(execMock.mock.calls[0][0]).toContain("scene-2-processed.mp3");
+      try {
+        let call = 0;
+        const { duration: duration2 } = await postProcessBatch(input, {
+          useSilenceFilter: true,
+          probe: async () =>
+            call++ === 0
+              ? { duration: 6, silences: [{ start: 1, end: 2 }] }
+              : { duration: 5.2, silences: [{ start: 1, end: 1.23 }] },
+        });
+
+        expect(duration2).toBe(5.2);
+        expect(ffmpegText(0)).toContain("aselect");
+        // The verify pass measures the -processed file, before the rename.
+        expect(ffmpegText(0)).toContain(processed);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });

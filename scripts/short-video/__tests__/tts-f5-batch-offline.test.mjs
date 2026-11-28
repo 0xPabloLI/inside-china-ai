@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildF5BatchCommand, runF5Batch } from "../lib/tts/f5-mlx.mjs";
-import { buildCV3BatchCommand } from "../lib/tts/cosyvoice3-mlx.mjs";
+import { buildCV3BatchCommand, buildCV3BatchInvocation } from "../lib/tts/cosyvoice3-mlx.mjs";
 
 const F5_ARGS = {
   manifestPath: "/o/f5-manifest.json",
@@ -35,8 +35,8 @@ describe("F5 batch command offline env (#394)", () => {
     const cmd = buildF5BatchCommand({ ...F5_ARGS, env: {} });
     expect(cmd).toContain("HF_HUB_DISABLE_XET=1");
     expect(cmd).toContain("f5_mlx_batch_tts.py");
-    expect(cmd).toContain('--manifest "/o/f5-manifest.json"');
-    expect(cmd).toContain('--output-dir "/o/audio"');
+    expect(cmd).toContain("--manifest '/o/f5-manifest.json'");
+    expect(cmd).toContain("--output-dir '/o/audio'");
   });
 });
 
@@ -49,6 +49,29 @@ describe("CosyVoice3-MLX batch command offline env (#394)", () => {
     const cmd = buildCV3BatchCommand({ ...CV3_ARGS, env: { HF_HUB_OFFLINE: "0" } });
     expect(cmd).toContain("HF_HUB_OFFLINE=0");
     expect(cmd).not.toContain("HF_HUB_OFFLINE=1");
+  });
+});
+
+describe("CosyVoice3-MLX argv invocation (#1598)", () => {
+  it("passes every dynamic value as one literal argv and overlays offline env", () => {
+    const refText = "ref $(touch /tmp/pwned) ' \" text";
+    const invocation = buildCV3BatchInvocation({
+      ...CV3_ARGS,
+      refText,
+      env: { PATH: "/usr/bin:/bin", CUSTOM: "kept" },
+    });
+
+    expect(invocation.bin.endsWith("/bin/python3")).toBe(true);
+    expect(invocation.args[0]).toContain("cosyvoice3_mlx_batch_tts.py");
+    expect(invocation.args[invocation.args.indexOf("--manifest") + 1]).toBe(CV3_ARGS.manifestPath);
+    expect(invocation.args[invocation.args.indexOf("--output-dir") + 1]).toBe(CV3_ARGS.outputDir);
+    expect(invocation.args[invocation.args.indexOf("--ref-text") + 1]).toBe(refText);
+    expect(invocation.args[invocation.args.indexOf("--speed") + 1]).toBe("1");
+    expect(invocation.args[invocation.args.indexOf("--model-dir") + 1]).toContain("models");
+    expect(invocation.env.CUSTOM).toBe("kept");
+    expect(invocation.env.HF_HUB_OFFLINE).toBe("1");
+    expect(invocation.env.HF_HUB_DISABLE_XET).toBe("1");
+    expect(invocation.env.PYTHONUNBUFFERED).toBe("1");
   });
 });
 
