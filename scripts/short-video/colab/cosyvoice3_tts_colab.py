@@ -62,6 +62,23 @@ def log(msg):
     print(msg, flush=True)
 
 
+def start_heartbeat(interval=30.0):
+    """Emit a line every 30s so long silent phases don't look like a dead VM.
+
+    `colab run --timeout 900` is an idle limit on stdout/stderr messages. pip
+    resolving torch and a 5.4GB cache download can each go quiet for minutes;
+    a heartbeat keeps the websocket from being torn down as idle.
+    """
+    import threading
+
+    def beat():
+        while True:
+            time.sleep(interval)
+            print(f"__COLAB_HEARTBEAT__ {time.strftime('%H:%M:%S')}", flush=True)
+
+    threading.Thread(target=beat, daemon=True).start()
+
+
 def run(cmd, **kwargs):
     log("$ " + " ".join(cmd))
     subprocess.run(cmd, check=True, **kwargs)
@@ -128,25 +145,48 @@ def _install_model_cache(archive):
     log(f"model cache hit: {archive} -> {root}")
 
 
+def _download_model_cache(url, dest):
+    """Download with visible progress.
+
+    A 5.4GB cache takes minutes; Colab's websocket (and any proxy in front of
+    it) drops an execution that stays silent, so the progress lines double as
+    keep-alives. `--timeout 900` is an idle limit, not a total budget.
+    """
+    last = {"mb": 0}
+
+    def report(blocks, block_size, total_size):
+        done = blocks * block_size
+        mb = int(done // (100 * 1024 * 1024))
+        if mb > last["mb"]:
+            last["mb"] = mb
+            total = f" / {total_size // (1024 * 1024)}MB" if total_size > 0 else ""
+            log(f"model cache download: {mb * 100}MB{total}")
+
+    # Operator-supplied staging URL; scheme and host presence are checked by the caller.
+    # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    urllib.request.urlretrieve(url, dest, reporthook=report)
+
+
 def try_model_cache():
     if model_ready():
         log(f"model already present: {MODEL_DIR}")
         return True
     if not MODEL_CACHE_URL and not MODEL_CACHE_GDRIVE_ID:
         return False
+    started = time.time()
     try:
         if MODEL_CACHE_URL:
             parsed = urllib.parse.urlparse(MODEL_CACHE_URL)
             if parsed.scheme not in ("https", "http") or not parsed.netloc:
                 raise ValueError("COSYVOICE3_COLAB_MODEL_CACHE_URL must be an http(s) URL")
             log(f"fetching model cache from URL: {MODEL_CACHE_URL}")
-            # Operator-supplied staging URL; scheme and host presence are checked above.
-            # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-            urllib.request.urlretrieve(MODEL_CACHE_URL, MODEL_CACHE_ARCHIVE)
+            _download_model_cache(MODEL_CACHE_URL, MODEL_CACHE_ARCHIVE)
         else:
             log(f"fetching model cache from Google Drive id: {MODEL_CACHE_GDRIVE_ID}")
             run([sys.executable, "-m", "gdown", "--id", MODEL_CACHE_GDRIVE_ID, "-O", MODEL_CACHE_ARCHIVE])
+        log(f"model cache archive ready: {os.path.getsize(MODEL_CACHE_ARCHIVE) / 1e9:.2f} GB")
         _install_model_cache(MODEL_CACHE_ARCHIVE)
+        log(f"model cache restored in {time.time() - started:.1f}s")
         return model_ready()
     except Exception as e:
         log(f"model cache miss: {e}; falling back to HuggingFace")
@@ -157,6 +197,7 @@ def main():
     os.makedirs(WORK_DIR, exist_ok=True)
     log("=== Colab CosyVoice3 CUDA batch TTS ===")
     log(f"python {sys.version.split()[0]}")
+    start_heartbeat()
 
     # ── deps (same set the Kaggle kernel froze, minus the wheelhouse) ──
     pip_install(["setuptools<81", "wheel", "Cython"])
