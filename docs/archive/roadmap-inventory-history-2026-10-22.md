@@ -1140,3 +1140,5 @@ Round CCXXII（2026-11-20）— `#1463` 死文案键清理：10 包删 49 处模
 ## Round CCLXIII 下沉（2026-11-28）
 
 - **Round CCLXII 盘点全段（原文）**：> **Last inventory**: 2026-11-28（**Round CCLXII：`#1566` TTS lane 账本**——run/session 两级 append-only JSONL + `tts-ledger` 查询 CLI，记录 provider/会话/批次/排队/加载/合成，取不到写 `unknown`；新增 16 例、相关 27 例全绿；真实 Kaggle P100 包 `deepseek-v41-flash-report` 6 scenes 402.9s、batch 2 复用、加载 46.0s、合成 75.7s。PR #1602，squash `88a963c9`。**无产出差异**（enabling fix）：成片字节/时间线/门禁裁决不变。frontier：1A 空、② 空（`#1472` 冻结）、③ `#1600`（P1 cron 公开 key，待人工）；1B 队首 `#1598`（P1 shell 边界），其后 `#1599`（P2 TTS PATH）；④ 空；A 段队首 `#1537`。）
+- **Round CCLIX 一句话档案（原文）**：**Round CCLIX**（`#1582` 音频解码/测量收敛 `FFMPEG_BIN`：`decodeToWavFile`/`realignAudioToTimeline`/`ffmpegMeasureCmd` 走 seam，ASS burn 不动；无 PATH 子进程真实 fixture decode OK、120ms 归位，Homebrew PATH 230/230；**无产出差异**；1B 队首 `#1586`）
+- **Roadmap ledger 回填（2026-11-28，Round CCLXIII）**：PR #1609（squash `03ece534`）：`#1598` shell 边界收口——short-video 生产模块统一 argv 或单一引用 seam，静态守卫禁止生产树 exec 插值；全量 7400 passed / 4 baseline，真实 hero.jpg 注入目录未落 PWNED；1B 队首移至 `#1599`。
