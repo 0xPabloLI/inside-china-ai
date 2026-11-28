@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { spawnSync } from "child_process";
+import { execFileSync } from "child_process";
 import { shellQuote } from "../lib/shell-quote.mjs";
 import { sh } from "../lib/shell.mjs";
 
@@ -29,22 +29,21 @@ describe("shellQuote", () => {
     const dir = mkdtempSync(join(tmpdir(), "shell-quote-319-"));
     const payload = `evil$(touch ${join(dir, "MARKER")})`;
 
-    const run = spawnSync("/bin/sh", ["-c", `printf %s ${shellQuote(payload)}`], {
+    const stdout = execFileSync("/bin/sh", ["-c", `printf %s ${shellQuote(payload)}`], {
       encoding: "utf8",
     });
 
-    expect(run.status).toBe(0);
-    expect(run.stdout).toBe(payload);
+    expect(stdout).toBe(payload);
     expect(existsSync(join(dir, "MARKER"))).toBe(false);
   });
 
   it("keeps a quoted value literal next to other arguments", () => {
-    const run = spawnSync(
+    const stdout = execFileSync(
       "/bin/sh",
       ["-c", `printf '%s|%s' ${shellQuote("a b")} ${shellQuote("$(echo hi)")}`],
       { encoding: "utf8" },
     );
-    expect(run.stdout).toBe("a b|$(echo hi)");
+    expect(stdout).toBe("a b|$(echo hi)");
   });
 
   // The four characters a naive double-quote escaper misses (#1598).
@@ -55,12 +54,10 @@ describe("shellQuote", () => {
     ["backslash", "a\\b"],
     ["semicolon", "a; rm -rf /"],
   ])("keeps %s literal in a real shell", (_label, value) => {
-    // nosemgrep: javascript.lang.security.audit.dangerous-spawn-shell.dangerous-spawn-shell
-    const run = spawnSync("/bin/sh", ["-c", `printf %s ${shellQuote(value)}`], {
+    const stdout = execFileSync("/bin/sh", ["-c", `printf %s ${shellQuote(value)}`], {
       encoding: "utf8",
     });
-    expect(run.status).toBe(0);
-    expect(run.stdout).toBe(value);
+    expect(stdout).toBe(value);
   });
 });
 
@@ -72,8 +69,9 @@ describe("sh tagged template", () => {
 
   it("keeps a value with a single quote literal through a real shell", () => {
     const value = "it's $(touch /tmp/pwned)";
-    const run = spawnSync("/bin/sh", ["-c", `printf %s ${sh`${value}`}`], { encoding: "utf8" });
-    expect(run.status).toBe(0);
-    expect(run.stdout).toBe(value);
+    const stdout = execFileSync("/bin/sh", ["-c", `printf %s ${sh`${value}`}`], {
+      encoding: "utf8",
+    });
+    expect(stdout).toBe(value);
   });
 });
