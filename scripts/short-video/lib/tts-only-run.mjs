@@ -18,6 +18,7 @@ import { join } from "path";
 import { readFreshRateReport, writeRateReport } from "./exchange-rates.mjs";
 import { normalizeSceneDataWithLiveRates } from "./normalize-currency.mjs";
 import { createRun, markRun, RUN_STATUS } from "./run-history.mjs";
+import { createSessionId, openTtsLedger, readTtsLedger } from "./tts/ledger.mjs";
 import { materializeRunAudio } from "./tts-run-materialize.mjs";
 
 /**
@@ -73,7 +74,13 @@ async function normalizeForTts({
  * @param {Array} options.scenes
  * @param {object} options.meta
  * @param {boolean} [options.withRun=false] - create and materialize a run
- * @param {string|null} [options.runId]
+ * @param {string} [options.runId=null]
+ * @param {string} [options.sessionId=null] - TTS session id; a batch driver
+ *   passes the one it created so N packs point at the same session (#1566)
+ * @param {number|null} [options.batchIndex=null]
+ * @param {boolean|null} [options.sessionReused=null]
+ * @param {object|null} [options.ledger=null] - an ``openTtsLedger`` handle;
+ *   when absent the run-level ledger is opened here (#1566)
  * @param {Function} options.generate - `generateTTS` (injectable)
  * @param {number|Date} [options.now]
  * @param {typeof fetch} [options.fetchImpl] - injectable for tests
@@ -88,14 +95,30 @@ export async function runTtsOnly({
   meta,
   withRun = false,
   runId = null,
+  sessionId = null,
+  batchIndex = null,
+  sessionReused = null,
+  ledger = null,
   generate,
   now = new Date(),
   fetchImpl,
   log = () => {},
   onRunCreated = () => {},
 }) {
+  const startedMs = Date.now();
   const cacheDir = join(root, "output", pipelineId, "audio");
   mkdirSync(cacheDir, { recursive: true });
+
+  // #1566: the ledger lives beside the pack's runs, not inside one, so the
+  // next run can still read what the previous session cost. A write failure
+  // is reported once and never aborts TTS.
+  const runLedger =
+    ledger ??
+    openTtsLedger({
+      dir: join(root, "output", pipelineId),
+      onError: (error) => log(`  ⚠️  TTS ledger write failed: ${error.message}`),
+    });
+  const ttsSessionId = sessionId ?? createSessionId({ provider: "tts" });
 
   const { run, cacheRatesFile } = resolveTtsRun({
     root,
@@ -116,9 +139,31 @@ export async function runTtsOnly({
     fetchImpl,
   });
 
-  const results = await generate(scenes, cacheDir, {
-    qualityGateOptions: { keyEntities: meta.keyEntities },
-  });
+  let results;
+  try {
+    results = await generate(scenes, cacheDir, {
+      qualityGateOptions: { keyEntities: meta.keyEntities },
+      // #1566: identity travels with the generation so the registry can write
+      // `run.start` / `run.end` without knowing which driver called it.
+      ledger: runLedger,
+      runId: run?.runId ?? null,
+      sessionId: ttsSessionId,
+      pipelineId,
+      contentDir,
+      batchIndex,
+      sessionReused,
+    });
+  } catch (error) {
+    runLedger.runFail({
+      runId: run?.runId ?? null,
+      sessionId: ttsSessionId,
+      pipelineId,
+      contentDir,
+      error: String(error?.message ?? error).split("\n")[0],
+      seconds: (Date.now() - startedMs) / 1000,
+    });
+    throw error;
+  }
 
   if (!run) {
     return { runId: null, runDir: null, results, materialized: null };
@@ -133,7 +178,7 @@ export async function runTtsOnly({
     runId: run.runId,
     status: RUN_STATUS.RUNNING,
     artifacts: { audioDir: "audio", timing: materialized.timing },
-    meta: { stage: "tts-only" },
+    meta: { stage: "tts-only", ttsSessionId },
   });
   return { runId: run.runId, runDir: run.dir, results, materialized };
 }
@@ -142,16 +187,45 @@ export async function runTtsOnly({
  * Record a failed run when the TTS step throws. Separate from `runTtsOnly` so
  * the CLI keeps main.mjs's exit-handler shape (`process.on("exit")`).
  */
-export function markTtsRunFailed({ root, pipelineId, runId, code, log = () => {} }) {
+export function markTtsRunFailed({
+  root,
+  pipelineId,
+  runId,
+  code,
+  sessionId = null,
+  log = () => {},
+}) {
   try {
     markRun({
       root,
       slug: pipelineId,
       runId,
       status: RUN_STATUS.FAILED,
-      meta: { stage: "tts-only", exitCode: code },
+      meta: {
+        stage: "tts-only",
+        exitCode: code,
+        ...(sessionId ? { ttsSessionId: sessionId } : {}),
+      },
     });
   } catch (error) {
     log(`  ⚠️  could not record failed run ${runId}: ${error.message}`);
   }
+  // #1566: a failed run is a fact the ledger must keep too — otherwise the
+  // next "what did this pack cost?" query silently drops the aborted attempt.
+  // `runTtsOnly` already records thrown failures; the exit hook only fills the
+  // gap for `process.exit(1)` paths that never reached its catch.
+  const ledgerFile = join(root, "output", pipelineId, "tts-ledger.jsonl");
+  const alreadyRecorded = readTtsLedger(ledgerFile).records.some(
+    (record) => record.event === "run.fail" && record.runId === runId,
+  );
+  if (alreadyRecorded) return;
+  openTtsLedger({
+    dir: join(root, "output", pipelineId),
+    onError: (error) => log(`  ⚠️  TTS ledger write failed: ${error.message}`),
+  }).runFail({
+    runId,
+    sessionId,
+    pipelineId,
+    error: `process exited with code ${code}`,
+  });
 }

@@ -21,7 +21,7 @@
  *   node scripts/short-video/tts-batch.mjs --content a --content b --content c
  *   TTS_ENGINE=cosyvoice3-kaggle-cuda node scripts/short-video/tts-batch.mjs --content a --content b
  */
-import { dirname } from "path";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -40,6 +40,7 @@ if (!process.env.TTS_KAGGLE_LIVE_IDLE_SEC) process.env.TTS_KAGGLE_LIVE_IDLE_SEC 
 
 const { selectEngine, generateTTSWithEngine } = await import("./lib/tts/registry.mjs");
 const { runTtsOnly, markTtsRunFailed } = await import("./lib/tts-only-run.mjs");
+const { createSessionId, openTtsLedger, SESSIONS_FILENAME } = await import("./lib/tts/ledger.mjs");
 
 console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
 console.log(`🎙️  TTS batch — ${contents.length} packs on one warm kernel`);
@@ -54,9 +55,21 @@ if (typeof engine.setBatchMode !== "function") {
   process.exit(1);
 }
 
+// #1566: one id for the whole lane. The session ledger lives beside the packs
+// (`output/tts-sessions.jsonl`) because a session spans packs, not runs.
+const sessionId = createSessionId({ provider: engine.name ?? "tts" });
+const sessionLedger = openTtsLedger({
+  dir: join(__dirname, "output"),
+  file: SESSIONS_FILENAME,
+  onError: (error) => console.warn(`  ⚠️  TTS session ledger write failed: ${error.message}`),
+});
+console.log(`🧾 TTS session ${sessionId} — ${engine.name}`);
+
 const { summary, ok } = await runTtsBatch({
   contents,
   engine,
+  sessionId,
+  sessionLedger,
   loadPack: async (contentDir) => {
     const meta = (await import(`./content/${contentDir}/meta.mjs`)).meta;
     const scenes = (await import(`./content/${contentDir}/scene-data.mjs`)).scenes;
@@ -71,6 +84,9 @@ const { summary, ok } = await runTtsBatch({
       scenes: pack.scenes,
       meta: pack.meta,
       withRun: true,
+      sessionId: pack.sessionId,
+      batchIndex: pack.batchIndex,
+      sessionReused: pack.sessionReused,
       generate: (scenesArg, cacheDir, options) =>
         generateTTSWithEngine(scenesArg, cacheDir, engine, {
           ...options,
@@ -81,7 +97,7 @@ const { summary, ok } = await runTtsBatch({
     }),
   onPackFailed: ({ pipelineId, runId }) => {
     if (!runId) return;
-    markTtsRunFailed({ root: __dirname, pipelineId, runId, code: 1 });
+    markTtsRunFailed({ root: __dirname, pipelineId, runId, code: 1, sessionId });
   },
   log: (line) => console.log(line),
   warn: (line) => console.warn(line),

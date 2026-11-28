@@ -2094,6 +2094,12 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
   /** @type {null | {kernelId:string, requestId:string, control:object, stream:object, tempDir:string, nextBatch:number}} */
   let liveSession = null;
   /**
+   * #1566: what the last generate() actually rode — provider identity, kernel,
+   * batch number, cold vs reused, model-load seconds. Read once by the ledger;
+   * a run with no session leaves it null instead of inventing a kernel id.
+   */
+  let lastTelemetry = null;
+  /**
    * #1528 batch mode: a driver serving several videos sets `reuseLiveSession`
    * before each pack after the first, so a different `outputDir` (different
    * content id) still rides the warm kernel instead of pushing a new one.
@@ -2161,7 +2167,16 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
           resample: true,
           prosody,
         });
-        finalResults.push({ sceneId: s.sceneId, audioPath: destPath, duration });
+        // #1566: the kernel already measured synthesis (`genTime`) and RTF;
+        // carrying them through is what lets the ledger separate synth from
+        // queue/load instead of reporting one opaque batch wall.
+        finalResults.push({
+          sceneId: s.sceneId,
+          audioPath: destPath,
+          duration,
+          ...(Number.isFinite(s.genTime) ? { genTime: s.genTime } : {}),
+          ...(Number.isFinite(s.rtf) ? { rtf: s.rtf } : {}),
+        });
         console.log(`  Scene ${s.sceneId}: ${duration.toFixed(2)}s`);
       }
     } finally {
@@ -2309,6 +2324,15 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       }
     },
 
+    /**
+     * #1566: provider facts for the TTS lane ledger — which kernel served the
+     * last batch, cold or reused, which batch number, model-load seconds.
+     * Null when the last call never reached a kernel (availability failure).
+     */
+    getSessionTelemetry() {
+      return lastTelemetry;
+    },
+
     async generate(scenes, outputDir, hooks = {}) {
       // Kernel slug resolved per call (#267): env override > content-id
       // derivation (output/<pipelineId>/audio) > fail-fast. Never a shared
@@ -2325,6 +2349,18 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
       // #1528: a batch driver reuses the warm session across videos even though
       // each pack has its own content id / outputDir.
       if (liveSession && (liveSession.kernelId === kernelId || batchFlags.reuseLiveSession)) {
+        // #1566: a reused session reports the batch it served, not the pack's
+        // own id — the ledger must be able to show "N packs, one kernel".
+        lastTelemetry = {
+          kernelId: liveSession.kernelId,
+          requestId: liveSession.requestId,
+          batchIndex: liveSession.nextBatch,
+          sessionReused: true,
+          // The load was paid once, by the cold batch; a reused pack must not
+          // claim it as its own cost.
+          loadSec: null,
+          sessionLoadSec: liveSession.loadSec ?? null,
+        };
         return generateLiveRetry(scenes, outputDir, hooks);
       }
 
@@ -2526,6 +2562,8 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
             stream,
             tempDir,
             nextBatch: 2,
+            // #1566: the stream saw the kernel's own "Loaded in <seconds>s".
+            loadSec: stream.getLoadedInSec?.() ?? null,
           };
           console.log("  ✓ [TTS Live] batch 1 received over the log stream — kernel kept alive");
         } catch (err) {
@@ -2627,6 +2665,16 @@ export async function createCosyVoice3KaggleCudaEngine(deps = {}) {
         // kernel was told to stop, so there is nothing left to reuse.
         console.warn("  ⚠️ [TTS Live] classic recovery completed; live session is closed");
       }
+      // #1566: cold-path identity. Live batch 1 carries its model-load number;
+      // classic collection has no stream, so load stays null (= unknown).
+      lastTelemetry = {
+        kernelId,
+        requestId,
+        batchIndex: 1,
+        sessionReused: false,
+        loadSec: liveSession?.loadSec ?? null,
+        sessionLoadSec: liveSession?.loadSec ?? null,
+      };
       return finalResults;
     },
   };
